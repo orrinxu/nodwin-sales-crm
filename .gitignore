@@ -24,3 +24,7 @@ npm-debug.log*
 # Supabase local
 supabase/.branches
 supabase/.temp
+
+# SSH keys
+github_ssh
+github_ssh.pub
