@@ -7,7 +7,7 @@
 
 BEGIN;
 
-SELECT plan(2);
+SELECT plan(3);
 
 -- ── Fixture: ensure seed rows exist in the test snapshot ─────────────────────
 
@@ -18,6 +18,24 @@ INSERT INTO public.auth_allowed_domains (domain) VALUES
   ('trinitygaming.in'),
   ('maxlevel.gg')
 ON CONFLICT (domain) DO NOTHING;
+
+-- Seed a throwaway authenticated user so tests.as_user() can switch context.
+-- All inserts here are rolled back at ROLLBACK; nothing persists.
+INSERT INTO auth.users (
+  instance_id, id, email,
+  raw_app_meta_data, raw_user_meta_data,
+  created_at, updated_at,
+  aud, role, encrypted_password, email_confirmed_at
+) VALUES (
+  '00000000-0000-0000-0000-000000000000',
+  gen_random_uuid(),
+  'testuser@example.com',
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{}'::jsonb,
+  now(), now(),
+  'authenticated', 'authenticated',
+  '', now()
+) ON CONFLICT DO NOTHING;
 
 -- ── 1. service_role can SELECT rows ──────────────────────────────────────────
 -- service_role bypasses RLS by default in Supabase; this test confirms
@@ -36,6 +54,16 @@ SELECT tests.assert_cannot_select(
   'auth_allowed_domains',
   'true',
   'anon cannot SELECT from auth_allowed_domains'
+);
+
+-- ── 3. authenticated user cannot SELECT any rows ──────────────────────────────
+-- No SELECT policy exists for authenticated; RLS must block all rows silently.
+-- This verifies a logged-in user cannot enumerate permitted domains.
+SELECT tests.as_user('testuser@example.com');
+SELECT tests.assert_cannot_select(
+  'auth_allowed_domains',
+  'true',
+  'authenticated user cannot SELECT from auth_allowed_domains'
 );
 
 SELECT * FROM finish();
