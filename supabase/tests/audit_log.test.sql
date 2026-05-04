@@ -7,7 +7,7 @@
 
 BEGIN;
 
-SELECT plan(15);
+SELECT plan(19);
 
 -- ── Fixture: throwaway table with the audit trigger attached ──────────────────
 -- The temp table is automatically dropped on ROLLBACK/session end.
@@ -183,6 +183,47 @@ SELECT ok(
    ORDER BY occurred_at DESC LIMIT 1) IS NOT NULL,
   'audit entry occurred_at is populated'
 );
+
+-- ── RLS denial tests ──────────────────────────────────────────────────────────
+-- Verify that authenticated and anon roles cannot directly read/write audit_log.
+-- The SECURITY DEFINER trigger path bypasses RLS, so these tests cover the direct
+-- access path that the trigger does NOT exercise.
+
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$INSERT INTO public.audit_log (action, table_name, row_id) VALUES ('INSERT','foo','1')$$,
+  '42501',
+  'new row violates row-level security policy for table "audit_log"',
+  'authenticated role cannot directly INSERT into audit_log'
+);
+
+SELECT throws_ok(
+  $$SELECT * FROM public.audit_log LIMIT 1$$,
+  '42501',
+  NULL,
+  'authenticated role cannot directly SELECT from audit_log'
+);
+
+RESET ROLE;
+
+SET LOCAL ROLE anon;
+
+SELECT throws_ok(
+  $$INSERT INTO public.audit_log (action, table_name, row_id) VALUES ('INSERT','foo','1')$$,
+  '42501',
+  NULL,
+  'anon role cannot directly INSERT into audit_log'
+);
+
+SELECT throws_ok(
+  $$SELECT * FROM public.audit_log LIMIT 1$$,
+  '42501',
+  NULL,
+  'anon role cannot directly SELECT from audit_log'
+);
+
+RESET ROLE;
 
 SELECT * FROM finish();
 
