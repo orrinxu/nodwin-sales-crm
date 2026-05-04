@@ -17,6 +17,7 @@ function matchesAiPattern(str) {
   return AI_API_PATTERNS.some(p => p.test(lower));
 }
 
+/** @type {import('eslint').Rule.RuleModule} */
 export const rule = {
   meta: {
     type: "problem",
