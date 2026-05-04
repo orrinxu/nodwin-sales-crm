@@ -1,6 +1,6 @@
+/* eslint-disable @typescript-eslint/no-require-imports, node/no-process-exit */
 const { rules } = require('./eslint-rules.mjs');
 const { Linter } = require('eslint');
-const path = require('path');
 
 const linter = new Linter({
   rules: {
