@@ -78,10 +78,11 @@ jobs:
         timeout-minutes: 10
 
       - name: Run RLS tests (placeholder)
-        run: |
-          echo "RLS test runner placeholder (T-017 in progress)"
-          echo "Running: pnpm db:test || true"
-          pnpm db:test || true
+        # TODO: Replace with actual RLS test runner when built (T-017)
+        # Seed data: supabase/seed/seed-test-data.sql was deleted because
+        # Phase 2 migrations (T-019 through T-035) don't exist yet.
+        # Recreate the seed file and re-enable seeding as part of T-035.
+        run: echo "RLS test runner placeholder (T-017 / T-035 in progress)"
 
       - name: Build
         run: pnpm build
