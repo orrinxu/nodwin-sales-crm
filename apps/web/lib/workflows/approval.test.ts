@@ -12,7 +12,7 @@ import {
 describe("Approval State Machine", () => {
   describe("Happy Path - Sequential Approval", () => {
     it("should approve step 1 and move to step 2, then approve step 2 to reach approved", () => {
-      const actor = createActor(approvalMachine).start()
+      const actor = createActor(approvalMachine, { input: initialContext }).start()
 
       expect(actor.getSnapshot().value).toBe("pending")
       expect(actor.getSnapshot().context.currentStepIndex).toBe(0)
@@ -30,7 +30,7 @@ describe("Approval State Machine", () => {
 
   describe("Rejection at Step 2", () => {
     it("should reject when step 2 is rejected", () => {
-      const actor = createActor(approvalMachine).start()
+      const actor = createActor(approvalMachine, { input: initialContext }).start()
       actor.send({ type: "APPROVE_STEP", stepId: 1 })
       actor.send({ type: "REJECT_STEP", stepId: 2, reason: "Budget too high" })
 
@@ -101,7 +101,7 @@ describe("Approval State Machine", () => {
 
   describe("Illegal Transitions - Cannot Bypass", () => {
     it("should not allow skipping from pending directly to approved — ends in skipped", () => {
-      const actor = createActor(approvalMachine).start()
+      const actor = createActor(approvalMachine, { input: initialContext }).start()
       actor.send({ type: "SKIP_STEP", stepId: 1 })
       expect(actor.getSnapshot().value).toBe("skipped")
     })

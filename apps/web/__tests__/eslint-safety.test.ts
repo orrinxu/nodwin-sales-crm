@@ -5,7 +5,7 @@ describe("ESLint Safety Rules", () => {
   let eslint: ESLint;
 
   beforeAll(async () => {
-    const customPlugin = (await import("file:///home/orrin/nodwin-sales-crm/apps/web/eslint-plugin-custom/index.js")).plugin;
+    const customPlugin = (await import("../eslint-plugin-custom/index.js")).plugin;
     eslint = new ESLint({
       overrideConfigFile: true,
       overrideConfig: [{
