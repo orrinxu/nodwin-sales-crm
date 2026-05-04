@@ -192,9 +192,10 @@ The board may also configure Paperclip to require approval before any change to 
 
 1. Read the ticket in full.
 2. Read this file. (Yes, every session.)
-3. Skim `BUILD_TICKETS.md` to see what came before and what comes after — context matters.
-4. If the ticket touches a high-risk file (§6), say so up front in your first message on the ticket.
-5. If anything is ambiguous, ask the board before coding. Ambiguity is not your call to resolve.
+3. **Read the full ticket entry in `BUILD_TICKETS.md`** — find the `### T-NNN` heading and read every field: Acceptance criteria, Files in scope, Dependencies, Notes. Do this before writing a single line of code or asking anyone a question. The wake-payload summary is *not* the ticket; `BUILD_TICKETS.md` is the canonical source of ticket detail.
+4. **Do not ask the board for context that is already in `BUILD_TICKETS.md`.** If you find something genuinely missing, quote the specific section you checked and explain what it doesn't cover. Escalating for documented context wastes turns and costs budget.
+5. If the ticket touches a high-risk file (§6), say so up front in your first message on the ticket.
+6. If something is genuinely ambiguous after reading `BUILD_TICKETS.md`, `AGENTS.md`, and the SOW, ask the board. Undocumented gaps are your signal to escalate; documented context is not.
 
 ### 7.2 While coding
 
