@@ -2,19 +2,17 @@ import "server-only"
 import { verifyPostmarkWebhook } from "@/lib/webhooks/postmark"
 import { WebhookVerificationError } from "@/lib/webhooks/verify"
 import { parseInboundEmail, type PostmarkInboundPayload } from "@/lib/email/inbound"
+import { env } from "@/lib/env"
 
 export async function POST(request: Request) {
   try {
-    const webhookSecret = process.env.POSTMARK_WEBHOOK_SECRET
+    const webhookSecret = env.POSTMARK_WEBHOOK_SECRET
     if (!webhookSecret) {
       return Response.json({ error: "POSTMARK_WEBHOOK_SECRET not configured" }, { status: 500 })
     }
 
     const body = await request.text()
-    const headers: Record<string, string> = {}
-    request.headers.forEach((value, key) => {
-      headers[key] = value
-    })
+    const headers = Object.fromEntries(request.headers.entries())
 
     // Signature verification (T-009): throws WebhookVerificationError on failure
     const { payload } = verifyPostmarkWebhook(headers, body, webhookSecret)
