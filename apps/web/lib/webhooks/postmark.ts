@@ -1,27 +1,29 @@
 import "server-only"
-import { createHmac, timingSafeEqual } from "node:crypto"
+import { timingSafeEqual } from "node:crypto"
 import { WebhookVerificationError } from "./verify"
 import type { PostmarkInboundPayload } from "@/lib/email/inbound"
 
-// Postmark sends the HMAC-SHA256 signature of the raw body in this header.
-const SIG_HEADER = "x-postmark-signature"
+// Postmark does not HMAC-sign webhook requests. Authentication is via a static
+// token sent as a custom header, configured in Postmark → Server → Webhooks →
+// HttpHeaders (field: "X-Postmark-Webhook-Secret").
+// https://postmarkapp.com/developer/api/webhooks-api
+const TOKEN_HEADER = "x-postmark-webhook-secret"
 
 export function verifyPostmarkWebhook(
   headers: Record<string, string>,
   body: string,
   secret: string,
 ): { payload: PostmarkInboundPayload } {
-  const signature = headers[SIG_HEADER]
-  if (!signature) {
-    throw new WebhookVerificationError("Missing x-postmark-signature header")
+  const token = headers[TOKEN_HEADER]
+  if (!token) {
+    throw new WebhookVerificationError(`Missing ${TOKEN_HEADER} header`)
   }
 
-  const expected = createHmac("sha256", secret).update(body).digest("base64")
-  const sigBuf = Buffer.from(signature, "base64")
-  const expBuf = Buffer.from(expected, "base64")
+  const secretBuf = Buffer.from(secret, "utf8")
+  const tokenBuf = Buffer.from(token, "utf8")
 
-  if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
-    throw new WebhookVerificationError("Postmark webhook signature mismatch")
+  if (secretBuf.length !== tokenBuf.length || !timingSafeEqual(secretBuf, tokenBuf)) {
+    throw new WebhookVerificationError("Postmark webhook token mismatch")
   }
 
   let payload: PostmarkInboundPayload
