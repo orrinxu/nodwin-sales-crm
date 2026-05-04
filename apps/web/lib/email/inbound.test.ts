@@ -13,7 +13,7 @@ import {
 // Test fixtures
 // ---------------------------------------------------------------------------
 
-const INBOUND_TOKEN = "abc123def456"
+const INBOUND_TOKEN = "crm-test-inbound-token"
 const CRM_ADDRESS = `${INBOUND_TOKEN}@crm.nodwin.com`
 const USER_EMAIL = "alice@example.com"
 const MSG_ID = "<msg-001@mail.example.com>"
