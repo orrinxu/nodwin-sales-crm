@@ -1,0 +1,48 @@
+# Gitleaks Configuration - Nodwin Sales CRM
+
+title = "Nodwin Sales CRM Gitleaks Config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "nodwin-api-keys"
+description = "Nodwin API keys"
+patterns = [
+    { pattern = "(?:nodwin_?api[_-]?key|nodwin_secret)[\"']?\\s*[:=]\\s*[\"']([A-Za-z0-9_-]{24,})[\"']", severity = "HIGH" }
+]
+
+[[rules]]
+id = "supabase-keys"
+description = "Supabase keys"
+patterns = [
+    { pattern = "(?:supabase_?url|supabase_?anon_?key|supabase_?service_?role_?key)[\"']?\\s*[:=]\\s*[\"']([A-Za-z0-9_-]{20,})[\"']", severity = "HIGH" }
+]
+
+[[rules]]
+id = "slack-webhook"
+description = "Slack webhooks"
+patterns = [
+    { pattern = "https://hooks\\.slack\\.com/services/[A-Za-z0-9_-]+", severity = "MEDIUM" }
+]
+
+[[rules]]
+id = "postmark-webhook"
+description = "Postmark webhooks"
+patterns = [
+    { pattern = "https://api\\.postmarkapp\\.com/webhook/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}", severity = "MEDIUM" }
+]
+
+[[rules]]
+id = "google-api-key"
+description = "Google API keys"
+patterns = [
+    { pattern = "AIza[A-Za-z0-9_-]{35}", severity = "HIGH" }
+]
+
+[[rules]]
+id = "google-service-account"
+description = "Google service account private keys"
+patterns = [
+    { pattern = "-----BEGIN RSA PRIVATE KEY-----", severity = "HIGH" }
+]
