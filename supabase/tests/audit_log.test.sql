@@ -198,10 +198,9 @@ SELECT throws_ok(
   'authenticated role cannot directly INSERT into audit_log'
 );
 
-SELECT throws_ok(
-  $$SELECT * FROM public.audit_log LIMIT 1$$,
-  '42501',
-  NULL,
+SELECT tests.assert_cannot_select(
+  'audit_log',
+  'true',
   'authenticated role cannot directly SELECT from audit_log'
 );
 
@@ -216,10 +215,9 @@ SELECT throws_ok(
   'anon role cannot directly INSERT into audit_log'
 );
 
-SELECT throws_ok(
-  $$SELECT * FROM public.audit_log LIMIT 1$$,
-  '42501',
-  NULL,
+SELECT tests.assert_cannot_select(
+  'audit_log',
+  'true',
   'anon role cannot directly SELECT from audit_log'
 );
 
