@@ -290,7 +290,7 @@ describe("handleInboundEmail — account matching", () => {
     await handleInboundEmail(payload, db)
     // crm.nodwin.com should never be queried
     const calls = (db.getAccountsByEmailDomain as ReturnType<typeof vi.fn>).mock.calls
-    expect(calls.every(([d]: [string]) => !d.includes("nodwin.com"))).toBe(true)
+    expect(calls.every(([d]) => !d.includes("nodwin.com"))).toBe(true)
   })
 
   it("deduplicates recipients from same domain before querying", async () => {
@@ -302,7 +302,7 @@ describe("handleInboundEmail — account matching", () => {
     })
     await handleInboundEmail(payload, db)
     const calls = (db.getAccountsByEmailDomain as ReturnType<typeof vi.fn>).mock.calls
-    const domains = calls.map(([d]: [string]) => d)
+    const domains = calls.map(([d]) => d)
     // Should only query acme.com once despite two recipients
     expect(domains.filter((d: string) => d === "acme.com").length).toBe(1)
   })

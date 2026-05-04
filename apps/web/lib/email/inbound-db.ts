@@ -56,7 +56,7 @@ export function createSupabaseInboundDb(): InboundEmailDb {
         .contains("email_domains", [domain])
 
       if (error || !data) return []
-      return data.map((row) => ({ id: row.id as string, name: row.name as string }))
+      return data.map((row: { id: string; name: string }) => ({ id: row.id, name: row.name }))
     },
 
     async getOpportunityForUser(
