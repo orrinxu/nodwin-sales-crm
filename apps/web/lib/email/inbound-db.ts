@@ -1,5 +1,6 @@
 import "server-only"
 import { createServerClient } from "@supabase/ssr"
+import { env } from "@/lib/security/env"
 import type {
   InboundEmailDb,
   InboundEmailUser,
@@ -24,12 +25,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 function createServiceClient() {
-  const url = process.env.SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) {
-    throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required")
-  }
-  return createServerClient(url, key, {
+  return createServerClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     cookies: { getAll: () => [], setAll: () => {} },
   })
 }
