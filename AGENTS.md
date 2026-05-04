@@ -256,6 +256,10 @@ All four must pass. If any fails, fix it before opening the PR. If a failure is 
 - If you write a comment explaining why something looks weird, also leave a note for whether it can be cleaned up later or whether it's load-bearing weirdness.
 - Do not write apologetic or hedging comments ("I think this works", "not sure if this is right"). If you're not sure, ask the board.
 
+### 7.7 Data-layer source parameter
+
+Every function in `lib/data/` accepts an explicit `{ user, source }` parameter and passes both to audit logging. The `source` value is one of: `'web' | 'mcp' | 'webhook' | 'system'`. RLS uses `user` for permission checks. Rate limiting and audit context use `source` to distinguish the call origin. Functions that omit either parameter must be flagged in code review and rejected.
+
 ---
 
 ## 8. How to handle ambiguity
