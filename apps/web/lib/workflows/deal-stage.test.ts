@@ -94,7 +94,7 @@ describe("DealStage constants and helpers", () => {
     expect(getNextStage("propose")).toBe("negotiate")
     expect(getNextStage("negotiate")).toBe("verbal_agreement")
     expect(getNextStage("verbal_agreement")).toBe("closed_won")
-    expect(getNextStage("closed_won")).toBe("closed_lost")
+    expect(getNextStage("closed_won")).toBeUndefined()
   })
 
   it("getNextStage should return undefined for the last stage", () => {

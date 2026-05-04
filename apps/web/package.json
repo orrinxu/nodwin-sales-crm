@@ -13,13 +13,10 @@
   },
   "dependencies": {
     "@base-ui/react": "1.4.1",
-    "@slack/bolt": "^4.7.2",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
-    "dinero.js": "^2.0.2",
     "lucide-react": "1.14.0",
     "next": "16.2.4",
-    "pino": "^10.3.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "shadcn": "4.6.0",

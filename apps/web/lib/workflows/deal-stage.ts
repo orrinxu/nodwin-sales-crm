@@ -38,6 +38,7 @@ export function isTerminalStage(stage: DealStage): boolean {
 export function getNextStage(
   stage: DealStage,
 ): DealStage | undefined {
+  if (isTerminalStage(stage)) return undefined
   const nextIndex = STAGE_ORDER[stage] + 1
   return nextIndex < DEAL_STAGES.length ? DEAL_STAGES[nextIndex] : undefined
 }
