@@ -37,7 +37,8 @@ export type PostmarkInboundPayload = {
   ReplyTo: string
   Headers: Array<{ Name: string; Value: string }>
   Attachments: PostmarkAttachment[]
-  // Postmark DKIM verification result: "Pass", "Fail", "None", etc.
+  // Postmark DKIM verification result field. Possible values: "Pass", "Fail", "None", "SkippedSigning".
+  // Note: Postmark sends this as "Dkim" — the acceptance criteria's "DKIMVerified" was a misnomer.
   Dkim: string
   SpfVerdict?: { Status: string }
 }

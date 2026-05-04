@@ -141,6 +141,10 @@ describe("parseInboundEmail — DKIM flag", () => {
   it("sets dkimVerified false when Dkim is 'None'", () => {
     expect(parseInboundEmail(makePayload({ Dkim: "None" })).dkimVerified).toBe(false)
   })
+
+  it("sets dkimVerified false when Dkim is 'SkippedSigning'", () => {
+    expect(parseInboundEmail(makePayload({ Dkim: "SkippedSigning" })).dkimVerified).toBe(false)
+  })
 })
 
 describe("parseInboundEmail — opportunityRef extraction", () => {
