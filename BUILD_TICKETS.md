@@ -42,8 +42,9 @@ If a ticket touches a high-risk file (`AGENTS.md` §6), approval level is at min
 | 7. Dashboards | T-098 to T-108 | 2 |
 | 8. Migration and UAT | T-109 to T-118 | 2 |
 | 9. Hardening and audit | T-119 to T-126 | 2 |
+| 9.5. MCP Server *(deferred — blocked until East Asia stability gate)* | T-127 to T-135 | TBD |
 
-Total: roughly 126 tickets across 21 weeks. Realistic timeline accounting for rework, security findings, and surprises: 22–24 weeks before East Asia parallel run.
+Total: roughly 126 tickets across 21 weeks to East Asia parallel run. Phase 9.5 (T-127–T-135) is deferred and does not count toward the v1 timeline. Realistic timeline to East Asia go-live: 22–24 weeks.
 
 ---
 
@@ -989,13 +990,144 @@ Each integration is its own focused mini-phase. Integrations are higher-risk tha
 
 ---
 
-## What comes after T-126
+# Phase 9.5 — MCP Server
 
-Phase 9 ends with East Asia going live in parallel with Salesforce. After 4-8 weeks of stable parallel run, full cutover.
+> **BLOCKED AND DEFERRED.** Do not start any ticket in this phase. No agent should pick up these tickets.
+>
+> **Trigger condition to unblock:** East Asia has been on parallel-run with Salesforce for at least 4 weeks with stable usage and no Critical or High security findings outstanding from the Phase 9 audit. The board will explicitly unblock this phase when the condition is met.
+
+**Goal:** Expose CRM read and write operations to AI agent tools (NanoClaw, Claude Desktop, Cursor, Cowork, and any future MCP-speaking client) via a Model Context Protocol server, scoped to the authenticated user's RLS-enforced view of the data.
+
+Detailed acceptance criteria for all tickets in this phase are deliberately deferred — they will be written when the phase is unblocked, based on what we learn from real East Asia usage patterns.
+
+**Approval level for all Phase 9.5 PRs:** `board` (MCP surface is security-critical).
+
+---
+
+### T-127 — MCP server scaffold and authentication
+
+- **Phase:** MCP Server
+- **Depends on:** T-126
+- **Status:** BLOCKED — deferred until East Asia stability gate (see Phase 9.5 header)
+- **Size:** L
+- **Files in scope:** `lib/mcp/server.ts`, `lib/mcp/auth.ts`, `app/api/mcp/route.ts`, `lib/mcp/types.ts`
+- **Approval:** `board`
+- **Acceptance:** *(deferred — to be written when phase is unblocked)*
+- **Notes:** Scaffold a TypeScript MCP server (JSON-RPC over HTTP or stdio). Auth must issue per-user session tokens that are tied to the Supabase JWT; all downstream calls use the user's RLS context, not service-role. No tool is exposed to an unauthenticated caller under any circumstances.
+
+---
+
+### T-128 — MCP read: search (accounts, contacts, opportunities)
+
+- **Phase:** MCP Server
+- **Depends on:** T-127
+- **Status:** BLOCKED — deferred
+- **Size:** M
+- **Files in scope:** `lib/mcp/tools/search.ts`, `lib/data/search.ts`
+- **Approval:** `board`
+- **Acceptance:** *(deferred)*
+- **Notes:** `search` tool accepts a query string and returns ranked results across accounts, contacts, and opportunities visible to the calling user (RLS-enforced). Results must not leak records the user cannot see via the web UI.
+
+---
+
+### T-129 — MCP read: get account, get contact, get opportunity
+
+- **Phase:** MCP Server
+- **Depends on:** T-127
+- **Status:** BLOCKED — deferred
+- **Size:** M
+- **Files in scope:** `lib/mcp/tools/get-record.ts`, `lib/data/accounts.ts`, `lib/data/contacts.ts`, `lib/data/opportunities.ts`
+- **Approval:** `board`
+- **Acceptance:** *(deferred)*
+- **Notes:** Three get-by-id tools. Each must enforce RLS (no direct Supabase service-role fetches). Return 404-equivalent tool error for records the user cannot see, not a permission error — do not confirm existence of invisible records.
+
+---
+
+### T-130 — MCP read: list my activities, list my pipeline
+
+- **Phase:** MCP Server
+- **Depends on:** T-127
+- **Status:** BLOCKED — deferred
+- **Size:** S
+- **Files in scope:** `lib/mcp/tools/list-activities.ts`, `lib/mcp/tools/list-pipeline.ts`, `lib/data/activities.ts`
+- **Approval:** `board`
+- **Acceptance:** *(deferred)*
+- **Notes:** `list_my_activities` returns activities owned by or assigned to the calling user. `list_my_pipeline` returns opportunities where the user is owner or team member. Both are RLS-scoped; pagination required.
+
+---
+
+### T-131 — MCP write: create note, create task, create activity
+
+- **Phase:** MCP Server
+- **Depends on:** T-127, T-134
+- **Status:** BLOCKED — deferred
+- **Size:** M
+- **Files in scope:** `lib/mcp/tools/create-activity.ts`, `lib/data/activities.ts`
+- **Approval:** `board`
+- **Acceptance:** *(deferred)*
+- **Notes:** Writes must go through `lib/data/` functions (never raw Supabase from tool handlers). Must pass `{ user, source: 'mcp' }` to audit logging. Must enforce that the target opportunity/account is visible to the calling user before writing.
+
+---
+
+### T-132 — MCP write: advance opportunity stage
+
+- **Phase:** MCP Server
+- **Depends on:** T-127, T-134
+- **Status:** BLOCKED — deferred
+- **Size:** M
+- **Files in scope:** `lib/mcp/tools/advance-stage.ts`, `lib/data/opportunities.ts`
+- **Approval:** `board`
+- **Acceptance:** *(deferred)*
+- **Notes:** Must use the same XState stage machine from T-016 — no direct stage updates that bypass the machine. Must enforce RLS write permission. Stage advance via MCP must be audited with `source='mcp'`. If an approval workflow is configured and `enforce_gate = true`, the tool must respect it (cannot advance without approval, same as the web UI).
+
+---
+
+### T-133 — MCP rate limiting (separate from web rate limits)
+
+- **Phase:** MCP Server
+- **Depends on:** T-127
+- **Status:** BLOCKED — deferred
+- **Size:** S
+- **Files in scope:** `lib/mcp/rate-limit.ts`
+- **Approval:** `board`
+- **Acceptance:** *(deferred)*
+- **Notes:** MCP endpoints must have their own rate limit buckets, independent of web UI rate limits (T-012). AI agent tools can issue bursts that are qualitatively different from human interaction rates. Define per-user per-minute limits for read and write tools separately. Returns a structured MCP error (not HTTP 429) when the limit is exceeded.
+
+---
+
+### T-134 — MCP audit logging (source = 'mcp')
+
+- **Phase:** MCP Server
+- **Depends on:** T-127
+- **Status:** BLOCKED — deferred
+- **Size:** S
+- **Files in scope:** `lib/mcp/audit.ts`, `lib/security/audit.ts`
+- **Approval:** `board`
+- **Acceptance:** *(deferred)*
+- **Notes:** Every MCP-initiated write must emit an audit log entry with `source = 'mcp'`, the calling user, the tool name, the target record, and the before/after diff. This uses the same `audit()` primitive from T-013 but adds the `source` field. Read operations should be logged at DEBUG level only; write operations are INFO. The audit log must be queryable by source to let admins see "what did the MCP server do?"
+
+---
+
+### T-135 — MCP security review gate (pre-go-live)
+
+- **Phase:** MCP Server
+- **Depends on:** T-127, T-128, T-129, T-130, T-131, T-132, T-133, T-134
+- **Status:** BLOCKED — deferred
+- **Size:** M
+- **Files in scope:** review only — no new code
+- **Approval:** `board`
+- **Acceptance:** *(deferred)*
+- **Notes:** Before the MCP server is exposed to any production traffic, a focused security review of the entire MCP surface is required. Scope: authentication token lifecycle, RLS enforcement on all tools, rate limit bypass paths, audit completeness, and any tool that could be used to exfiltrate data at scale. This is a board-gate: MCP does not go live until this ticket is done and signed off.
+
+---
+
+## What comes after T-135
+
+Phase 9.5 ends with the MCP server reviewed and live. After that:
 
 The next phases (not detailed here, will be added once v1 is stable):
 
-- **Phase 10:** Region rollout — India, MENA, EU, JPKR, Americas (T-127 onward)
+- **Phase 10:** Region rollout — India, MENA, EU, JPKR, Americas (T-136 onward)
 - **Phase 11:** v1.5 features (margin-at-risk dashboard, bulk operations, saved views, advanced reporting)
 - **Phase 12:** Multi-region read replicas, performance hardening at 500+ users
 
