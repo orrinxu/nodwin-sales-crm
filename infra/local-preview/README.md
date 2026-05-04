@@ -21,13 +21,15 @@ cd /path/to/nodwin-sales-crm
 ### 2. Configure the environment
 
 ```bash
-cp infra/local-preview/.env.local-preview.example infra/local-preview/.env.local-preview
+cp infra/local-preview/.env.local-preview.example .env.local
 ```
 
-Edit `infra/local-preview/.env.local-preview` and fill in:
+Edit `.env.local` (in the repo root) and fill in:
 
 - `SUPABASE_ANON_KEY` — find this in Supabase Studio > Settings > API
 - `SUPABASE_SERVICE_ROLE_KEY` — keep this secret, never commit it
+
+> **Why `.env.local` in the repo root?** Next.js only loads env files from the repo root (or `apps/web/`). A file under `infra/local-preview/` is never read by Next.js, so your Supabase credentials would be silently ignored.
 
 ### 3. Update the PM2 ecosystem config path
 
