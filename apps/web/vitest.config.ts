@@ -12,7 +12,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      // tsconfig paths: "@/*" -> "./*" (app root, not ./src)
+      "@": path.resolve(__dirname, "."),
+      // server-only is a Next.js guard; stub it out in the test environment
+      "server-only": path.resolve(__dirname, "__tests__/mocks/server-only.ts"),
     },
   },
 })
