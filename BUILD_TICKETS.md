@@ -205,7 +205,7 @@ Every ticket in this phase touches high-risk files. **Every one requires `cto + 
   - Every call writes to `ai_usage` table: user_id, provider, model, input_tokens, output_tokens, cost_usd, feature, request_id, started_at, finished_at, status
   - Provider errors fall back to next provider in chain; if all fail, return clear error to caller
   - Tests cover: cap enforcement (set $1 cap, 11th call rejects), fallback chain (mock primary failing), token cap (oversized prompt rejected), usage logging (every call writes a row)
-- **Notes:** Provider API keys come from `lib/security/env.ts`. The `feature` parameter is an enum: `search`, `summarise_deal`, `draft_email`, `next_best_action`, etc. New features need explicit registration. The Ollama URL is configurable; if unreachable, treat as provider failure.
+- **Notes:** Provider API keys come from `lib/security/env.ts`. The `feature` parameter is an enum: `search`, `summarise_deal`, `draft_email`, `next_best_action`, etc. New features need explicit registration. The Ollama URL is configurable; if unreachable, treat as provider failure. **Phase 1 scope note:** The `ai_usage` table does not exist until T-030 (Phase 2). Define a `UsageLogger` interface in `lib/ai/types.ts` and wire a no-op stub for Phase 1 — do NOT attempt DB writes against a table that doesn't exist. Cap enforcement in Phase 1 may also use in-memory state or a no-op check; the real per-user daily cap logic is wired when T-030 creates the table. Tests in this ticket use a mock `UsageLogger`. T-030 completes the wiring.
 
 ---
 
@@ -229,25 +229,25 @@ Every ticket in this phase touches high-risk files. **Every one requires `cto + 
 
 ---
 
-### T-010 — Inbound email pipeline (parser + sender verification)
+### T-010 — Inbound email pipeline — Part 1: webhook receiver and parser
+
+> **Split notice (ORR-156):** T-010 was split because its DB integration requires Phase 2 schema (`users.crm_inbound_email`, `accounts.email_domains`, `activities`, `inbound_email_deadletter`) that does not exist in Phase 1. Writing against imagined types now means rewriting when real schema lands — that wastes budget twice. Part 1 (this ticket) is the pure parser. Part 2 is T-010b, sequenced after T-026.
 
 - **Phase:** Safety primitives
 - **Depends on:** T-009
-- **Size:** L
+- **Size:** M
 - **Files in scope:** `lib/email/inbound.ts`, `lib/email/inbound.test.ts`, `app/api/webhooks/inbound-email/route.ts`
 - **Approval:** `cto + board + security`
 - **High-risk file change:** yes
 - **Acceptance:**
-  - Webhook endpoint receives Postmark Inbound POSTs, verifies signature first (T-009)
-  - Parses email: from, to, cc, subject, body, attachments, in-reply-to, message-id
-  - **Sender verification:** the From header must match a known email belonging to the user identified by the inbound token address. Mismatch → write to dead-letter table, alert admin, do not create activity.
-  - **DKIM verification status from Postmark must be `Pass`.** If not, dead-letter.
-  - Account matching: parse other recipients' domains, look up Account.email_domains, attach if exactly one match
-  - Opportunity matching: if subject contains `[OPP-{id}]` pattern, attach to that opportunity (after RLS check that user can write to it)
-  - Multi-match or no-match: create unassigned Activity for user to assign in UI
-  - Attachments under 25MB upload to the matched Drive folder (uses Drive integration from later ticket — for now, store metadata and TODO marker)
-  - Tests: forged sender (different From) → rejected, replay attack (same message-id twice) → second is dropped, account match by domain works, no-match creates unassigned activity, oversized attachment is skipped with note, DKIM fail goes to dead-letter
-- **Notes:** This is one of the highest-risk components in the system. A compromised inbound parser lets attackers inject fabricated client communications. Test the adversarial cases. The dead-letter table is `inbound_email_deadletter` (created in schema phase).
+  - Webhook route receives Postmark Inbound POSTs and calls T-009 signature verification as the first line
+  - Parses email fields into a typed `ParsedInboundEmail` struct: from, to, cc, subject, text body, HTML body, attachments (name, size, content type), in-reply-to, message-id, date
+  - Extracts DKIM status field from Postmark payload (`DKIMVerified`) and exposes it on the struct — does **not** act on it (enforcement is T-010b)
+  - Extracts opportunity reference from subject if `[OPP-{id}]` pattern present and exposes it on the struct
+  - Route returns 200 for a successfully parsed and verified webhook; throws `WebhookVerificationError` for bad signatures
+  - **No database reads or writes in this ticket** — the parser is a pure transformation layer
+  - Tests: invalid signature rejected, DKIM field correctly extracted (Pass/Fail/SkippedSigning), all email header fields parsed, opportunity pattern extracted from subject, missing optional fields handled gracefully, oversized attachment metadata captured without error
+- **Notes:** This is Part 1 of the inbound email pipeline — deliberately a pure parser with no DB access. The adversarial cases (forged sender, replay attack, dead-lettering) are in T-010b after Phase 2 schema lands. The `ParsedInboundEmail` type defined here is the contract T-010b builds on.
 
 ---
 
@@ -266,7 +266,7 @@ Every ticket in this phase touches high-risk files. **Every one requires `cto + 
   - Domain allow-list is a config table (`auth_allowed_domains`) editable from admin panel — not hardcoded
   - Google OAuth flow works end-to-end in local dev with a test Google Workspace account
   - Tests: allowlisted domain succeeds, non-allowlisted domain rejected, malformed JWT rejected, expired JWT rejected
-- **Notes:** Default allow-list seeded with `nodwin.com`, `trinitygaming.in`, `maxlevel.gg`. Other domains added later from admin panel. Auth Hook is server-side, runs on every sign-up.
+- **Notes:** Default allow-list seeded with `nodwin.com`, `trinitygaming.in`, `maxlevel.gg`. Other domains added later from admin panel. Auth Hook is server-side, runs on every sign-up. **Phase 1 scope note:** The `users` table (T-020) does not exist until Phase 2. In Phase 1, `requireRole` must read role from JWT claims (written by the auth hook at sign-up), NOT from a DB lookup. Full DB-backed role resolution is deferred to T-020. Tests should mock JWT claims. The `auth_allowed_domains` config table is T-032 (Phase 2); in Phase 1, hard-code the allow-list in the auth hook and leave a TODO comment pointing to T-032.
 
 ---
 
@@ -352,9 +352,9 @@ Every ticket in this phase touches high-risk files. **Every one requires `cto + 
   - State machine: `qualify` → `meet_and_present` → `propose` → `negotiate` → `verbal_agreement` → `closed_won` | `closed_lost`
   - Allowed transitions enforce forward progression (with explicit "move backward" event for legitimate use cases)
   - `closed_won` and `closed_lost` are terminal — re-opening requires explicit `reopen` event with reason
-  - Stage history side effect: every transition writes to `opportunity_stage_history` table
-  - Tests: happy path through to won, can't skip stages without explicit force, can move backward with reason
-- **Notes:** The `closed_*` terminal states are critical for revenue recognition correctness. Reopening must be auditable.
+  - Stage history side effect: every transition emits a `STAGE_CHANGED` event `{ from, to, reason, at }` — the TypeScript machine does **not** write to any DB table. (The Postgres trigger in T-025 handles DB writes for stage history.)
+  - Tests: happy path through to won, can't skip stages without explicit force, can move backward with reason, STAGE_CHANGED event emitted on every transition
+- **Notes:** The `closed_*` terminal states are critical for revenue recognition correctness. Reopening must be auditable. **Phase 2 dependency note:** The `opportunity_stage_history` DB table is created in T-025. This TypeScript state machine must NOT make direct DB calls — keep the machine pure and event-driven. T-025's Postgres trigger consumes stage transitions at the DB level.
 
 ---
 
@@ -553,7 +553,30 @@ The order matters. Don't reorder.
   - `external_thread_id` indexed for dedupe
   - RLS: read if user can see the linked opportunity / account; write if user is author or admin
   - Tests: rep can log own activity, rep can read team activities, rep cannot edit others' activities
-- **Notes:** `inbound_email_deadletter` table also created here (referenced by T-010).
+- **Notes:** `inbound_email_deadletter` table also created here. T-010b (inbound email DB integration) is blocked on this ticket; once T-026 merges, T-010b can proceed.
+
+---
+
+### T-010b — Inbound email pipeline — Part 2: DB integration
+
+> **Split notice (ORR-156):** This is the Phase 2 continuation of T-010. It requires `users.crm_inbound_email` (T-020), `accounts.email_domains` (T-021), `activities` + `inbound_email_deadletter` (T-026). It was separated from T-010 to avoid writing against imagined types that would need rewriting when real schema arrived.
+
+- **Phase:** Schema and RLS
+- **Depends on:** T-010, T-020, T-021, T-024, T-026
+- **Size:** M
+- **Files in scope:** `lib/email/inbound.ts`, `lib/email/inbound.test.ts`
+- **Approval:** `cto + board + security`
+- **High-risk file change:** yes
+- **Acceptance:**
+  - Sender verification: the From address must match a `users.crm_inbound_email` value in the `users` table. Mismatch → write to `inbound_email_deadletter`, alert admin, do not create activity
+  - **DKIM enforcement:** if `ParsedInboundEmail.dkimVerified` is not `Pass` → dead-letter
+  - Account matching: parse recipient domains, look up `accounts.email_domains`, attach if exactly one match
+  - Opportunity matching: if `ParsedInboundEmail.opportunityRef` is set, attach to that opportunity (after RLS check that user can write to it)
+  - Replay detection: if `activities.external_thread_id` already contains the message-id, silently drop the duplicate
+  - Multi-match or no-match: create unassigned Activity (no opportunity_id) for user to assign in UI
+  - Attachments ≤ 25MB: store metadata with a `TODO: upload to Drive (T-079)` marker; skip oversized attachments with a note in the activity body
+  - Tests: forged sender rejected and dead-lettered, DKIM fail dead-lettered, replay drops second occurrence, account domain match attaches correctly, no-match creates unassigned activity, oversized attachment skipped with note, RLS rejects write to invisible opportunity
+- **Notes:** This ticket completes the inbound email pipeline that T-010 began. T-083 (Phase 5) wires the full endpoint into the live app. Because this ticket works against the real Phase 2 schema, all types must match the actual columns — no stubs or forward declarations.
 
 ---
 
@@ -626,7 +649,7 @@ The order matters. Don't reorder.
   - RLS: users see own usage; admin sees all
   - Helper view `ai_usage_daily_rollup` aggregates by user/team/company/day
   - Tests: row-level access, view returns expected aggregates
-- **Notes:** Performance matters here — at 200 users with heavy AI usage this could be a high-volume table. Indexes are critical.
+- **Notes:** Performance matters here — at 200 users with heavy AI usage this could be a high-volume table. Indexes are critical. **T-008 wiring:** T-008 defined a `UsageLogger` interface with a no-op stub for Phase 1. This ticket creates the table; also replace the no-op stub in `lib/ai/router.ts` with the real Supabase insert implementation. The per-user/team/company cap enforcement in T-008 can also be switched from in-memory to DB-backed reads at this point.
 
 ---
 
@@ -906,7 +929,7 @@ Each integration is its own focused mini-phase. Integrations are higher-risk tha
 
 ### Inbound email (T-083 to T-085)
 
-- T-083 — Postmark Inbound webhook endpoint integration (uses T-010 primitive)
+- T-083 — Postmark Inbound webhook endpoint integration (uses T-010 + T-010b primitives)
 - T-084 — Account-domain matching rules admin UI
 - T-085 — Unassigned activity inbox UI for ambiguous emails
 
@@ -1142,6 +1165,7 @@ These are deliberately not enumerated yet. They depend on what we learn from Eas
 3. **Don't combine tickets.** One ticket = one PR. The temptation to "while I'm here" is strong; resist it. Surface the additional work as a new ticket.
 4. **Surface scope creep.** If a ticket turns out to need 2x the work originally estimated, stop and surface to the CEO. Don't silently expand.
 5. **High-risk tickets need extra care.** When you see "High-risk file change: yes" or `cto + board + security` approval level, slow down. Write the tests first. Self-review the PR before opening it. Explain edge cases in the PR description.
+6. **Watch for cross-phase schema dependencies.** The `Depends on` field captures backward dependencies (tickets that must be done first), but it only covers what is explicitly listed. Some Phase 1 tickets reference schema — tables, columns, generated fields — that isn't created until Phase 2. Before implementing, scan the acceptance criteria for any table or column names and check whether the creating ticket is later in the sequence. If so: either scope this ticket down to what is schema-independent and create a follow-up for the Phase 2 DB integration, or add an explicit phase-scope note. Do not write against imagined types. Writing a stub now and rewriting with real schema later wastes budget twice.
 
 ---
 
