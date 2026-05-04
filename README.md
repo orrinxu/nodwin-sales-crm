@@ -82,6 +82,19 @@ See `AGENTS.md` §3 for the pinned stack. Summary:
 
 ## Getting started (human or agent)
 
+### Prerequisites
+
+| Tool | Minimum version | Install |
+|---|---|---|
+| **Docker Desktop** (or Docker Engine) | 24+ | https://docs.docker.com/get-docker/ |
+| **Node.js** | 20+ | https://nodejs.org |
+| **pnpm** | 10+ | `npm i -g pnpm` |
+| **Supabase CLI** | 1.x | `brew install supabase/tap/supabase` or `npm i -g supabase` |
+
+Docker must be running before you execute any `supabase:*` or `db:*` scripts. The Supabase local stack runs entirely in containers.
+
+### Quick start
+
 ```bash
 # 1. Clone and install
 git clone <repo-url>
