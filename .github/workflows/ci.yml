@@ -32,7 +32,7 @@ jobs:
     name: CI Pipeline
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -78,8 +78,6 @@ jobs:
         timeout-minutes: 10
 
       - name: Run RLS tests (placeholder)
-        # TODO: Replace with actual RLS test runner when built (T-017)
-        # For now, placeholder that exits 0
         run: |
           echo "RLS test runner placeholder (T-017 in progress)"
           echo "Running: pnpm db:test || true"
@@ -93,20 +91,21 @@ jobs:
     name: Secret Scanner
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    
+
+    permissions:
+      contents: read
+      pull-requests: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Need full history for gitleaks
+          fetch-depth: 0
 
       - name: Run gitleaks
         uses: gitleaks/gitleaks-action@v2.3.7
-        with:
-          config-path: .gitleaksrc.toml
-          redact: true
-          report-format: json
-          verbose: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload gitleaks results
         if: always()
