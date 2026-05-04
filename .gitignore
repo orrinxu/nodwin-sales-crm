@@ -6,20 +6,35 @@ node_modules/
 .next/
 dist/
 build/
+out/
 
 # Environment
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Editor
 .vscode/
 .idea/
 .DS_Store
+Thumbs.db
 
 # Logs
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS junk
+.DS_Store
+.AppleDouble
+.LSOverride
+ehthumbs.db
+Desktop.ini
+
+# TypeScript
+*.tsbuildinfo
 
 # Supabase local
 supabase/.branches
@@ -28,3 +43,6 @@ supabase/.temp
 # SSH keys
 github_ssh
 github_ssh.pub
+
+# Vercel
+.vercel
