@@ -192,7 +192,7 @@ The board may also configure Paperclip to require approval before any change to 
 
 1. Read the ticket in full.
 2. Read this file. (Yes, every session.)
-3. Skim `BUILD_TICKETS.md` to see what came before and what comes after — context matters.
+3. Before any work on a ticket, **read the full ticket detail in `BUILD_TICKETS.md`** (search for the ticket ID heading). Do not begin work based on the ticket summary alone. If `BUILD_TICKETS.md` lacks the detail you need, ask the board — but only after confirming the file doesn't contain it.
 4. If the ticket touches a high-risk file (§6), say so up front in your first message on the ticket.
 5. If anything is ambiguous, ask the board before coding. Ambiguity is not your call to resolve.
 
