@@ -1,8 +1,7 @@
 import "server-only"
 import { verifyPostmarkWebhook } from "@/lib/webhooks/postmark"
 import { WebhookVerificationError } from "@/lib/webhooks/verify"
-import { handleInboundEmail, type PostmarkInboundPayload } from "@/lib/email/inbound"
-import { createSupabaseInboundDb } from "@/lib/email/inbound-db"
+import { parseInboundEmail, type PostmarkInboundPayload } from "@/lib/email/inbound"
 
 export async function POST(request: Request) {
   try {
@@ -19,22 +18,9 @@ export async function POST(request: Request) {
 
     // Signature verification (T-009): throws WebhookVerificationError on failure
     const { payload } = verifyPostmarkWebhook(headers, body, webhookSecret)
+    const parsed = parseInboundEmail(payload as PostmarkInboundPayload)
 
-    const db = createSupabaseInboundDb()
-    const result = await handleInboundEmail(payload as PostmarkInboundPayload, db)
-
-    switch (result.outcome) {
-      case "dead_lettered":
-        // 202 so Postmark does not retry — we logged the event in the dead-letter table
-        return Response.json(
-          { ok: false, outcome: result.outcome, reason: result.reason },
-          { status: 202 },
-        )
-      case "replay_dropped":
-        return Response.json({ ok: true, outcome: result.outcome }, { status: 202 })
-      case "activity_created":
-        return Response.json({ ok: true, outcome: result.outcome, activityId: result.activityId })
-    }
+    return Response.json({ ok: true, parsed })
   } catch (error) {
     if (error instanceof WebhookVerificationError) {
       return Response.json({ error: error.message }, { status: 401 })
