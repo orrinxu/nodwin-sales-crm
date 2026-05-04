@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- require() is correct for .cjs config files */
 const { rules } = require('./eslint-rules.mjs');
 
 /** @type {import('eslint').Linter.Config} */

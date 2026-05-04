@@ -235,6 +235,9 @@ All four must pass. If any fails, fix it before opening the PR. If a failure is 
 ## Manual verification
 <what you did to confirm this works beyond automated tests>
 
+## Workflow runs (required if PR touches .github/workflows/)
+<link to a successful CI run on this PR's branch, with green checks for all affected workflows>
+
 ## Open questions for the board
 <anything you want a human to look at, or "none">
 ```

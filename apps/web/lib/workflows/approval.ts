@@ -175,6 +175,7 @@ export function getApprovalStepState(
   canReject: boolean
   canSkip: boolean
 } {
+  // eslint-disable-next-line security/detect-object-injection -- stepIndex is a number, not user input
   const s = stepApprovals[stepIndex]
   const stepState: "pending" | "approved" | "rejected" | "skipped" = !s
     ? "pending"
