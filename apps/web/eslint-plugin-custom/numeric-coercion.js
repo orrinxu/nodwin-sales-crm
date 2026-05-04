@@ -16,6 +16,7 @@ function findFinancialId(node) {
   return null;
 }
 
+/** @type {import('eslint').Rule.RuleModule} */
 export const rule = {
   meta: {
     type: "problem",

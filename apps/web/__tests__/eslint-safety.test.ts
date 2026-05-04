@@ -5,8 +5,7 @@ describe("ESLint Safety Rules", () => {
   let eslint: ESLint;
 
   beforeAll(async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ESLint Plugin type has stricter meta.type than the JS rule's inferred string
-    const customPlugin = (await import("../eslint-plugin-custom/index.js")).plugin as any;
+    const customPlugin = (await import("../eslint-plugin-custom/index.js")).plugin;
     eslint = new ESLint({
       overrideConfigFile: true,
       overrideConfig: [{
