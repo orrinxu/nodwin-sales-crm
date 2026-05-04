@@ -14,7 +14,7 @@ export function verifyPostmarkWebhook(
   body: string,
   secret: string,
 ): { payload: PostmarkInboundPayload } {
-  const token = headers[TOKEN_HEADER]
+  const token = headers["x-postmark-webhook-secret"]
   if (!token) {
     throw new WebhookVerificationError(`Missing ${TOKEN_HEADER} header`)
   }
