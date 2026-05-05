@@ -39,6 +39,13 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: Reject merge conflict markers
+        run: |
+          if grep -rE '^<{7}|^={7}|^>{7}' --include='*.ts' --include='*.tsx' --include='*.js' --include='*.sql' --include='*.json' --include='*.yml' --include='*.yaml' --include='*.md' . --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=out --exclude-dir=.git; then
+            echo "ERROR: Unresolved merge conflict markers found in repository."
+            exit 1
+          fi
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
