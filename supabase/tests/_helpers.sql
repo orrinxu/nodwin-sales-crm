@@ -49,7 +49,6 @@ BEGIN
     true  -- LOCAL: reverted on transaction rollback
   );
 
-  EXECUTE 'SET LOCAL ROLE authenticated';
 END;
 $$;
 
@@ -65,7 +64,6 @@ SET search_path = public, auth, extensions
 AS $$
 BEGIN
   PERFORM set_config('request.jwt.claims', '', true);
-  EXECUTE 'SET LOCAL ROLE anon';
 END;
 $$;
 
@@ -83,7 +81,6 @@ SET search_path = public, auth, extensions
 AS $$
 BEGIN
   PERFORM set_config('request.jwt.claims', '', true);
-  EXECUTE 'SET LOCAL ROLE postgres';
 END;
 $$;
 
@@ -200,6 +197,14 @@ BEGIN
 END;
 $$;
 
--- Valid 0-test pgTAP suite when this file is executed standalone.
-SELECT plan(0);
+-- Grant execute on test helpers to roles used in RLS testing.
+GRANT USAGE ON SCHEMA tests TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION tests.assert_can_select(text, text, text) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION tests.assert_cannot_select(text, text, text) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION tests.assert_can_insert(text, text, text) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION tests.assert_cannot_insert(text, text, text) TO authenticated, anon;
+
+-- Valid 1-test pgTAP suite when this file is executed standalone.
+SELECT plan(1);
+SELECT pass('test helpers loaded');
 SELECT * FROM finish();

@@ -1,7 +1,7 @@
 import "server-only"
 import { createServerClient } from "@supabase/ssr"
 import type { NextRequest } from "next/server"
-import { env } from "./env"
+import { parseEnv } from "./env"
 
 export type AuditAction = "INSERT" | "UPDATE" | "DELETE"
 
@@ -16,6 +16,7 @@ export interface AuditParams {
 }
 
 export async function audit(params: AuditParams): Promise<void> {
+  const env = parseEnv(process.env)
   const client = createServerClient(
     env.SUPABASE_URL,
     env.SUPABASE_SERVICE_ROLE_KEY,
