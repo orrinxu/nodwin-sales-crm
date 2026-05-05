@@ -302,7 +302,24 @@ A ticket is **not** done because the code "works on my machine" or "looks right.
 
 ---
 
-## 10. The "vibe coding" failure modes — explicit list
+## 10. Ticket scope and discipline
+
+To prevent stale commits and unnecessary merge conflicts, all agents MUST follow these branching rules:
+
+1. **Branch from latest main.** Every new branch MUST be created from the latest `origin/main`:
+   ```
+   git fetch origin && git switch -c feat/orr-xxx origin/main
+   ```
+2. **Rebase before PR.** Before submitting a PR, rebase on the latest main:
+   ```
+   git fetch origin && git rebase origin/main
+   ```
+3. **No already-merged commits in PRs.** If a branch contains commits already merged to main, do NOT submit a PR. Create a fresh branch and cherry-pick only the unmerged commits.
+4. **One branch = one ticket.** Never reuse a branch for multiple tickets.
+
+---
+
+## 11. The "vibe coding" failure modes — explicit list
 
 This project is being built primarily via AI-assisted coding with a non-coder lead. The historical failure modes for this approach are well-documented and have all been observed before. Pre-emptively, every agent must guard against:
 
@@ -317,7 +334,7 @@ If you see any of the above failure patterns appearing during development, surfa
 
 ---
 
-## 11. Working with Paperclip
+## 12. Working with Paperclip
 
 This repo is orchestrated by Paperclip (https://github.com/paperclipai/paperclip). You are running as an agent inside a Paperclip company. Specifically:
 
@@ -331,7 +348,7 @@ If you do not know what role you are playing, ask.
 
 ---
 
-## 12. When to escalate to the human board
+## 13. When to escalate to the human board
 
 Escalate (via Paperclip's approval mechanism or by stopping work and surfacing a question) when:
 
@@ -348,7 +365,7 @@ The board would rather be asked too often than too rarely. There is no penalty f
 
 ---
 
-## 13. Things that are explicitly NOT your job
+## 14. Things that are explicitly NOT your job
 
 To save you cognitive load:
 
@@ -363,7 +380,7 @@ Stay in your lane. The lane is well-defined and there's plenty to do inside it.
 
 ---
 
-## 14. Final note
+## 15. Final note
 
 If you are an agent reading this for the first time: the rules above are not bureaucracy. They are the codified output of weeks of careful design decisions, plus a body of documented failure modes from people who tried to build similar things without these rules. Following them is what makes this project safe to ship. Working around them is what makes a $400 surprise bill, a leaked client RFP, or a wrong revenue number that goes to a finance team.
 
