@@ -13,7 +13,8 @@
     "db:migrate": "supabase db push",
     "db:reset": "supabase db reset",
     "db:seed": "supabase db query --local --file supabase/seed/seed-test-data.sql",
-    "db:test": "supabase test db"
+    "db:test": "supabase test db",
+    "rls:check": "bash scripts/check-rls-coverage.sh"
   },
   "engines": {
     "node": ">=20.0.0",

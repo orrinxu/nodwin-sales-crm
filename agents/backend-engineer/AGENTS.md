@@ -53,7 +53,7 @@ Do **not** modify these files. If your work requires changes here, create a tick
 4. Use typed Supabase clients from `lib/data/` — never inline SQL.
 5. Use `lib/money.ts` helpers for any monetary values — never raw floats.
 6. If a ticket touches high-risk files, stop and escalate.
-7. Before marking work done, run: `pnpm lint && pnpm typecheck && pnpm test`
+7. Before marking work done involving RLS policies, run: `pnpm lint && pnpm rls:check && pnpm typecheck && pnpm test`
 
 ---
 
