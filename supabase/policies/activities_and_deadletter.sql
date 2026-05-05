@@ -1,0 +1,68 @@
+-- supabase/policies/activities_and_deadletter.sql
+-- HIGH-RISK FILE — see AGENTS.md §6.
+--
+-- RLS policies for public.activities and public.inbound_email_deadletter.
+-- Embedded in 20260505000008_activities_and_deadletter.sql for self-contained
+-- migrations; this file exists for security-review readability.
+
+-- ── activities ────────────────────────────────────────────────────────────────
+ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "activities_select_all_authenticated" ON public.activities;
+CREATE POLICY "activities_select_all_authenticated"
+  ON public.activities
+  FOR SELECT
+  TO authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "activities_insert_admin" ON public.activities;
+CREATE POLICY "activities_insert_admin"
+  ON public.activities
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (public.current_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "activities_update_admin" ON public.activities;
+CREATE POLICY "activities_update_admin"
+  ON public.activities
+  FOR UPDATE
+  TO authenticated
+  USING (public.current_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "activities_delete_admin" ON public.activities;
+CREATE POLICY "activities_delete_admin"
+  ON public.activities
+  FOR DELETE
+  TO authenticated
+  USING (public.current_user_role() = 'admin');
+
+-- ── inbound_email_deadletter ──────────────────────────────────────────────────
+ALTER TABLE public.inbound_email_deadletter ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "deadletter_select_admin" ON public.inbound_email_deadletter;
+CREATE POLICY "deadletter_select_admin"
+  ON public.inbound_email_deadletter
+  FOR SELECT
+  TO authenticated
+  USING (public.current_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "deadletter_insert_admin" ON public.inbound_email_deadletter;
+CREATE POLICY "deadletter_insert_admin"
+  ON public.inbound_email_deadletter
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (public.current_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "deadletter_update_admin" ON public.inbound_email_deadletter;
+CREATE POLICY "deadletter_update_admin"
+  ON public.inbound_email_deadletter
+  FOR UPDATE
+  TO authenticated
+  USING (public.current_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "deadletter_delete_admin" ON public.inbound_email_deadletter;
+CREATE POLICY "deadletter_delete_admin"
+  ON public.inbound_email_deadletter
+  FOR DELETE
+  TO authenticated
+  USING (public.current_user_role() = 'admin');
