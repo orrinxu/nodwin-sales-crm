@@ -41,14 +41,35 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_occurred_at
 -- ── Row Level Security ───────────────────────────────────────────────────────
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
 
--- The trigger function audit.log_change() is SECURITY DEFINER, so it bypasses
--- RLS when inserting rows. Direct INSERT/UPDATE/DELETE on audit_log are blocked
--- by default (no policies granted). Only SELECT is permitted to authorized roles.
-
-CREATE POLICY audit_log_select ON public.audit_log
+-- All authenticated users can read audit logs (needed for record history).
+DROP POLICY IF EXISTS "audit_log_select_authenticated" ON public.audit_log;
+CREATE POLICY "audit_log_select_authenticated"
+  ON public.audit_log
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (auth.uid() IS NOT NULL);
+
+-- Only admins can modify audit_log directly; triggers bypass RLS via SECURITY DEFINER.
+DROP POLICY IF EXISTS "audit_log_insert_admin" ON public.audit_log;
+CREATE POLICY "audit_log_insert_admin"
+  ON public.audit_log
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (public.current_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "audit_log_update_admin" ON public.audit_log;
+CREATE POLICY "audit_log_update_admin"
+  ON public.audit_log
+  FOR UPDATE
+  TO authenticated
+  USING (public.current_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "audit_log_delete_admin" ON public.audit_log;
+CREATE POLICY "audit_log_delete_admin"
+  ON public.audit_log
+  FOR DELETE
+  TO authenticated
+  USING (public.current_user_role() = 'admin');
 
 -- ── Helper: safe header extraction from PostgREST request.headers GUC ────────
 CREATE OR REPLACE FUNCTION audit.get_request_header(header_name text)
@@ -133,6 +154,7 @@ SET search_path = public
 AS $$
 DECLARE
   _actor_user_id  uuid;
+  _actor_source   text;
   _old_data       jsonb;
   _new_data       jsonb;
   _changed_fields jsonb;
@@ -153,6 +175,14 @@ BEGIN
     END;
   END IF;
 
+  -- Derive actor_source from execution context (NOT from client-controlled headers).
+  -- If we have an authenticated user → 'user'; otherwise → 'system'.
+  IF _actor_user_id IS NOT NULL THEN
+    _actor_source := 'user';
+  ELSE
+    _actor_source := 'system';
+  END IF;
+
   IF TG_OP = 'DELETE' THEN
     _row_id := OLD.id;
     _old_data := to_jsonb(OLD);
@@ -165,7 +195,7 @@ BEGIN
     ) VALUES (
       TG_TABLE_NAME, _row_id, TG_OP, _changed_fields, _old_data, _new_data,
       _actor_user_id,
-      CASE WHEN _actor_user_id IS NOT NULL THEN 'user' ELSE 'system' END,
+      _actor_source,
       audit.get_request_header('x-forwarded-for'),
       audit.get_request_header('user-agent'),
       now()
@@ -184,7 +214,7 @@ BEGIN
     ) VALUES (
       TG_TABLE_NAME, _row_id, TG_OP, _changed_fields, _old_data, _new_data,
       _actor_user_id,
-      CASE WHEN _actor_user_id IS NOT NULL THEN 'user' ELSE 'system' END,
+      _actor_source,
       audit.get_request_header('x-forwarded-for'),
       audit.get_request_header('user-agent'),
       now()
@@ -203,7 +233,7 @@ BEGIN
     ) VALUES (
       TG_TABLE_NAME, _row_id, TG_OP, _changed_fields, _old_data, _new_data,
       _actor_user_id,
-      CASE WHEN _actor_user_id IS NOT NULL THEN 'user' ELSE 'system' END,
+      _actor_source,
       audit.get_request_header('x-forwarded-for'),
       audit.get_request_header('user-agent'),
       now()
@@ -214,8 +244,6 @@ END;
 $$;
 
 -- ── Convenience: attach audit trigger to a table ─────────────────────────────
--- Note: target_table is regclass, so %s is safe — regclass::text always
--- produces a properly quoted identifier (or schema-qualified name).
 CREATE OR REPLACE FUNCTION audit.attach_trigger(target_table regclass)
 RETURNS void
 LANGUAGE plpgsql
