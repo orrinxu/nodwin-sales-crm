@@ -2,3 +2,5 @@
 # The token "abc123def456" is a placeholder for unit tests, not a real secret.
 92a411f1e5123ef42bae844dfbbf8ac591c2cbe9:apps/web/lib/email/inbound.test.ts:generic-api-key:16
 745f392926392e88d4948b72b422057caba4c3a8:apps/web/lib/security/auth.test.ts:generic-api-key:26
+# ORR-127: False positive — fake Supabase test keys in rate-limit.test.ts
+e6ff592faac62ed4aa001de35c654941e135ac0e:apps/web/lib/security/rate-limit.test.ts:generic-api-key:18
