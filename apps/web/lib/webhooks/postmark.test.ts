@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest"
-<<<<<<< fix/orr-203-tighten-rls-accounts
-=======
 import { createHmac } from "node:crypto"
->>>>>>> main
 import { verifyPostmarkWebhook } from "./postmark"
 import { WebhookVerificationError, verifyHmacSignature } from "./verify"
 
@@ -62,12 +59,7 @@ describe("verifyHmacSignature", () => {
 
   it("passes when signature matches (sha256)", () => {
     const payload = '{"event":"test"}'
-<<<<<<< fix/orr-203-tighten-rls-accounts
-    const expectedSig = require("node:crypto")
-      .createHmac("sha256", hmacSecret)
-=======
     const expectedSig = createHmac("sha256", hmacSecret)
->>>>>>> main
       .update(payload, "utf8")
       .digest("hex")
     expect(() => verifyHmacSignature(payload, expectedSig, hmacSecret)).not.toThrow()
@@ -75,12 +67,7 @@ describe("verifyHmacSignature", () => {
 
   it("passes when signature matches (sha1)", () => {
     const payload = '{"event":"test"}'
-<<<<<<< fix/orr-203-tighten-rls-accounts
-    const expectedSig = require("node:crypto")
-      .createHmac("sha1", hmacSecret)
-=======
     const expectedSig = createHmac("sha1", hmacSecret)
->>>>>>> main
       .update(payload, "utf8")
       .digest("hex")
     expect(() => verifyHmacSignature(payload, expectedSig, hmacSecret, "sha1")).not.toThrow()
@@ -88,12 +75,7 @@ describe("verifyHmacSignature", () => {
 
   it("passes when signature matches (sha512)", () => {
     const payload = '{"event":"test"}'
-<<<<<<< fix/orr-203-tighten-rls-accounts
-    const expectedSig = require("node:crypto")
-      .createHmac("sha512", hmacSecret)
-=======
     const expectedSig = createHmac("sha512", hmacSecret)
->>>>>>> main
       .update(payload, "utf8")
       .digest("hex")
     expect(() => verifyHmacSignature(payload, expectedSig, hmacSecret, "sha512")).not.toThrow()
@@ -116,12 +98,7 @@ describe("verifyHmacSignature", () => {
 
   it("throws on wrong secret", () => {
     const payload = '{"event":"test"}'
-<<<<<<< fix/orr-203-tighten-rls-accounts
-    const sig = require("node:crypto")
-      .createHmac("sha256", hmacSecret)
-=======
     const sig = createHmac("sha256", hmacSecret)
->>>>>>> main
       .update(payload, "utf8")
       .digest("hex")
     expect(() => verifyHmacSignature(payload, sig, "wrong-secret")).toThrow(
