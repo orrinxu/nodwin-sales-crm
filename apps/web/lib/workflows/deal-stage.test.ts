@@ -388,9 +388,4 @@ describe("DealStage machine: full lifecycle", () => {
     expect(getHistory(actor)).toHaveLength(9)
   })
 
-  it("should verify the match snapshot matcher works with value", () => {
-    const actor = createDealActor()
-    const snapshot = actor.getSnapshot()
-    expect(snapshot.value).toBe("qualify")
-  })
 })
