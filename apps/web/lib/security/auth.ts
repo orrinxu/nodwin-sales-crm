@@ -14,7 +14,6 @@ export interface AuthenticatedUser {
 export async function requireUser(
   request?: NextRequest,
 ): Promise<AuthenticatedUser> {
-
   let supabase
   if (request) {
     supabase = createServerClient(
