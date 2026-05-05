@@ -27,7 +27,11 @@ CREATE POLICY "opportunities_insert_authenticated"
   ON public.opportunities
   FOR INSERT
   TO authenticated
-  WITH CHECK (true);
+  WITH CHECK (
+    owner_user_id = auth.uid()
+    OR sales_initiator_user_id = auth.uid()
+    OR public.current_user_role() IN ('admin', 'group_sales_lead')
+  );
 
 DROP POLICY IF EXISTS "opportunities_update_owner_or_team_or_admin" ON public.opportunities;
 CREATE POLICY "opportunities_update_owner_or_team_or_admin"
@@ -108,4 +112,7 @@ CREATE POLICY "opportunity_visibility_select_all_authenticated"
   ON public.opportunity_visibility
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (
+    user_id = auth.uid()
+    OR public.current_user_role() = 'admin'
+  );
