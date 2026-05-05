@@ -25,7 +25,11 @@ CREATE TABLE IF NOT EXISTS public.audit_log (
   old_data         jsonb,
   new_data         jsonb,
   actor_user_id    uuid,
+<<<<<<< fix/orr-203-tighten-rls-accounts
   actor_source     text,
+=======
+  actor_source     text        NOT NULL DEFAULT 'system',
+>>>>>>> main
   actor_ip         text,
   actor_user_agent text,
   occurred_at      timestamptz NOT NULL DEFAULT now()
@@ -38,6 +42,21 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_table_row_occurred
 CREATE INDEX IF NOT EXISTS idx_audit_log_occurred_at
   ON public.audit_log (occurred_at DESC);
 
+<<<<<<< fix/orr-203-tighten-rls-accounts
+=======
+-- ── Row Level Security ───────────────────────────────────────────────────────
+ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
+
+-- The trigger function audit.log_change() is SECURITY DEFINER, so it bypasses
+-- RLS when inserting rows. Direct INSERT/UPDATE/DELETE on audit_log are blocked
+-- by default (no policies granted). Only SELECT is permitted to authorized roles.
+
+CREATE POLICY audit_log_select ON public.audit_log
+  FOR SELECT
+  TO authenticated
+  USING (true);
+
+>>>>>>> main
 -- ── Helper: safe header extraction from PostgREST request.headers GUC ────────
 CREATE OR REPLACE FUNCTION audit.get_request_header(header_name text)
 RETURNS text
@@ -153,7 +172,11 @@ BEGIN
     ) VALUES (
       TG_TABLE_NAME, _row_id, TG_OP, _changed_fields, _old_data, _new_data,
       _actor_user_id,
+<<<<<<< fix/orr-203-tighten-rls-accounts
       coalesce(audit.get_request_header('x-audit-source'), 'system'),
+=======
+      CASE WHEN _actor_user_id IS NOT NULL THEN 'user' ELSE 'system' END,
+>>>>>>> main
       audit.get_request_header('x-forwarded-for'),
       audit.get_request_header('user-agent'),
       now()
@@ -172,7 +195,11 @@ BEGIN
     ) VALUES (
       TG_TABLE_NAME, _row_id, TG_OP, _changed_fields, _old_data, _new_data,
       _actor_user_id,
+<<<<<<< fix/orr-203-tighten-rls-accounts
       coalesce(audit.get_request_header('x-audit-source'), 'system'),
+=======
+      CASE WHEN _actor_user_id IS NOT NULL THEN 'user' ELSE 'system' END,
+>>>>>>> main
       audit.get_request_header('x-forwarded-for'),
       audit.get_request_header('user-agent'),
       now()
@@ -191,7 +218,11 @@ BEGIN
     ) VALUES (
       TG_TABLE_NAME, _row_id, TG_OP, _changed_fields, _old_data, _new_data,
       _actor_user_id,
+<<<<<<< fix/orr-203-tighten-rls-accounts
       coalesce(audit.get_request_header('x-audit-source'), 'system'),
+=======
+      CASE WHEN _actor_user_id IS NOT NULL THEN 'user' ELSE 'system' END,
+>>>>>>> main
       audit.get_request_header('x-forwarded-for'),
       audit.get_request_header('user-agent'),
       now()
@@ -202,6 +233,11 @@ END;
 $$;
 
 -- ── Convenience: attach audit trigger to a table ─────────────────────────────
+<<<<<<< fix/orr-203-tighten-rls-accounts
+=======
+-- Note: target_table is regclass, so %s is safe — regclass::text always
+-- produces a properly quoted identifier (or schema-qualified name).
+>>>>>>> main
 CREATE OR REPLACE FUNCTION audit.attach_trigger(target_table regclass)
 RETURNS void
 LANGUAGE plpgsql

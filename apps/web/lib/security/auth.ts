@@ -2,7 +2,11 @@ import "server-only"
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import type { NextRequest } from "next/server"
+<<<<<<< fix/orr-203-tighten-rls-accounts
 import { parseEnv } from "./env"
+=======
+import { env } from "./env"
+>>>>>>> main
 import { ForbiddenError, UnauthorisedError } from "./errors"
 
 export interface AuthenticatedUser {
@@ -14,7 +18,10 @@ export interface AuthenticatedUser {
 export async function requireUser(
   request?: NextRequest,
 ): Promise<AuthenticatedUser> {
+<<<<<<< fix/orr-203-tighten-rls-accounts
   const env = parseEnv(process.env)
+=======
+>>>>>>> main
 
   let supabase
   if (request) {

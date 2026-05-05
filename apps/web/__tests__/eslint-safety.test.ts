@@ -43,19 +43,98 @@ describe("ESLint Safety Rules", () => {
       expect(results[0].messages[0].ruleId).toBe("custom/no-unsafe-numeric-coercion");
     });
 
-    it("should allow Number() on price field", async () => {
+    it("should catch Number() on price field", async () => {
       const code = `
         const input = "100";
         const price = Number(input);
       `;
       const results = await eslint.lintText(code, { filePath: "app/cart.tsx" });
-      expect(results[0].errorCount).toBe(0);
+      expect(results[0].errorCount).toBe(1);
+      expect(results[0].messages[0].ruleId).toBe("custom/no-unsafe-numeric-coercion");
+    });
+
+    it("should catch * on price field", async () => {
+      const code = `
+        const taxRate = 1.1;
+        const total = price * taxRate;
+      `;
+      const results = await eslint.lintText(code, { filePath: "app/cart.tsx" });
+      expect(results[0].errorCount).toBe(1);
+      expect(results[0].messages[0].ruleId).toBe("custom/no-unsafe-numeric-coercion");
+    });
+
+    it("should catch / on revenue field", async () => {
+      const code = `
+        const total = revenue / 2;
+      `;
+      const results = await eslint.lintText(code, { filePath: "app/reports.tsx" });
+      expect(results[0].errorCount).toBe(1);
+      expect(results[0].messages[0].ruleId).toBe("custom/no-unsafe-numeric-coercion");
+    });
+
+    it("should catch - on cost field", async () => {
+      const code = `
+        const discount = 5;
+        const net = cost - discount;
+      `;
+      const results = await eslint.lintText(code, { filePath: "app/pricing.tsx" });
+      expect(results[0].errorCount).toBe(1);
+      expect(results[0].messages[0].ruleId).toBe("custom/no-unsafe-numeric-coercion");
+    });
+
+    it("should catch financial field on right side of operator", async () => {
+      const code = `
+        const multiplier = 2;
+        const total = multiplier * price;
+      `;
+      const results = await eslint.lintText(code, { filePath: "app/cart.tsx" });
+      expect(results[0].errorCount).toBe(1);
+      expect(results[0].messages[0].ruleId).toBe("custom/no-unsafe-numeric-coercion");
     });
 
     it("should not flag non-financial fields", async () => {
       const code = `
         const count = 10;
         const total = count + 5;
+      `;
+      const results = await eslint.lintText(code, { filePath: "app/items.tsx" });
+      expect(results[0].errorCount).toBe(0);
+    });
+
+    it("should catch toFixed() on price field", async () => {
+      const code = `
+        const display = price.toFixed(2);
+      `;
+      const results = await eslint.lintText(code, { filePath: "app/cart.tsx" });
+      expect(results[0].errorCount).toBe(1);
+      expect(results[0].messages[0].ruleId).toBe("custom/no-unsafe-numeric-coercion");
+    });
+
+    it("should catch toFixed() on nested financial expression", async () => {
+      const code = `
+        const display = (price + tax).toFixed(2);
+      `;
+      const results = await eslint.lintText(code, { filePath: "app/cart.tsx" });
+      expect(results[0].errorCount).toBe(2);
+      expect(results[0].messages.every(m => m.ruleId === "custom/no-unsafe-numeric-coercion")).toBe(true);
+    });
+
+    it("should not flag toFixed() on non-financial fields", async () => {
+      const code = `
+        const count = 10;
+        const display = count.toFixed(2);
+      `;
+      const results = await eslint.lintText(code, { filePath: "app/items.tsx" });
+      expect(results[0].errorCount).toBe(0);
+    });
+
+    it("should not flag non-financial fields with * / -", async () => {
+      const code = `
+        const width = 10;
+        const height = 5;
+        const area = width * height;
+        const half = area / 2;
+        const margin = area - 10;
       `;
       const results = await eslint.lintText(code, { filePath: "app/items.tsx" });
       expect(results[0].errorCount).toBe(0);
