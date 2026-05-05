@@ -7,13 +7,13 @@
 
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
 
--- All authenticated users can read audit logs (needed for record history).
+-- Only admins can read audit logs (contains sensitive actor IPs, user agents, old/new values).
 DROP POLICY IF EXISTS "audit_log_select_authenticated" ON public.audit_log;
 CREATE POLICY "audit_log_select_authenticated"
   ON public.audit_log
   FOR SELECT
   TO authenticated
-  USING (auth.uid() IS NOT NULL);
+  USING (public.current_user_role() = 'admin');
 
 -- Only admins can modify audit_log directly; triggers bypass RLS via SECURITY DEFINER.
 DROP POLICY IF EXISTS "audit_log_insert_admin" ON public.audit_log;
