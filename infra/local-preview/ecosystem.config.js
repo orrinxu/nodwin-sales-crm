@@ -11,10 +11,9 @@ module.exports = {
   apps: [
     {
       name: "nodwin-crm-local-preview",
-      script: "node_modules/.bin/next",
-      args: "start",
-      // TODO: Replace with the absolute path to the repo on the AMD GPU server
-      cwd: "/path/to/repo",
+      script: "pnpm",
+      args: "--filter web start",
+      cwd: "/home/orrin/nodwin-sales-crm",
       env: {
         PORT: 3030,
         HOSTNAME: "0.0.0.0",

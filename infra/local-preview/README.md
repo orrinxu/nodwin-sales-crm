@@ -11,14 +11,22 @@
 
 Run these steps once on the AMD GPU server to get the preview running:
 
-### 1. Clone the repo
+### 1. Install PM2 (if not already installed)
+
+PM2 is a global tool and is not installed by `pnpm install`.
+
+```bash
+pnpm add -g pm2
+```
+
+### 2. Clone the repo
 
 ```bash
 git clone <repo-url> /path/to/nodwin-sales-crm
 cd /path/to/nodwin-sales-crm
 ```
 
-### 2. Configure the environment
+### 3. Configure the environment
 
 ```bash
 cp infra/local-preview/.env.local-preview.example .env.local
@@ -31,7 +39,7 @@ Edit `.env.local` (in the repo root) and fill in:
 
 > **Why `.env.local` in the repo root?** Next.js only loads env files from the repo root (or `apps/web/`). A file under `infra/local-preview/` is never read by Next.js, so your Supabase credentials would be silently ignored.
 
-### 3. Update the PM2 ecosystem config path
+### 4. Update the PM2 ecosystem config path
 
 Open `infra/local-preview/ecosystem.config.js` and change `cwd` to the absolute path of the repo on the server.
 
@@ -41,27 +49,27 @@ Example:
 cwd: "/home/ubuntu/nodwin-sales-crm",
 ```
 
-### 4. Install dependencies and build
+### 5. Install dependencies and build
 
 ```bash
 pnpm install
 pnpm build
 ```
 
-### 5. Start the app with PM2
+### 6. Start the app with PM2
 
 ```bash
 pm2 start infra/local-preview/ecosystem.config.js
 ```
 
-### 6. (Optional) Enable auto-restart on server reboot
+### 7. (Optional) Enable auto-restart on server reboot
 
 ```bash
 sudo pm2 startup systemd
 pm2 save
 ```
 
-### 7. Verify
+### 8. Verify
 
 Open a browser and visit **http://192.168.88.51:3030**.
 
