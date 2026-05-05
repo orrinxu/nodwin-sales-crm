@@ -2,7 +2,7 @@ import { z } from "zod"
 
 const booleanFromString = z
   .union([z.boolean(), z.string()])
-  .transform((val) => {
+  .transform((val: boolean | string) => {
     if (typeof val === "boolean") return val
     return val === "true" || val === "1"
   })
