@@ -695,7 +695,11 @@ CREATE POLICY "opportunities_insert_authenticated"
   ON public.opportunities
   FOR INSERT
   TO authenticated
-  WITH CHECK (true);
+  WITH CHECK (
+    owner_user_id = auth.uid()
+    OR sales_initiator_user_id = auth.uid()
+    OR public.current_user_role() IN ('admin', 'group_sales_lead')
+  );
 
 -- ── opportunities UPDATE ──────────────────────────────────────────────────────
 DROP POLICY IF EXISTS "opportunities_update_owner_or_team_or_admin" ON public.opportunities;
@@ -774,19 +778,26 @@ CREATE POLICY "opportunity_visibility_select_all_authenticated"
   ON public.opportunity_visibility
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (
+    user_id = auth.uid()
+    OR public.current_user_role() = 'admin'
+  );
 
 -- ── stub policies for entities / business_units ───────────────────────────────
+-- NOTE: T-019 will replace these stubs with fully-scoped RLS policies.
 DROP POLICY IF EXISTS "entities_select_all_authenticated" ON public.entities;
 CREATE POLICY "entities_select_all_authenticated"
   ON public.entities
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (public.current_user_role() = 'admin');
 
 DROP POLICY IF EXISTS "business_units_select_all_authenticated" ON public.business_units;
 CREATE POLICY "business_units_select_all_authenticated"
   ON public.business_units
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (
+    manager_user_id = auth.uid()
+    OR public.current_user_role() = 'admin'
+  );

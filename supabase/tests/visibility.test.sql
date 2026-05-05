@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(29);
+SELECT plan(38);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -351,6 +351,78 @@ SELECT is(
   (SELECT name FROM public.opportunities WHERE id = '00000000-0000-0000-0000-000000000001'),
   'Updated Name',
   'team viewer cannot update opportunity (silently blocked)'
+);
+
+-- ── 29. Non-owner cannot insert opportunity ───────────────────────────────────
+SELECT tests.as_user('other@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT throws_ok(
+  $$INSERT INTO public.opportunities (id, name, account_id, stage, owner_user_id, sales_initiator_user_id, sales_unit_id, amount, currency, visibility_tier) VALUES ('00000000-0000-0000-0000-000000000002', 'Bad Opp', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'qualify', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 100000, 'USD', 'standard')$$,
+  '42501',
+  NULL,
+  'non-owner cannot insert opportunity'
+);
+
+-- ── 30. Owner can insert opportunity ──────────────────────────────────────────
+SELECT tests.as_user('owner@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT lives_ok(
+  $$INSERT INTO public.opportunities (id, name, account_id, stage, owner_user_id, sales_initiator_user_id, sales_unit_id, amount, currency, visibility_tier) VALUES ('00000000-0000-0000-0000-000000000003', 'New Opp', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'qualify', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 100000, 'USD', 'standard')$$,
+  'owner can insert opportunity'
+);
+
+-- ── 31. Owner cannot spoof another user's opportunity ─────────────────────────
+SELECT throws_ok(
+  $$INSERT INTO public.opportunities (id, name, account_id, stage, owner_user_id, sales_initiator_user_id, sales_unit_id, amount, currency, visibility_tier) VALUES ('00000000-0000-0000-0000-000000000004', 'Spoofed Opp', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'qualify', '10000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 100000, 'USD', 'standard')$$,
+  '42501',
+  NULL,
+  'owner cannot insert opportunity for another user'
+);
+
+-- ── 32. User cannot see other users' opportunity_visibility rows ──────────────
+SELECT tests.as_user('other@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.opportunity_visibility WHERE user_id = '10000000-0000-0000-0000-000000000001'$$,
+  'user cannot see other users opportunity_visibility rows'
+);
+
+-- ── 33. User can see their own opportunity_visibility rows ────────────────────
+SELECT isnt_empty(
+  $$SELECT id FROM public.opportunity_visibility WHERE user_id = '10000000-0000-0000-0000-000000000007'$$,
+  'user can see their own opportunity_visibility rows'
+);
+
+-- ── 34. Non-admin cannot select entities ──────────────────────────────────────
+SELECT tests.as_user('owner@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.entities WHERE true$$,
+  'non-admin cannot select entities'
+);
+
+-- ── 35. Admin can select entities ─────────────────────────────────────────────
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.entities WHERE id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'$$,
+  'admin can select entities'
+);
+
+-- ── 36. Non-manager cannot select business_units ───────────────────────────────
+SELECT tests.as_user('owner@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.business_units WHERE true$$,
+  'non-manager cannot select business_units'
+);
+
+-- ── 37. Manager can select business_units ─────────────────────────────────────
+SELECT tests.as_user('split_mgr@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.business_units WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'$$,
+  'manager can select their business_units'
 );
 
 SELECT * FROM finish();
