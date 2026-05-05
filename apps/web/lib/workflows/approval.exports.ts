@@ -7,5 +7,6 @@ export {
   type ApprovalStep,
   type ApprovalContext,
   type StepApproval,
+  type ApproverVote,
   type StepAction,
 } from "./approval"
