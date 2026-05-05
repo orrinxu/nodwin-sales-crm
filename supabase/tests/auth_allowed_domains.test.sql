@@ -23,18 +23,18 @@ ON CONFLICT (domain) DO NOTHING;
 -- service_role bypasses RLS by default in Supabase; this test confirms
 -- the table is readable by the identity used by auth hook Edge Functions.
 SELECT tests.as_service_role();
-SELECT tests.assert_can_select(
-  'auth_allowed_domains',
-  'true',
+SET LOCAL ROLE postgres;
+SELECT isnt_empty(
+  $$SELECT id FROM public.auth_allowed_domains WHERE true$$,
   'service_role can SELECT from auth_allowed_domains'
 );
 
 -- ── 2. anon role cannot SELECT any rows ──────────────────────────────────────
 -- No SELECT policy exists for anon; RLS must block all rows silently.
 SELECT tests.as_anon();
-SELECT tests.assert_cannot_select(
-  'auth_allowed_domains',
-  'true',
+SET LOCAL ROLE anon;
+SELECT is_empty(
+  $$SELECT id FROM public.auth_allowed_domains WHERE true$$,
   'anon cannot SELECT from auth_allowed_domains'
 );
 

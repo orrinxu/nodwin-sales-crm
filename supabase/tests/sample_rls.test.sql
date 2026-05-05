@@ -62,6 +62,7 @@ INSERT INTO _rls_sample (id, owner, payload) VALUES
 
 -- 1. Alice can see her own row.
 SELECT tests.as_user('alice@test.nodwin.com');
+SET LOCAL ROLE authenticated;
 SELECT tests.assert_can_select(
   '_rls_sample',
   'owner = ''aaaa0001-0000-0000-0000-000000000001''',
@@ -70,6 +71,7 @@ SELECT tests.assert_can_select(
 
 -- 2. Bob cannot see Alice's row (RLS hides it without an error).
 SELECT tests.as_user('bob@test.nodwin.com');
+SET LOCAL ROLE authenticated;
 SELECT tests.assert_cannot_select(
   '_rls_sample',
   'owner = ''aaaa0001-0000-0000-0000-000000000001''',
@@ -78,6 +80,7 @@ SELECT tests.assert_cannot_select(
 
 -- 3. Alice can insert a row she owns.
 SELECT tests.as_user('alice@test.nodwin.com');
+SET LOCAL ROLE authenticated;
 SELECT tests.assert_can_insert(
   '_rls_sample',
   format(
@@ -90,6 +93,7 @@ SELECT tests.assert_can_insert(
 
 -- 4. Bob cannot insert a row claiming Alice as owner (WITH CHECK blocks it).
 SELECT tests.as_user('bob@test.nodwin.com');
+SET LOCAL ROLE authenticated;
 SELECT tests.assert_cannot_insert(
   '_rls_sample',
   format(
@@ -101,6 +105,7 @@ SELECT tests.assert_cannot_insert(
 );
 
 -- 5. Bob can insert a row he owns.
+SET LOCAL ROLE authenticated;
 SELECT tests.assert_can_insert(
   '_rls_sample',
   format(
@@ -113,6 +118,7 @@ SELECT tests.assert_can_insert(
 
 -- 6. Anonymous role sees no rows at all.
 SELECT tests.as_anon();
+SET LOCAL ROLE anon;
 SELECT tests.assert_cannot_select(
   '_rls_sample',
   'true',
