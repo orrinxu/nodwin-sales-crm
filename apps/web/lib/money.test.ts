@@ -149,12 +149,20 @@ describe("Money.zero", () => {
 })
 
 describe("toAmount", () => {
-  it("converts cents back to decimal", () => {
-    expect(Money.fromCents(12345, "USD").toAmount()).toBe(123.45)
+  it("converts cents back to decimal string", () => {
+    expect(Money.fromCents(12345, "USD").toAmount()).toBe("123.45")
   })
 
   it("handles negative amounts", () => {
-    expect(Money.fromCents(-500, "USD").toAmount()).toBe(-5.00)
+    expect(Money.fromCents(-500, "USD").toAmount()).toBe("-5.00")
+  })
+
+  it("handles zero", () => {
+    expect(Money.fromCents(0, "USD").toAmount()).toBe("0.00")
+  })
+
+  it("handles single-digit cents", () => {
+    expect(Money.fromCents(5, "USD").toAmount()).toBe("0.05")
   })
 })
 
@@ -266,6 +274,16 @@ describe("multiply", () => {
     const m = Money.fromCents(100, "USD")
     expect(m.multiply(1.333, "ceil").cents).toBe(134)
   })
+
+  it("accepts string factor to avoid float intermediates", () => {
+    const m = Money.fromCents(100, "USD")
+    expect(m.multiply("1.5", "round").cents).toBe(150)
+  })
+
+  it("handles large string factor without precision loss", () => {
+    const m = Money.fromCents(100, "USD")
+    expect(m.multiply("1.333333333333", "floor").cents).toBe(133)
+  })
 })
 
 describe("divide", () => {
@@ -291,6 +309,16 @@ describe("divide", () => {
 
   it("throws on division by zero", () => {
     expect(() => Money.fromCents(100, "USD").divide(0)).toThrow("zero")
+  })
+
+  it("accepts string divisor to avoid float intermediates", () => {
+    const m = Money.fromCents(100, "USD")
+    expect(m.divide("3", "round").cents).toBe(33)
+  })
+
+  it("handles large string divisor without precision loss", () => {
+    const m = Money.fromCents(100, "USD")
+    expect(m.divide("2.999999999999", "floor").cents).toBe(33)
   })
 })
 
@@ -381,20 +409,20 @@ describe("rounding edge cases", () => {
 
   it("handles very large amounts without precision loss", () => {
     const m = Money.fromCents(1_000_000_000_000, "USD")
-    expect(m.toAmount()).toBe(10_000_000_000)
+    expect(m.toAmount()).toBe("10000000000.00")
   })
 
   it("parses large numeric(20,4) string without precision loss", () => {
     const m = Money.fromAmount("123456789012.3456", "USD")
     expect(m.cents).toBe(12_345_678_901_235)
-    expect(m.toAmount()).toBe(123_456_789_012.35)
+    expect(m.toAmount()).toBe("123456789012.35")
   })
 
   it("round-trips large numeric(20,4) string through fromAmount", () => {
     const original = "9999999999999.9999"
     const m = Money.fromAmount(original, "USD")
     expect(m.cents).toBe(1_000_000_000_000_000)
-    expect(m.toAmount()).toBe(10_000_000_000_000)
+    expect(m.toAmount()).toBe("10000000000000.00")
   })
 
   it("multiply by zero", () => {
