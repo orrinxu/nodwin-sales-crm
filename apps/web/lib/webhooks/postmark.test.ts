@@ -21,6 +21,24 @@ describe("verifyPostmarkWebhook", () => {
     expect(() => verifyPostmarkWebhook({}, VALID_BODY, SECRET)).toThrow(/missing/i)
   })
 
+  it("throws WebhookVerificationError when token header is duplicated (string[])", () => {
+    expect(() =>
+      verifyPostmarkWebhook({ "x-postmark-webhook-secret": ["a", "b"] }, VALID_BODY, SECRET),
+    ).toThrow(WebhookVerificationError)
+    expect(() =>
+      verifyPostmarkWebhook({ "x-postmark-webhook-secret": ["a", "b"] }, VALID_BODY, SECRET),
+    ).toThrow(/missing/i)
+  })
+
+  it("throws WebhookVerificationError when token header is undefined", () => {
+    expect(() =>
+      verifyPostmarkWebhook({ "x-postmark-webhook-secret": undefined }, VALID_BODY, SECRET),
+    ).toThrow(WebhookVerificationError)
+    expect(() =>
+      verifyPostmarkWebhook({ "x-postmark-webhook-secret": undefined }, VALID_BODY, SECRET),
+    ).toThrow(/missing/i)
+  })
+
   it("throws WebhookVerificationError when token is wrong", () => {
     expect(() =>
       verifyPostmarkWebhook(headers("wrong-token"), VALID_BODY, SECRET),
@@ -63,6 +81,15 @@ describe("verifyHmacSignature", () => {
       .update(payload, "utf8")
       .digest("hex")
     expect(() => verifyHmacSignature(payload, expectedSig, hmacSecret, "sha512")).not.toThrow()
+  })
+
+  it("throws WebhookVerificationError when signature is missing", () => {
+    expect(() =>
+      verifyHmacSignature('{"event":"test"}', undefined as unknown as string, hmacSecret),
+    ).toThrow(WebhookVerificationError)
+    expect(() =>
+      verifyHmacSignature('{"event":"test"}', undefined as unknown as string, hmacSecret),
+    ).toThrow(/missing/i)
   })
 
   it("throws WebhookVerificationError on signature mismatch", () => {

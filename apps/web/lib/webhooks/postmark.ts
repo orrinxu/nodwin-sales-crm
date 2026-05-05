@@ -5,12 +5,28 @@ import type { PostmarkInboundPayload } from "@/lib/email/inbound"
 
 const TOKEN_HEADER = "x-postmark-webhook-secret"
 
+function getHeaderValue(
+  headers: Record<string, string | string[] | undefined>,
+  key: string,
+): string | undefined {
+  const normalizedKey = key.toLowerCase()
+  for (const [headerKey, value] of Object.entries(headers)) {
+    if (headerKey.toLowerCase() === normalizedKey) {
+      if (typeof value !== "string") {
+        return undefined
+      }
+      return value
+    }
+  }
+  return undefined
+}
+
 export function verifyPostmarkWebhook(
-  headers: Record<string, string>,
+  headers: Record<string, string | string[] | undefined>,
   body: string,
   secret: string,
 ): { payload: PostmarkInboundPayload } {
-  const token = headers[TOKEN_HEADER]
+  const token = getHeaderValue(headers, TOKEN_HEADER)
   if (!token) {
     throw new WebhookVerificationError(`Missing ${TOKEN_HEADER} header`)
   }

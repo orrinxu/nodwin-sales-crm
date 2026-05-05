@@ -16,6 +16,10 @@ export function verifyHmacSignature(
   secret: string,
   algorithm: HmacAlgorithm = "sha256",
 ): void {
+  if (!signature) {
+    throw new WebhookVerificationError("Missing signature")
+  }
+
   const expected = createHmac(algorithm, secret).update(payload, "utf8").digest("hex")
   const expectedBuf = Buffer.from(expected, "utf8")
   const signatureBuf = Buffer.from(signature, "utf8")
