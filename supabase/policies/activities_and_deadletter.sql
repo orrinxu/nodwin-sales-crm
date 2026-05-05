@@ -9,11 +9,25 @@
 ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "activities_select_all_authenticated" ON public.activities;
-CREATE POLICY "activities_select_all_authenticated"
+DROP POLICY IF EXISTS "activities_select_scoped" ON public.activities;
+CREATE POLICY "activities_select_scoped"
   ON public.activities
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (
+    user_id = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM public.accounts
+      WHERE id = public.activities.account_id
+        AND (account_owner_user_id = auth.uid() OR created_by = auth.uid())
+    )
+    OR EXISTS (
+      SELECT 1 FROM public.opportunity_visibility
+      WHERE opportunity_id = public.activities.opportunity_id
+        AND user_id = auth.uid()
+    )
+    OR public.current_user_role() = 'admin'
+  );
 
 DROP POLICY IF EXISTS "activities_insert_admin" ON public.activities;
 CREATE POLICY "activities_insert_admin"

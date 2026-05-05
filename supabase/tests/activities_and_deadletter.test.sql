@@ -7,22 +7,24 @@
 
 BEGIN;
 
-SELECT plan(25);
+SELECT plan(27);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
 -- Create auth users.
 INSERT INTO auth.users (id, email, raw_user_meta_data)
 VALUES
-  ('11111111-1111-1111-1111-111111111111', 'rep@nodwin.com',  '{"full_name":"Sales Rep"}'),
-  ('22222222-2222-2222-2222-222222222222', 'admin@nodwin.com', '{"full_name":"Admin User"}')
+  ('11111111-1111-1111-1111-111111111111', 'rep@nodwin.com',   '{"full_name":"Sales Rep"}'),
+  ('22222222-2222-2222-2222-222222222222', 'admin@nodwin.com', '{"full_name":"Admin User"}'),
+  ('33333333-3333-3333-3333-333333333333', 'other@nodwin.com', '{"full_name":"Other Rep"}')
 ON CONFLICT (id) DO NOTHING;
 
 -- Upsert public.users rows with correct roles.
 INSERT INTO public.users (id, email, full_name, primary_role, primary_entity_id)
 VALUES
-  ('11111111-1111-1111-1111-111111111111', 'rep@nodwin.com',  'Sales Rep',  'sales_rep', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
-  ('22222222-2222-2222-2222-222222222222', 'admin@nodwin.com', 'Admin User', 'admin',     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
+  ('11111111-1111-1111-1111-111111111111', 'rep@nodwin.com',   'Sales Rep',  'sales_rep', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
+  ('22222222-2222-2222-2222-222222222222', 'admin@nodwin.com', 'Admin User', 'admin',     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
+  ('33333333-3333-3333-3333-333333333333', 'other@nodwin.com', 'Other Rep',  'sales_rep', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb')
 ON CONFLICT (id) DO UPDATE SET
   full_name          = EXCLUDED.full_name,
   primary_role       = EXCLUDED.primary_role,
@@ -87,6 +89,22 @@ SET LOCAL ROLE authenticated;
 SELECT isnt_empty(
   $$SELECT id FROM public.activities WHERE type = 'email'$$,
   'rep can read activities'
+);
+
+-- ── 1b. Other user cannot read activities they have no visibility to ─────────
+SELECT tests.as_user('other@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.activities WHERE type = 'email'$$,
+  'other rep cannot read unrelated activities'
+);
+
+-- ── 1c. Admin can read activities ────────────────────────────────────────────
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.activities WHERE type = 'email'$$,
+  'admin can read activities'
 );
 
 -- ── 2. Anon cannot read activities ───────────────────────────────────────────

@@ -1,3 +1,29 @@
+import {
+  dinero,
+  add,
+  subtract,
+  multiply as dineroMultiply,
+  equal,
+  greaterThan,
+  greaterThanOrEqual,
+  lessThan,
+  lessThanOrEqual,
+  isZero as dineroIsZero,
+  isNegative as dineroIsNegative,
+  minimum,
+  maximum,
+  toDecimal,
+  toSnapshot,
+  transformScale,
+  trimScale,
+  type Dinero,
+  type DineroCurrency,
+  halfUp,
+  down,
+  up,
+} from "dinero.js"
+import { USD } from "dinero.js"
+
 export type RoundingMode = "round" | "floor" | "ceil"
 
 export type CurrencyCode = string
@@ -8,33 +34,61 @@ export function isValidCurrencyCode(code: string): boolean {
   return CURRENCY_CODE_PATTERN.test(code)
 }
 
+function toDineroCurrency(code: CurrencyCode): DineroCurrency<number> {
+  const map: Record<string, DineroCurrency<number>> = {
+    USD,
+    EUR: { code: "EUR", base: 10, exponent: 2 },
+    GBP: { code: "GBP", base: 10, exponent: 2 },
+    INR: { code: "INR", base: 10, exponent: 2 },
+    JPY: { code: "JPY", base: 10, exponent: 0 },
+  }
+  return map[code] ?? { code, base: 10, exponent: 2 }
+}
+
+function toDineroRounding(mode: RoundingMode) {
+  switch (mode) {
+    case "round":
+      return halfUp
+    case "floor":
+      return down
+    case "ceil":
+      return up
+  }
+}
+
 export interface MoneyData {
   cents: number
   currency: CurrencyCode
 }
 
 export class Money {
-  readonly cents: number
-  readonly currency: CurrencyCode
+  private readonly d: Dinero<number>
 
-  private constructor(cents: number, currency: CurrencyCode) {
-    if (!Number.isInteger(cents)) {
-      throw new Error(`Money cents must be an integer, got ${cents}`)
-    }
-    this.cents = cents
-    this.currency = currency
+  private constructor(d: Dinero<number>) {
+    this.d = d
+  }
+
+  /** Raw cents value (integer in smallest currency unit). */
+  get cents(): number {
+    return toSnapshot(this.d).amount
+  }
+
+  get currency(): CurrencyCode {
+    return toSnapshot(this.d).currency.code
   }
 
   static fromCents(cents: number, currency: CurrencyCode): Money {
-    return new Money(cents, currency)
+    if (!Number.isInteger(cents)) {
+      throw new Error(`Money cents must be an integer, got ${cents}`)
+    }
+    const c = toDineroCurrency(currency)
+    return new Money(dinero({ amount: cents, currency: c }))
   }
 
   static fromAmount(amount: number | string, currency: CurrencyCode): Money {
     if (typeof amount === "string") {
       return Money.fromString(amount, currency)
     }
-    // Convert to string to avoid floating-point multiplication errors
-    // e.g. 2.675 * 100 = 267.4999... which rounds to 267 instead of 268
     return Money.fromString(amount.toString(), currency)
   }
 
@@ -68,6 +122,10 @@ export class Money {
       throw new Error(`Cannot parse money from "${amount}"`)
     }
 
+    const c = toDineroCurrency(currency)
+    const exponent = c.exponent
+    const multiplier = Math.pow(10, exponent)
+
     const dotIndex = absStr.indexOf(".")
     const wholeStr = dotIndex >= 0 ? absStr.slice(0, dotIndex) : absStr
     const decimalStr = dotIndex >= 0 ? absStr.slice(dotIndex + 1) : ""
@@ -78,40 +136,36 @@ export class Money {
 
     const whole = wholeStr === "" ? 0 : Number(wholeStr)
 
-    let decimalPart = 0
+    let subUnitPart = 0
     let roundUp = false
 
-    if (decimalStr.length > 0) {
-      const relevantDigits = decimalStr.slice(0, 2)
-      decimalPart = relevantDigits === "" ? 0 : Number(relevantDigits.padEnd(2, "0"))
-      const nextDigit = decimalStr.charAt(2)
+    if (decimalStr.length > 0 && exponent > 0) {
+      const relevantDigits = decimalStr.slice(0, exponent)
+      subUnitPart = relevantDigits === "" ? 0 : Number(relevantDigits.padEnd(exponent, "0"))
+      const nextDigit = decimalStr.charAt(exponent)
       if (nextDigit !== undefined && nextDigit !== "") {
         roundUp = Number(nextDigit) >= 5
       }
     }
 
-    let cents = whole * 100 + decimalPart
+    let units = whole * multiplier + subUnitPart
     if (roundUp) {
-      cents += 1
+      units += 1
     }
 
-    return new Money(isNegative ? -cents : cents, currency)
+    return Money.fromCents(isNegative ? -units : units, currency)
   }
 
   static zero(currency: CurrencyCode): Money {
-    return new Money(0, currency)
+    return Money.fromCents(0, currency)
   }
 
   /**
    * Return the decimal string representation (e.g. "123.45").
-   * No float intermediates — pure string manipulation.
+   * No float intermediates — dinero.js toDecimal produces a string.
    */
   toAmount(): string {
-    const sign = this.cents < 0 ? "-" : ""
-    const absCents = Math.abs(this.cents).toString().padStart(3, "0")
-    const whole = absCents.slice(0, -2)
-    const fraction = absCents.slice(-2)
-    return `${sign}${whole}.${fraction}`
+    return toDecimal(this.d)
   }
 
   /** Display only. Output is locale-aware but always uses Latin (ASCII 0-9) digits. Not suitable for machine parsing. Use `toAmount()` for decimal string. */
@@ -134,22 +188,23 @@ export class Money {
 
   add(other: Money): Money {
     assertSameCurrency(this, other, "add")
-    return new Money(this.cents + other.cents, this.currency)
+    return new Money(add(this.d, other.d))
   }
 
   subtract(other: Money): Money {
     assertSameCurrency(this, other, "subtract")
-    return new Money(this.cents - other.cents, this.currency)
+    return new Money(subtract(this.d, other.d))
   }
 
   multiply(factor: string | number, mode: RoundingMode = "round"): Money {
     const factorStr = typeof factor === "number" ? factor.toString() : factor
     const { amount: scaledFactor, scale: factorScale } =
       decimalToScaledInteger(factorStr)
-    const product = BigInt(this.cents) * scaledFactor
+    const snap = toSnapshot(this.d)
+    const product = BigInt(snap.amount) * scaledFactor
     const divisor = pow10BigInt(factorScale)
     const result = applyBigIntRounding(product, divisor, mode)
-    return new Money(Number(result), this.currency)
+    return Money.fromCents(Number(result), this.currency)
   }
 
   divide(divisor: string | number, mode: RoundingMode = "round"): Money {
@@ -157,50 +212,51 @@ export class Money {
     const { amount: scaledDivisor, scale: divisorScale } =
       decimalToScaledInteger(divisorStr)
     if (scaledDivisor === 0n) throw new Error("Cannot divide money by zero")
-    const dividend = BigInt(this.cents) * pow10BigInt(divisorScale)
+    const snap = toSnapshot(this.d)
+    const dividend = BigInt(snap.amount) * pow10BigInt(divisorScale)
     const result = applyBigIntRounding(dividend, scaledDivisor, mode)
-    return new Money(Number(result), this.currency)
+    return Money.fromCents(Number(result), this.currency)
   }
 
   abs(): Money {
-    return new Money(Math.abs(this.cents), this.currency)
+    return this.cents < 0 ? new Money(dineroMultiply(this.d, -1)) : new Money(this.d)
   }
 
   negate(): Money {
-    return new Money(-this.cents, this.currency)
+    return new Money(dineroMultiply(this.d, -1))
   }
 
   eq(other: Money): boolean {
     assertSameCurrency(this, other, "eq")
-    return this.cents === other.cents
+    return equal(this.d, other.d)
   }
 
   gt(other: Money): boolean {
     assertSameCurrency(this, other, "gt")
-    return this.cents > other.cents
+    return greaterThan(this.d, other.d)
   }
 
   gte(other: Money): boolean {
     assertSameCurrency(this, other, "gte")
-    return this.cents >= other.cents
+    return greaterThanOrEqual(this.d, other.d)
   }
 
   lt(other: Money): boolean {
     assertSameCurrency(this, other, "lt")
-    return this.cents < other.cents
+    return lessThan(this.d, other.d)
   }
 
   lte(other: Money): boolean {
     assertSameCurrency(this, other, "lte")
-    return this.cents <= other.cents
+    return lessThanOrEqual(this.d, other.d)
   }
 
   isZero(): boolean {
-    return this.cents === 0
+    return dineroIsZero(this.d)
   }
 
   isNegative(): boolean {
-    return this.cents < 0
+    return dineroIsNegative(this.d)
   }
 
   min(other: Money): Money {
