@@ -126,6 +126,9 @@ export function fromCents(cents: number, currency: CurrencyCode): Money {
   if (!Number.isInteger(cents)) {
     throw new Error(`Money amount must be an integer, got ${cents}`)
   }
+  if (!Number.isSafeInteger(cents)) {
+    throw new Error(`Money amount exceeds safe integer range: ${cents}`)
+  }
   return dinero({ amount: cents, currency: getCurrency(currency) })
 }
 
@@ -201,7 +204,7 @@ export function toDisplay(money: Money, locale = 'en-US'): string {
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: currency.code,
-  }).format(Number(toDecimal(money)))
+  }).format(toDecimal(money))
 }
 
 /**
@@ -256,6 +259,31 @@ export function multiplyMoney(
  * Divide a Money value by a divisor.
  * The divisor is a string to avoid float precision issues in the dividend.
  */
+function integerDivide(n: number, d: number, mode: RoundingMode): number {
+  const a = BigInt(n)
+  const b = BigInt(d)
+  const q = a / b
+  const r = a % b
+  if (r === 0n) return Number(q)
+
+  const sameSign = (a >= 0n) === (b >= 0n)
+  const absR = r >= 0n ? r : -r
+  const absB = b >= 0n ? b : -b
+  const twiceR = 2n * absR
+
+  switch (mode) {
+    case 'round':
+      if (sameSign) {
+        return Number(q + (twiceR >= absB ? 1n : 0n))
+      }
+      return Number(q - (twiceR > absB ? 1n : 0n))
+    case 'floor':
+      return Number(q - (sameSign ? 0n : 1n))
+    case 'ceil':
+      return Number(q + (sameSign ? 1n : 0n))
+  }
+}
+
 export function divideMoney(
   money: Money,
   divisor: string,
@@ -266,22 +294,7 @@ export function divideMoney(
   if (!isFinite(d)) throw new Error(`Invalid divisor: ${divisor}`)
 
   const { amount, currency } = toSnapshot(money)
-  let result: number
-  switch (mode) {
-    case 'round':
-      result = Math.round(amount / d)
-      break
-    case 'floor':
-      result = Math.floor(amount / d)
-      break
-    case 'ceil':
-      result = Math.ceil(amount / d)
-      break
-  }
-
-  if (!Number.isInteger(result)) {
-    throw new Error(`Division result is not an integer: ${result}`)
-  }
+  const result = integerDivide(amount, d, mode)
 
   return dinero({ amount: result, currency })
 }
