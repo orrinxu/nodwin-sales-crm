@@ -206,7 +206,14 @@ The board may also configure Paperclip to require approval before any change to 
 
 ### 7.3 Before opening a PR
 
-Run locally:
+**Branch hygiene (prevents stale commits and merge conflicts):**
+
+1. **Every new branch MUST be created from `origin/main`**: `git fetch origin && git switch -c feat/orr-xxx origin/main`
+2. **Before opening a PR, rebase on latest main**: `git fetch origin && git rebase origin/main`. Resolve conflicts before requesting review.
+3. **If your branch contains commits already merged to main**, do NOT open a PR. Create a fresh branch from `origin/main` and cherry-pick only unmerged commits.
+4. **One branch = one ticket**. Never reuse a branch for a different ticket.
+
+**Local checks:**
 
 ```bash
 pnpm lint
@@ -216,6 +223,8 @@ pnpm db:test  # runs RLS policy tests
 ```
 
 All four must pass. If any fails, fix it before opening the PR. If a failure is genuinely outside your ticket's scope, document it in the PR and surface it to the board.
+
+**Stale branch policy:** PRs with merge conflicts caused by already-merged commits will be closed without review. Open a clean PR from a fresh branch.
 
 ### 7.4 PR description format
 
