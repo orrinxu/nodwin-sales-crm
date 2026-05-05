@@ -7,24 +7,22 @@
 
 BEGIN;
 
-SELECT plan(27);
+SELECT plan(28);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
 -- Create auth users.
 INSERT INTO auth.users (id, email, raw_user_meta_data)
 VALUES
-  ('11111111-1111-1111-1111-111111111111', 'rep@nodwin.com',   '{"full_name":"Sales Rep"}'),
-  ('22222222-2222-2222-2222-222222222222', 'admin@nodwin.com', '{"full_name":"Admin User"}'),
-  ('33333333-3333-3333-3333-333333333333', 'other@nodwin.com', '{"full_name":"Other Rep"}')
+  ('11111111-1111-1111-1111-111111111111', 'rep@nodwin.com',  '{"full_name":"Sales Rep"}'),
+  ('22222222-2222-2222-2222-222222222222', 'admin@nodwin.com', '{"full_name":"Admin User"}')
 ON CONFLICT (id) DO NOTHING;
 
 -- Upsert public.users rows with correct roles.
 INSERT INTO public.users (id, email, full_name, primary_role, primary_entity_id)
 VALUES
-  ('11111111-1111-1111-1111-111111111111', 'rep@nodwin.com',   'Sales Rep',  'sales_rep', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
-  ('22222222-2222-2222-2222-222222222222', 'admin@nodwin.com', 'Admin User', 'admin',     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
-  ('33333333-3333-3333-3333-333333333333', 'other@nodwin.com', 'Other Rep',  'sales_rep', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb')
+  ('11111111-1111-1111-1111-111111111111', 'rep@nodwin.com',  'Sales Rep',  'sales_rep', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
+  ('22222222-2222-2222-2222-222222222222', 'admin@nodwin.com', 'Admin User', 'admin',     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
 ON CONFLICT (id) DO UPDATE SET
   full_name          = EXCLUDED.full_name,
   primary_role       = EXCLUDED.primary_role,
@@ -83,28 +81,37 @@ VALUES (
   'forged_sender'
 );
 
+-- ── Additional fixtures for tightened RLS tests ───────────────────────────────
+
+-- Third auth user for account-level activity tests.
+INSERT INTO auth.users (id, email, raw_user_meta_data)
+VALUES ('33333333-3333-3333-3333-333333333333', 'user3@nodwin.com', '{"full_name":"User Three"}')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.users (id, email, full_name, primary_role, primary_entity_id)
+VALUES ('33333333-3333-3333-3333-333333333333', 'user3@nodwin.com', 'User Three', 'sales_rep', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
+ON CONFLICT (id) DO UPDATE SET
+  full_name          = EXCLUDED.full_name,
+  primary_role       = EXCLUDED.primary_role,
+  primary_entity_id  = EXCLUDED.primary_entity_id;
+
+-- Account owned by user3.
+INSERT INTO public.accounts (id, name, email_domains, account_owner_user_id)
+VALUES ('ccccccc1-cccc-cccc-cccc-cccccccccccc', 'User3 Account', ARRAY['test.com'], '33333333-3333-3333-3333-333333333333');
+
+-- Account-level activities (opportunity_id IS NULL) for scoped read tests.
+INSERT INTO public.activities (id, account_id, user_id, type, subject)
+VALUES
+  ('aaaaaaa1-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'ccccccc1-cccc-cccc-cccc-cccccccccccc', '33333333-3333-3333-3333-333333333333', 'note', 'User3 own note'),
+  ('aaaaaaa2-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'ccccccc1-cccc-cccc-cccc-cccccccccccc', '11111111-1111-1111-1111-111111111111', 'note', 'Rep note on User3 Account'),
+  ('aaaaaaa3-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '33333333-3333-3333-3333-333333333333', 'note', 'User3 note on unowned Account');
+
 -- ── 1. Authenticated user can read activities ────────────────────────────────
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT isnt_empty(
   $$SELECT id FROM public.activities WHERE type = 'email'$$,
   'rep can read activities'
-);
-
--- ── 1b. Other user cannot read activities they have no visibility to ─────────
-SELECT tests.as_user('other@nodwin.com');
-SET LOCAL ROLE authenticated;
-SELECT is_empty(
-  $$SELECT id FROM public.activities WHERE type = 'email'$$,
-  'other rep cannot read unrelated activities'
-);
-
--- ── 1c. Admin can read activities ────────────────────────────────────────────
-SELECT tests.as_user('admin@nodwin.com');
-SET LOCAL ROLE authenticated;
-SELECT isnt_empty(
-  $$SELECT id FROM public.activities WHERE type = 'email'$$,
-  'admin can read activities'
 );
 
 -- ── 2. Anon cannot read activities ───────────────────────────────────────────
@@ -115,24 +122,22 @@ SELECT is_empty(
   'anon cannot read activities'
 );
 
--- ── 3. Non-admin cannot insert activity ──────────────────────────────────────
+-- ── 3. Activity author can insert their own activity ────────────────────────
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
-SELECT throws_ok(
-  $$INSERT INTO public.activities (id, account_id, user_id, type) VALUES ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'email')$$,
-  '42501',
-  NULL,
-  'rep cannot insert activity'
+SELECT lives_ok(
+  $$INSERT INTO public.activities (id, account_id, user_id, type) VALUES ('aaaaaaa4-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'note')$$,
+  'rep can insert their own activity'
 );
 
--- ── 4. Non-admin cannot update activity ──────────────────────────────────────
+-- ── 4. Activity author can update their own activity ────────────────────────
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
-UPDATE public.activities SET subject = 'Hacked' WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+UPDATE public.activities SET subject = 'Updated by rep' WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 SELECT is(
   (SELECT subject FROM public.activities WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
-  'Hello',
-  'rep cannot update activity (silently blocked)'
+  'Updated by rep',
+  'rep can update their own activity'
 );
 
 -- ── 5. Non-admin cannot delete activity ──────────────────────────────────────
@@ -324,6 +329,30 @@ SELECT has_fk('public', 'activities', 'activities has FK constraints');
 
 -- ── 25. deadletter has no FK ─────────────────────────────────────────────────
 SELECT hasnt_fk('public', 'inbound_email_deadletter', 'deadletter has no FK constraints');
+
+-- ── 26. Activity author can read their own account-level activity ─────────────
+SELECT tests.as_user('user3@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.activities WHERE id = 'aaaaaaa1-aaaa-aaaa-aaaa-aaaaaaaaaaaa'$$,
+  'author can read their own account-level activity'
+);
+
+-- ── 27. Account owner can read account-level activities on their account ──────
+SELECT tests.as_user('user3@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.activities WHERE id = 'aaaaaaa2-aaaa-aaaa-aaaa-aaaaaaaaaaaa'$$,
+  'account owner can read account-level activities on their account'
+);
+
+-- ── 28. Non-owner non-author cannot read another users account-level activity ─
+SELECT tests.as_user('rep@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.activities WHERE id = 'aaaaaaa3-aaaa-aaaa-aaaa-aaaaaaaaaaaa'$$,
+  'non-owner non-author cannot read another users account-level activity'
+);
 
 SELECT * FROM finish();
 
