@@ -120,9 +120,11 @@ export function getRateLimitConfig(
     }
   }
 
-  const defaultKey = `default:${authSuffix}`
-  if (limits[defaultKey]) {
-    return limits[defaultKey]
+  const defaultEntry = Object.entries(limits).find(
+    ([key]) => key === `default:${authSuffix}`,
+  )
+  if (defaultEntry) {
+    return defaultEntry[1]
   }
 
   return { windowMs: 60_000, max: 60 }

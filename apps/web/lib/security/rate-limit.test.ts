@@ -246,7 +246,7 @@ describe("rateLimit", () => {
   })
 
   it("treats different users independently", async () => {
-    const { rateLimit, InMemoryRateLimitStore, TooManyRequestsError } = await import("./rate-limit")
+    const { rateLimit, InMemoryRateLimitStore } = await import("./rate-limit")
     const store = new InMemoryRateLimitStore()
 
     await rateLimit({
@@ -270,7 +270,7 @@ describe("rateLimit", () => {
   })
 
   it("treats different routes independently", async () => {
-    const { rateLimit, InMemoryRateLimitStore, TooManyRequestsError } = await import("./rate-limit")
+    const { rateLimit, InMemoryRateLimitStore } = await import("./rate-limit")
     const store = new InMemoryRateLimitStore()
 
     await rateLimit({
