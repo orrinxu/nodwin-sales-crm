@@ -9,28 +9,39 @@
 ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "activities_select_all_authenticated" ON public.activities;
-CREATE POLICY "activities_select_all_authenticated"
+CREATE POLICY "activities_select_via_opportunity_or_account"
   ON public.activities
   FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.opportunity_visibility
+      WHERE opportunity_id = public.activities.opportunity_id
+        AND user_id = auth.uid()
+    )
+    OR public.activities.opportunity_id IS NULL
+    OR public.current_user_role() = 'admin'
+  );
+
+DROP POLICY IF EXISTS "activities_insert_admin" ON public.activities;
+CREATE POLICY "activities_insert_author_or_admin"
+  ON public.activities
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    user_id = auth.uid()
+    OR public.current_user_role() = 'admin'
+  );
+
+DROP POLICY IF EXISTS "activities_update_admin" ON public.activities;
+CREATE POLICY "activities_update_author_or_admin"
+  ON public.activities
+  FOR UPDATE
   TO authenticated
   USING (
     user_id = auth.uid()
     OR public.current_user_role() = 'admin'
   );
-
-DROP POLICY IF EXISTS "activities_insert_admin" ON public.activities;
-CREATE POLICY "activities_insert_admin"
-  ON public.activities
-  FOR INSERT
-  TO authenticated
-  WITH CHECK (public.current_user_role() = 'admin');
-
-DROP POLICY IF EXISTS "activities_update_admin" ON public.activities;
-CREATE POLICY "activities_update_admin"
-  ON public.activities
-  FOR UPDATE
-  TO authenticated
-  USING (public.current_user_role() = 'admin');
 
 DROP POLICY IF EXISTS "activities_delete_admin" ON public.activities;
 CREATE POLICY "activities_delete_admin"
