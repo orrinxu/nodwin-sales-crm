@@ -7,7 +7,7 @@
 
 BEGIN;
 
-SELECT plan(25);
+SELECT plan(26);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -57,7 +57,7 @@ INSERT INTO public.opportunities (
   'standard'
 );
 
--- Insert a fixture activity (as service role).
+-- Insert fixture activities (as service role).
 INSERT INTO public.activities (id, account_id, opportunity_id, user_id, type, external_thread_id, subject, body)
 VALUES (
   'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
@@ -68,6 +68,16 @@ VALUES (
   'thread-123',
   'Hello',
   'World'
+),
+(
+  '99999999-9999-9999-9999-999999999999',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+  '00000000-0000-0000-0000-000000000001',
+  '22222222-2222-2222-2222-222222222222',
+  'email',
+  'thread-admin',
+  'Admin activity',
+  'Secret'
 );
 
 -- Insert a fixture deadletter (as service role).
@@ -81,15 +91,23 @@ VALUES (
   'forged_sender'
 );
 
--- ── 1. Authenticated user can read activities ────────────────────────────────
+-- ── 1. Authenticated user can read their own activities ──────────────────────
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT isnt_empty(
-  $$SELECT id FROM public.activities WHERE type = 'email'$$,
-  'rep can read activities'
+  $$SELECT id FROM public.activities WHERE user_id = '11111111-1111-1111-1111-111111111111'$$,
+  'rep can read their own activities'
 );
 
--- ── 2. Anon cannot read activities ───────────────────────────────────────────
+-- ── 2. Authenticated user cannot read other users' activities ────────────────
+SELECT tests.as_user('rep@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.activities WHERE user_id = '22222222-2222-2222-2222-222222222222'$$,
+  'rep cannot read admin activities'
+);
+
+-- ── 3. Anon cannot read activities ───────────────────────────────────────────
 SELECT tests.as_anon();
 SET LOCAL ROLE anon;
 SELECT is_empty(
@@ -97,7 +115,7 @@ SELECT is_empty(
   'anon cannot read activities'
 );
 
--- ── 3. Non-admin cannot insert activity ──────────────────────────────────────
+-- ── 4. Non-admin cannot insert activity ──────────────────────────────────────
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT throws_ok(
@@ -107,7 +125,7 @@ SELECT throws_ok(
   'rep cannot insert activity'
 );
 
--- ── 4. Non-admin cannot update activity ──────────────────────────────────────
+-- ── 5. Non-admin cannot update activity ──────────────────────────────────────
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 UPDATE public.activities SET subject = 'Hacked' WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
@@ -117,7 +135,7 @@ SELECT is(
   'rep cannot update activity (silently blocked)'
 );
 
--- ── 5. Non-admin cannot delete activity ──────────────────────────────────────
+-- ── 6. Non-admin cannot delete activity ──────────────────────────────────────
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 DELETE FROM public.activities WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
@@ -126,7 +144,7 @@ SELECT isnt_empty(
   'rep cannot delete activity (silently blocked)'
 );
 
--- ── 6. Admin can insert activity ─────────────────────────────────────────────
+-- ── 7. Admin can insert activity ─────────────────────────────────────────────
 SELECT tests.as_user('admin@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT lives_ok(
@@ -134,7 +152,7 @@ SELECT lives_ok(
   'admin can insert activity'
 );
 
--- ── 7. Admin can update activity ─────────────────────────────────────────────
+-- ── 8. Admin can update activity ─────────────────────────────────────────────
 SELECT tests.as_user('admin@nodwin.com');
 SET LOCAL ROLE authenticated;
 UPDATE public.activities SET subject = 'Updated subject' WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
@@ -144,7 +162,7 @@ SELECT is(
   'admin can update activity'
 );
 
--- ── 8. Admin can delete activity ─────────────────────────────────────────────
+-- ── 9. Admin can delete activity ─────────────────────────────────────────────
 -- Delete the activity inserted in test 6.
 SELECT tests.as_user('admin@nodwin.com');
 SET LOCAL ROLE authenticated;
@@ -153,7 +171,7 @@ SELECT lives_ok(
   'admin can delete activity'
 );
 
--- ── 9. Audit log captures activity changes ───────────────────────────────────
+-- ── 10. Audit log captures activity changes ───────────────────────────────────
 SELECT tests.as_service_role();
 SET LOCAL ROLE postgres;
 SELECT cmp_ok(
@@ -163,7 +181,7 @@ SELECT cmp_ok(
   'audit_log captured at least one activity change for row'
 );
 
--- ── 10. Admin can select deadletter ──────────────────────────────────────────
+-- ── 11. Admin can select deadletter ──────────────────────────────────────────
 SELECT tests.as_user('admin@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT isnt_empty(
@@ -171,7 +189,7 @@ SELECT isnt_empty(
   'admin can read deadletter'
 );
 
--- ── 11. Non-admin cannot select deadletter ───────────────────────────────────
+-- ── 12. Non-admin cannot select deadletter ───────────────────────────────────
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT is_empty(
@@ -179,7 +197,7 @@ SELECT is_empty(
   'rep cannot read deadletter'
 );
 
--- ── 12. Anon cannot select deadletter ────────────────────────────────────────
+-- ── 13. Anon cannot select deadletter ────────────────────────────────────────
 SELECT tests.as_anon();
 SET LOCAL ROLE anon;
 SELECT is_empty(
@@ -187,7 +205,7 @@ SELECT is_empty(
   'anon cannot read deadletter'
 );
 
--- ── 13. Admin can insert deadletter ──────────────────────────────────────────
+-- ── 14. Admin can insert deadletter ──────────────────────────────────────────
 SELECT tests.as_user('admin@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT lives_ok(
@@ -195,7 +213,7 @@ SELECT lives_ok(
   'admin can insert deadletter'
 );
 
--- ── 14. Non-admin cannot insert deadletter ───────────────────────────────────
+-- ── 15. Non-admin cannot insert deadletter ───────────────────────────────────
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT throws_ok(
@@ -205,7 +223,7 @@ SELECT throws_ok(
   'rep cannot insert deadletter'
 );
 
--- ── 15. Admin can update deadletter ──────────────────────────────────────────
+-- ── 16. Admin can update deadletter ──────────────────────────────────────────
 SELECT tests.as_user('admin@nodwin.com');
 SET LOCAL ROLE authenticated;
 UPDATE public.inbound_email_deadletter SET alert_sent = true WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
@@ -215,7 +233,7 @@ SELECT is(
   'admin can update deadletter'
 );
 
--- ── 16. Non-admin cannot update deadletter ───────────────────────────────────
+-- ── 17. Non-admin cannot update deadletter ───────────────────────────────────
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 UPDATE public.inbound_email_deadletter SET alert_sent = false WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
@@ -228,7 +246,7 @@ SELECT is(
   'rep cannot update deadletter (silently blocked)'
 );
 
--- ── 17. Admin can delete deadletter ──────────────────────────────────────────
+-- ── 18. Admin can delete deadletter ──────────────────────────────────────────
 -- Delete the deadletter inserted in test 13.
 SELECT tests.as_user('admin@nodwin.com');
 SET LOCAL ROLE authenticated;
@@ -237,7 +255,7 @@ SELECT lives_ok(
   'admin can delete deadletter'
 );
 
--- ── 18. Non-admin cannot delete deadletter ───────────────────────────────────
+-- ── 19. Non-admin cannot delete deadletter ───────────────────────────────────
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 DELETE FROM public.inbound_email_deadletter WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
@@ -249,7 +267,7 @@ SELECT isnt_empty(
   'rep cannot delete deadletter (silently blocked)'
 );
 
--- ── 19. Audit log captures deadletter changes ────────────────────────────────
+-- ── 20. Audit log captures deadletter changes ────────────────────────────────
 SELECT tests.as_service_role();
 SET LOCAL ROLE postgres;
 SELECT cmp_ok(
@@ -259,7 +277,7 @@ SELECT cmp_ok(
   'audit_log captured at least one deadletter change for row'
 );
 
--- ── 20. alert_sent defaults to false ─────────────────────────────────────────
+-- ── 21. alert_sent defaults to false ─────────────────────────────────────────
 -- Use the fixture row (bbbbbbbb...) which was updated to true in test 15, so
 -- insert a fresh row to verify the default.
 SELECT tests.as_user('admin@nodwin.com');
@@ -272,7 +290,7 @@ SELECT is(
   'deadletter alert_sent defaults to false'
 );
 
--- ── 21. activities external_thread_id index ──────────────────────────────────
+-- ── 22. activities external_thread_id index ──────────────────────────────────
 SELECT tests.as_service_role();
 SET LOCAL ROLE postgres;
 SELECT has_index(
@@ -283,7 +301,7 @@ SELECT has_index(
   'external_thread_id index exists'
 );
 
--- ── 22. activities opportunity_id index ──────────────────────────────────────
+-- ── 23. activities opportunity_id index ──────────────────────────────────────
 SELECT has_index(
   'public',
   'activities',
@@ -292,7 +310,7 @@ SELECT has_index(
   'opportunity_id index exists'
 );
 
--- ── 23. deadletter alert_sent partial index ──────────────────────────────────
+-- ── 24. deadletter alert_sent partial index ──────────────────────────────────
 SELECT has_index(
   'public',
   'inbound_email_deadletter',
@@ -301,10 +319,10 @@ SELECT has_index(
   'alert_sent partial index exists'
 );
 
--- ── 24. activities FK to accounts ────────────────────────────────────────────
+-- ── 25. activities FK to accounts ────────────────────────────────────────────
 SELECT has_fk('public', 'activities', 'activities has FK constraints');
 
--- ── 25. deadletter has no FK ─────────────────────────────────────────────────
+-- ── 26. deadletter has no FK ─────────────────────────────────────────────────
 SELECT hasnt_fk('public', 'inbound_email_deadletter', 'deadletter has no FK constraints');
 
 SELECT * FROM finish();

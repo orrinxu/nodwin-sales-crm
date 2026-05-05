@@ -76,13 +76,16 @@ SELECT audit.attach_trigger('public.activities');
 -- RLS
 ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
 
--- All authenticated users can read activities.
+-- Users can read their own activities; admins can read all.
 DROP POLICY IF EXISTS "activities_select_all_authenticated" ON public.activities;
 CREATE POLICY "activities_select_all_authenticated"
   ON public.activities
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (
+    user_id = auth.uid()
+    OR public.current_user_role() = 'admin'
+  );
 
 -- Only admins can insert activities.
 DROP POLICY IF EXISTS "activities_insert_admin" ON public.activities;

@@ -13,7 +13,10 @@ CREATE POLICY "activities_select_all_authenticated"
   ON public.activities
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (
+    user_id = auth.uid()
+    OR public.current_user_role() = 'admin'
+  );
 
 DROP POLICY IF EXISTS "activities_insert_admin" ON public.activities;
 CREATE POLICY "activities_insert_admin"
