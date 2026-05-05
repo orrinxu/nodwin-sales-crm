@@ -6,13 +6,14 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["lib/**/*.test.ts"],
+    setupFiles: ["./vitest.setup.ts"],
     coverage: {
       reporter: ["text", "json", "html"],
     },
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(__dirname, "."),
     },
   },
 })
