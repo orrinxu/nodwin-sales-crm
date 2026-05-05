@@ -12,6 +12,7 @@ export const envSchema = z.object({
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   POSTMARK_WEBHOOK_SECRET: z.string().min(1),
+  APP_URL: z.string().url().default("http://localhost:3000"),
   NEXT_PUBLIC_APP_NAME: z.string().min(1).default("Nodwin CRM"),
   NEXT_PUBLIC_API_URL: z.string().url(),
   NEXT_PUBLIC_DEBUG: booleanFromString.default(false),
