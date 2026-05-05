@@ -38,39 +38,6 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_table_row_occurred
 CREATE INDEX IF NOT EXISTS idx_audit_log_occurred_at
   ON public.audit_log (occurred_at DESC);
 
--- ── Row Level Security ───────────────────────────────────────────────────────
-ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
-
--- All authenticated users can read audit logs (needed for record history).
-DROP POLICY IF EXISTS "audit_log_select_authenticated" ON public.audit_log;
-CREATE POLICY "audit_log_select_authenticated"
-  ON public.audit_log
-  FOR SELECT
-  TO authenticated
-  USING (auth.uid() IS NOT NULL);
-
--- Only admins can modify audit_log directly; triggers bypass RLS via SECURITY DEFINER.
-DROP POLICY IF EXISTS "audit_log_insert_admin" ON public.audit_log;
-CREATE POLICY "audit_log_insert_admin"
-  ON public.audit_log
-  FOR INSERT
-  TO authenticated
-  WITH CHECK (public.current_user_role() = 'admin');
-
-DROP POLICY IF EXISTS "audit_log_update_admin" ON public.audit_log;
-CREATE POLICY "audit_log_update_admin"
-  ON public.audit_log
-  FOR UPDATE
-  TO authenticated
-  USING (public.current_user_role() = 'admin');
-
-DROP POLICY IF EXISTS "audit_log_delete_admin" ON public.audit_log;
-CREATE POLICY "audit_log_delete_admin"
-  ON public.audit_log
-  FOR DELETE
-  TO authenticated
-  USING (public.current_user_role() = 'admin');
-
 -- ── Helper: safe header extraction from PostgREST request.headers GUC ────────
 CREATE OR REPLACE FUNCTION audit.get_request_header(header_name text)
 RETURNS text
