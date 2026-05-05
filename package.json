@@ -12,7 +12,8 @@
     "supabase:start": "supabase start",
     "db:migrate": "supabase db push",
     "db:reset": "supabase db reset",
-    "db:seed": "supabase db query --local --file supabase/seed/seed-test-data.sql"
+    "db:seed": "supabase db query --local --file supabase/seed/seed-test-data.sql",
+    "db:test": "supabase test db"
   },
   "engines": {
     "node": ">=20.0.0",

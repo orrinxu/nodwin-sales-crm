@@ -324,6 +324,21 @@ A ticket is **not** done because the code "works on my machine", "looks right", 
 - Never add "while I'm here" refactors, feature additions, or bug fixes that are not in the ticket's described scope.
 - If a linter or typechecker flags issues in code outside your ticket's scope, surface it — do not fix it silently.
 
+### 10.4 Branch hygiene
+
+To prevent stale commits and unnecessary merge conflicts, all agents MUST follow these branching rules:
+
+1. **Branch from latest main.** Every new branch MUST be created from the latest `origin/main`:
+   ```
+   git fetch origin && git switch -c feat/orr-xxx origin/main
+   ```
+2. **Rebase before PR.** Before submitting a PR, rebase on the latest main:
+   ```
+   git fetch origin && git rebase origin/main
+   ```
+3. **No already-merged commits in PRs.** If a branch contains commits already merged to main, do NOT submit a PR. Create a fresh branch and cherry-pick only the unmerged commits.
+4. **One branch = one ticket.** Never reuse a branch for multiple tickets.
+
 ---
 
 ## 11. The "vibe coding" failure modes — explicit list
