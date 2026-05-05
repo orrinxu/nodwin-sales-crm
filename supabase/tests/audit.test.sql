@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(28);
+SELECT plan(30);
 
 -- ── Setup: temporary test table ──────────────────────────────────────────────
 DROP TABLE IF EXISTS test_audit_target CASCADE;
@@ -122,6 +122,36 @@ SELECT results_eq(
   $$SELECT actor_source FROM public.audit_log WHERE table_name = 'test_audit_target' AND operation = 'INSERT' AND new_data->>'name' = 'delta'$$,
   $$VALUES ('user'::text)$$,
   'actor_source ignores x-audit-source header spoofing'
+);
+
+-- ── RLS: non-admin authenticated user cannot SELECT audit rows ────────────────
+INSERT INTO auth.users (id, email, raw_user_meta_data)
+VALUES
+  ('66666666-6666-6666-6666-666666666666', 'audit_rep@nodwin.com', '{"full_name":"Audit Rep"}'),
+  ('77777777-7777-7777-7777-777777777777', 'audit_admin@nodwin.com', '{"full_name":"Audit Admin"}')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.users (id, email, full_name, primary_role, primary_entity_id)
+VALUES
+  ('66666666-6666-6666-6666-666666666666', 'audit_rep@nodwin.com', 'Audit Rep', 'sales_rep', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
+  ('77777777-7777-7777-7777-777777777777', 'audit_admin@nodwin.com', 'Audit Admin', 'admin', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
+ON CONFLICT (id) DO UPDATE SET
+  full_name          = EXCLUDED.full_name,
+  primary_role       = EXCLUDED.primary_role,
+  primary_entity_id  = EXCLUDED.primary_entity_id;
+
+SELECT tests.as_user('audit_rep@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.audit_log WHERE table_name = 'test_audit_target'$$,
+  'non-admin cannot SELECT from audit_log'
+);
+
+SELECT tests.as_user('audit_admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.audit_log WHERE table_name = 'test_audit_target'$$,
+  'admin CAN SELECT from audit_log'
 );
 
 -- ── Verify audit_log schema ──────────────────────────────────────────────────
