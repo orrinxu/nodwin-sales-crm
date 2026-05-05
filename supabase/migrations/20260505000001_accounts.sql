@@ -112,7 +112,8 @@ ALTER TABLE public.account_relationships ENABLE ROW LEVEL SECURITY;
 
 -- Accounts: scoped read (owner, creator, or admin).
 DROP POLICY IF EXISTS "accounts_select_all_authenticated" ON public.accounts;
-CREATE POLICY "accounts_select_all_authenticated"
+DROP POLICY IF EXISTS "accounts_select_scoped" ON public.accounts;
+CREATE POLICY "accounts_select_scoped"
   ON public.accounts
   FOR SELECT
   TO authenticated
@@ -148,7 +149,8 @@ CREATE POLICY "accounts_delete_admin"
 
 -- Account relationships: scoped read (user can see at least one linked account, or admin).
 DROP POLICY IF EXISTS "account_relationships_select_all_authenticated" ON public.account_relationships;
-CREATE POLICY "account_relationships_select_all_authenticated"
+DROP POLICY IF EXISTS "account_relationships_select_scoped" ON public.account_relationships;
+CREATE POLICY "account_relationships_select_scoped"
   ON public.account_relationships
   FOR SELECT
   TO authenticated

@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(18);
+SELECT plan(20);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -37,12 +37,14 @@ INSERT INTO public.accounts (id, name, email_domains, account_owner_user_id, cre
 VALUES
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Tencent', ARRAY['tencent.com', 'tencentmusic.com'], '11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222'),
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Nodwin India', ARRAY['nodwin.com'], NULL, '22222222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222'),
-  ('dddddddd-dddd-dddd-dddd-ddddddddddda', 'Unowned Corp', ARRAY['unowned.com'], NULL, '22222222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222');
+  ('dddddddd-dddd-dddd-dddd-ddddddddddda', 'Unowned Corp', ARRAY['unowned.com'], NULL, '22222222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222'),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'Rep Created Corp', ARRAY['repcreated.com'], NULL, '11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111');
 
 INSERT INTO public.account_relationships (id, from_account_id, to_account_id, kind)
 VALUES
   ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'partner_with'),
-  ('dddddddd-dddd-dddd-dddd-dddddddddddb', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'dddddddd-dddd-dddd-dddd-ddddddddddda', 'subsidiary_of');
+  ('dddddddd-dddd-dddd-dddd-dddddddddddb', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'dddddddd-dddd-dddd-dddd-ddddddddddda', 'subsidiary_of'),
+  ('ffffffff-ffff-ffff-ffff-fffffffffff1', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'sister_company');
 
 -- ── 1. User can read owned account ────────────────────────────────────────────
 SELECT tests.as_user('rep@nodwin.com');
@@ -60,12 +62,28 @@ SELECT is_empty(
   'rep cannot read unowned account'
 );
 
+-- ── 2a. User can read account they created but don't own ─────────────────────
+SELECT tests.as_user('rep@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.accounts WHERE name = 'Rep Created Corp'$$,
+  'rep can read account they created but do not own'
+);
+
 -- ── 3. User can read relationship when they own one linked account ────────────
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT isnt_empty(
   $$SELECT id FROM public.account_relationships WHERE kind = 'partner_with'$$,
   'rep can read relationship for owned account'
+);
+
+-- ── 3a. User can read relationship when they own the to_account (by created_by)
+SELECT tests.as_user('rep@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.account_relationships WHERE kind = 'sister_company'$$,
+  'rep can read relationship where they created the to_account'
 );
 
 -- ── 4. User cannot read relationship when they own no linked account ──────────
