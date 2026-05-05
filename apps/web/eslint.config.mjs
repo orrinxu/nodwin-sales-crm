@@ -63,6 +63,14 @@ const eslintConfig = defineConfig([
       "custom/require-auth-import": "error",
     },
   },
+  // env.ts is the single designated point of process.env access.
+  // All other files must import from here instead of reading process.env directly.
+  {
+    files: ["lib/security/env.ts"],
+    rules: {
+      "node/no-process-env": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
