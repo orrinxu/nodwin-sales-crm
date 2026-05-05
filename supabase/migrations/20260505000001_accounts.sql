@@ -110,13 +110,17 @@ SELECT audit.attach_trigger('public.account_relationships');
 ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.account_relationships ENABLE ROW LEVEL SECURITY;
 
--- Accounts: all authenticated users can read.
+-- Accounts: scoped read (owner, creator, or admin).
 DROP POLICY IF EXISTS "accounts_select_all_authenticated" ON public.accounts;
 CREATE POLICY "accounts_select_all_authenticated"
   ON public.accounts
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (
+    account_owner_user_id = auth.uid()
+    OR created_by = auth.uid()
+    OR public.current_user_role() = 'admin'
+  );
 
 -- Accounts: only admins can insert.
 DROP POLICY IF EXISTS "accounts_insert_admin" ON public.accounts;
@@ -142,13 +146,25 @@ CREATE POLICY "accounts_delete_admin"
   TO authenticated
   USING (public.current_user_role() = 'admin');
 
--- Account relationships: all authenticated users can read.
+-- Account relationships: scoped read (user can see at least one linked account, or admin).
 DROP POLICY IF EXISTS "account_relationships_select_all_authenticated" ON public.account_relationships;
 CREATE POLICY "account_relationships_select_all_authenticated"
   ON public.account_relationships
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.accounts
+      WHERE id = account_relationships.from_account_id
+        AND (account_owner_user_id = auth.uid() OR created_by = auth.uid())
+    )
+    OR EXISTS (
+      SELECT 1 FROM public.accounts
+      WHERE id = account_relationships.to_account_id
+        AND (account_owner_user_id = auth.uid() OR created_by = auth.uid())
+    )
+    OR public.current_user_role() = 'admin'
+  );
 
 -- Account relationships: only admins can insert.
 DROP POLICY IF EXISTS "account_relationships_insert_admin" ON public.account_relationships;

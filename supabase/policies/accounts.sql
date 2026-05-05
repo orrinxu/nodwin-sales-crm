@@ -13,7 +13,11 @@ CREATE POLICY "accounts_select_all_authenticated"
   ON public.accounts
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (
+    account_owner_user_id = auth.uid()
+    OR created_by = auth.uid()
+    OR public.current_user_role() = 'admin'
+  );
 
 DROP POLICY IF EXISTS "accounts_insert_admin" ON public.accounts;
 CREATE POLICY "accounts_insert_admin"
@@ -44,7 +48,19 @@ CREATE POLICY "account_relationships_select_all_authenticated"
   ON public.account_relationships
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.accounts
+      WHERE id = account_relationships.from_account_id
+        AND (account_owner_user_id = auth.uid() OR created_by = auth.uid())
+    )
+    OR EXISTS (
+      SELECT 1 FROM public.accounts
+      WHERE id = account_relationships.to_account_id
+        AND (account_owner_user_id = auth.uid() OR created_by = auth.uid())
+    )
+    OR public.current_user_role() = 'admin'
+  );
 
 DROP POLICY IF EXISTS "account_relationships_insert_admin" ON public.account_relationships;
 CREATE POLICY "account_relationships_insert_admin"
