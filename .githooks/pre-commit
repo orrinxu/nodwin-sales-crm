@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+#
+# pre-commit -- Git hook to run local checks before each commit
+#
+# Install once per clone:
+#   git config core.hooksPath .githooks
+#
+# This hook runs the RLS policy linter to catch permissive policies
+# before they reach CI.
+#
+
+set -euo pipefail
+
+echo "🔒 Running pre-commit checks..."
+echo ""
+
+# Run RLS linter
+if [ -f scripts/lint-rls.sh ]; then
+  echo "→ Running RLS policy linter..."
+  if ! bash scripts/lint-rls.sh; then
+    echo ""
+    echo "❌ Pre-commit failed: RLS policy violations detected."
+    echo "   Fix the issues above or skip with --no-verify (not recommended)."
+    exit 1
+  fi
+  echo ""
+else
+  echo "⚠️  RLS linter not found at scripts/lint-rls.sh, skipping"
+fi
+
+# Future checks can be added here:
+# - pnpm lint
+# - pnpm typecheck
+# - pnpm test (staged files only)
+
+echo "✅ Pre-commit checks passed"
+exit 0
