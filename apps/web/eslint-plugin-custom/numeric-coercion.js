@@ -28,13 +28,25 @@ export const rule = {
     fixable: null,
     schema: [],
     messages: {
-      forbidden: "Unsafe numeric coercion on financial field '{{name}}' detected. Never use Number(), parseFloat, parseInt, +, -, *, or / on money fields. Use dinero.js helpers from lib/money.ts instead.",
+      forbidden: "Unsafe numeric coercion on financial field '{{name}}' detected. Never use Number(), parseFloat, parseInt, +, -, *, /, or toFixed() on money fields. Use dinero.js helpers from lib/money.ts instead.",
     },
   },
   create(context) {
     return {
       // Catch Number/parseInt/parseFloat with a financial variable anywhere in the argument
+      // Catch financialVar.toFixed()
       CallExpression(node) {
+        // MemberExpression callee: e.g. price.toFixed()
+        if (node.callee.type === "MemberExpression") {
+          const prop = node.callee.property;
+          if (prop.type === "Identifier" && prop.name === "toFixed") {
+            const id = findFinancialId(node.callee.object);
+            if (id) {
+              context.report({ node, messageId: "forbidden", data: { name: id } });
+            }
+          }
+          return;
+        }
         if (node.callee.type !== "Identifier") return;
         const callee = node.callee.name;
         if (callee !== "parseInt" && callee !== "parseFloat" && callee !== "Number") return;

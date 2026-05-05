@@ -101,6 +101,33 @@ describe("ESLint Safety Rules", () => {
       expect(results[0].errorCount).toBe(0);
     });
 
+    it("should catch toFixed() on price field", async () => {
+      const code = `
+        const display = price.toFixed(2);
+      `;
+      const results = await eslint.lintText(code, { filePath: "app/cart.tsx" });
+      expect(results[0].errorCount).toBe(1);
+      expect(results[0].messages[0].ruleId).toBe("custom/no-unsafe-numeric-coercion");
+    });
+
+    it("should catch toFixed() on nested financial expression", async () => {
+      const code = `
+        const display = (price + tax).toFixed(2);
+      `;
+      const results = await eslint.lintText(code, { filePath: "app/cart.tsx" });
+      expect(results[0].errorCount).toBe(2);
+      expect(results[0].messages.every(m => m.ruleId === "custom/no-unsafe-numeric-coercion")).toBe(true);
+    });
+
+    it("should not flag toFixed() on non-financial fields", async () => {
+      const code = `
+        const count = 10;
+        const display = count.toFixed(2);
+      `;
+      const results = await eslint.lintText(code, { filePath: "app/items.tsx" });
+      expect(results[0].errorCount).toBe(0);
+    });
+
     it("should not flag non-financial fields with * / -", async () => {
       const code = `
         const width = 10;
