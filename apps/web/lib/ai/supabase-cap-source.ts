@@ -5,8 +5,9 @@ import { createServerClient } from "../supabase/server"
 
 function parseMoneyAmount(val: unknown): Money {
   if (val == null) return Money.zero("USD")
-  const num = Number(val)
-  return isNaN(num) ? Money.zero("USD") : Money.fromAmount(num, "USD")
+  if (typeof val === "string") return Money.fromAmount(val, "USD")
+  if (typeof val === "number" && !isNaN(val)) return Money.fromAmount(val, "USD")
+  return Money.zero("USD")
 }
 
 export function createSupabaseCapDataSource(): CapDataSource {
@@ -75,8 +76,8 @@ export function createSupabaseCapDataSource(): CapDataSource {
       const rawSoft = row.soft_cap_amount
       const rawHard = row.hard_cap_amount
       return {
-        userSoftCap: rawSoft != null ? Money.fromAmount(Number(rawSoft), "USD") : null,
-        userHardCap: rawHard != null ? Money.fromAmount(Number(rawHard), "USD") : null,
+        userSoftCap: rawSoft != null ? Money.fromAmount(rawSoft as string | number, "USD") : null,
+        userHardCap: rawHard != null ? Money.fromAmount(rawHard as string | number, "USD") : null,
       }
     },
 
@@ -95,7 +96,7 @@ export function createSupabaseCapDataSource(): CapDataSource {
       }
 
       const rec = data as Record<string, unknown>
-      const amount = rec.hard_cap_amount as number | null | undefined
+      const amount = rec.hard_cap_amount as string | number | null | undefined
       const currency = (rec.hard_cap_currency as string) ?? "USD"
       return amount != null ? Money.fromAmount(amount, currency) : null
     },
@@ -115,7 +116,7 @@ export function createSupabaseCapDataSource(): CapDataSource {
       }
 
       const rec = data as Record<string, unknown>
-      const amount = rec.hard_cap_amount as number | null | undefined
+      const amount = rec.hard_cap_amount as string | number | null | undefined
       const currency = (rec.hard_cap_currency as string) ?? "USD"
       return amount != null ? Money.fromAmount(amount, currency) : null
     },

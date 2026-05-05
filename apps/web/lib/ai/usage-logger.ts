@@ -20,7 +20,7 @@ function toDbInsert(p: InsertUsageParams): Record<string, unknown> {
 }
 
 function fromDbRecord(r: Record<string, unknown>): UsageRecord {
-  const costAmount = (r.cost_amount ?? 0) as number
+  const costAmount = (r.cost_amount ?? "0") as string | number
   const costCurrency = (r.cost_currency as string) ?? "USD"
   return {
     id: r.id as string,
