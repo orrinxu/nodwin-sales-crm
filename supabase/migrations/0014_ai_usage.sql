@@ -257,7 +257,7 @@ RETURNS TABLE(
 )
 LANGUAGE plpgsql
 STABLE
-SECURITY INVOKER
+SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
@@ -302,6 +302,8 @@ BEGIN
 END;
 $$;
 
+GRANT EXECUTE ON FUNCTION public.get_effective_user_caps(uuid) TO authenticated;
+
 -- ── Helper function: today's usage for a user ─────────────────────────────────
 
 CREATE OR REPLACE FUNCTION public.get_todays_user_usage(p_user_id uuid)
@@ -342,7 +344,7 @@ RETURNS TABLE(
 )
 LANGUAGE plpgsql
 STABLE
-SECURITY INVOKER
+SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
@@ -359,6 +361,8 @@ BEGIN
 END;
 $$;
 
+GRANT EXECUTE ON FUNCTION public.get_todays_team_usage(uuid) TO authenticated;
+
 -- ── Helper function: today's company usage ────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION public.get_todays_company_usage(p_entity_id uuid)
@@ -369,7 +373,7 @@ RETURNS TABLE(
 )
 LANGUAGE plpgsql
 STABLE
-SECURITY INVOKER
+SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
@@ -385,6 +389,8 @@ BEGIN
     AND a.status != 'error';
 END;
 $$;
+
+GRANT EXECUTE ON FUNCTION public.get_todays_company_usage(uuid) TO authenticated;
 
 -- ── Helper function: check if a request would exceed caps ─────────────────────
 -- Returns the cap that would be breached, or NULL if all caps are satisfied.
@@ -404,7 +410,7 @@ RETURNS TABLE(
 )
 LANGUAGE plpgsql
 STABLE
-SECURITY INVOKER
+SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
@@ -511,3 +517,5 @@ BEGIN
     NULL::text;
 END;
 $$;
+
+GRANT EXECUTE ON FUNCTION public.check_ai_caps(uuid, numeric) TO authenticated;

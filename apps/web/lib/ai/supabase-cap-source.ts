@@ -95,9 +95,9 @@ export function createSupabaseCapDataSource(): CapDataSource {
       }
 
       const rec = data as Record<string, unknown>
-      const amount = rec.hard_cap_amount
+      const amount = rec.hard_cap_amount as number | null | undefined
       const currency = (rec.hard_cap_currency as string) ?? "USD"
-      return amount != null ? Money.fromAmount(Number(amount), currency) : null
+      return amount != null ? Money.fromAmount(amount, currency) : null
     },
 
     async getCompanyHardCap(entityId: string): Promise<Money | null> {
@@ -115,9 +115,9 @@ export function createSupabaseCapDataSource(): CapDataSource {
       }
 
       const rec = data as Record<string, unknown>
-      const amount = rec.hard_cap_amount
+      const amount = rec.hard_cap_amount as number | null | undefined
       const currency = (rec.hard_cap_currency as string) ?? "USD"
-      return amount != null ? Money.fromAmount(Number(amount), currency) : null
+      return amount != null ? Money.fromAmount(amount, currency) : null
     },
 
     async getUserTeamId(userId: string): Promise<string | null> {

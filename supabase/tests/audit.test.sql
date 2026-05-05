@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(18);
+SELECT plan(21);
 
 -- ── Setup: temporary test table ──────────────────────────────────────────────
 DROP TABLE IF EXISTS test_audit_target CASCADE;
@@ -67,6 +67,26 @@ SELECT has_column('public', 'audit_log', 'actor_source', 'audit_log has actor_so
 SELECT has_column('public', 'audit_log', 'actor_ip', 'audit_log has actor_ip');
 SELECT has_column('public', 'audit_log', 'actor_user_agent', 'audit_log has actor_user_agent');
 SELECT has_column('public', 'audit_log', 'occurred_at', 'audit_log has occurred_at');
+
+-- ── Verify RLS is enabled and policy exists ───────────────────────────────────
+SELECT is(
+  (SELECT relrowsecurity FROM pg_class WHERE relname = 'audit_log'),
+  true,
+  'RLS is enabled on audit_log'
+);
+
+SELECT results_eq(
+  $$SELECT COUNT(*)::int FROM pg_policies WHERE tablename = 'audit_log' AND policyname = 'audit_log_select'$$,
+  $$VALUES (1)$$,
+  'audit_log_select policy exists'
+);
+
+-- ── Verify actor_source has NOT NULL constraint ───────────────────────────────
+SELECT is(
+  (SELECT is_nullable FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_log' AND column_name = 'actor_source'),
+  'NO',
+  'actor_source column is NOT NULL'
+);
 
 -- ── Verify indexes exist ─────────────────────────────────────────────────────
 SELECT has_index('public', 'audit_log', 'idx_audit_log_table_row_occurred', 'index on (table_name, row_id, occurred_at) exists');

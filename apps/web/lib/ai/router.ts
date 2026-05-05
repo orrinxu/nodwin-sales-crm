@@ -114,7 +114,8 @@ export async function aiCall(
       })
 
       return { ok: true, data: result.text, model: result.model, provider }
-    } catch {
+    } catch (e) {
+      console.error(`Provider ${provider} failed:`, e)
     }
   }
 

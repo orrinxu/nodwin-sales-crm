@@ -2,7 +2,7 @@ import "server-only"
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import type { NextRequest } from "next/server"
-import { parseEnv } from "./env"
+import { env } from "./env"
 import { ForbiddenError, UnauthorisedError } from "./errors"
 
 export interface AuthenticatedUser {
@@ -14,7 +14,6 @@ export interface AuthenticatedUser {
 export async function requireUser(
   request?: NextRequest,
 ): Promise<AuthenticatedUser> {
-  const env = parseEnv(process.env)
 
   let supabase
   if (request) {

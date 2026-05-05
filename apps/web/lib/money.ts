@@ -32,6 +32,8 @@ export class Money {
   }
 
   static fromAmount(amount: number, currency: CurrencyCode): Money {
+    // This method IS the safe dinero.js helper; arithmetic here is intentional
+    // eslint-disable-next-line custom/no-unsafe-numeric-coercion
     const cents = Math.round(amount * CENTS_PER_UNIT)
     return new Money(cents, currency)
   }
