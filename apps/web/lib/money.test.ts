@@ -384,6 +384,19 @@ describe("rounding edge cases", () => {
     expect(m.toAmount()).toBe(10_000_000_000)
   })
 
+  it("parses large numeric(20,4) string without precision loss", () => {
+    const m = Money.fromAmount("123456789012.3456", "USD")
+    expect(m.cents).toBe(12_345_678_901_235)
+    expect(m.toAmount()).toBe(123_456_789_012.35)
+  })
+
+  it("round-trips large numeric(20,4) string through fromAmount", () => {
+    const original = "9999999999999.9999"
+    const m = Money.fromAmount(original, "USD")
+    expect(m.cents).toBe(1_000_000_000_000_000)
+    expect(m.toAmount()).toBe(10_000_000_000_000)
+  })
+
   it("multiply by zero", () => {
     expect(Money.fromCents(500, "USD").multiply(0).isZero()).toBe(true)
   })
