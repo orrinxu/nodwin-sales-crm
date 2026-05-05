@@ -9,31 +9,39 @@ export function createOllamaAdapter(model = "llama3.2"): ProviderAdapter {
         throw new Error("OLLAMA_BASE_URL is not configured")
       }
 
-      const response = await fetch(`${baseUrl}/api/generate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 30_000)
+
+      try {
+        const response = await fetch(`${baseUrl}/api/generate`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            prompt,
+            stream: false,
+          }),
+          signal: controller.signal,
+        })
+
+        if (!response.ok) {
+          const err = await response.text()
+          throw new Error(`Ollama API error ${response.status}: ${err}`)
+        }
+
+        const data = await response.json()
+        const text = data.response ?? ""
+
+        return {
+          text,
           model,
-          prompt,
-          stream: false,
-        }),
-      })
-
-      if (!response.ok) {
-        const err = await response.text()
-        throw new Error(`Ollama API error ${response.status}: ${err}`)
-      }
-
-      const data = await response.json()
-      const text = data.response ?? ""
-
-      return {
-        text,
-        model,
-        promptTokens: data.prompt_eval_count ?? 0,
-        completionTokens: data.eval_count ?? 0,
+          promptTokens: data.prompt_eval_count ?? 0,
+          completionTokens: data.eval_count ?? 0,
+        }
+      } finally {
+        clearTimeout(timeout)
       }
     },
   }

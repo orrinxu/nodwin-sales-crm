@@ -1,5 +1,7 @@
 import type { ProviderAdapter } from "../types"
 
+const MODEL_REGEX = /^[a-zA-Z0-9_.-]+$/
+
 export function createGeminiAdapter(model = "gemini-1.5-pro"): ProviderAdapter {
   const apiKey = process.env.GOOGLE_API_KEY
 
@@ -9,31 +11,44 @@ export function createGeminiAdapter(model = "gemini-1.5-pro"): ProviderAdapter {
         throw new Error("GOOGLE_API_KEY is not configured")
       }
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-        }),
-      })
-
-      if (!response.ok) {
-        const err = await response.text()
-        throw new Error(`Gemini API error ${response.status}: ${err}`)
+      if (!MODEL_REGEX.test(model)) {
+        throw new Error(`Invalid Gemini model name: ${model}`)
       }
 
-      const data = await response.json()
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`
 
-      return {
-        text,
-        model,
-        promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
-        completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 30_000)
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+          }),
+          signal: controller.signal,
+        })
+
+        if (!response.ok) {
+          const err = await response.text()
+          throw new Error(`Gemini API error ${response.status}: ${err}`)
+        }
+
+        const data = await response.json()
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+
+        return {
+          text,
+          model,
+          promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
+          completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
+        }
+      } finally {
+        clearTimeout(timeout)
       }
     },
   }
