@@ -47,8 +47,12 @@ jobs:
           fi
 
       - name: Run RLS policy linter
-        run: bash scripts/lint-rls.sh
+        run: VRLS_WARNINGS_ARE_ERRORS=1 bash scripts/lint-rls.sh
         timeout-minutes: 2
+
+      - name: Run RLS policy coverage check
+        run: bash scripts/check-rls-coverage.sh
+        timeout-minutes: 1
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -94,7 +98,13 @@ jobs:
           version: latest
 
       - name: Start Supabase local stack
-        run: supabase start
+        run: |
+          set -o pipefail
+          supabase start 2>&1 | tee /tmp/supabase-start.log
+          if grep -qiE '(does not have.*(rls|row level security)|rls.*warning|warning.*rls)' /tmp/supabase-start.log; then
+            echo "::error::RLS warnings detected in Supabase startup output"
+            exit 1
+          fi
         timeout-minutes: 8
 
       - name: Run RLS tests

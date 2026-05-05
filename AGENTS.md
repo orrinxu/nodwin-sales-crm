@@ -258,6 +258,15 @@ All four must pass. If any fails, fix it before opening the PR. If a failure is 
   - A test confirming the policy allows the intended user
   - A test confirming the policy denies an unauthorised user
   - A test for at least one edge case (e.g., user removed from team, visibility tier changed)
+- The `scripts/check-rls-coverage.sh` linter enforces this automatically in CI.
+- **Legitimate exceptions** may be granted via the `SECURITY_REVIEWER_EXEMPT` annotation in the policy file:
+  ```sql
+  -- SECURITY_REVIEWER_EXEMPT
+  -- Reviewer: <agent_id>
+  -- Date: <YYYY-MM-DD>
+  -- Reason: <why this table/policy is exempt from test coverage>
+  ```
+  Exemptions require explicit security reviewer approval and must include the reviewer's identity, date, and justification.
 - Every webhook handler has a test exercising signature verification — including a forged-signature case that must reject.
 - Every money operation has a test using `dinero.js` semantics (no float comparisons).
 - E2E tests for major user flows (deal creation, stage advance, approval, P&L generation) but only after the feature is functionally complete.
@@ -346,7 +355,7 @@ To prevent stale commits and unnecessary merge conflicts, all agents MUST follow
 This project is being built primarily via AI-assisted coding with a non-coder lead. The historical failure modes for this approach are well-documented and have all been observed before. Pre-emptively, every agent must guard against:
 
 1. **The "Auth Emails Vanish" problem.** Resolved by mandatory custom SMTP from day one. If you find code using Supabase default SMTP for transactional email, that is a bug — open a ticket.
-2. **The "Public RLS" catastrophe.** Resolved by mandatory RLS on every public table, mandatory `.test.sql` for every policy, and CI that runs the test suite. If you create a table without RLS and tests, that is a bug.
+2. **The "Public RLS" catastrophe.** Resolved by mandatory RLS on every public table, mandatory `.test.sql` for every policy, the `scripts/check-rls-coverage.sh` linter (enforced in CI), and CI that runs the full test suite. If you create a table without RLS and tests, that is a bug. Legitimate exceptions require `SECURITY_REVIEWER_EXEMPT` with reviewer approval (see §7.5).
 3. **The "Stripe Webhook Wide Open" mistake.** Resolved by the rule that every webhook handler's first line is signature verification, and CI/lint that flags missing verification. Even though we don't use Stripe, this applies to every webhook — Slack, Postmark, Google.
 4. **The "Agent Lost the Plot" drift.** Resolved by this file being read every session, by ticket-scoped work, and by `BUILD_TICKETS.md` enforcing sequence.
 5. **The "Free Tier Abuse Drain."** Resolved by `lib/ai/router.ts` enforcing per-user, per-team, per-company hard caps, plus rate limits at the API gateway, plus provider-dashboard-level caps. If you find an AI call path bypassing the router, that is a bug.
