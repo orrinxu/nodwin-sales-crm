@@ -34,7 +34,7 @@ function sendAndGetStage(
   actor: ReturnType<typeof createDealActor>,
   event: Parameters<typeof actor.send>[0],
 ): DealStage {
-  actor.send(event as any)
+  actor.send(event)
   return getCurrentStage(actor)
 }
 

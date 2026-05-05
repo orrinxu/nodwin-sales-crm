@@ -39,15 +39,15 @@ export function getNextStage(
   stage: DealStage,
 ): DealStage | undefined {
   if (isTerminalStage(stage)) return undefined
-  const nextIndex = STAGE_ORDER[stage] + 1
-  return nextIndex < DEAL_STAGES.length ? DEAL_STAGES[nextIndex] : undefined
+  const index = DEAL_STAGES.indexOf(stage)
+  return DEAL_STAGES.at(index + 1)
 }
 
 export function getPrevStage(
   stage: DealStage,
 ): DealStage | undefined {
-  const prevIndex = STAGE_ORDER[stage] - 1
-  return prevIndex >= 0 ? DEAL_STAGES[prevIndex] : undefined
+  const index = DEAL_STAGES.indexOf(stage)
+  return index > 0 ? DEAL_STAGES.at(index - 1) : undefined
 }
 
 export interface StageHistoryEntry {

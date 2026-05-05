@@ -1,6 +1,6 @@
 import { createActor } from "xstate"
-import { dealStageMachine, type StageHistoryEntry } from "./deal-stage"
-import { toDbInsert, type InsertStageHistoryParams } from "../data/opportunity-stage-history"
+import { dealStageMachine } from "./deal-stage"
+import { type InsertStageHistoryParams } from "../data/opportunity-stage-history"
 
 export interface PersistStageHistoryFn {
   (params: InsertStageHistoryParams): Promise<void>
