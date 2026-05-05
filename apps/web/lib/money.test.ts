@@ -38,6 +38,18 @@ describe("Money.fromAmount", () => {
     const m = Money.fromAmount(10.005, "USD")
     expect(m.cents).toBe(1001)
   })
+
+  it("avoids float precision bug for 2.675", () => {
+    // 2.675 * 100 = 267.4999... in JS float, which Math.round gives 267
+    // Our string-based parsing should correctly produce 268
+    const m = Money.fromAmount(2.675, "USD")
+    expect(m.cents).toBe(268)
+  })
+
+  it("accepts string input to avoid float issues", () => {
+    const m = Money.fromAmount("2.675", "USD")
+    expect(m.cents).toBe(268)
+  })
 })
 
 describe("Money.fromString", () => {
@@ -69,6 +81,11 @@ describe("Money.fromString", () => {
   it("parses negative with commas and parentheses", () => {
     const m = Money.fromString("(1,234.56)", "USD")
     expect(m.cents).toBe(-123456)
+  })
+
+  it("avoids float precision bug for 2.675", () => {
+    const m = Money.fromString("2.675", "USD")
+    expect(m.cents).toBe(268)
   })
 
   it("throws on unparseable string", () => {

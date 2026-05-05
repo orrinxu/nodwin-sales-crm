@@ -6,11 +6,7 @@
 
 BEGIN;
 
-<<<<<<< fix/orr-203-tighten-rls-accounts
-SELECT plan(18);
-=======
 SELECT plan(21);
->>>>>>> main
 
 -- ── Setup: temporary test table ──────────────────────────────────────────────
 DROP TABLE IF EXISTS test_audit_target CASCADE;
@@ -72,8 +68,6 @@ SELECT has_column('public', 'audit_log', 'actor_ip', 'audit_log has actor_ip');
 SELECT has_column('public', 'audit_log', 'actor_user_agent', 'audit_log has actor_user_agent');
 SELECT has_column('public', 'audit_log', 'occurred_at', 'audit_log has occurred_at');
 
-<<<<<<< fix/orr-203-tighten-rls-accounts
-=======
 -- ── Verify RLS is enabled and policy exists ───────────────────────────────────
 SELECT is(
   (SELECT relrowsecurity FROM pg_class WHERE relname = 'audit_log'),
@@ -94,7 +88,6 @@ SELECT is(
   'actor_source column is NOT NULL'
 );
 
->>>>>>> main
 -- ── Verify indexes exist ─────────────────────────────────────────────────────
 SELECT has_index('public', 'audit_log', 'idx_audit_log_table_row_occurred', 'index on (table_name, row_id, occurred_at) exists');
 SELECT has_index('public', 'audit_log', 'idx_audit_log_occurred_at', 'index on occurred_at exists');

@@ -31,11 +31,13 @@ export class Money {
     return new Money(cents, currency)
   }
 
-  static fromAmount(amount: number, currency: CurrencyCode): Money {
-    // This method IS the safe dinero.js helper; arithmetic here is intentional
-    // eslint-disable-next-line custom/no-unsafe-numeric-coercion
-    const cents = Math.round(amount * CENTS_PER_UNIT)
-    return new Money(cents, currency)
+  static fromAmount(amount: number | string, currency: CurrencyCode): Money {
+    if (typeof amount === "string") {
+      return Money.fromString(amount, currency)
+    }
+    // Convert to string to avoid floating-point multiplication errors
+    // e.g. 2.675 * 100 = 267.4999... which rounds to 267 instead of 268
+    return Money.fromString(amount.toString(), currency)
   }
 
   static fromString(amount: string, currency: CurrencyCode): Money {
@@ -61,11 +63,41 @@ export class Money {
     // Remove commas (thousands separators) before parsing
     cleaned = cleaned.replace(/,/g, "")
 
-    const parsed = parseFloat(cleaned)
-    if (isNaN(parsed)) {
+    const isNegative = cleaned.startsWith("-")
+    const absStr = isNegative ? cleaned.slice(1) : cleaned
+
+    if (absStr === "") {
       throw new Error(`Cannot parse money from "${amount}"`)
     }
-    return Money.fromAmount(parsed, currency)
+
+    const dotIndex = absStr.indexOf(".")
+    const wholeStr = dotIndex >= 0 ? absStr.slice(0, dotIndex) : absStr
+    const decimalStr = dotIndex >= 0 ? absStr.slice(dotIndex + 1) : ""
+
+    if (!/^\d*$/.test(wholeStr) || !/^\d*$/.test(decimalStr)) {
+      throw new Error(`Cannot parse money from "${amount}"`)
+    }
+
+    const whole = wholeStr === "" ? 0 : Number(wholeStr)
+
+    let decimalPart = 0
+    let roundUp = false
+
+    if (decimalStr.length > 0) {
+      const relevantDigits = decimalStr.slice(0, 2)
+      decimalPart = relevantDigits === "" ? 0 : Number(relevantDigits.padEnd(2, "0"))
+      const nextDigit = decimalStr.charAt(2)
+      if (nextDigit !== undefined && nextDigit !== "") {
+        roundUp = Number(nextDigit) >= 5
+      }
+    }
+
+    let cents = whole * 100 + decimalPart
+    if (roundUp) {
+      cents += 1
+    }
+
+    return new Money(isNegative ? -cents : cents, currency)
   }
 
   static zero(currency: CurrencyCode): Money {

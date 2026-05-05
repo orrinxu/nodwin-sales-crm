@@ -16,7 +16,7 @@ export interface AuditParams {
 }
 
 export async function audit(params: AuditParams): Promise<void> {
-  const env = parseEnv(process.env)
+  const env = parseEnv()
   const client = createServerClient(
     env.SUPABASE_URL,
     env.SUPABASE_SERVICE_ROLE_KEY,
@@ -24,18 +24,18 @@ export async function audit(params: AuditParams): Promise<void> {
   )
 
   const { error } = await client.from("audit_log").insert({
-    action: params.action,
+    operation: params.action,
     table_name: params.table,
     row_id: params.row_id,
-    actor_id: params.actor?.id ?? null,
-    actor_email: params.actor?.email ?? null,
-    ip_address:
+    actor_user_id: params.actor?.id ?? null,
+    actor_source: params.actor ? 'user' : 'system',
+    actor_ip:
       params.request?.headers.get("x-forwarded-for") ??
       params.request?.headers.get("x-real-ip") ??
       null,
-    user_agent: params.request?.headers.get("user-agent") ?? null,
-    before: params.before ?? null,
-    after: params.after ?? null,
+    actor_user_agent: params.request?.headers.get("user-agent") ?? null,
+    old_data: params.before ?? null,
+    new_data: params.after ?? null,
   })
 
   if (error) {
