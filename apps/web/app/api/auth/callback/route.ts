@@ -3,8 +3,16 @@ import { NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 import { env } from "@/lib/security/env"
 
-function isRelativePath(path: string): boolean {
-  return path.startsWith("/") && !path.startsWith("//")
+function isSafeRedirect(path: string, origin: string): boolean {
+  if (!path.startsWith("/") || path.startsWith("//")) {
+    return false
+  }
+  try {
+    const url = new URL(path, origin)
+    return url.origin === new URL(origin).origin
+  } catch {
+    return false
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -20,7 +28,7 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const safeNext = isRelativePath(next) ? next : "/dashboard"
+  const safeNext = isSafeRedirect(next, origin) ? next : "/dashboard"
 
   const response = NextResponse.redirect(new URL(safeNext, origin))
 
