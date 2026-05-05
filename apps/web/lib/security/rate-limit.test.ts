@@ -241,7 +241,7 @@ describe("rateLimit", () => {
       expect.fail("should have thrown")
     } catch (e) {
       expect(e).toBeInstanceOf(TooManyRequestsError)
-      expect((e as TooManyRequestsError).retryAfter).toBeGreaterThan(0)
+      expect((e as InstanceType<typeof TooManyRequestsError>).retryAfter).toBeGreaterThan(0)
     }
   })
 
@@ -346,7 +346,7 @@ describe("rateLimit", () => {
       } catch (e) {
         expect(e).toBeInstanceOf(TooManyRequestsError)
         blocked++
-        lastRetryAfter = (e as TooManyRequestsError).retryAfter
+        lastRetryAfter = (e as InstanceType<typeof TooManyRequestsError>).retryAfter
       }
     }
 
