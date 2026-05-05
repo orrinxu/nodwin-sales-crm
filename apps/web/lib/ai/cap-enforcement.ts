@@ -2,19 +2,21 @@ import type {
   CapCheckResult,
   CapDataSource,
 } from "./types"
+import { Money } from "../money"
+import { DEFAULT_USER_SOFT_CAP, DEFAULT_USER_HARD_CAP } from "./types"
 
 export type { CapDataSource }
 
 export class CapEnforcer {
   constructor(
     private dataSource: CapDataSource,
-    private defaultUserSoftCapUsd = 3,
-    private defaultUserHardCapUsd = 5,
+    private defaultUserSoftCap: Money = DEFAULT_USER_SOFT_CAP,
+    private defaultUserHardCap: Money = DEFAULT_USER_HARD_CAP,
   ) {}
 
   async check(
     userId: string,
-    estimatedCostUsd: number,
+    estimatedCost: Money,
   ): Promise<CapCheckResult> {
     const today = await this.dataSource.getUserDailyUsage(userId)
 
@@ -23,8 +25,8 @@ export class CapEnforcer {
 
     const caps = await this.dataSource.getUserCapOverrides(userId)
 
-    const userSoftCap = caps.userSoftCapUsd ?? this.defaultUserSoftCapUsd
-    const userHardCap = caps.userHardCapUsd ?? this.defaultUserHardCapUsd
+    const userSoftCap = caps.userSoftCap ?? this.defaultUserSoftCap
+    const userHardCap = caps.userHardCap ?? this.defaultUserHardCap
 
     const teamHardCap = userTeamId
       ? await this.dataSource.getTeamHardCap(userTeamId)
@@ -34,35 +36,35 @@ export class CapEnforcer {
       ? await this.dataSource.getCompanyHardCap(userEntityId)
       : null
 
-    const projectedUserSpend = today.totalCostUsd + estimatedCostUsd
+    const projectedUserSpend = today.cost.add(estimatedCost)
 
-    let teamTodayCost = 0
+    let teamTodayCost = Money.zero("USD")
     if (teamHardCap !== null && userTeamId) {
       const teamUsage = await this.dataSource.getTeamDailyUsage(userTeamId)
-      teamTodayCost = teamUsage.totalCostUsd
+      teamTodayCost = teamUsage.cost
     }
 
-    let companyTodayCost = 0
+    let companyTodayCost = Money.zero("USD")
     if (companyHardCap !== null && userEntityId) {
       const companyUsage = await this.dataSource.getCompanyDailyUsage(userEntityId)
-      companyTodayCost = companyUsage.totalCostUsd
+      companyTodayCost = companyUsage.cost
     }
 
-    if (userHardCap !== null && projectedUserSpend > userHardCap) {
+    if (userHardCap !== null && projectedUserSpend.gt(userHardCap)) {
       return {
         allowed: false,
-        reason: `Per-user daily hard cap of $${userHardCap} exceeded (current: $${today.totalCostUsd}, estimated: $${estimatedCostUsd})`,
+        reason: `Per-user daily hard cap of $${userHardCap.toAmount()} exceeded (current: $${today.cost.toAmount()}, estimated: $${estimatedCost.toAmount()})`,
         capScope: "user",
         capLimit: userHardCap,
-        currentSpend: today.totalCostUsd,
+        currentSpend: today.cost,
         suggestedAction: "reject",
       }
     }
 
-    if (teamHardCap !== null && Number(teamTodayCost) + Number(estimatedCostUsd) > teamHardCap) {
+    if (teamHardCap !== null && teamTodayCost.add(estimatedCost).gt(teamHardCap)) {
       return {
         allowed: false,
-        reason: `Per-team daily hard cap of $${teamHardCap} exceeded (current: $${teamTodayCost}, estimated: $${estimatedCostUsd})`,
+        reason: `Per-team daily hard cap of $${teamHardCap.toAmount()} exceeded (current: $${teamTodayCost.toAmount()}, estimated: $${estimatedCost.toAmount()})`,
         capScope: "team",
         capLimit: teamHardCap,
         currentSpend: teamTodayCost,
@@ -70,10 +72,10 @@ export class CapEnforcer {
       }
     }
 
-    if (companyHardCap !== null && Number(companyTodayCost) + Number(estimatedCostUsd) > companyHardCap) {
+    if (companyHardCap !== null && companyTodayCost.add(estimatedCost).gt(companyHardCap)) {
       return {
         allowed: false,
-        reason: `Per-company daily hard cap of $${companyHardCap} exceeded (current: $${companyTodayCost}, estimated: $${estimatedCostUsd})`,
+        reason: `Per-company daily hard cap of $${companyHardCap.toAmount()} exceeded (current: $${companyTodayCost.toAmount()}, estimated: $${estimatedCost.toAmount()})`,
         capScope: "company",
         capLimit: companyHardCap,
         currentSpend: companyTodayCost,
@@ -81,13 +83,13 @@ export class CapEnforcer {
       }
     }
 
-    if (userSoftCap !== null && projectedUserSpend > userSoftCap) {
+    if (userSoftCap !== null && projectedUserSpend.gt(userSoftCap)) {
       return {
         allowed: true,
-        reason: `Per-user daily soft cap of $${userSoftCap} exceeded (current: $${today.totalCostUsd}, estimated: $${estimatedCostUsd}) — degrading to Ollama`,
+        reason: `Per-user daily soft cap of $${userSoftCap.toAmount()} exceeded (current: $${today.cost.toAmount()}, estimated: $${estimatedCost.toAmount()}) — degrading to Ollama`,
         capScope: "user",
         capLimit: userSoftCap,
-        currentSpend: today.totalCostUsd,
+        currentSpend: today.cost,
         suggestedAction: "degrade_to_ollama",
       }
     }
@@ -97,7 +99,7 @@ export class CapEnforcer {
       reason: null,
       capScope: null,
       capLimit: null,
-      currentSpend: today.totalCostUsd,
+      currentSpend: today.cost,
       suggestedAction: "proceed",
     }
   }

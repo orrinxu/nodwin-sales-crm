@@ -1,4 +1,5 @@
 import type { UsageLogger, InsertUsageParams, UsageRecord } from "./types"
+import { Money } from "../money"
 import { createServerClient } from "../supabase/server"
 
 function toDbInsert(p: InsertUsageParams): Record<string, unknown> {
@@ -8,7 +9,8 @@ function toDbInsert(p: InsertUsageParams): Record<string, unknown> {
     model: p.model,
     prompt_tokens: p.promptTokens,
     completion_tokens: p.completionTokens,
-    cost_usd: p.costUsd,
+    cost_amount: p.cost.toAmount(),
+    cost_currency: p.cost.currency,
     feature: p.feature,
     request_id: p.requestId,
     started_at: p.startedAt.toISOString(),
@@ -18,6 +20,8 @@ function toDbInsert(p: InsertUsageParams): Record<string, unknown> {
 }
 
 function fromDbRecord(r: Record<string, unknown>): UsageRecord {
+  const costAmount = Number(r.cost_amount ?? 0)
+  const costCurrency = (r.cost_currency as string) ?? "USD"
   return {
     id: r.id as string,
     userId: r.user_id as string,
@@ -25,7 +29,7 @@ function fromDbRecord(r: Record<string, unknown>): UsageRecord {
     model: r.model as string,
     promptTokens: r.prompt_tokens as number,
     completionTokens: r.completion_tokens as number,
-    costUsd: r.cost_usd as number,
+    cost: Money.fromAmount(costAmount, costCurrency),
     feature: r.feature as UsageRecord["feature"],
     requestId: r.request_id as string,
     startedAt: r.started_at as string,
@@ -52,5 +56,3 @@ export function createUsageLogger(): UsageLogger {
     },
   }
 }
-
-

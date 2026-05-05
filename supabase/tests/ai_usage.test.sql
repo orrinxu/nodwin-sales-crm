@@ -5,6 +5,9 @@
 -- Requires: public.users table (T-020), auth.users table (Supabase built-in)
 -- All changes are rolled back; nothing persists after the test run.
 --
+-- Money convention: all monetary columns use (amount numeric(20,4), currency text)
+-- pairs per AGENTS.md §5.1.
+--
 -- Run with: supabase test db
 
 BEGIN;
@@ -75,7 +78,7 @@ SELECT tests.assert_can_insert(
     ''00000000-0000-0000-0000-000000000001'',
     ''claude'',
     ''claude-sonnet-4'',
-    500, 200, 0.015000,
+    500, 200, 0.0150, ''USD'',
     ''search'',
     ''req-001'',
     now(),
@@ -90,7 +93,7 @@ SELECT tests.assert_cannot_insert(
     ''00000000-0000-0000-0000-000000000004'',
     ''claude'',
     ''claude-sonnet-4'',
-    100, 50, 0.005000,
+    100, 50, 0.0050, ''USD'',
     ''search'',
     ''req-002'',
     now(),
@@ -102,10 +105,10 @@ SELECT tests.assert_cannot_insert(
 -- ── Test 8-10: Select own rows vs others ──────────────────────────────────────
 
 SELECT tests.as_service_role();
-INSERT INTO public.ai_usage (id, user_id, provider, model, prompt_tokens, completion_tokens, cost_usd, feature, request_id, started_at, finished_at, status)
+INSERT INTO public.ai_usage (id, user_id, provider, model, prompt_tokens, completion_tokens, cost_amount, cost_currency, feature, request_id, started_at, finished_at, status)
 VALUES
-  ('00000000-0000-0000-0000-000000000020', '00000000-0000-0000-0000-000000000001', 'gemini', 'gemini-2.0-flash', 100, 50, 0.002000, 'search', 'req-010', now(), now(), 'success'),
-  ('00000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000002', 'deepseek', 'deepseek-chat', 200, 100, 0.001000, 'draft_email', 'req-011', now(), now(), 'success');
+  ('00000000-0000-0000-0000-000000000020', '00000000-0000-0000-0000-000000000001', 'gemini', 'gemini-2.0-flash', 100, 50, 0.0020, 'USD', 'search', 'req-010', now(), now(), 'success'),
+  ('00000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000002', 'deepseek', 'deepseek-chat', 200, 100, 0.0010, 'USD', 'draft_email', 'req-011', now(), now(), 'success');
 
 SELECT tests.as_user('rep@nodwin.com');
 
@@ -143,7 +146,7 @@ SELECT tests.assert_can_insert(
     ''00000000-0000-0000-0000-000000000004'',
     ''kimi'',
     ''moonshot-v1'',
-    300, 150, 0.003000,
+    300, 150, 0.0030, ''USD'',
     ''summarise_deal'',
     ''req-020'',
     now(),
@@ -164,7 +167,7 @@ SELECT tests.assert_can_select(
 
 SELECT tests.assert_cannot_insert(
   'ai_daily_caps',
-  '(gen_random_uuid(), ''team'', ''00000000-0000-0000-0000-000000000001'', 30.00, 50.00, true, now(), now())',
+  '(gen_random_uuid(), ''team'', ''00000000-0000-0000-0000-000000000001'', 30.00, ''USD'', 50.00, ''USD'', true, now(), now())',
   'Non-admin cannot INSERT into ai_daily_caps'
 );
 
@@ -172,7 +175,7 @@ SELECT tests.as_user('admin@nodwin.com');
 
 SELECT tests.assert_can_insert(
   'ai_daily_caps',
-  '(gen_random_uuid(), ''team'', ''00000000-0000-0000-0000-000000000001'', 30.00, 50.00, true, now(), now())',
+  '(gen_random_uuid(), ''team'', ''00000000-0000-0000-0000-000000000001'', 30.00, ''USD'', 50.00, ''USD'', true, now(), now())',
   'Admin can INSERT into ai_daily_caps'
 );
 

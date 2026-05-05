@@ -1,5 +1,6 @@
 import "server-only"
 import type { AiCallParams, AiCallResult, ProviderAdapter, CapDataSource, UsageLogger, AiProvider } from "./types"
+import { Money } from "../money"
 import { CapEnforcer } from "./cap-enforcement"
 import { createSupabaseCapDataSource } from "./supabase-cap-source"
 import { createUsageLogger } from "./usage-logger"
@@ -46,7 +47,7 @@ export async function aiCall(
   const logger = deps.usageLogger ?? createUsageLogger()
   const enforcer = new CapEnforcer(capSource)
 
-  const capResult = await enforcer.check(params.userId, params.estimatedCostUsd)
+  const capResult = await enforcer.check(params.userId, params.estimatedCost)
 
   if (!capResult.allowed && capResult.suggestedAction === "reject") {
     try {
@@ -56,7 +57,7 @@ export async function aiCall(
         model: "cap_rejected",
         promptTokens: 0,
         completionTokens: 0,
-        costUsd: 0,
+        cost: Money.zero("USD"),
         feature: params.feature,
         requestId: params.requestId,
         startedAt,
@@ -80,7 +81,7 @@ export async function aiCall(
         model: "no_adapter",
         promptTokens: 0,
         completionTokens: 0,
-        costUsd: 0,
+        cost: Money.zero("USD"),
         feature: params.feature,
         requestId: params.requestId,
         startedAt,
@@ -104,7 +105,7 @@ export async function aiCall(
         model: result.model,
         promptTokens: result.promptTokens,
         completionTokens: result.completionTokens,
-        costUsd: params.estimatedCostUsd,
+        cost: params.estimatedCost,
         feature: params.feature,
         requestId: params.requestId,
         startedAt,
@@ -124,7 +125,7 @@ export async function aiCall(
       model: "all_failed",
       promptTokens: 0,
       completionTokens: 0,
-      costUsd: 0,
+      cost: Money.zero("USD"),
       feature: params.feature,
       requestId: params.requestId,
       startedAt,

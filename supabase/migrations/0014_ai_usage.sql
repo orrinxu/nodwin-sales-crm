@@ -11,6 +11,10 @@
 --     per day for fast cap checks
 --   • RLS      users see own usage; admin sees all
 --
+-- Money convention: all monetary columns use (amount numeric(20,4), currency text)
+-- pairs per AGENTS.md §5.1. Per-user cap columns on public.users store dollar
+-- amounts in cents (integer) and must be cast accordingly.
+--
 -- Idempotent: safe to re-run.
 
 -- ── ai_provider enum ──────────────────────────────────────────────────────────
@@ -68,6 +72,8 @@ END;
 $$;
 
 -- ── ai_usage table ────────────────────────────────────────────────────────────
+-- Money: cost_amount (numeric(20,4)) + cost_currency (text, default 'USD')
+-- per AGENTS.md §5.1.
 
 CREATE TABLE IF NOT EXISTS public.ai_usage (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -76,7 +82,8 @@ CREATE TABLE IF NOT EXISTS public.ai_usage (
   model             text NOT NULL,
   prompt_tokens     int NOT NULL DEFAULT 0,
   completion_tokens int NOT NULL DEFAULT 0,
-  cost_usd          numeric(12,6) NOT NULL DEFAULT 0,
+  cost_amount       numeric(20,4) NOT NULL DEFAULT 0,
+  cost_currency     text NOT NULL DEFAULT 'USD',
   feature           public.ai_feature NOT NULL,
   request_id        text NOT NULL,
   started_at        timestamptz NOT NULL,
@@ -97,16 +104,19 @@ CREATE INDEX IF NOT EXISTS idx_ai_usage_request_id
 -- ── ai_daily_caps config table ───────────────────────────────────────────────
 -- Per-user caps are stored on public.users (ai_daily_soft_cap_usd,
 -- ai_daily_hard_cap_usd).  Per-team and per-company caps are configured here.
+-- Money: *_amount (numeric(20,4)) + *_currency (text, default 'USD').
 
 CREATE TABLE IF NOT EXISTS public.ai_daily_caps (
-  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  scope_kind      text NOT NULL CHECK (scope_kind IN ('team', 'company')),
-  scope_id        uuid NOT NULL,
-  soft_cap_usd    numeric(10,2) NOT NULL CHECK (soft_cap_usd >= 0),
-  hard_cap_usd    numeric(10,2) NOT NULL CHECK (hard_cap_usd >= 0),
-  active          boolean NOT NULL DEFAULT true,
-  created_at      timestamptz NOT NULL DEFAULT now(),
-  updated_at      timestamptz NOT NULL DEFAULT now()
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  scope_kind        text NOT NULL CHECK (scope_kind IN ('team', 'company')),
+  scope_id          uuid NOT NULL,
+  soft_cap_amount   numeric(20,4) NOT NULL CHECK (soft_cap_amount >= 0),
+  soft_cap_currency text NOT NULL DEFAULT 'USD',
+  hard_cap_amount   numeric(20,4) NOT NULL CHECK (hard_cap_amount >= 0),
+  hard_cap_currency text NOT NULL DEFAULT 'USD',
+  active            boolean NOT NULL DEFAULT true,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now()
 );
 
 -- Ensure at most one active cap per scope
@@ -122,7 +132,8 @@ SELECT
   u.primary_entity_id                                              AS entity_id,
   u.primary_business_unit_id                                       AS team_id,
   date_trunc('day', a.started_at AT TIME ZONE 'UTC')::date         AS usage_date,
-  COALESCE(SUM(a.cost_usd), 0)                                     AS total_cost_usd,
+  COALESCE(SUM(a.cost_amount), 0)                                  AS total_cost_amount,
+  'USD'                                                            AS total_cost_currency,
   COALESCE(SUM(a.prompt_tokens), 0)                                AS total_prompt_tokens,
   COALESCE(SUM(a.completion_tokens), 0)                            AS total_completion_tokens,
   COUNT(*)                                                         AS call_count
@@ -231,11 +242,18 @@ CREATE POLICY "Only admins can delete daily caps"
 --   - Company-level cap (from ai_daily_caps where scope_kind = 'company' and
 --     scope_id = user's entity_id)
 -- Falls back to environment-configured defaults.
+--
+-- NOTE: User-level cap columns (ai_daily_soft_cap_usd, ai_daily_hard_cap_usd)
+-- on public.users store dollar amounts. These should be migrated to the money
+-- pattern (amount + currency) in a follow-up. The currency is always 'USD' for
+-- caps.
 
 CREATE OR REPLACE FUNCTION public.get_effective_user_caps(p_user_id uuid)
 RETURNS TABLE(
-  soft_cap_usd numeric(10,2),
-  hard_cap_usd numeric(10,2)
+  soft_cap_amount   numeric(20,4),
+  soft_cap_currency text,
+  hard_cap_amount   numeric(20,4),
+  hard_cap_currency text
 )
 LANGUAGE plpgsql
 STABLE
@@ -243,21 +261,21 @@ SECURITY INVOKER
 SET search_path = public
 AS $$
 DECLARE
-  _user_soft  numeric(10,2);
-  _user_hard  numeric(10,2);
-  _team_soft  numeric(10,2);
-  _team_hard  numeric(10,2);
-  _company_soft numeric(10,2);
-  _company_hard numeric(10,2);
+  _user_soft    numeric(20,4);
+  _user_hard    numeric(20,4);
+  _team_soft    numeric(20,4);
+  _team_hard    numeric(20,4);
+  _company_soft numeric(20,4);
+  _company_hard numeric(20,4);
 BEGIN
-  -- User-level overrides
+  -- User-level overrides (stored as dollar amounts on public.users)
   SELECT u.ai_daily_soft_cap_usd, u.ai_daily_hard_cap_usd
   INTO _user_soft, _user_hard
   FROM public.users u
   WHERE u.id = p_user_id;
 
   -- Team-level caps (user's primary_business_unit)
-  SELECT c.soft_cap_usd, c.hard_cap_usd
+  SELECT c.soft_cap_amount, c.hard_cap_amount
   INTO _team_soft, _team_hard
   FROM public.ai_daily_caps c
   JOIN public.users u ON u.primary_business_unit_id = c.scope_id
@@ -266,7 +284,7 @@ BEGIN
     AND c.active = true;
 
   -- Company-level caps (user's primary_entity)
-  SELECT c.soft_cap_usd, c.hard_cap_usd
+  SELECT c.soft_cap_amount, c.hard_cap_amount
   INTO _company_soft, _company_hard
   FROM public.ai_daily_caps c
   JOIN public.users u ON u.primary_entity_id = c.scope_id
@@ -277,8 +295,10 @@ BEGIN
   -- Resolve: user override > team cap > company cap > NULL (no cap)
   RETURN QUERY
   SELECT
-    COALESCE(_user_soft, _team_soft, _company_soft) AS soft_cap_usd,
-    COALESCE(_user_hard, _team_hard, _company_hard) AS hard_cap_usd;
+    COALESCE(_user_soft, _team_soft, _company_soft) AS soft_cap_amount,
+    'USD'::text                                      AS soft_cap_currency,
+    COALESCE(_user_hard, _team_hard, _company_hard) AS hard_cap_amount,
+    'USD'::text                                      AS hard_cap_currency;
 END;
 $$;
 
@@ -286,10 +306,11 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.get_todays_user_usage(p_user_id uuid)
 RETURNS TABLE(
-  total_cost_usd       numeric(12,6),
-  total_prompt_tokens  bigint,
+  total_cost_amount       numeric(20,4),
+  total_cost_currency     text,
+  total_prompt_tokens     bigint,
   total_completion_tokens bigint,
-  call_count           bigint
+  call_count              bigint
 )
 LANGUAGE plpgsql
 STABLE
@@ -299,10 +320,11 @@ AS $$
 BEGIN
   RETURN QUERY
   SELECT
-    COALESCE(SUM(a.cost_usd), 0::numeric(12,6))        AS total_cost_usd,
-    COALESCE(SUM(a.prompt_tokens), 0::bigint)           AS total_prompt_tokens,
-    COALESCE(SUM(a.completion_tokens), 0::bigint)       AS total_completion_tokens,
-    COUNT(*)::bigint                                     AS call_count
+    COALESCE(SUM(a.cost_amount), 0::numeric(20,4)) AS total_cost_amount,
+    'USD'::text                                     AS total_cost_currency,
+    COALESCE(SUM(a.prompt_tokens), 0::bigint)       AS total_prompt_tokens,
+    COALESCE(SUM(a.completion_tokens), 0::bigint)   AS total_completion_tokens,
+    COUNT(*)::bigint                                 AS call_count
   FROM public.ai_usage a
   WHERE a.user_id = p_user_id
     AND a.started_at >= date_trunc('day', now() AT TIME ZONE 'UTC')::timestamptz
@@ -314,8 +336,9 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.get_todays_team_usage(p_team_id uuid)
 RETURNS TABLE(
-  total_cost_usd numeric(12,6),
-  call_count     bigint
+  total_cost_amount   numeric(20,4),
+  total_cost_currency text,
+  call_count          bigint
 )
 LANGUAGE plpgsql
 STABLE
@@ -325,8 +348,9 @@ AS $$
 BEGIN
   RETURN QUERY
   SELECT
-    COALESCE(SUM(a.cost_usd), 0::numeric(12,6)) AS total_cost_usd,
-    COUNT(*)::bigint                              AS call_count
+    COALESCE(SUM(a.cost_amount), 0::numeric(20,4)) AS total_cost_amount,
+    'USD'::text                                     AS total_cost_currency,
+    COUNT(*)::bigint                                 AS call_count
   FROM public.ai_usage a
   JOIN public.users u ON u.id = a.user_id
   WHERE u.primary_business_unit_id = p_team_id
@@ -339,8 +363,9 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.get_todays_company_usage(p_entity_id uuid)
 RETURNS TABLE(
-  total_cost_usd numeric(12,6),
-  call_count     bigint
+  total_cost_amount   numeric(20,4),
+  total_cost_currency text,
+  call_count          bigint
 )
 LANGUAGE plpgsql
 STABLE
@@ -350,8 +375,9 @@ AS $$
 BEGIN
   RETURN QUERY
   SELECT
-    COALESCE(SUM(a.cost_usd), 0::numeric(12,6)) AS total_cost_usd,
-    COUNT(*)::bigint                              AS call_count
+    COALESCE(SUM(a.cost_amount), 0::numeric(20,4)) AS total_cost_amount,
+    'USD'::text                                     AS total_cost_currency,
+    COUNT(*)::bigint                                 AS call_count
   FROM public.ai_usage a
   JOIN public.users u ON u.id = a.user_id
   WHERE u.primary_entity_id = p_entity_id
@@ -365,14 +391,16 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.check_ai_caps(
   p_user_id          uuid,
-  p_estimated_cost   numeric(12,6)
+  p_estimated_cost   numeric(20,4)
 )
 RETURNS TABLE(
-  blocked       boolean,
-  reason        text,
-  cap_type      text,
-  cap_limit     numeric(10,2),
-  current_spend numeric(12,6)
+  blocked         boolean,
+  reason          text,
+  cap_type        text,
+  cap_limit_amount numeric(20,4),
+  cap_limit_currency text,
+  current_spend_amount numeric(20,4),
+  current_spend_currency text
 )
 LANGUAGE plpgsql
 STABLE
@@ -380,18 +408,18 @@ SECURITY INVOKER
 SET search_path = public
 AS $$
 DECLARE
-  _user_soft   numeric(10,2);
-  _user_hard   numeric(10,2);
-  _user_today  numeric(12,6);
-  _team_hard   numeric(10,2);
-  _team_today  numeric(12,6);
-  _company_hard numeric(10,2);
-  _company_today numeric(12,6);
-  _team_id     uuid;
-  _entity_id   uuid;
+  _user_soft    numeric(20,4);
+  _user_hard    numeric(20,4);
+  _user_today   numeric(20,4);
+  _team_hard    numeric(20,4);
+  _team_today   numeric(20,4);
+  _company_hard numeric(20,4);
+  _company_today numeric(20,4);
+  _team_id      uuid;
+  _entity_id    uuid;
 BEGIN
   -- Get caps for this user
-  SELECT c.soft_cap_usd, c.hard_cap_usd
+  SELECT c.soft_cap_amount, c.hard_cap_amount
   INTO _user_soft, _user_hard
   FROM public.get_effective_user_caps(p_user_id) c;
 
@@ -402,14 +430,14 @@ BEGIN
   WHERE u.id = p_user_id;
 
   -- Get team-level hard cap
-  SELECT c.hard_cap_usd INTO _team_hard
+  SELECT c.hard_cap_amount INTO _team_hard
   FROM public.ai_daily_caps c
   WHERE c.scope_kind = 'team'
     AND c.scope_id = _team_id
     AND c.active = true;
 
   -- Get company-level hard cap
-  SELECT c.hard_cap_usd INTO _company_hard
+  SELECT c.hard_cap_amount INTO _company_hard
   FROM public.ai_daily_caps c
   WHERE c.scope_kind = 'company'
     AND c.scope_id = _entity_id
@@ -417,7 +445,7 @@ BEGIN
 
   -- Check user hard cap
   IF _user_hard IS NOT NULL THEN
-    SELECT total_cost_usd INTO _user_today
+    SELECT total_cost_amount INTO _user_today
     FROM public.get_todays_user_usage(p_user_id);
 
     IF (_user_today + p_estimated_cost) > _user_hard THEN
@@ -427,14 +455,16 @@ BEGIN
                _user_hard, _user_today, p_estimated_cost),
         'user_hard',
         _user_hard,
-        _user_today;
+        'USD',
+        _user_today,
+        'USD';
       RETURN;
     END IF;
   END IF;
 
   -- Check team hard cap
   IF _team_hard IS NOT NULL AND _team_id IS NOT NULL THEN
-    SELECT total_cost_usd INTO _team_today
+    SELECT total_cost_amount INTO _team_today
     FROM public.get_todays_team_usage(_team_id);
 
     IF (_team_today + p_estimated_cost) > _team_hard THEN
@@ -444,14 +474,16 @@ BEGIN
                _team_hard, _team_today, p_estimated_cost),
         'team_hard',
         _team_hard,
-        _team_today;
+        'USD',
+        _team_today,
+        'USD';
       RETURN;
     END IF;
   END IF;
 
   -- Check company hard cap
   IF _company_hard IS NOT NULL AND _entity_id IS NOT NULL THEN
-    SELECT total_cost_usd INTO _company_today
+    SELECT total_cost_amount INTO _company_today
     FROM public.get_todays_company_usage(_entity_id);
 
     IF (_company_today + p_estimated_cost) > _company_hard THEN
@@ -461,12 +493,21 @@ BEGIN
                _company_hard, _company_today, p_estimated_cost),
         'company_hard',
         _company_hard,
-        _company_today;
+        'USD',
+        _company_today,
+        'USD';
       RETURN;
     END IF;
   END IF;
 
   -- All caps satisfied
-  RETURN QUERY SELECT false, NULL::text, NULL::text, NULL::numeric(10,2), NULL::numeric(12,6);
+  RETURN QUERY SELECT
+    false,
+    NULL::text,
+    NULL::text,
+    NULL::numeric(20,4),
+    NULL::text,
+    NULL::numeric(20,4),
+    NULL::text;
 END;
 $$;

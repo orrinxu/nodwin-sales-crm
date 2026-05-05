@@ -1,3 +1,5 @@
+import { Money } from "../money"
+
 export type AiProvider = "claude" | "gemini" | "kimi" | "deepseek" | "ollama_local"
 
 export type AiFeature =
@@ -21,7 +23,7 @@ export interface UsageRecord {
   model: string
   promptTokens: number
   completionTokens: number
-  costUsd: number
+  cost: Money
   feature: AiFeature
   requestId: string
   startedAt: string
@@ -35,7 +37,7 @@ export interface InsertUsageParams {
   model: string
   promptTokens: number
   completionTokens: number
-  costUsd: number
+  cost: Money
   feature: AiFeature
   requestId: string
   startedAt: Date
@@ -49,24 +51,24 @@ export interface CapCheckResult {
   allowed: boolean
   reason: string | null
   capScope: CapScope | null
-  capLimit: number | null
-  currentSpend: number | null
+  capLimit: Money | null
+  currentSpend: Money | null
   suggestedAction: "proceed" | "degrade_to_ollama" | "reject"
 }
 
 export interface DailyCapConfig {
-  softCapUsd: number | null
-  hardCapUsd: number | null
+  softCap: Money | null
+  hardCap: Money | null
 }
 
 export interface TeamDailyCap {
   teamId: string
-  hardCapUsd: number | null
+  hardCap: Money | null
 }
 
 export interface CompanyDailyCap {
   entityId: string
-  hardCapUsd: number | null
+  hardCap: Money | null
 }
 
 export interface UsageLogger {
@@ -76,13 +78,13 @@ export interface UsageLogger {
 export interface CapChecker {
   check(
     userId: string,
-    estimatedCostUsd: number,
+    estimatedCost: Money,
     context?: { teamId?: string; entityId?: string },
   ): Promise<CapCheckResult>
 }
 
 export interface DailyUsage {
-  totalCostUsd: number
+  cost: Money
   totalPromptTokens: number
   totalCompletionTokens: number
   callCount: number
@@ -95,7 +97,7 @@ export interface AiCallParams {
   systemPrompt?: string
   teamId?: string
   entityId?: string
-  estimatedCostUsd: number
+  estimatedCost: Money
   estimatePromptTokens: number
   estimateCompletionTokens: number
   requestId: string
@@ -111,14 +113,14 @@ export interface AiCallResult {
 
 export interface CapDataSource {
   getUserDailyUsage(userId: string): Promise<DailyUsage>
-  getTeamDailyUsage(teamId: string): Promise<{ totalCostUsd: number }>
-  getCompanyDailyUsage(entityId: string): Promise<{ totalCostUsd: number }>
+  getTeamDailyUsage(teamId: string): Promise<{ cost: Money }>
+  getCompanyDailyUsage(entityId: string): Promise<{ cost: Money }>
   getUserCapOverrides(userId: string): Promise<{
-    userSoftCapUsd: number | null
-    userHardCapUsd: number | null
+    userSoftCap: Money | null
+    userHardCap: Money | null
   }>
-  getTeamHardCap(teamId: string): Promise<number | null>
-  getCompanyHardCap(entityId: string): Promise<number | null>
+  getTeamHardCap(teamId: string): Promise<Money | null>
+  getCompanyHardCap(entityId: string): Promise<Money | null>
   getUserTeamId(userId: string): Promise<string | null>
   getUserEntityId(userId: string): Promise<string | null>
 }
@@ -132,7 +134,7 @@ export interface ProviderAdapter {
   }>
 }
 
-export const DEFAULT_USER_SOFT_CAP_USD = 3
-export const DEFAULT_USER_HARD_CAP_USD = 5
-export const DEFAULT_TEAM_HARD_CAP_USD_PER_USER = 5
-export const DEFAULT_COMPANY_HARD_CAP_USD = 500
+export const DEFAULT_USER_SOFT_CAP = Money.fromAmount(3, "USD")
+export const DEFAULT_USER_HARD_CAP = Money.fromAmount(5, "USD")
+export const DEFAULT_TEAM_HARD_CAP_PER_USER = Money.fromAmount(5, "USD")
+export const DEFAULT_COMPANY_HARD_CAP = Money.fromAmount(500, "USD")

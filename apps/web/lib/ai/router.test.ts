@@ -16,26 +16,31 @@ vi.mock("../supabase/server", () => mockServerModule)
 
 import { aiCall } from "./router"
 import type { CapDataSource, ProviderAdapter, UsageLogger, InsertUsageParams, UsageRecord, AiCallParams } from "./types"
+import { Money } from "../money"
+
+function mockMoney(amount: number, currency = "USD"): Money {
+  return Money.fromAmount(amount, currency)
+}
 
 function mockCapSource(overrides?: {
-  userDailyUsage?: { totalCostUsd: number; totalPromptTokens: number; totalCompletionTokens: number; callCount: number }
-  userCaps?: { userSoftCapUsd: number | null; userHardCapUsd: number | null }
-  teamHardCap?: number | null
-  companyHardCap?: number | null
-  teamDailyUsage?: { totalCostUsd: number }
-  companyDailyUsage?: { totalCostUsd: number }
+  userDailyUsage?: { cost: Money; totalPromptTokens: number; totalCompletionTokens: number; callCount: number }
+  userCaps?: { userSoftCap: Money | null; userHardCap: Money | null }
+  teamHardCap?: Money | null
+  companyHardCap?: Money | null
+  teamDailyUsage?: { cost: Money }
+  companyDailyUsage?: { cost: Money }
   userTeamId?: string | null
   userEntityId?: string | null
 }): CapDataSource {
   return {
     getUserDailyUsage: async () =>
-      overrides?.userDailyUsage ?? { totalCostUsd: 0, totalPromptTokens: 0, totalCompletionTokens: 0, callCount: 0 },
+      overrides?.userDailyUsage ?? { cost: Money.zero("USD"), totalPromptTokens: 0, totalCompletionTokens: 0, callCount: 0 },
     getTeamDailyUsage: async () =>
-      overrides?.teamDailyUsage ?? { totalCostUsd: 0 },
+      overrides?.teamDailyUsage ?? { cost: Money.zero("USD") },
     getCompanyDailyUsage: async () =>
-      overrides?.companyDailyUsage ?? { totalCostUsd: 0 },
+      overrides?.companyDailyUsage ?? { cost: Money.zero("USD") },
     getUserCapOverrides: async () =>
-      overrides?.userCaps ?? { userSoftCapUsd: null, userHardCapUsd: null },
+      overrides?.userCaps ?? { userSoftCap: null, userHardCap: null },
     getTeamHardCap: async () =>
       overrides?.teamHardCap ?? null,
     getCompanyHardCap: async () =>
@@ -60,7 +65,7 @@ function mockLogger(): UsageLogger & { calls: InsertUsageParams[] } {
         model: params.model,
         promptTokens: params.promptTokens,
         completionTokens: params.completionTokens,
-        costUsd: params.costUsd,
+        cost: params.cost,
         feature: params.feature,
         requestId: params.requestId,
         startedAt: params.startedAt.toISOString(),
@@ -75,7 +80,7 @@ const defaultParams: AiCallParams = {
   feature: "search",
   userId: "user-1",
   prompt: "test prompt",
-  estimatedCostUsd: 0.10,
+  estimatedCost: Money.fromCents(10, "USD"),
   estimatePromptTokens: 100,
   estimateCompletionTokens: 50,
   requestId: "req-1",
@@ -116,12 +121,12 @@ describe("aiCall", () => {
     const adapterFn = vi.spyOn(adapter, "call")
 
     const result = await aiCall(
-      { ...defaultParams, estimatedCostUsd: 0.50 },
+      { ...defaultParams, estimatedCost: mockMoney(0.50) },
       {
         adapters: new Map([["claude", adapter]]),
         capSource: mockCapSource({
-          userDailyUsage: { totalCostUsd: 4.80, totalPromptTokens: 1000, totalCompletionTokens: 500, callCount: 8 },
-          userCaps: { userSoftCapUsd: 3, userHardCapUsd: 5 },
+          userDailyUsage: { cost: mockMoney(4.80), totalPromptTokens: 1000, totalCompletionTokens: 500, callCount: 8 },
+          userCaps: { userSoftCap: mockMoney(3), userHardCap: mockMoney(5) },
         }),
         usageLogger: logger,
       },
@@ -141,12 +146,12 @@ describe("aiCall", () => {
     const ollamaAdapter = stubAdapter("ollama response")
 
     const result = await aiCall(
-      { ...defaultParams, estimatedCostUsd: 0.50 },
+      { ...defaultParams, estimatedCost: mockMoney(0.50) },
       {
         adapters: new Map([["ollama_local", ollamaAdapter]]),
         capSource: mockCapSource({
-          userDailyUsage: { totalCostUsd: 3.50, totalPromptTokens: 1000, totalCompletionTokens: 500, callCount: 8 },
-          userCaps: { userSoftCapUsd: 3, userHardCapUsd: 5 },
+          userDailyUsage: { cost: mockMoney(3.50), totalPromptTokens: 1000, totalCompletionTokens: 500, callCount: 8 },
+          userCaps: { userSoftCap: mockMoney(3), userHardCap: mockMoney(5) },
         }),
         usageLogger: logger,
       },
@@ -162,12 +167,12 @@ describe("aiCall", () => {
 
   it("returns service_unavailable on hard cap even with adapters available", async () => {
     const result = await aiCall(
-      { ...defaultParams, estimatedCostUsd: 1.00 },
+      { ...defaultParams, estimatedCost: mockMoney(1.00) },
       {
         adapters: new Map([["claude", stubAdapter()]]),
         capSource: mockCapSource({
-          userDailyUsage: { totalCostUsd: 5.00, totalPromptTokens: 1000, totalCompletionTokens: 500, callCount: 8 },
-          userCaps: { userSoftCapUsd: 3, userHardCapUsd: 5 },
+          userDailyUsage: { cost: mockMoney(5.00), totalPromptTokens: 1000, totalCompletionTokens: 500, callCount: 8 },
+          userCaps: { userSoftCap: mockMoney(3), userHardCap: mockMoney(5) },
         }),
       },
     )
@@ -190,20 +195,18 @@ describe("aiCall", () => {
   })
 
   it("rejects 11th call when $1 daily hard cap is set ($0.10/call)", async () => {
-    let cumulativeSpend = 0
-    const costPerCall = 0.10
-    const hardCap = 1
+    let cumulativeCents = 0
 
     const dataSource: CapDataSource = {
       getUserDailyUsage: async () => ({
-        totalCostUsd: cumulativeSpend,
+        cost: Money.fromCents(cumulativeCents, "USD"),
         totalPromptTokens: 0,
         totalCompletionTokens: 0,
-        callCount: Math.floor(cumulativeSpend / costPerCall),
+        callCount: Math.floor(cumulativeCents / 10),
       }),
-      getTeamDailyUsage: async () => ({ totalCostUsd: 0 }),
-      getCompanyDailyUsage: async () => ({ totalCostUsd: 0 }),
-      getUserCapOverrides: async () => ({ userSoftCapUsd: null, userHardCapUsd: hardCap }),
+      getTeamDailyUsage: async () => ({ cost: Money.zero("USD") }),
+      getCompanyDailyUsage: async () => ({ cost: Money.zero("USD") }),
+      getUserCapOverrides: async () => ({ userSoftCap: null, userHardCap: Money.fromCents(100, "USD") }),
       getTeamHardCap: async () => null,
       getCompanyHardCap: async () => null,
       getUserTeamId: async () => null,
@@ -214,7 +217,7 @@ describe("aiCall", () => {
 
     for (let i = 0; i < 10; i++) {
       const result = await aiCall(
-        { ...defaultParams, estimatedCostUsd: costPerCall, requestId: `req-${i}` },
+        { ...defaultParams, estimatedCost: Money.fromCents(10, "USD"), requestId: `req-${i}` },
         {
           adapters: new Map([["claude", stubAdapter(`call-${i}`)]]),
           capSource: dataSource,
@@ -223,11 +226,11 @@ describe("aiCall", () => {
       )
       expect(result.ok).toBe(true)
       expect(result.data).toBe(`call-${i}`)
-      cumulativeSpend += costPerCall
+      cumulativeCents += 10
     }
 
     const result = await aiCall(
-      { ...defaultParams, estimatedCostUsd: costPerCall, requestId: "req-11" },
+      { ...defaultParams, estimatedCost: Money.fromCents(10, "USD"), requestId: "req-11" },
       {
         adapters: new Map([["claude", stubAdapter("should-not-be-called")]]),
         capSource: dataSource,

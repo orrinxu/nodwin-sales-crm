@@ -1,6 +1,13 @@
 import "server-only"
 import type { CapDataSource, DailyUsage } from "./types"
+import { Money } from "../money"
 import { createServerClient } from "../supabase/server"
+
+function parseMoneyAmount(val: unknown): Money {
+  if (val == null) return Money.zero("USD")
+  const num = Number(val)
+  return isNaN(num) ? Money.zero("USD") : Money.fromAmount(num, "USD")
+}
 
 export function createSupabaseCapDataSource(): CapDataSource {
   return {
@@ -11,54 +18,49 @@ export function createSupabaseCapDataSource(): CapDataSource {
         .single()
 
       if (error || !data) {
-        return { totalCostUsd: 0, totalPromptTokens: 0, totalCompletionTokens: 0, callCount: 0 }
+        return { cost: Money.zero("USD"), totalPromptTokens: 0, totalCompletionTokens: 0, callCount: 0 }
       }
 
       const row = data as Record<string, unknown>
-      const costVal = row.total_cost_usd
       return {
-        totalCostUsd: typeof costVal === "number" ? costVal : 0,
+        cost: parseMoneyAmount(row.total_cost_amount),
         totalPromptTokens: Number(row.total_prompt_tokens ?? 0),
         totalCompletionTokens: Number(row.total_completion_tokens ?? 0),
         callCount: Number(row.call_count ?? 0),
       }
     },
 
-    async getTeamDailyUsage(teamId: string): Promise<{ totalCostUsd: number }> {
+    async getTeamDailyUsage(teamId: string): Promise<{ cost: Money }> {
       const supabase = await createServerClient()
       const { data, error } = await supabase
         .rpc("get_todays_team_usage", { p_team_id: teamId })
         .single()
 
       if (error || !data) {
-        return { totalCostUsd: 0 }
+        return { cost: Money.zero("USD") }
       }
 
       const row = data as Record<string, unknown>
-      const val = row.total_cost_usd
-      const totalCostUsd = typeof val === "number" ? val : 0
-      return { totalCostUsd }
+      return { cost: parseMoneyAmount(row.total_cost_amount) }
     },
 
-    async getCompanyDailyUsage(entityId: string): Promise<{ totalCostUsd: number }> {
+    async getCompanyDailyUsage(entityId: string): Promise<{ cost: Money }> {
       const supabase = await createServerClient()
       const { data, error } = await supabase
         .rpc("get_todays_company_usage", { p_entity_id: entityId })
         .single()
 
       if (error || !data) {
-        return { totalCostUsd: 0 }
+        return { cost: Money.zero("USD") }
       }
 
       const row = data as Record<string, unknown>
-      const val = row.total_cost_usd
-      const totalCostUsd = typeof val === "number" ? val : 0
-      return { totalCostUsd }
+      return { cost: parseMoneyAmount(row.total_cost_amount) }
     },
 
     async getUserCapOverrides(userId: string): Promise<{
-      userSoftCapUsd: number | null
-      userHardCapUsd: number | null
+      userSoftCap: Money | null
+      userHardCap: Money | null
     }> {
       const supabase = await createServerClient()
       const { data, error } = await supabase
@@ -66,23 +68,23 @@ export function createSupabaseCapDataSource(): CapDataSource {
         .single()
 
       if (error || !data) {
-        return { userSoftCapUsd: null, userHardCapUsd: null }
+        return { userSoftCap: null, userHardCap: null }
       }
 
       const row = data as Record<string, unknown>
-      const rawSoft = row.soft_cap_usd
-      const rawHard = row.hard_cap_usd
+      const rawSoft = row.soft_cap_amount
+      const rawHard = row.hard_cap_amount
       return {
-        userSoftCapUsd: rawSoft != null ? (rawSoft as number) : null,
-        userHardCapUsd: rawHard != null ? (rawHard as number) : null,
+        userSoftCap: rawSoft != null ? Money.fromAmount(Number(rawSoft), "USD") : null,
+        userHardCap: rawHard != null ? Money.fromAmount(Number(rawHard), "USD") : null,
       }
     },
 
-    async getTeamHardCap(teamId: string): Promise<number | null> {
+    async getTeamHardCap(teamId: string): Promise<Money | null> {
       const supabase = await createServerClient()
       const { data, error } = await supabase
         .from("ai_daily_caps")
-        .select("hard_cap_usd")
+        .select("hard_cap_amount, hard_cap_currency")
         .eq("scope_kind", "team")
         .eq("scope_id", teamId)
         .eq("active", true)
@@ -93,14 +95,16 @@ export function createSupabaseCapDataSource(): CapDataSource {
       }
 
       const rec = data as Record<string, unknown>
-      return (rec.hard_cap_usd as number) ?? null
+      const amount = rec.hard_cap_amount
+      const currency = (rec.hard_cap_currency as string) ?? "USD"
+      return amount != null ? Money.fromAmount(Number(amount), currency) : null
     },
 
-    async getCompanyHardCap(entityId: string): Promise<number | null> {
+    async getCompanyHardCap(entityId: string): Promise<Money | null> {
       const supabase = await createServerClient()
       const { data, error } = await supabase
         .from("ai_daily_caps")
-        .select("hard_cap_usd")
+        .select("hard_cap_amount, hard_cap_currency")
         .eq("scope_kind", "company")
         .eq("scope_id", entityId)
         .eq("active", true)
@@ -111,7 +115,9 @@ export function createSupabaseCapDataSource(): CapDataSource {
       }
 
       const rec = data as Record<string, unknown>
-      return (rec.hard_cap_usd as number) ?? null
+      const amount = rec.hard_cap_amount
+      const currency = (rec.hard_cap_currency as string) ?? "USD"
+      return amount != null ? Money.fromAmount(Number(amount), currency) : null
     },
 
     async getUserTeamId(userId: string): Promise<string | null> {
