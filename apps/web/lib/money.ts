@@ -1,5 +1,3 @@
-const CENTS_PER_UNIT = 100
-
 export type RoundingMode = "round" | "floor" | "ceil"
 
 export type CurrencyCode = string
@@ -104,11 +102,19 @@ export class Money {
     return new Money(0, currency)
   }
 
-  toAmount(): number {
-    return this.cents / CENTS_PER_UNIT
+  /**
+   * Return the decimal string representation (e.g. "123.45").
+   * No float intermediates — pure string manipulation.
+   */
+  toAmount(): string {
+    const sign = this.cents < 0 ? "-" : ""
+    const absCents = Math.abs(this.cents).toString().padStart(3, "0")
+    const whole = absCents.slice(0, -2)
+    const fraction = absCents.slice(-2)
+    return `${sign}${whole}.${fraction}`
   }
 
-  /** Display only. Output is locale-aware but always uses Latin (ASCII 0-9) digits. Not suitable for machine parsing. Use `toAmount()` for numeric computations. */
+  /** Display only. Output is locale-aware but always uses Latin (ASCII 0-9) digits. Not suitable for machine parsing. Use `toAmount()` for decimal string. */
   toDisplay(locale = "en-US"): string {
     try {
       Intl.getCanonicalLocales(locale)
@@ -119,7 +125,7 @@ export class Money {
       style: "currency",
       currency: this.currency,
       numberingSystem: "latn",
-    }).format(this.toAmount())
+    }).format(this.toAmount() as unknown as number)
   }
 
   toJSON(): MoneyData {
@@ -136,13 +142,24 @@ export class Money {
     return new Money(this.cents - other.cents, this.currency)
   }
 
-  multiply(factor: number, mode: RoundingMode = "round"): Money {
-    return new Money(applyRounding(this.cents * factor, mode), this.currency)
+  multiply(factor: string | number, mode: RoundingMode = "round"): Money {
+    const factorStr = typeof factor === "number" ? factor.toString() : factor
+    const { amount: scaledFactor, scale: factorScale } =
+      decimalToScaledInteger(factorStr)
+    const product = BigInt(this.cents) * scaledFactor
+    const divisor = pow10BigInt(factorScale)
+    const result = applyBigIntRounding(product, divisor, mode)
+    return new Money(Number(result), this.currency)
   }
 
-  divide(divisor: number, mode: RoundingMode = "round"): Money {
-    if (divisor === 0) throw new Error("Cannot divide money by zero")
-    return new Money(applyRounding(this.cents / divisor, mode), this.currency)
+  divide(divisor: string | number, mode: RoundingMode = "round"): Money {
+    const divisorStr = typeof divisor === "number" ? divisor.toString() : divisor
+    const { amount: scaledDivisor, scale: divisorScale } =
+      decimalToScaledInteger(divisorStr)
+    if (scaledDivisor === 0n) throw new Error("Cannot divide money by zero")
+    const dividend = BigInt(this.cents) * pow10BigInt(divisorScale)
+    const result = applyBigIntRounding(dividend, scaledDivisor, mode)
+    return new Money(Number(result), this.currency)
   }
 
   abs(): Money {
@@ -203,14 +220,59 @@ function assertSameCurrency(a: Money, b: Money, operation: string): void {
   }
 }
 
-function applyRounding(value: number, mode: RoundingMode): number {
+function decimalToScaledInteger(str: string): { amount: bigint; scale: number } {
+  const trimmed = str.trim()
+  if (trimmed === "") {
+    return { amount: 0n, scale: 0 }
+  }
+  const dotIndex = trimmed.indexOf(".")
+  if (dotIndex < 0) {
+    return { amount: BigInt(trimmed), scale: 0 }
+  }
+  const whole = trimmed.slice(0, dotIndex)
+  const decimal = trimmed.slice(dotIndex + 1)
+  const amountStr = whole + decimal
+  return { amount: BigInt(amountStr || "0"), scale: decimal.length }
+}
+
+function pow10BigInt(n: number): bigint {
+  if (n < 0) throw new Error("Negative exponent not supported")
+  if (n === 0) return 1n
+  return BigInt("1" + "0".repeat(n))
+}
+
+function applyBigIntRounding(
+  dividend: bigint,
+  divisor: bigint,
+  mode: RoundingMode,
+): bigint {
+  if (divisor === 0n) throw new Error("Cannot divide by zero")
+  const sign = (dividend < 0n) !== (divisor < 0n) ? -1n : 1n
+  const absDividend = dividend < 0n ? -dividend : dividend
+  const absDivisor = divisor < 0n ? -divisor : divisor
+
+  const quotient = absDividend / absDivisor
+  const remainder = absDividend % absDivisor
+
   switch (mode) {
-    case "round":
-      return Math.round(value)
-    case "floor":
-      return Math.floor(value)
-    case "ceil":
-      return Math.ceil(value)
+    case "round": {
+      if (remainder * 2n >= absDivisor) {
+        return sign * (quotient + 1n)
+      }
+      return sign * quotient
+    }
+    case "floor": {
+      if (sign < 0n && remainder > 0n) {
+        return sign * (quotient + 1n)
+      }
+      return sign * quotient
+    }
+    case "ceil": {
+      if (sign > 0n && remainder > 0n) {
+        return sign * (quotient + 1n)
+      }
+      return sign * quotient
+    }
   }
 }
 

@@ -166,7 +166,7 @@ describe("CapEnforcer", () => {
 
     const result = await enforcer.check("user-1", mockMoney(1.00))
     expect(result.allowed).toBe(true)
-    expect(result.currentSpend!.toAmount()).toBe(2.00)
+    expect(result.currentSpend!.toAmount()).toBe("2.00")
   })
 
   it("rejects 11th call when $1 daily hard cap is set ($0.10/call)", async () => {
