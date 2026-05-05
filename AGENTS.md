@@ -192,7 +192,7 @@ The board may also configure Paperclip to require approval before any change to 
 
 1. Read the ticket in full.
 2. Read this file. (Yes, every session.)
-3. Skim `BUILD_TICKETS.md` to see what came before and what comes after — context matters.
+3. Before any work on a ticket, **read the full ticket detail in `BUILD_TICKETS.md`** (search for the ticket ID heading). Do not begin work based on the ticket summary alone. If `BUILD_TICKETS.md` lacks the detail you need, ask the board — but only after confirming the file doesn't contain it.
 4. If the ticket touches a high-risk file (§6), say so up front in your first message on the ticket.
 5. If anything is ambiguous, ask the board before coding. Ambiguity is not your call to resolve.
 
@@ -235,6 +235,9 @@ All four must pass. If any fails, fix it before opening the PR. If a failure is 
 ## Manual verification
 <what you did to confirm this works beyond automated tests>
 
+## Workflow runs (required if PR touches .github/workflows/)
+<link to a successful CI run on this PR's branch, with green checks for all affected workflows>
+
 ## Open questions for the board
 <anything you want a human to look at, or "none">
 ```
@@ -255,6 +258,10 @@ All four must pass. If any fails, fix it before opening the PR. If a failure is 
 - Comment the *why*, not the *what*.
 - If you write a comment explaining why something looks weird, also leave a note for whether it can be cleaned up later or whether it's load-bearing weirdness.
 - Do not write apologetic or hedging comments ("I think this works", "not sure if this is right"). If you're not sure, ask the board.
+
+### 7.7 Data-layer source parameter
+
+Every function in `lib/data/` accepts an explicit `{ user, source }` parameter and passes both to audit logging. The `source` value is one of: `'web' | 'mcp' | 'webhook' | 'system'`. RLS uses `user` for permission checks. Rate limiting and audit context use `source` to distinguish the call origin. Functions that omit either parameter must be flagged in code review and rejected.
 
 ---
 
@@ -281,12 +288,36 @@ A ticket is done when:
 5. PR has been reviewed by the CTO agent (or the board, if the ticket touches a high-risk file).
 6. PR is merged to `main`.
 7. The ticket is updated with a brief summary of what shipped.
+8. **File existence verified on `main`:** Before closing a ticket, the CEO must confirm that every file listed in "Files in scope" actually exists on `main` with non-trivial content. Run `git ls-files | grep <expected_file>` for each scoped file. If any file is absent or empty/stub-only, the ticket is NOT done — it is blocked pending merge or implementation. A ticket may not be marked `done` solely because a PR was opened, a feature branch exists, or local tests passed. **The file must be in `main`.**
 
-A ticket is **not** done because the code "works on my machine" or "looks right." It is done when it's in `main` with passing CI and a sign-off.
+A ticket is **not** done because the code "works on my machine", "looks right", or "is on a feature branch." It is done when it's in `main` with passing CI and a sign-off, and the files are verifiably present.
 
 ---
 
-## 10. The "vibe coding" failure modes — explicit list
+## 10. Ticket scope and discipline
+
+### 10.1 One ticket = one PR
+
+- **A single PR implements exactly one ticket.** Do not combine multiple tickets into a single PR, even if they are "related" or "small."
+- If you finish a ticket and notice adjacent work that should also be done, open a new ticket — do not append it to the current PR.
+- PRs that combine tickets without explicit CEO approval will be rejected.
+
+### 10.2 Don't silently expand scope
+
+- If you discover during implementation that your ticket requires building infrastructure that was previously marked `done` but does not exist on `main`, **stop immediately.**
+- Do not silently implement the missing work. Post a comment on your ticket explaining the blocker and tag the CTO/CEO.
+- The CTO/CEO will either reopen the original ticket, create a new ticket for the missing work, or explicitly adjust your ticket's scope.
+- Workers who silently expand scope without surfacing the change will receive a process warning. Repeated violations may result in reassignment.
+
+### 10.3 Don't combine tickets
+
+- Never use a single branch or PR to close multiple independent tickets.
+- Never add "while I'm here" refactors, feature additions, or bug fixes that are not in the ticket's described scope.
+- If a linter or typechecker flags issues in code outside your ticket's scope, surface it — do not fix it silently.
+
+---
+
+## 11. The "vibe coding" failure modes — explicit list
 
 This project is being built primarily via AI-assisted coding with a non-coder lead. The historical failure modes for this approach are well-documented and have all been observed before. Pre-emptively, every agent must guard against:
 
@@ -301,7 +332,7 @@ If you see any of the above failure patterns appearing during development, surfa
 
 ---
 
-## 11. Working with Paperclip
+## 12. Working with Paperclip
 
 This repo is orchestrated by Paperclip (https://github.com/paperclipai/paperclip). You are running as an agent inside a Paperclip company. Specifically:
 
@@ -315,7 +346,7 @@ If you do not know what role you are playing, ask.
 
 ---
 
-## 12. When to escalate to the human board
+## 13. When to escalate to the human board
 
 Escalate (via Paperclip's approval mechanism or by stopping work and surfacing a question) when:
 
@@ -332,7 +363,7 @@ The board would rather be asked too often than too rarely. There is no penalty f
 
 ---
 
-## 13. Things that are explicitly NOT your job
+## 14. Things that are explicitly NOT your job
 
 To save you cognitive load:
 
@@ -347,7 +378,7 @@ Stay in your lane. The lane is well-defined and there's plenty to do inside it.
 
 ---
 
-## 14. Final note
+## 15. Final note
 
 If you are an agent reading this for the first time: the rules above are not bureaucracy. They are the codified output of weeks of careful design decisions, plus a body of documented failure modes from people who tried to build similar things without these rules. Following them is what makes this project safe to ship. Working around them is what makes a $400 surprise bill, a leaked client RFP, or a wrong revenue number that goes to a finance team.
 

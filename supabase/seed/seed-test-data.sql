@@ -1,0 +1,5 @@
+-- Seed data for Phase 2 tables (accounts, contacts, opportunities, etc.)
+-- DELETED: This file was created before the Phase 2 migrations existed. The tables
+-- it references (accounts, contacts, opportunities, audit_log, opportunity_splits)
+-- are created by migrations scheduled in T-019 through T-035.
+-- Recreate this file when T-035 (or the seed setup ticket) is started.
