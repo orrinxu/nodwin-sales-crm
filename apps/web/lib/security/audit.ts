@@ -15,6 +15,14 @@ export interface AuditParams {
   request?: NextRequest
 }
 
+/**
+ * Write an entry to the audit_log table.
+ *
+ * Uses the service-role client so it bypasses RLS, matching the permissions
+ * model of the audit.log_change() Postgres trigger function (SECURITY DEFINER).
+ * Call this from API routes when you need to record an action that happens
+ * outside of a DB trigger context.
+ */
 export async function audit(params: AuditParams): Promise<void> {
   const client = createServerClient(
     env.SUPABASE_URL,
@@ -23,18 +31,18 @@ export async function audit(params: AuditParams): Promise<void> {
   )
 
   const { error } = await client.from("audit_log").insert({
-    action: params.action,
+    operation: params.action,
     table_name: params.table,
     row_id: params.row_id,
-    actor_id: params.actor?.id ?? null,
-    actor_email: params.actor?.email ?? null,
-    ip_address:
+    actor_user_id: params.actor?.id ?? null,
+    actor_source: params.actor?.id ? "user" : "system",
+    actor_ip:
       params.request?.headers.get("x-forwarded-for") ??
       params.request?.headers.get("x-real-ip") ??
       null,
-    user_agent: params.request?.headers.get("user-agent") ?? null,
-    before: params.before ?? null,
-    after: params.after ?? null,
+    actor_user_agent: params.request?.headers.get("user-agent") ?? null,
+    old_data: params.before ?? null,
+    new_data: params.after ?? null,
   })
 
   if (error) {
