@@ -74,6 +74,14 @@ const eslintConfig = defineConfig([
       "node/no-process-env": "off",
     },
   },
+  // AI provider adapters read optional API keys from process.env to determine availability.
+  // These files are the only place direct AI API access is allowed.
+  {
+    files: ["lib/ai/providers/*.ts"],
+    rules: {
+      "node/no-process-env": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
