@@ -18,19 +18,45 @@ function isToDecimalCall(node) {
   )
 }
 
-function containsToDecimalCall(node) {
+function isToAmountCall(node) {
+  return (
+    node.type === "CallExpression" &&
+    node.callee.type === "MemberExpression" &&
+    node.callee.object.type === "ThisExpression" &&
+    !node.callee.computed &&
+    node.callee.property.type === "Identifier" &&
+    node.callee.property.name === "toAmount"
+  )
+}
+
+function isThisCents(node) {
+  return (
+    node.type === "MemberExpression" &&
+    node.object.type === "ThisExpression" &&
+    !node.computed &&
+    node.property.type === "Identifier" &&
+    node.property.name === "cents"
+  )
+}
+
+function isMoneyValue(node) {
   if (!node) return false
-  if (isToDecimalCall(node)) return true
+  return isToDecimalCall(node) || isToAmountCall(node) || isThisCents(node)
+}
+
+function containsMoneyValue(node) {
+  if (!node) return false
+  if (isMoneyValue(node)) return true
   if (node.type === "CallExpression") {
-    return node.arguments.some(containsToDecimalCall)
+    return node.arguments.some(containsMoneyValue)
   }
   if (node.type === "BinaryExpression") {
     return (
-      containsToDecimalCall(node.left) || containsToDecimalCall(node.right)
+      containsMoneyValue(node.left) || containsMoneyValue(node.right)
     )
   }
   if (node.type === "MemberExpression") {
-    return containsToDecimalCall(node.object)
+    return containsMoneyValue(node.object)
   }
   return false
 }
@@ -72,7 +98,7 @@ export const rule = {
         const name = node.callee.name
         if (name !== "Number" && name !== "parseFloat") return
         const firstArg = node.arguments[0]
-        if (firstArg && containsToDecimalCall(firstArg)) {
+        if (firstArg && containsMoneyValue(firstArg)) {
           context.report({
             node,
             messageId: "forbiddenConversion",
@@ -83,7 +109,7 @@ export const rule = {
 
       UnaryExpression(node) {
         if (node.operator !== "+") return
-        if (containsToDecimalCall(node.argument)) {
+        if (containsMoneyValue(node.argument)) {
           context.report({ node, messageId: "forbiddenUnary" })
         }
       },
@@ -91,8 +117,8 @@ export const rule = {
       BinaryExpression(node) {
         if (!["+", "-", "*", "/"].includes(node.operator)) return
         if (
-          !containsToDecimalCall(node.left) &&
-          !containsToDecimalCall(node.right)
+          !containsMoneyValue(node.left) &&
+          !containsMoneyValue(node.right)
         ) {
           return
         }
