@@ -7,7 +7,7 @@
 
 BEGIN;
 
-SELECT plan(28);
+SELECT plan(39);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -15,14 +15,16 @@ SELECT plan(28);
 INSERT INTO auth.users (id, email, raw_user_meta_data)
 VALUES
   ('11111111-1111-1111-1111-111111111111', 'rep@nodwin.com',  '{"full_name":"Sales Rep"}'),
-  ('22222222-2222-2222-2222-222222222222', 'admin@nodwin.com', '{"full_name":"Admin User"}')
+  ('22222222-2222-2222-2222-222222222222', 'admin@nodwin.com', '{"full_name":"Admin User"}'),
+  ('55555555-5555-5555-5555-555555555555', 'other@nodwin.com', '{"full_name":"Other Rep"}')
 ON CONFLICT (id) DO NOTHING;
 
 -- Upsert public.users rows with correct roles.
 INSERT INTO public.users (id, email, full_name, primary_role, primary_entity_id)
 VALUES
   ('11111111-1111-1111-1111-111111111111', 'rep@nodwin.com',  'Sales Rep',  'sales_rep', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
-  ('22222222-2222-2222-2222-222222222222', 'admin@nodwin.com', 'Admin User', 'admin',     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
+  ('22222222-2222-2222-2222-222222222222', 'admin@nodwin.com', 'Admin User', 'admin',     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
+  ('55555555-5555-5555-5555-555555555555', 'other@nodwin.com', 'Other Rep',  'sales_rep', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb')
 ON CONFLICT (id) DO UPDATE SET
   full_name          = EXCLUDED.full_name,
   primary_role       = EXCLUDED.primary_role,
@@ -112,6 +114,15 @@ SET LOCAL ROLE authenticated;
 SELECT isnt_empty(
   $$SELECT id FROM public.activities WHERE type = 'email'$$,
   'rep can read activities'
+);
+
+
+-- ── 1b. Other user cannot read activities they have no visibility to ─────────
+SELECT tests.as_user('other@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.activities WHERE type = 'email'$$,
+  'other rep cannot read unrelated activities'
 );
 
 -- ── 2. Anon cannot read activities ───────────────────────────────────────────
@@ -352,6 +363,98 @@ SET LOCAL ROLE authenticated;
 SELECT is_empty(
   $$SELECT id FROM public.activities WHERE id = 'aaaaaaa3-aaaa-aaaa-aaaa-aaaaaaaaaaaa'$$,
   'non-owner non-author cannot read another users account-level activity'
+);
+
+-- ── 29. Admin can insert activity with NULL account_id ────────────────────────
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT lives_ok(
+  $$INSERT INTO public.activities (id, account_id, user_id, type, subject)
+    VALUES ('ffffffff-aaaa-aaaa-aaaa-aaaaaaaaaaaa', NULL, '11111111-1111-1111-1111-111111111111', 'email', 'Unassigned email')$$,
+  'admin can insert activity with NULL account_id'
+);
+
+-- ── 30. Activity user can read their own activity with NULL account_id ────────
+SELECT tests.as_user('rep@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.activities WHERE id = 'ffffffff-aaaa-aaaa-aaaa-aaaaaaaaaaaa'$$,
+  'activity user can read own activity with NULL account_id'
+);
+
+-- ── 31. Other user cannot read unrelated activity with NULL account_id ─────────
+SELECT tests.as_user('other@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.activities WHERE id = 'ffffffff-aaaa-aaaa-aaaa-aaaaaaaaaaaa'$$,
+  'other user cannot read unrelated activity with NULL account_id'
+);
+
+-- ── 32. Admin can read activity with NULL account_id ───────────────────────────
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.activities WHERE id = 'ffffffff-aaaa-aaaa-aaaa-aaaaaaaaaaaa'$$,
+  'admin can read activity with NULL account_id'
+);
+
+-- ── 33. Admin can update activity with NULL account_id ─────────────────────────
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+UPDATE public.activities SET subject = 'Updated unassigned' WHERE id = 'ffffffff-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+SELECT is(
+  (SELECT subject FROM public.activities WHERE id = 'ffffffff-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
+  'Updated unassigned',
+  'admin can update activity with NULL account_id'
+);
+
+-- ── 34. Admin can delete activity with NULL account_id ─────────────────────────
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT lives_ok(
+  $$DELETE FROM public.activities WHERE id = 'ffffffff-aaaa-aaaa-aaaa-aaaaaaaaaaaa'$$,
+  'admin can delete activity with NULL account_id'
+);
+
+-- ── 35. deadletter message_id column exists ────────────────────────────────────
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+SELECT has_column(
+  'public',
+  'inbound_email_deadletter',
+  'message_id',
+  'deadletter has message_id column'
+);
+
+-- ── 36. deadletter message_id is nullable ──────────────────────────────────────
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT lives_ok(
+  $$INSERT INTO public.inbound_email_deadletter (id, from_address, to_address, reason)
+    VALUES ('11111111-1111-1111-1111-111111111110', 'x@y.com', 'z@w.com', 'replay')$$,
+  'deadletter message_id can be NULL'
+);
+
+-- ── 37. deadletter message_id can be set ───────────────────────────────────────
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+INSERT INTO public.inbound_email_deadletter (id, from_address, to_address, reason, message_id)
+VALUES ('11111111-1111-1111-1111-111111111111', 'a@b.com', 'c@d.com', 'dkim_fail', '<msg-123@mail.example.com>');
+SELECT is(
+  (SELECT message_id FROM public.inbound_email_deadletter WHERE id = '11111111-1111-1111-1111-111111111111'),
+  '<msg-123@mail.example.com>',
+  'deadletter message_id can be set'
+);
+
+-- ── 38. deadletter message_id partial index exists ─────────────────────────────
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+SELECT has_index(
+  'public',
+  'inbound_email_deadletter',
+  'idx_deadletter_message_id',
+  ARRAY['message_id'],
+  'message_id partial index exists'
 );
 
 SELECT * FROM finish();
