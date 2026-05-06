@@ -10,59 +10,42 @@ function isMoneyLayerFile(filename) {
   )
 }
 
-function isToDecimalCall(node) {
-  return (
-    node.type === "CallExpression" &&
-    node.callee.type === "Identifier" &&
-    node.callee.name === "toDecimal"
-  )
+function isStringLiteral(node) {
+  return node.type === "Literal" && typeof node.value === "string"
 }
 
-function isToAmountCall(node) {
-  return (
-    node.type === "CallExpression" &&
-    node.callee.type === "MemberExpression" &&
-    node.callee.object.type === "ThisExpression" &&
-    !node.callee.computed &&
-    node.callee.property.type === "Identifier" &&
-    node.callee.property.name === "toAmount"
-  )
+function isIntegerLiteral(node) {
+  return node.type === "Literal" && Number.isInteger(node.value)
 }
 
-function isThisCents(node) {
-  return (
-    node.type === "MemberExpression" &&
-    node.object.type === "ThisExpression" &&
-    !node.computed &&
-    node.property.type === "Identifier" &&
-    node.property.name === "cents"
-  )
-}
-
-function isMoneyValue(node) {
-  if (!node) return false
-  return isToDecimalCall(node) || isToAmountCall(node) || isThisCents(node)
-}
-
-function containsMoneyValue(node) {
-  if (!node) return false
-  if (isMoneyValue(node)) return true
-  if (node.type === "CallExpression") {
-    return node.arguments.some(containsMoneyValue)
-  }
-  if (node.type === "BinaryExpression") {
-    return (
-      containsMoneyValue(node.left) || containsMoneyValue(node.right)
-    )
-  }
-  if (node.type === "MemberExpression") {
-    return containsMoneyValue(node.object)
-  }
+function isBigIntLiteral(node) {
+  if (node.type === "BigIntLiteral") return true
+  if (node.type === "Literal" && typeof node.value === "bigint") return true
+  if (node.type === "Literal" && node.bigint !== undefined) return true
   return false
 }
 
-function isStringLiteral(node) {
-  return node.type === "Literal" && typeof node.value === "string"
+function isBigIntCall(node) {
+  return (
+    node.type === "CallExpression" &&
+    node.callee.type === "Identifier" &&
+    node.callee.name === "BigInt"
+  )
+}
+
+function isToAmountOrToDecimalCall(node) {
+  if (node.type !== "CallExpression") return false
+  const callee = node.callee
+  if (callee.type === "Identifier") {
+    return callee.name === "toDecimal"
+  }
+  if (callee.type === "MemberExpression") {
+    const prop = callee.property
+    if (prop.type === "Identifier") {
+      return prop.name === "toAmount" || prop.name === "toDecimal"
+    }
+  }
+  return false
 }
 
 /** @type {import('eslint').Rule.RuleModule} */
@@ -71,7 +54,7 @@ export const rule = {
     type: "problem",
     docs: {
       description:
-        "Forbids float math on dinero.js decimal values in the money layer",
+        "Forbids float math and conversions in the money layer. Use bigint or dinero.js helpers instead.",
       category: "Safety",
       recommended: true,
     },
@@ -79,11 +62,15 @@ export const rule = {
     schema: [],
     messages: {
       forbiddenConversion:
-        "Float conversion ({{name}}) on a dinero decimal value is forbidden in the money layer. Pass the decimal string directly to formatting APIs.",
+        "Float conversion ({{name}}) is forbidden in the money layer. Use bigint or dinero.js helpers instead.",
       forbiddenArithmetic:
-        "Float arithmetic on a dinero decimal value is forbidden in the money layer. Use dinero.js helpers instead.",
+        "Float arithmetic ({{op}}) is forbidden in the money layer. Use bigint or dinero.js helpers instead.",
       forbiddenUnary:
-        "Unary '+' coercion on a dinero decimal value is forbidden in the money layer.",
+        "Unary '+' coercion is forbidden in the money layer.",
+      forbiddenMathPow:
+        "Math.pow() is forbidden in the money layer. Use bigint power functions instead.",
+      forbiddenCast:
+        "Casting a decimal string to number is forbidden in the money layer. Pass the string directly or use a bigint-safe formatter.",
     },
   },
   create(context) {
@@ -94,34 +81,48 @@ export const rule = {
 
     return {
       CallExpression(node) {
-        if (node.callee.type !== "Identifier") return
-        const name = node.callee.name
-        if (name !== "Number" && name !== "parseFloat") return
-        const firstArg = node.arguments[0]
-        if (firstArg && containsMoneyValue(firstArg)) {
-          context.report({
-            node,
-            messageId: "forbiddenConversion",
-            data: { name },
-          })
+        if (node.callee.type === "Identifier") {
+          const name = node.callee.name
+          if (name === "parseFloat" || name === "parseInt") {
+            context.report({
+              node,
+              messageId: "forbiddenConversion",
+              data: { name },
+            })
+            return
+          }
+          if (name === "Number") {
+            // Number() direct call — e.g. Number(x), Number(result)
+            // Static methods like Number.isInteger are MemberExpressions, not caught here.
+            context.report({
+              node,
+              messageId: "forbiddenConversion",
+              data: { name },
+            })
+            return
+          }
+        }
+
+        if (
+          node.callee.type === "MemberExpression" &&
+          node.callee.object.type === "Identifier" &&
+          node.callee.object.name === "Math" &&
+          node.callee.property.type === "Identifier" &&
+          node.callee.property.name === "pow"
+        ) {
+          context.report({ node, messageId: "forbiddenMathPow" })
         }
       },
 
       UnaryExpression(node) {
         if (node.operator !== "+") return
-        if (containsMoneyValue(node.argument)) {
-          context.report({ node, messageId: "forbiddenUnary" })
-        }
+        context.report({ node, messageId: "forbiddenUnary" })
       },
 
       BinaryExpression(node) {
         if (!["+", "-", "*", "/"].includes(node.operator)) return
-        if (
-          !containsMoneyValue(node.left) &&
-          !containsMoneyValue(node.right)
-        ) {
-          return
-        }
+
+
         // Allow string concatenation with a literal string
         if (
           node.operator === "+" &&
@@ -129,11 +130,46 @@ export const rule = {
         ) {
           return
         }
+
+        // Allow operations involving at least one bigint literal or BigInt() call
+        if (
+          isBigIntLiteral(node.left) ||
+          isBigIntLiteral(node.right) ||
+          isBigIntCall(node.left) ||
+          isBigIntCall(node.right)
+        ) {
+          return
+        }
+
+        // Allow + and - when at least one side is an integer literal
+        // (safe for index arithmetic like dotIndex + 1)
+        if (
+          (node.operator === "+" || node.operator === "-") &&
+          (isIntegerLiteral(node.left) || isIntegerLiteral(node.right))
+        ) {
+          return
+        }
+
         context.report({
           node,
           messageId: "forbiddenArithmetic",
           data: { op: node.operator },
         })
+      },
+
+      TSAsExpression(node) {
+        // Only report on the cast that targets number
+        if (node.typeAnnotation.type !== "TSNumberKeyword") return
+
+        // Walk through any intermediate casts (e.g. as unknown as number)
+        let inner = node.expression
+        while (inner.type === "TSAsExpression") {
+          inner = inner.expression
+        }
+
+        if (isToAmountOrToDecimalCall(inner)) {
+          context.report({ node, messageId: "forbiddenCast" })
+        }
       },
     }
   },

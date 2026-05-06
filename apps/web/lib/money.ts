@@ -77,12 +77,14 @@ export class Money {
     return toSnapshot(this.d).currency.code
   }
 
-  static fromCents(cents: number, currency: CurrencyCode): Money {
-    if (!Number.isInteger(cents)) {
-      throw new Error(`Money cents must be an integer, got ${cents}`)
+  static fromCents(cents: number | bigint, currency: CurrencyCode): Money {
+    // eslint-disable-next-line custom/no-float-math-in-money-layer -- boundary conversion from bigint to number for dinero.js API
+    const centsNum = typeof cents === "bigint" ? Number(cents) : cents
+    if (!Number.isInteger(centsNum)) {
+      throw new Error(`Money cents must be an integer, got ${centsNum}`)
     }
     const c = toDineroCurrency(currency)
-    return new Money(dinero({ amount: cents, currency: c }))
+    return new Money(dinero({ amount: centsNum, currency: c }))
   }
 
   static fromAmount(amount: number | string, currency: CurrencyCode): Money {
@@ -124,7 +126,6 @@ export class Money {
 
     const c = toDineroCurrency(currency)
     const exponent = c.exponent
-    const multiplier = Math.pow(10, exponent)
 
     const dotIndex = absStr.indexOf(".")
     const wholeStr = dotIndex >= 0 ? absStr.slice(0, dotIndex) : absStr
@@ -134,23 +135,25 @@ export class Money {
       throw new Error(`Cannot parse money from "${amount}"`)
     }
 
-    const whole = wholeStr === "" ? 0 : Number(wholeStr)
+    const whole = wholeStr === "" ? 0n : BigInt(wholeStr)
 
-    let subUnitPart = 0
+    let subUnitPart = 0n
     let roundUp = false
 
     if (decimalStr.length > 0 && exponent > 0) {
       const relevantDigits = decimalStr.slice(0, exponent)
-      subUnitPart = relevantDigits === "" ? 0 : Number(relevantDigits.padEnd(exponent, "0"))
+      subUnitPart = relevantDigits === "" ? 0n : BigInt(relevantDigits.padEnd(exponent, "0"))
       const nextDigit = decimalStr.charAt(exponent)
       if (nextDigit !== undefined && nextDigit !== "") {
-        roundUp = Number(nextDigit) >= 5
+        roundUp = nextDigit >= "5"
       }
     }
 
+    const multiplier = pow10BigInt(exponent)
+    // eslint-disable-next-line custom/no-float-math-in-money-layer -- bigint arithmetic safe
     let units = whole * multiplier + subUnitPart
     if (roundUp) {
-      units += 1
+      units += 1n
     }
 
     return Money.fromCents(isNegative ? -units : units, currency)
@@ -175,11 +178,13 @@ export class Money {
     } catch {
       locale = "en-US"
     }
-    return new Intl.NumberFormat(locale, {
+    const formatter = new Intl.NumberFormat(locale, {
       style: "currency",
       currency: this.currency,
       numberingSystem: "latn",
-    }).format(this.toAmount() as unknown as number)
+    })
+    // @ts-expect-error Intl.NumberFormat.prototype.format accepts decimal strings at runtime
+    return formatter.format(this.toAmount())
   }
 
   toJSON(): MoneyData {
@@ -204,7 +209,7 @@ export class Money {
     const product = BigInt(snap.amount) * scaledFactor
     const divisor = pow10BigInt(factorScale)
     const result = applyBigIntRounding(product, divisor, mode)
-    return Money.fromCents(Number(result), this.currency)
+    return Money.fromCents(result, this.currency)
   }
 
   divide(divisor: string | number, mode: RoundingMode = "round"): Money {
@@ -215,7 +220,7 @@ export class Money {
     const snap = toSnapshot(this.d)
     const dividend = BigInt(snap.amount) * pow10BigInt(divisorScale)
     const result = applyBigIntRounding(dividend, scaledDivisor, mode)
-    return Money.fromCents(Number(result), this.currency)
+    return Money.fromCents(result, this.currency)
   }
 
   abs(): Money {
@@ -287,6 +292,7 @@ function decimalToScaledInteger(str: string): { amount: bigint; scale: number } 
   }
   const whole = trimmed.slice(0, dotIndex)
   const decimal = trimmed.slice(dotIndex + 1)
+  // eslint-disable-next-line custom/no-float-math-in-money-layer -- string concatenation
   const amountStr = whole + decimal
   return { amount: BigInt(amountStr || "0"), scale: decimal.length }
 }
@@ -297,6 +303,7 @@ function pow10BigInt(n: number): bigint {
   return BigInt("1" + "0".repeat(n))
 }
 
+/* eslint-disable custom/no-float-math-in-money-layer -- All arithmetic in this function is bigint-safe */
 function applyBigIntRounding(
   dividend: bigint,
   divisor: bigint,
@@ -331,6 +338,7 @@ function applyBigIntRounding(
     }
   }
 }
+/* eslint-enable custom/no-float-math-in-money-layer */
 
 export const CURRENCIES = {
   USD: "USD",

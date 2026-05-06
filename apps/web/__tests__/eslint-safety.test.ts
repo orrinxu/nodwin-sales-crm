@@ -17,6 +17,7 @@ describe("ESLint Safety Rules", () => {
           "custom/no-unsafe-numeric-coercion": "error",
           "custom/no-ai-api-direct-fetch": "error",
           "custom/require-auth-import": "error",
+          "custom/no-float-math-in-money-layer": "error",
         },
       }],
     });
@@ -183,6 +184,72 @@ describe("ESLint Safety Rules", () => {
       const results = await eslint.lintText(code, { filePath: "app/api.ts" });
       expect(results[0].errorCount).toBe(1);
       expect(results[0].messages[0].ruleId).toBe("custom/no-ai-api-direct-fetch");
+    });
+  });
+
+  describe("no-float-math-in-money-layer", () => {
+    it("catches Number() on string digits in money layer", async () => {
+      const code = `const whole = Number(wholeStr);`;
+      const results = await eslint.lintText(code, { filePath: "lib/money.ts" });
+      expect(results[0].errorCount).toBe(1);
+      expect(results[0].messages[0].ruleId).toBe("custom/no-float-math-in-money-layer");
+    });
+
+    it("catches Math.pow in money layer", async () => {
+      const code = `const multiplier = Math.pow(10, exponent);`;
+      const results = await eslint.lintText(code, { filePath: "lib/money.ts" });
+      expect(results[0].errorCount).toBe(1);
+      expect(results[0].messages[0].ruleId).toBe("custom/no-float-math-in-money-layer");
+    });
+
+    it("catches float multiplication in money layer", async () => {
+      const code = `const units = whole * multiplier;`;
+      const results = await eslint.lintText(code, { filePath: "lib/money.ts" });
+      expect(results[0].errorCount).toBe(1);
+      expect(results[0].messages[0].ruleId).toBe("custom/no-float-math-in-money-layer");
+    });
+
+    it("catches float addition of identifiers in money layer", async () => {
+      const code = `const total = subUnitPart + extra;`;
+      const results = await eslint.lintText(code, { filePath: "lib/money.ts" });
+      expect(results[0].errorCount).toBe(1);
+      expect(results[0].messages[0].ruleId).toBe("custom/no-float-math-in-money-layer");
+    });
+
+    it("does not flag Number.isInteger in money layer", async () => {
+      const code = `const ok = Number.isInteger(cents);`;
+      const results = await eslint.lintText(code, { filePath: "lib/money.ts" });
+      expect(results[0].errorCount).toBe(0);
+    });
+
+    it("does not flag bigint arithmetic in money layer", async () => {
+      const code = `const result = remainder * 2n;`;
+      const results = await eslint.lintText(code, { filePath: "lib/money.ts" });
+      expect(results[0].errorCount).toBe(0);
+    });
+
+    it("does not flag BigInt() call multiplication in money layer", async () => {
+      const code = `const result = BigInt(snap.amount) * scaledFactor;`;
+      const results = await eslint.lintText(code, { filePath: "lib/money.ts" });
+      expect(results[0].errorCount).toBe(0);
+    });
+
+    it("does not flag string concatenation in money layer", async () => {
+      const code = `const msg = "amount: " + value;`;
+      const results = await eslint.lintText(code, { filePath: "lib/money.ts" });
+      expect(results[0].errorCount).toBe(0);
+    });
+
+    it("does not flag safe integer addition in money layer", async () => {
+      const code = `const idx = dotIndex + 1;`;
+      const results = await eslint.lintText(code, { filePath: "lib/money.ts" });
+      expect(results[0].errorCount).toBe(0);
+    });
+
+    it("does not flag money layer rules in non-money files", async () => {
+      const code = `const whole = Number(wholeStr);`;
+      const results = await eslint.lintText(code, { filePath: "app/cart.tsx" });
+      expect(results[0].errorCount).toBe(0);
     });
   });
 
