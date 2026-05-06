@@ -24,7 +24,17 @@
 # ── opportunity_splits / opportunity_team_members ──────────────────────────────
 # FOR ALL is used for admin-only write policies on junction tables.
 # These are safe because the USING/WITH CHECK clauses restrict to admin role.
-.*opportunity.*:FOR ALL
+.*opportunit.*:FOR ALL
+
+# ── money_helpers ──────────────────────────────────────────────────────────────
+# False positive: comment contains the words "for all" but there is no RLS
+# policy in this migration.
+.*money_helpers.*:FOR ALL
+
+# ── ai_usage ───────────────────────────────────────────────────────────────────
+# ai_daily_caps is a configuration table. All authenticated users need read
+# access to see their daily cap. Write access is admin-only.
+.*ai_usage.*:auth\.uid\(\) IS NOT NULL
 
 # ── currencies ─────────────────────────────────────────────────────────────────
 # Currencies is a read-only lookup table. All authenticated users need read
