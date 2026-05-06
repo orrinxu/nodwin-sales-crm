@@ -28,13 +28,11 @@ POLICY_DIRS=("supabase/migrations" "supabase/policies")
 # These patterns indicate an RLS policy that grants broad access without
 # proper row-level filtering. They are banned in this codebase.
 #
+# NOTE: USING (true) / WITH CHECK (true) on policies targeting service_role
+# are NOT violations because service_role bypasses RLS by design in Supabase.
+# The awk-based checker below handles this filtering.
+#
 declare -a CRITICAL_PATTERNS=(
-  # USING (true) -- any user can see all rows
-  'USING\s*\(\s*true\s*\)'
-  
-  # WITH CHECK (true) -- any user can insert/update any row
-  'WITH\s+CHECK\s*\(\s*true\s*\)'
-  
   # USING (1=1) or similar tautologies
   'USING\s*\(\s*1\s*=\s*1\s*\)'
   
@@ -75,6 +73,79 @@ WARNINGS_ARE_ERRORS="${VRLS_WARNINGS_ARE_ERRORS:-0}"
 echo "🔍 Scanning for permissive RLS policies..."
 echo ""
 
+# ── Helper: check for USING (true) / WITH CHECK (true) that are NOT in service_role blocks ──
+check_using_true_non_service_role() {
+  local file="$1"
+  local dir="$2"
+  local basename_file=$(basename "$file")
+  local matches=""
+  
+  # Use awk to track CREATE POLICY blocks and skip service_role ones
+  while IFS= read -r line; do
+    matches+="$line"$'\n'
+  done < <(awk '
+    BEGIN {
+      state = "idle"
+      is_service_role = 0
+      block_start = 0
+      pending = ""
+    }
+    
+    # Detect CREATE POLICY start
+    tolower($0) ~ /^create[[:space:]]+policy/ {
+      state = "in_policy"
+      is_service_role = 0
+      block_start = NR
+      pending = ""
+      next
+    }
+    
+    # Inside a policy block
+    state == "in_policy" {
+      pending = pending $0 "\n"
+      
+      # Check for service_role
+      if (tolower($0) ~ /to[[:space:]]+service_role/) {
+        is_service_role = 1
+      }
+      
+      # Check for USING (true) or WITH CHECK (true)
+      # Only report if NOT service_role
+      if (!is_service_role) {
+        if (tolower($0) ~ /using\s*\(\s*true\s*\)/) {
+          print NR ":" $0
+        }
+        if (tolower($0) ~ /with[[:space:]]+check\s*\(\s*true\s*\)/) {
+          print NR ":" $0
+        }
+      }
+      
+      # Semicolon ends the CREATE POLICY statement
+      if ($0 ~ /;/ && $0 !~ /^[[:space:]]*--/) {
+        state = "idle"
+        is_service_role = 0
+        pending = ""
+      }
+      next
+    }
+    
+    # Reset on blank lines or other DDL that shouldnt be in a policy
+    state == "in_policy" && tolower($0) ~ /^(drop|create|alter|insert|update|delete|select)[[:space:]]/ {
+      state = "idle"
+      is_service_role = 0
+      pending = ""
+    }
+  ' "$file" || true)
+  
+  if [ -n "$matches" ]; then
+    echo -e "${RED}❌ CRITICAL${NC} in ${dir}/${basename_file}:"
+    echo "$matches" | sed 's/^/     /'
+    echo ""
+    ((VIOLATION_COUNT++)) || true
+    EXIT_CODE=1
+  fi
+}
+
 for dir in "${POLICY_DIRS[@]}"; do
   if [ ! -d "$dir" ]; then
     echo "  ⚠️  Directory '$dir' does not exist, skipping"
@@ -86,10 +157,11 @@ for dir in "${POLICY_DIRS[@]}"; do
     # Extract the basename for cleaner output
     basename_file=$(basename "$file")
     
-    # ── Critical checks ──
+    # ── Critical check: USING (true) / WITH CHECK (true) outside service_role ──
+    check_using_true_non_service_role "$file" "$dir"
+    
+    # ── Other critical checks ──
     for pattern in "${CRITICAL_PATTERNS[@]}"; do
-      # grep -i = case insensitive, -n = line numbers, -E = extended regex
-      # We use process substitution to avoid subshell issues with pipefail
       matches=""
       while IFS= read -r line; do
         matches+="$line"$'\n'
