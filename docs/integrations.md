@@ -77,21 +77,32 @@ Slides and Docs: surfaced as document-link entries on opportunities (paste a Sli
 
 ### 6.6 AI Provider Router
 
-A pluggable AI client abstraction (a single TypeScript module: `lib/ai/router.ts`) exposes a unified completion / streaming / embeddings interface to the rest of the app. Underlying providers:
+A pluggable AI client abstraction (`lib/ai/router.ts`) exposes a unified completion / streaming interface to the rest of the app. All five provider adapters are implemented and production-ready:
 
-- Anthropic (Claude family) — primary for high-quality reasoning, drafting, summarisation
-- Google (Gemini family) — alternative primary, can be A/B tested
-- Moonshot (Kimi) — alternative provider
-- DeepSeek — alternative provider, lower cost option
-- Self-hosted Ollama — Llama 3.1 70B (or successor) running on a Nodwin-provisioned GPU VM, used as fallback when API providers are over-capacity, over-budget, or unavailable
+| Provider | Module | Auth method | Status |
+|---|---|---|---|
+| Anthropic (Claude) | `lib/ai/providers/anthropic.ts` | `x-api-key` header | Shipped — primary for high-quality reasoning, drafting, summarisation |
+| Google (Gemini) | `lib/ai/providers/gemini.ts` | `x-goog-api-key` header (NOT URL param) | Shipped — alternative primary, A/B testable |
+| Moonshot (Kimi) | `lib/ai/providers/moonshot.ts` | `Authorization: Bearer` header | Shipped |
+| DeepSeek | `lib/ai/providers/deepseek.ts` | `Authorization: Bearer` header | Shipped — lower-cost option |
+| Ollama | `lib/ai/providers/ollama.ts` | None (localhost) | Shipped — fallback when APIs unavailable or over budget |
 
-Provider selection is determined by:
+**Security measures applied to all adapters (ORR-177):**
+- AbortController + 30-second timeout — every provider call is bounded. No hanging requests.
+- Gemini API key sent via `x-goog-api-key` header, never as a URL query parameter (previous finding from external security review, remediated).
+- Provider-specific URL encoding where required (Anthropic message content, Gemini request bodies).
+
+**Provider selection** is determined by:
 
 1. A per-feature provider preference (e.g., "deal summary" prefers Claude, "quick search" prefers Gemini)
 2. A global admin override that can force all calls to a specific provider
 3. Automatic fallback to Ollama when (a) the primary provider returns an error, (b) the request would exceed a per-user / per-team / per-company spending cap, or (c) admin has set a fallback flag for cost-saving mode
 
-Every call writes to `ai_usage` (Section 4.12). Per-user / per-team / per-company hard caps are enforced **before** the call is made — a request that would put the user over their daily hard cap is rejected (or routed to Ollama if the feature supports it).
+**Cap enforcement** (`lib/ai/cap-enforcement.ts`) checks per-user, per-team, and per-company daily hard caps **before** the call is made. Caps are read from a configurable source (`lib/ai/supabase-cap-source.ts`). Requests exceeding a cap are either rejected or routed to Ollama depending on the feature flag. The `$1 per-user cap` boundary test confirms the 11th request is correctly rejected.
+
+**Usage logging** (`lib/ai/usage-logger.ts`) writes every call to `ai_usage` (user, provider, model, tokens, cost, feature, timestamp). This drives the AI cost dashboard and powers the cap enforcement system.
+
+**Factory pattern:** `createAdaptersFromEnv()` in `lib/ai/router.ts` reads provider configuration from environment variables and returns only the adapters with valid credentials. This lets the same code path work in development (Ollama only), staging (subset of providers), and production (all providers).
 
 ### 6.7 Background Jobs
 

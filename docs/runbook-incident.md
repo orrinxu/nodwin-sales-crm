@@ -1,41 +1,207 @@
 # Incident Response Runbook
 
-> Placeholder — content to be written before East Asia launch per §8.4 of the [SOW](SOW.md) / [security checklist](security.md#84-pre-launch-security-checklist).
->
-> **Owner:** Tech Writer
-> **Deadline:** Before East Asia go-live (per §13, Acceptance Criterion 14)
+> Owner: Tech Writer
+> Last updated: 2026-05-06
 
 ## Scope
 
-This runbook covers incident response procedures for the Nodwin CRM, including:
-
-- Service degradation / outage
-- Security incident (suspected data breach, RLS misconfiguration, compromised credentials)
-- AI cost runaway
-- Inbound email forgery suspicion
-- Slack / Drive / Gmail API quota exhaustion
-- Salesforce migration sync failure during parallel run
+This runbook covers incident response procedures for the Nodwin CRM running on the production stack (Vercel + Supabase + AI providers + Postmark/Resend email + Google Workspace + Slack).
 
 ## Pre-Launch Requirements
 
-Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-checklist) (§8.4):
+Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-checklist):
 
 - [ ] On-call rotation defined and published
 - [ ] Escalation contacts documented
-- [ ] Alert channels configured (`#crm-alerts`, PagerDuty or equivalent)
+- [ ] Alert channels configured (#crm-alerts, PagerDuty or equivalent)
 - [ ] Backup and restore procedure documented and tested
 - [ ] Data deletion / offboarding procedure documented
 - [ ] GDPR / DPDP / regional privacy procedures documented
 
 ## Severity Levels
 
-| Severity | Definition | Response Time |
-|---|---|---|
-| Critical | Data breach, service unavailable, data loss | Immediate (< 1 hour) |
-| High | Feature broken for multiple users, AI cost spike | Within 4 hours |
-| Medium | Single-user issue, cosmetic bug | Within 24 hours |
-| Low | Question, feature request | Next business day |
+| Severity | Definition | Response Time | Examples |
+|---|---|---|---|
+| **Critical** | Data breach, service unavailable, data loss | Immediate (< 1 hour) | RLS misconfiguration leaks client data; Supabase production DB down; AI key compromise allows unbounded spend; inbound email forgery confirmed |
+| **High** | Feature broken for multiple users, AI cost spike | Within 4 hours | Gmail send failing for all users; Drive permission sync stuck; AI costs exceeding daily cap by >50%; single entity's data not loading |
+| **Medium** | Single-user issue, cosmetic bug | Within 24 hours | Rep can't log activity; incorrect currency formatting; Slack notifications not delivering to one channel |
+| **Low** | Question, feature request, minor UI glitch | Next business day | Typo in UI text; slow kanban load on large pipelines; feature request |
+
+## Communication
+
+1. **Declare** the incident in #crm-alerts with severity level and affected scope.
+2. **Notify** Orrin Xu (project lead) via Slack DM for Critical / High incidents.
+3. **Update** the incident channel every 30 minutes (Critical) or 2 hours (High) until resolved.
+4. **Post-mortem** within 48 hours of resolution for any Critical incident.
 
 ## Response Procedures
 
-*To be filled in during Foundation phase per §10.1.*
+### P-1: Service Down (Vercel / Supabase)
+
+**Symptoms:** App returns 5xx, blank page, or "Application error". Supabase Studio unreachable.
+
+**Steps:**
+
+1. **Check Vercel dashboard** (`vercel.com/nodwin-crm`) → Deployments → Latest production deploy. Is it healthy?
+   - If deploy failed: check build logs. Common causes: TypeScript error, missing env var, failed migration.
+   - If deploy succeeded but app is down: check Vercel status page (https://www.vercel-status.com).
+2. **Check Supabase status** (https://status.supabase.com). If Supabase is degraded, this is upstream — wait for resolution.
+3. **Check Supabase project health:** `supabase projects list` → verify project is in active state.
+4. **Check recent migrations:** `supabase db diff --linked` to confirm schema matches expected state. A failed migration can leave the DB in an inconsistent state.
+5. **Rollback a bad deploy:** In Vercel dashboard → Deployments → find last known-good deploy → "Promote to Production".
+6. **Restore from backup** (Supabase): Settings → Database → Backups → select latest backup → Restore. Estimated downtime: 15-30 min.
+
+### P-2: Data Breach / RLS Leak
+
+**Symptoms:** User reports seeing data they shouldn't (wrong account contacts, deals from other entities); or automated alert from pg_tap test failure on RLS policies.
+
+**Steps:**
+
+1. **IMMEDIATELY** disable the affected table's suspect RLS policy via SQL:
+   ```sql
+   -- Disable only the suspect policy, NOT RLS entirely
+   DROP POLICY IF EXISTS <suspect_policy_name> ON <table_name>;
+   ```
+   Then verify the denylist policy (authenticated users see nothing) takes effect. Do NOT disable RLS on the table — this would leak everything.
+2. **Identify scope** of exposure: query `audit_log` for recent reads/writes by the affected user(s). Check Supabase Logs for `table_access` events on the affected table.
+3. **Notify** Orrin Xu immediately. Determine if affected users / entities need to be notified per DPDP/GDPR obligations.
+4. **Fix** the policy body, write a migration, run pg_tap tests for all three personas, and deploy.
+5. **Post-mortem:** why did CI not catch this? Was a test missing? Update RLS tests.
+
+### P-3: AI Cost Runaway
+
+**Symptoms:** AI provider dashboard (Anthropic Console, Google AI Studio) shows spend well above expected daily rate. Or application-level cap logs show a user hitting their cap unusually early (indicating aggressive agent usage).
+
+**Steps:**
+
+1. **Identify the source** — query `ai_usage` for the top spender in the last hour:
+   ```sql
+   SELECT user_id, provider, model, SUM(cost) as total_cost, COUNT(*) as call_count
+   FROM ai_usage WHERE created_at > now() - interval '1 hour'
+   GROUP BY user_id, provider, model ORDER BY total_cost DESC;
+   ```
+2. **Cut off the source** — disable the specific provider for that user via admin panel, or if the global cap is breached, set `AI_PROVIDER_DISABLED=true` environment variable (this routes all traffic to Ollama fallback).
+3. **Check for abuse** — do the `ai_usage` rows show a single automated agent or script? Check `mcp_calls` table if the MCP server is live.
+4. **Tighten caps** — reduce per-user daily cap, or switch the offending feature to a cheaper provider (DeepSeek / Ollama).
+5. **Notify** Orrin Xu of any cost overrun > $100.
+
+### P-4: Inbound Email Forgery Suspicions
+
+**Symptoms:** Activity appears in the CRM that the user says they did not send; or a client complains about receiving a forged CRM-linked email.
+
+**Steps:**
+
+1. **Check `activities` table** — identify the suspect activity. Note the `created_at`, `user_id`, and `source_metadata`.
+2. **Verify DKIM pass/fail** — check the inbound email payload's DKIM status in the dead-letter table or the activity's raw metadata. If DKIM failed and the email was still accepted, this is a Critical bug in the inbound pipeline.
+3. **Check `inbound_dead_letter` table** — are there other recent entries from the same sender or with similar headers?
+4. **Revoke the inbound address** — set `users.inbound_token = null` for the affected user. Generate a new token.
+5. **Mitigate** — if DKIM verification is not working, disable the inbound webhook endpoint (comment out the route or set `INBOUND_EMAIL_DISABLED=true` env var).
+6. **Notify** Orrin Xu and the affected user's manager.
+
+### P-5: API Key Leak (GitHub / Public Exposure)
+
+**Symptoms:** Gitleaks alert in CI, GitHub secret scanning alert, or unexpected provider activity (e.g., AI calls from unknown IPs).
+
+**Steps:**
+
+1. **Rotate the leaked key** immediately at the provider dashboard (Anthropic Console, Google Cloud, DeepSeek, Resend/Postmark, Slack).
+2. **Update the environment variable** in Vercel and Supabase to the new key.
+3. **Revoke the old key** at the provider after confirming the new key works.
+4. **Check for unauthorized usage** — query `ai_usage` for calls made with the old key. If the leak is to GitHub, check repo forks / clones.
+5. **If the leak is in git history:** run `git filter-branch` to purge the secret from history, force-push, and notify the team to rebase. Consider rotating all secrets as a precaution.
+
+### P-6: Webhook Endpoint Receiving Forged Events
+
+**Symptoms:** Unexpected Slack messages posted, CRM data changing without corresponding UI action, or inbound activities appearing without an email being sent.
+
+**Steps:**
+
+1. **Test webhook signature verification** — send a forged request to the webhook endpoint (e.g., with Postman) and confirm it's rejected with 401. Reference `lib/webhooks/verify.ts` and `lib/webhooks/postmark.test.ts`.
+2. **If signature verification is failing** — check that the `WEBHOOK_SIGNING_SECRET` env var matches the provider's secret. Check for expired or rotated secrets that haven't been updated.
+3. **If signature verification was bypassed** — this is Critical. Disable the webhook endpoint immediately by removing the route from `app/api/webhooks/` and deploy. Investigate the code path.
+4. **Audit** any data changes made during the window the forged events were accepted.
+
+### P-7: OAuth Token Theft / Suspicious Auth Activity
+
+**Symptoms:** User reports CRM activity they didn't perform. Supabase Auth logs show logins from unexpected IPs / locations.
+
+**Steps:**
+
+1. **Revoke the user's session** in Supabase Auth: `SELECT supabase_auth.admin.delete_user_sessions(user_id);`
+2. **Force passwordless re-authentication** — user must re-authenticate via Google OAuth, which will issue a new session.
+3. **Check `audit_log`** for operations performed under the compromised session. Notify affected account owners if client data was accessed.
+4. **If Google OAuth token was stolen** (not just Supabase session) — instruct the user to revoke the CRM app's OAuth grant at https://myaccount.google.com/permissions. Re-grant on next login.
+5. **Notify** Orrin Xu.
+
+### P-8: Google Workspace API Quota Exhaustion
+
+**Symptoms:** Drive file creation fails, Gmail send returns 403, Calendar events fail. Google Cloud Console shows quota exhausted.
+
+**Steps:**
+
+1. **Identify the consuming feature** — check `audit_log` for drive/gmail/calendar operations in the last hour. Which feature is making the most API calls?
+2. **Temporarily disable the feature** via feature flag.
+3. **Request quota increase** in Google Cloud Console (IAM & Admin → Quotas). Common limits: Drive API 5 requests/sec/user, Gmail API 250 requests/sec/user.
+4. **Implement backoff** if not already present — ensure API calls use exponential backoff (the `googleapis` library does this by default).
+5. **If quota is consistently exhausted,** the feature needs redesign (batch operations, caching, or rate limiting).
+
+### P-9: Slack Notification Failure
+
+**Symptoms:** Stage advances, deal closures, approval requests not appearing in Slack channels.
+
+**Steps:**
+
+1. **Check Slack app status** (https://status.slack.com). If Slack is degraded, wait.
+2. **Check `@slack/bolt` client error logs** in Vercel logs. Common error: `token_revoked` — the Slack app token has been rotated and the env var needs updating.
+3. **Re-install the Slack app** from the Slack API dashboard if the token cannot be recovered.
+4. **Check channel membership** — the bot may have been removed from a channel. Re-invite via `/invite @NodwinCRM`.
+
+### P-10: Migration Failure
+
+**Symptoms:** `pnpm db:migrate` fails in CI/CD. Schema mismatch between local and production.
+
+**Steps:**
+
+1. **Do not deploy** — a failed migration blocks the deploy and must be resolved manually.
+2. **Check the failing migration SQL** — does it reference a table or column that doesn't exist yet? Does it depend on a migration that hasn't run?
+3. **Fix forward** — write a new migration that resolves the issue. Do NOT edit or delete the existing migration file on the `main` branch (migrations are append-only).
+4. **If production is in a broken state** — restore from backup (Supabase Settings → Database → Backups → Restore). Coordinate with Orrin Xu.
+5. **Test locally first** — run `pnpm db:reset` on a clean local environment to verify the full migration chain works.
+
+## Escalation Contacts
+
+| Role | Name | Contact |
+|---|---|---|
+| Project Lead / Board | Orrin Xu | Slack DM, [phone redacted] |
+| Operational Sponsor | Akshat Rathee | Slack DM |
+| Operational Sponsor | Mickael Piantchenko | Slack DM |
+| Stakeholder (Trinity) | Abhishek Aggarwal | Slack DM |
+| Vercel Support | — | https://vercel.com/support |
+| Supabase Support | — | support@supabase.com |
+| Anthropic Billing | — | support@anthropic.com |
+| Google Cloud Support | — | https://cloud.google.com/support |
+| Postmark Support | — | https://postmarkapp.com/support |
+
+## Recovery Procedures
+
+### Restore from Supabase Backup
+
+1. Supabase Dashboard → Database → Backups.
+2. Select the latest backup point.
+3. Click "Restore" — this creates a new Supabase project and restores the backup into it.
+4. Update `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` env vars in Vercel to point to the restored project.
+5. Re-run migrations from the backup point forward.
+6. Verify data integrity: spot-check a sample of accounts + opportunities.
+
+### Manual Rollback of Vercel Deploy
+
+1. Vercel Dashboard → Deployments.
+2. Find the last known-good production deploy.
+3. Click the three-dot menu → "Promote to Production".
+4. Verify the app loads and all core flows (login, pipeline view, activity logging) work.
+
+## Post-Incident
+
+1. **Update the runbook** with any gaps discovered during response.
+2. **File a follow-up ticket** for any permanent fix, monitoring addition, or test gap.
+3. **Critical incidents** require a written post-mortem within 48 hours, shared with Orrin Xu and operational sponsors.

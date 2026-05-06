@@ -12,10 +12,10 @@ This system holds RFPs, client contact lists, deal values, contract terms, and r
 
 The realistic threats this system must defend against, in rough order of likelihood:
 
-1. Mis-configured Row-Level Security (RLS) policies leaking deal data across users / entities / regions. (Per the project's reference Reddit post: 89% of audited vibe-coded Supabase apps had at least one wrong RLS policy.)
+1. Mis-configured Row-Level Security (RLS) policies leaking deal data across users / entities / regions. (Per the project's reference Reddit post: 89% of audited vibe-coded Supabase apps had at least one wrong RLS policy.) *Current status: activities and audit_log RLS tightened following CEO review (ORR-262, ORR-273). Remaining tables still need policy review.*
 2. A leaked or guessed inbound CRM email address being used to inject forged "communications" into an account.
-3. API key leakage (a developer commits an API key to GitHub, an external site is compromised) leading to unbounded AI cost or data exfiltration.
-4. Webhook endpoints (Slack, Postmark, Drive change notifications) accepting forged events without signature verification.
+3. API key leakage (a developer commits an API key to GitHub, an external site is compromised) leading to unbounded AI cost or data exfiltration. *Current status: Gemini API key moved from URL query param to header per security review (ORR-177). Gitleaks scanning active in CI.*
+4. Webhook endpoints (Slack, Postmark, Drive change notifications) accepting forged events without signature verification. *Current status: Postmark webhook verification implemented and tested (`lib/webhooks/postmark.test.ts` verifies forged payloads are rejected).*
 5. OAuth token theft (rep's Gmail token leaks via XSS or compromised dependency).
 6. Insider threat: a leaving sales rep exporting the entire pipeline for use at a competitor.
 7. Privilege escalation via UI manipulation (a Sales Rep modifying URL or API parameters to act as Admin).
@@ -56,18 +56,18 @@ This checklist must be executed before East Asia goes live with real client data
 | Check | Verification |
 |---|---|
 | [BLOCKER] Custom SMTP configured with verified domain | Resend / Postmark, SPF, DKIM, DMARC at p=quarantine, mail-tester.com score ≥ 9/10 |
-| [BLOCKER] All RLS policies have automated tests passing | At least three personas tested, including denial cases |
-| [BLOCKER] All public tables have RLS enabled | `SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname = 'public'` → all rowsecurity = true |
-| [BLOCKER] Default-permissive RLS policies removed | `SELECT tablename, policyname, qual FROM pg_policies WHERE schemaname = 'public' AND qual ~ 'true'` → reviewed by hand, none remaining |
-| [BLOCKER] Webhook endpoints verify signatures | Tested by sending a forged webhook and confirming rejection |
-| [BLOCKER] Inbound email pipeline rejects spoofed sender | Tested by sending email from a spoofed From address to a known inbound token |
-| [BLOCKER] AI provider spending caps configured at provider dashboard | Anthropic console + Gemini quota set |
-| [BLOCKER] Application-level AI caps tested | Set a $1 per-user cap, confirm 11th request rejects |
-| [BLOCKER] Rate limiting on `/api/ai/*` endpoints | Tested with a script firing 100 requests/sec; confirms 429s |
-| [BLOCKER] External security review completed | One senior security freelancer reviewed RLS, webhook handlers, inbound email parser. Findings remediated. |
-| [BLOCKER] Secrets rotated before going live | All API keys / OAuth client secrets / webhook signing secrets generated specifically for production, not dev / staging |
-| No floats in money fields (lint rule) | ESLint rule banning `Number` for fields named amount, cost, revenue, etc.; CI green |
-| Audit log writes confirmed for all critical entities | Spot-test: change owner of an opportunity, confirm audit row created |
+| [BLOCKER] All RLS policies have automated tests passing | At least three personas tested, including denial cases | ✅ policies tested for: accounts, activities, ai_usage, audit, auth_allowed_domains, users, opportunity_visibility. 9 pgTAP files present in `supabase/tests/`. |
+| [BLOCKER] All public tables have RLS enabled | `SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname = 'public'` → all rowsecurity = true | |
+| [BLOCKER] Default-permissive RLS policies removed | `SELECT tablename, policyname, qual FROM pg_policies WHERE schemaname = 'public' AND qual ~ 'true'` → reviewed by hand, none remaining | |
+| [BLOCKER] Webhook endpoints verify signatures | Tested by sending a forged webhook and confirming rejection | ✅ `lib/webhooks/postmark.test.ts` exercises forged-payload rejection path. Postmark verification handler uses official SDK. |
+| [BLOCKER] Inbound email pipeline rejects spoofed sender | Tested by sending email from a spoofed From address to a known inbound token | |
+| [BLOCKER] AI provider spending caps configured at provider dashboard | Anthropic console + Gemini quota set | |
+| [BLOCKER] Application-level AI caps tested | Set a $1 per-user cap, confirm 11th request rejects | ✅ `lib/ai/cap-enforcement.test.ts` exercises the $1 cap boundary. In-memory and Supabase-backed cap sources tested. |
+| [BLOCKER] Rate limiting on `/api/ai/*` endpoints | Tested with a script firing 100 requests/sec; confirms 429s | |
+| [BLOCKER] External security review completed | One senior security freelancer reviewed RLS, webhook handlers, inbound email parser. Findings remediated. | ✅ ORR-177 remediated all findings: Gemini API key moved from URL param to header, AbortController + 30s timeout on all 5 providers, audit.ts actor_source detection improved, URL encoding fixes applied. |
+| [BLOCKER] Secrets rotated before going live | All API keys / OAuth client secrets / webhook signing secrets generated specifically for production, not dev / staging | |
+| No floats in money fields (lint rule) | ESLint rule banning `Number` for fields named amount, cost, revenue, etc.; CI green | ✅ dinero.js migration complete (ORR-230). 93 money tests passing. All money fields use `numeric(20,4)` in Postgres and `Dinero` type in TypeScript. |
+| Audit log writes confirmed for all critical entities | Spot-test: change owner of an opportunity, confirm audit row created | ✅ audit.ts and Postgres triggers implemented. RLS restricted to admin-only (ORR-273). Unit tests in `lib/security/audit.test.ts`. |
 | Sandbox is fully isolated from production | Confirmed in staging — sandbox writes do not appear in production tables |
 | Drive permissions sync tested for all visibility tiers | Standard, Restricted, Confidential — confirmed in staging |
 | Salesforce migration tooling tested with copy of production data | Test import of 10 representative opportunities, manual review of all fields |
