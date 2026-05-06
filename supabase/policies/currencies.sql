@@ -1,7 +1,7 @@
 -- supabase/policies/currencies.sql
 -- HIGH-RISK FILE — see AGENTS.md §6.
 --
--- RLS policies for the public.currencies table (created in 0017_currencies.sql).
+-- RLS policies for the public.currencies table (created in 20260505000002_currencies.sql).
 --
 -- Policies:
 --   • authenticated_select_currencies — all authenticated users can read

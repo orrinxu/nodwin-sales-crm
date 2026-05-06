@@ -393,12 +393,12 @@ SELECT isnt_empty(
   'user can see their own opportunity_visibility rows'
 );
 
--- ── 34. Non-admin cannot select entities ──────────────────────────────────────
+-- ── 34. Non-admin can select entities (T-019: all authenticated users can read) ──
 SELECT tests.as_user('owner@nodwin.com');
 SET LOCAL ROLE authenticated;
-SELECT is_empty(
+SELECT isnt_empty(
   $$SELECT id FROM public.entities WHERE true$$,
-  'non-admin cannot select entities'
+  'non-admin can select entities'
 );
 
 -- ── 35. Admin can select entities ─────────────────────────────────────────────
@@ -409,12 +409,12 @@ SELECT isnt_empty(
   'admin can select entities'
 );
 
--- ── 36. Non-manager cannot select business_units ───────────────────────────────
+-- ── 36. Non-manager can select business_units (T-019: all authenticated users can read) ──
 SELECT tests.as_user('owner@nodwin.com');
 SET LOCAL ROLE authenticated;
-SELECT is_empty(
+SELECT isnt_empty(
   $$SELECT id FROM public.business_units WHERE true$$,
-  'non-manager cannot select business_units'
+  'non-manager can select business_units'
 );
 
 -- ── 37. Manager can select business_units ─────────────────────────────────────
