@@ -192,7 +192,7 @@ CREATE POLICY "Authenticated users can view daily caps"
   ON public.ai_daily_caps
   FOR SELECT
   USING (
-    auth.role() = 'authenticated'
+    auth.uid() IS NOT NULL
   );
 
 CREATE POLICY "Only admins can insert daily caps"
