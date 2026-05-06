@@ -1,11 +1,31 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi, beforeEach } from "vitest"
 import {
   parseInboundEmail,
   extractInboundToken,
   extractEmailAddress,
+  processInboundEmail,
   type PostmarkInboundPayload,
   type PostmarkEmailAddress,
 } from "./inbound"
+
+const mockFrom = vi.fn()
+
+vi.mock("@supabase/ssr", () => ({
+  createServerClient: vi.fn(() => ({
+    from: mockFrom,
+  })),
+}))
+
+vi.mock("../security/env", () => ({
+  env: {
+    SUPABASE_URL: "https://test.supabase.co",
+    SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
+  },
+}))
+
+vi.mock("../notifications/admin-alerts", () => ({
+  sendAdminAlert: vi.fn(() => Promise.resolve("alert-mock-id")),
+}))
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -223,3 +243,213 @@ describe("parseInboundEmail — optional/missing fields", () => {
     expect(parsed.htmlBody).toBe("")
   })
 })
+
+// ---------------------------------------------------------------------------
+// Pipeline integration test mocks
+// ---------------------------------------------------------------------------
+
+function mockUsers(found: boolean) {
+  return {
+    select: () => ({
+      eq: () => ({
+        maybeSingle: () =>
+          Promise.resolve(found ? { data: { id: "user-123" }, error: null } : { data: null, error: null }),
+      }),
+    }),
+  }
+}
+
+function mockDeadletterInsert() {
+  return {
+    insert: () => ({
+      select: () => ({
+        single: () => Promise.resolve({ data: { id: "deadletter-999" }, error: null }),
+      }),
+    }),
+    update: () => ({
+      eq: () => Promise.resolve({ error: null }),
+    }),
+  }
+}
+
+function mockDeadletterSelect(found: boolean) {
+  return {
+    select: () => ({
+      eq: () => ({
+        maybeSingle: () =>
+          Promise.resolve(found ? { data: { id: "deadletter-existing" }, error: null } : { data: null, error: null }),
+      }),
+    }),
+    insert: () => ({
+      select: () => ({
+        single: () => Promise.resolve({ data: { id: "deadletter-new" }, error: null }),
+      }),
+    }),
+    update: () => ({
+      eq: () => Promise.resolve({ error: null }),
+    }),
+  }
+}
+
+function mockActivitySelect(found: boolean) {
+  return {
+    select: () => ({
+      eq: () => ({
+        maybeSingle: () =>
+          Promise.resolve(found ? { data: { id: "existing-activity" }, error: null } : { data: null, error: null }),
+      }),
+    }),
+    insert: () => ({
+      select: () => ({
+        single: () => Promise.resolve({ data: { id: "activity-789" }, error: null }),
+      }),
+    }),
+  }
+}
+
+function mockAccounts(match: boolean) {
+  return {
+    select: () => ({
+      overlaps: () =>
+        Promise.resolve(
+          match ? { data: [{ id: "acct-456" }], error: null } : { data: [], error: null },
+        ),
+    }),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline integration tests
+// ---------------------------------------------------------------------------
+
+describe("processInboundEmail", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("dead-letters when DKIM fails", async () => {
+    const payload = makePayload({ Dkim: "Fail" })
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "inbound_email_deadletter") return mockDeadletterInsert()
+      return {}
+    })
+
+    const result = await processInboundEmail(payload)
+
+    expect(result).toEqual({ status: "deadlettered", reason: "DKIM verification failed" })
+    expect(mockFrom).toHaveBeenCalledWith("inbound_email_deadletter")
+  })
+
+  it("sends admin alert on deadletter (not console.error)", async () => {
+    const { sendAdminAlert: mockedAlert } = await vi.importMock<typeof import("../notifications/admin-alerts")>("../notifications/admin-alerts")
+
+    const payload = makePayload({ Dkim: "Fail" })
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "inbound_email_deadletter") return mockDeadletterInsert()
+      return {}
+    })
+
+    await processInboundEmail(payload)
+
+    expect(mockedAlert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "deadletter",
+        title: "Inbound email deadlettered",
+      }),
+    )
+    expect(mockedAlert).toHaveBeenCalledTimes(1)
+  })
+
+  it("dead-letters when From does not match any CRM inbound email", async () => {
+    const payload = makePayload({
+      From: "forger@evil.com",
+      FromFull: addr("forger@evil.com", "Forger"),
+      Dkim: "Pass",
+    })
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "users") return mockUsers(false)
+      if (table === "inbound_email_deadletter") return mockDeadletterInsert()
+      return {}
+    })
+
+    const result = await processInboundEmail(payload)
+
+    expect(result).toEqual({
+      status: "deadlettered",
+      reason: "From address does not match any CRM inbound email",
+    })
+  })
+
+  it("rejects duplicates via activities external_thread_id", async () => {
+    const payload = makePayload({ Dkim: "Pass" })
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "users") return mockUsers(true)
+      if (table === "activities") return mockActivitySelect(true)
+      return {}
+    })
+
+    const result = await processInboundEmail(payload)
+
+    expect(result.status).toBe("duplicate")
+  })
+
+  it("rejects duplicates via deadletter message_id", async () => {
+    const payload = makePayload({ Dkim: "Pass" })
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "users") return mockUsers(true)
+      if (table === "activities") return mockActivitySelect(false)
+      if (table === "inbound_email_deadletter") return mockDeadletterSelect(true)
+      return {}
+    })
+
+    const result = await processInboundEmail(payload)
+
+    expect(result.status).toBe("duplicate")
+  })
+
+  it("matches account by recipient domain when exactly one account matches", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "users") return mockUsers(true)
+      if (table === "activities") return mockActivitySelect(false)
+      if (table === "inbound_email_deadletter") return mockDeadletterSelect(false)
+      if (table === "accounts") return mockAccounts(true)
+      return {}
+    })
+
+    const payload = makePayload({
+      Dkim: "Pass",
+      ToFull: [addr("token123@crm.nodwin.com"), addr("info@example.com")],
+    })
+
+    const result = await processInboundEmail(payload)
+
+    expect(result.status).toBe("accepted")
+    if (result.status === "accepted") {
+      expect(result.activityId).toBe("activity-789")
+    }
+  })
+
+  it("creates unassigned activity when no account domain matches", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "users") return mockUsers(true)
+      if (table === "activities") return mockActivitySelect(false)
+      if (table === "inbound_email_deadletter") return mockDeadletterSelect(false)
+      return {}
+    })
+
+    const payload = makePayload({
+      Dkim: "Pass",
+      ToFull: [addr("token123@crm.nodwin.com")],
+    })
+
+    const result = await processInboundEmail(payload)
+
+    expect(result.status).toBe("accepted")
+  })
+})
+
