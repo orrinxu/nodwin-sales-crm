@@ -40,3 +40,8 @@
 # Currencies is a read-only lookup table. All authenticated users need read
 # access to reference currency codes. Write access is admin-only.
 .*currencies.*:USING \(true\)
+
+# ── drive_config ────────────────────────────────────────────────────────────────
+# Drive configuration is a per-entity settings table. All authenticated users
+# need read access to discover Drive folder IDs. Write access is admin-only.
+.*drive_config.*:USING \(true\)
