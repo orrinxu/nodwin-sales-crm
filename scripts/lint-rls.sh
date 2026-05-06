@@ -8,6 +8,11 @@
 #
 # Usage: ./scripts/lint-rls.sh
 #
+# Allow-list: create .rls-allowlist in repo root to exclude known-safe patterns.
+#   - Blank lines and lines starting with # are ignored
+#   - Each line is a grep -E pattern; if a line matches, the violation is skipped
+#   - Use file:pattern format to scope to a specific file (e.g., "auth_allowed_domains:USING \(true\)")
+#
 
 set -euo pipefail
 
@@ -19,9 +24,47 @@ NC='\033[0m'
 EXIT_CODE=0
 VIOLATION_COUNT=0
 WARNING_COUNT=0
+SKIPPED_COUNT=0
 
 # Directories to scan
 POLICY_DIRS=("supabase/migrations" "supabase/policies")
+
+# ── Load allow-list ──
+ALLOWLIST_FILE=".rls-allowlist"
+declare -a ALLOWLIST_PATTERNS=()
+
+if [ -f "$ALLOWLIST_FILE" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    # Skip blank lines and comments
+    [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    ALLOWLIST_PATTERNS+=("$line")
+  done < "$ALLOWLIST_FILE"
+fi
+
+# Helper: check if a line should be allow-listed
+# Args: $1 = file basename, $2 = matched line text
+is_allowlisted() {
+  local basename_file="$1"
+  local matched_line="$2"
+
+  for pattern in "${ALLOWLIST_PATTERNS[@]}"; do
+    # Check for file:pattern format
+    if [[ "$pattern" == *":"* ]]; then
+      local file_pattern="${pattern%%:*}"
+      local line_pattern="${pattern#*:}"
+      if echo "$basename_file" | grep -qiE "$file_pattern" && echo "$matched_line" | grep -qiE "$line_pattern"; then
+        return 0
+      fi
+    else
+      # Global pattern
+      if echo "$matched_line" | grep -qiE "$pattern"; then
+        return 0
+      fi
+    fi
+  done
+  return 1
+}
 
 # ── Critical violations: these ALWAYS fail the lint ──
 #
@@ -82,6 +125,11 @@ check_using_true_non_service_role() {
   
   # Use awk to track CREATE POLICY blocks and skip service_role ones
   while IFS= read -r line; do
+    # Check allow-list before accumulating
+    if is_allowlisted "$basename_file" "$line"; then
+      ((SKIPPED_COUNT++)) || true
+      continue
+    fi
     matches+="$line"$'\n'
   done < <(awk '
     BEGIN {
@@ -97,6 +145,26 @@ check_using_true_non_service_role() {
       is_service_role = 0
       block_start = NR
       pending = ""
+      
+      # Also check the CREATE POLICY line itself for USING (true) / WITH CHECK (true)
+      # (in case the entire statement is on one line)
+      if (tolower($0) ~ /to[[:space:]]+service_role/) {
+        is_service_role = 1
+      }
+      if (!is_service_role) {
+        if (tolower($0) ~ /using\s*\(\s*true\s*\)/) {
+          print NR ":" $0
+        }
+        if (tolower($0) ~ /with[[:space:]]+check\s*\(\s*true\s*\)/) {
+          print NR ":" $0
+        }
+      }
+      
+      # If the line ends with semicolon, the statement is complete
+      if ($0 ~ /;/ && $0 !~ /^[[:space:]]*--/) {
+        state = "idle"
+        is_service_role = 0
+      }
       next
     }
     
@@ -162,36 +230,34 @@ for dir in "${POLICY_DIRS[@]}"; do
     
     # ── Other critical checks ──
     for pattern in "${CRITICAL_PATTERNS[@]}"; do
-      matches=""
       while IFS= read -r line; do
-        matches+="$line"$'\n'
-      done < <(grep -inE "$pattern" "$file" || true)
-      
-      if [ -n "$matches" ]; then
+        if is_allowlisted "$basename_file" "$line"; then
+          ((SKIPPED_COUNT++)) || true
+          continue
+        fi
         echo -e "${RED}❌ CRITICAL${NC} in ${dir}/${basename_file}:"
-        echo "$matches" | sed 's/^/     /'
+        echo "     $line"
         echo ""
         ((VIOLATION_COUNT++)) || true
         EXIT_CODE=1
-      fi
+      done < <(grep -inE "$pattern" "$file" || true)
     done
     
     # ── Warning checks ──
     for pattern in "${WARNING_PATTERNS[@]}"; do
-      matches=""
       while IFS= read -r line; do
-        matches+="$line"$'\n'
-      done < <(grep -inE "$pattern" "$file" || true)
-      
-      if [ -n "$matches" ]; then
+        if is_allowlisted "$basename_file" "$line"; then
+          ((SKIPPED_COUNT++)) || true
+          continue
+        fi
         echo -e "${YELLOW}⚠️  WARNING${NC} in ${dir}/${basename_file}:"
-        echo "$matches" | sed 's/^/     /'
+        echo "     $line"
         echo ""
         ((WARNING_COUNT++)) || true
         if [ "$WARNINGS_ARE_ERRORS" = "1" ]; then
           EXIT_CODE=1
         fi
-      fi
+      done < <(grep -inE "$pattern" "$file" || true)
     done
     
   done < <(find "$dir" -maxdepth 1 -name '*.sql' -print0 | sort -z)
@@ -201,13 +267,22 @@ done
 echo "────────────────────────────────────────"
 if [ $EXIT_CODE -eq 0 ] && [ $WARNING_COUNT -eq 0 ]; then
   echo -e "${GREEN}✅ No permissive RLS policies detected.${NC}"
+  if [ $SKIPPED_COUNT -gt 0 ]; then
+    echo -e "   ${GREEN}${SKIPPED_COUNT} pattern(s) skipped via allow-list.${NC}"
+  fi
 elif [ $EXIT_CODE -eq 0 ] && [ $WARNING_COUNT -gt 0 ]; then
   echo -e "${YELLOW}⚠️  ${WARNING_COUNT} warning(s) found (not treated as errors).${NC}"
+  if [ $SKIPPED_COUNT -gt 0 ]; then
+    echo -e "   ${GREEN}${SKIPPED_COUNT} pattern(s) skipped via allow-list.${NC}"
+  fi
   echo "   Set VRLS_WARNINGS_ARE_ERRORS=1 to fail on warnings."
 else
   echo -e "${RED}❌ ${VIOLATION_COUNT} critical violation(s) found.${NC}"
   if [ $WARNING_COUNT -gt 0 ]; then
     echo -e "   ${YELLOW}${WARNING_COUNT} warning(s) also found.${NC}"
+  fi
+  if [ $SKIPPED_COUNT -gt 0 ]; then
+    echo -e "   ${GREEN}${SKIPPED_COUNT} pattern(s) skipped via allow-list.${NC}"
   fi
   echo ""
   echo "   Fix the violations above before merging."
