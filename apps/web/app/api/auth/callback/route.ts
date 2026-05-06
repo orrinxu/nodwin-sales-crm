@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 import { env } from "@/lib/security/env"
 
+const ALLOWED_DOMAINS = ["nodwin.com", "trinitygaming.in", "maxlevel.gg"]
+
 function isSafeRedirect(path: string, origin: string): boolean {
   if (!path.startsWith("/") || path.startsWith("//")) {
     return false
@@ -13,6 +15,32 @@ function isSafeRedirect(path: string, origin: string): boolean {
   } catch {
     return false
   }
+}
+
+function isAllowedDomain(email: string | undefined): boolean {
+  if (!email) return false
+  const atIndex = email.lastIndexOf("@")
+  if (atIndex <= 0 || atIndex >= email.length - 1) return false
+  if (email.indexOf("@") !== atIndex) return false
+  const domain = email.slice(atIndex + 1)
+  return ALLOWED_DOMAINS.includes(domain.toLowerCase())
+}
+
+function createSupabaseClient(request: NextRequest, response: NextResponse) {
+  return createServerClient(
+    env.SUPABASE_URL,
+    env.SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        getAll: () => request.cookies.getAll(),
+        setAll: (cookiesToSet) => {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options)
+          })
+        },
+      },
+    },
+  )
 }
 
 export async function GET(request: NextRequest) {
@@ -32,26 +60,22 @@ export async function GET(request: NextRequest) {
 
   const response = NextResponse.redirect(new URL(safeNext, origin))
 
-  const supabase = createServerClient(
-    env.SUPABASE_URL,
-    env.SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: (cookiesToSet) => {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options)
-          })
-        },
-      },
-    },
-  )
+  const supabase = createSupabaseClient(request, response)
 
   const { error } = await supabase.auth.exchangeCodeForSession(code)
 
   if (error) {
     return NextResponse.redirect(
       new URL(`/login?error=auth_failed&message=${encodeURIComponent(error.message)}`, origin),
+    )
+  }
+
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!isAllowedDomain(user?.email)) {
+    await supabase.auth.signOut()
+    return NextResponse.redirect(
+      new URL("/login?error=disallowed_domain", origin),
     )
   }
 
