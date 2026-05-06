@@ -40,3 +40,8 @@
 # Currencies is a read-only lookup table. All authenticated users need read
 # access to reference currency codes. Write access is admin-only.
 .*currencies.*:USING \(true\)
+
+# ── custom_fields ───────────────────────────────────────────────────────────────
+# field_definitions is a configuration table. All authenticated users need
+# read access to see field schemas. Write access is admin-only.
+.*custom_fields.*:USING \(true\)
