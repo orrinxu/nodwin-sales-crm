@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -8,16 +9,20 @@ import { Button } from "@/components/ui/button"
 export function LoginButton() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
   async function handleGoogleSignIn() {
     setLoading(true)
     setError(null)
 
+    const next = searchParams.get("next") ?? "/dashboard"
+    const redirectTo = `${window.location.origin}/api/auth/callback?next=${encodeURIComponent(next)}`
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/api/auth/callback`,
+        redirectTo,
       },
     })
 
