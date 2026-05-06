@@ -99,21 +99,27 @@ CREATE POLICY "activities_select_scoped"
     OR public.current_user_role() = 'admin'
   );
 
--- Only admins can insert activities.
+-- Users can insert activities where they are the author; admins can insert any.
 DROP POLICY IF EXISTS "activities_insert_admin" ON public.activities;
-CREATE POLICY "activities_insert_admin"
+CREATE POLICY "activities_insert_author_or_admin"
   ON public.activities
   FOR INSERT
   TO authenticated
-  WITH CHECK (public.current_user_role() = 'admin');
+  WITH CHECK (
+    user_id = auth.uid()
+    OR public.current_user_role() = 'admin'
+  );
 
--- Only admins can update activities.
+-- Users can update their own activities; admins can update any.
 DROP POLICY IF EXISTS "activities_update_admin" ON public.activities;
-CREATE POLICY "activities_update_admin"
+CREATE POLICY "activities_update_author_or_admin"
   ON public.activities
   FOR UPDATE
   TO authenticated
-  USING (public.current_user_role() = 'admin');
+  USING (
+    user_id = auth.uid()
+    OR public.current_user_role() = 'admin'
+  );
 
 -- Only admins can delete activities.
 DROP POLICY IF EXISTS "activities_delete_admin" ON public.activities;

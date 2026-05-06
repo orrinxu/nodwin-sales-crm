@@ -7,7 +7,7 @@
 
 BEGIN;
 
-SELECT plan(38);
+SELECT plan(39);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -122,6 +122,14 @@ SET LOCAL ROLE authenticated;
 SELECT is_empty(
   $$SELECT id FROM public.activities WHERE type = 'email'$$,
   'other rep cannot read unrelated activities'
+);
+
+-- ── 1c. Admin can read all activities ────────────────────────────────────────
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.activities WHERE type = 'email'$$,
+  'admin can read activities'
 );
 
 -- ── 2. Anon cannot read activities ───────────────────────────────────────────
