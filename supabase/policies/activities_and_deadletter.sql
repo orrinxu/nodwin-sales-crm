@@ -14,7 +14,8 @@ CREATE POLICY "activities_select_via_opportunity_or_account"
   FOR SELECT
   TO authenticated
   USING (
-    EXISTS (
+    public.current_user_role() = 'admin'
+    OR EXISTS (
       SELECT 1 FROM public.opportunity_visibility
       WHERE opportunity_id = public.activities.opportunity_id
         AND user_id = auth.uid()
