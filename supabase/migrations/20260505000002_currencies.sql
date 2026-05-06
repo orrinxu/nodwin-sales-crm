@@ -1,4 +1,4 @@
--- supabase/migrations/0017_currencies.sql
+-- supabase/migrations/20260505000002_currencies.sql
 -- HIGH-RISK FILE — see AGENTS.md §6.
 --
 -- Currency registry table (ORR-142 / F-003).
