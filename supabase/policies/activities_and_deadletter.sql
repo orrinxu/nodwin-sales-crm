@@ -8,45 +8,52 @@
 -- ── activities ────────────────────────────────────────────────────────────────
 ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "activities_select_via_opportunity_or_account" ON public.activities;
-CREATE POLICY "activities_select_via_opportunity_or_account"
+-- Scoped SELECT: user can read if they are the activity user, own/created the
+-- related account, have visibility to the related opportunity, or are admin.
+DROP POLICY IF EXISTS "activities_select_all_authenticated" ON public.activities;
+DROP POLICY IF EXISTS "activities_select_scoped" ON public.activities;
+CREATE POLICY "activities_select_scoped"
   ON public.activities
   FOR SELECT
   TO authenticated
   USING (
-    public.current_user_role() = 'admin'
+    user_id = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM public.accounts
+      WHERE id = public.activities.account_id
+        AND (account_owner_user_id = auth.uid() OR created_by = auth.uid())
+    )
     OR EXISTS (
       SELECT 1 FROM public.opportunity_visibility
       WHERE opportunity_id = public.activities.opportunity_id
         AND user_id = auth.uid()
     )
-    OR (
-      public.activities.opportunity_id IS NULL
-      AND (
-        public.activities.user_id = auth.uid()
-        OR EXISTS (
-          SELECT 1 FROM public.accounts
-          WHERE id = public.activities.account_id
-            AND (account_owner_user_id = auth.uid() OR created_by = auth.uid())
-        )
-      )
-    )
+    OR public.current_user_role() = 'admin'
   );
 
-DROP POLICY IF EXISTS "activities_insert_author_or_admin" ON public.activities;
+-- Users can insert activities where they are the author; admins can insert any.
+DROP POLICY IF EXISTS "activities_insert_admin" ON public.activities;
 CREATE POLICY "activities_insert_author_or_admin"
   ON public.activities
   FOR INSERT
   TO authenticated
-  WITH CHECK (user_id = auth.uid() OR public.current_user_role() = 'admin');
+  WITH CHECK (
+    user_id = auth.uid()
+    OR public.current_user_role() = 'admin'
+  );
 
-DROP POLICY IF EXISTS "activities_update_author_or_admin" ON public.activities;
+-- Users can update their own activities; admins can update any.
+DROP POLICY IF EXISTS "activities_update_admin" ON public.activities;
 CREATE POLICY "activities_update_author_or_admin"
   ON public.activities
   FOR UPDATE
   TO authenticated
-  USING (user_id = auth.uid() OR public.current_user_role() = 'admin');
+  USING (
+    user_id = auth.uid()
+    OR public.current_user_role() = 'admin'
+  );
 
+-- Only admins can delete activities.
 DROP POLICY IF EXISTS "activities_delete_admin" ON public.activities;
 CREATE POLICY "activities_delete_admin"
   ON public.activities

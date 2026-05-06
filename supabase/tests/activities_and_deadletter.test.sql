@@ -125,6 +125,14 @@ SELECT is_empty(
   'other rep cannot read unrelated activities'
 );
 
+-- ── 1c. Admin can read all activities ────────────────────────────────────────
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.activities WHERE type = 'email'$$,
+  'admin can read activities'
+);
+
 -- ── 2. Anon cannot read activities ───────────────────────────────────────────
 SELECT tests.as_anon();
 SET LOCAL ROLE anon;
