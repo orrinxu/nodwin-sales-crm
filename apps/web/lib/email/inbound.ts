@@ -1,4 +1,7 @@
 import "server-only"
+import { createServerClient } from "@supabase/ssr"
+import { env } from "../security/env"
+import { sendAdminAlert } from "../notifications/admin-alerts"
 
 // ---------------------------------------------------------------------------
 // Postmark Inbound webhook payload types
@@ -127,4 +130,329 @@ function getInReplyTo(headers: Array<{ Name: string; Value: string }>): string |
 function extractOpportunityRef(subject: string): string | null {
   const match = subject.match(/\[OPP-([^\]]+)\]/)
   return match ? match[1] : null
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline result types
+// ---------------------------------------------------------------------------
+
+export type InboundProcessingResult =
+  | { status: "accepted"; activityId: string }
+  | { status: "deadlettered"; reason: string }
+  | { status: "duplicate" }
+
+export type ActivityInsert = {
+  accountId: string | null
+  opportunityId: string | null
+  userId: string
+  type: string
+  externalThreadId: string
+  subject: string
+  body: string
+  metadata: Record<string, unknown>
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024 // 25 MiB
+const CRM_DOMAIN = "crm.nodwin.com"
+
+// ---------------------------------------------------------------------------
+// Service-role Supabase client (bypasses RLS for webhook handler)
+// ---------------------------------------------------------------------------
+
+function createServiceRoleClient() {
+  return createServerClient(
+    env.SUPABASE_URL,
+    env.SUPABASE_SERVICE_ROLE_KEY,
+    { cookies: { getAll: () => [], setAll: () => {} } },
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline: processInboundEmail
+// ---------------------------------------------------------------------------
+
+export async function processInboundEmail(
+  payload: PostmarkInboundPayload,
+): Promise<InboundProcessingResult> {
+  const parsed = parseInboundEmail(payload)
+  const client = createServiceRoleClient()
+
+  // 1. DKIM enforcement
+  if (!parsed.dkimVerified) {
+    await writeDeadletter(client, parsed, payload, "DKIM verification failed")
+    return { status: "deadlettered", reason: "DKIM verification failed" }
+  }
+
+  // 2. Sender verification: From must match a users.crm_inbound_email
+  const senderUser = await lookupUserByCrmInboundEmail(client, parsed.from)
+  if (!senderUser) {
+    await writeDeadletter(client, parsed, payload, "From address does not match any CRM inbound email")
+    return { status: "deadlettered", reason: "From address does not match any CRM inbound email" }
+  }
+
+  // 3. Replay detection
+  const exists = await checkExistingMessageId(client, parsed.messageId)
+  if (exists) {
+    return { status: "duplicate" }
+  }
+
+  // 4. Account matching by recipient domains
+  const accountId = await resolveAccountByRecipientDomains(client, parsed.to)
+
+  // 5. Opportunity matching
+  let opportunityId: string | null = null
+  if (parsed.opportunityRef) {
+    opportunityId = await resolveOpportunityByRef(client, parsed.opportunityRef, senderUser.id)
+  }
+
+  // 6. Process attachments
+  const { keptAttachments, oversizedNames } = filterAttachments(parsed.attachments)
+
+  // 7. Build body — append oversized-attachment notes
+  let body = parsed.textBody
+  if (oversizedNames.length > 0) {
+    const note = `\n\nThe following attachments exceeded the 25 MB limit and were not stored: ${oversizedNames.join(", ")}.`
+    body = body + note
+  }
+
+  // 8. Insert activity
+  const activity = await insertActivity(client, {
+    accountId,
+    opportunityId,
+    userId: senderUser.id,
+    type: "email_inbound",
+    externalThreadId: parsed.messageId,
+    subject: parsed.subject,
+    body,
+    metadata: {
+      fromName: parsed.fromName,
+      cc: parsed.cc,
+      attachments: keptAttachments,
+      attachmentDriveUrls: [],
+    },
+  })
+
+  return { status: "accepted", activityId: activity.id }
+}
+
+// ---------------------------------------------------------------------------
+// Sender verification
+// ---------------------------------------------------------------------------
+
+type UserLookup = { id: string } | null
+
+async function lookupUserByCrmInboundEmail(
+  client: ReturnType<typeof createServiceRoleClient>,
+  fromAddress: string,
+): Promise<UserLookup> {
+  const { data, error } = await client
+    .from("users")
+    .select("id")
+    .eq("crm_inbound_email", fromAddress)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
+}
+
+// ---------------------------------------------------------------------------
+// Replay detection
+// ---------------------------------------------------------------------------
+
+async function checkExistingMessageId(
+  client: ReturnType<typeof createServiceRoleClient>,
+  messageId: string,
+): Promise<boolean> {
+  const { data: activity, error: activityError } = await client
+    .from("activities")
+    .select("id")
+    .eq("external_thread_id", messageId)
+    .maybeSingle()
+
+  if (activityError) throw activityError
+  if (activity) return true
+
+  const { data: deadletter, error: deadletterError } = await client
+    .from("inbound_email_deadletter")
+    .select("id")
+    .eq("message_id", messageId)
+    .maybeSingle()
+
+  if (deadletterError) throw deadletterError
+  return deadletter !== null
+}
+
+// ---------------------------------------------------------------------------
+// Account matching: parse recipient domains, look up accounts.email_domains
+// ---------------------------------------------------------------------------
+
+async function resolveAccountByRecipientDomains(
+  client: ReturnType<typeof createServiceRoleClient>,
+  recipients: PostmarkEmailAddress[],
+): Promise<string | null> {
+  const domains = new Set<string>()
+
+  for (const r of recipients) {
+    const domain = extractDomain(r.Email)
+    if (domain && domain !== CRM_DOMAIN) {
+      domains.add(domain)
+    }
+  }
+
+  if (domains.size === 0) return null
+
+  const { data, error } = await client
+    .from("accounts")
+    .select("id")
+    .overlaps("email_domains", [...domains])
+
+  if (error) throw error
+
+  if (!data || data.length !== 1) return null
+
+  return data[0].id
+}
+
+function extractDomain(email: string): string | null {
+  const atIndex = email.lastIndexOf("@")
+  if (atIndex === -1) return null
+  return email.slice(atIndex + 1).toLowerCase()
+}
+
+// ---------------------------------------------------------------------------
+// Opportunity matching
+// ---------------------------------------------------------------------------
+
+async function resolveOpportunityByRef(
+  client: ReturnType<typeof createServiceRoleClient>,
+  ref: string,
+  userId: string,
+): Promise<string | null> {
+  const { data: opp, error: oppError } = await client
+    .from("opportunities")
+    .select("id")
+    .eq("id", ref)
+    .maybeSingle()
+
+  if (oppError) throw oppError
+  if (!opp) return null
+
+  const { data: vis, error: visError } = await client
+    .from("opportunity_visibility")
+    .select("opportunity_id")
+    .eq("opportunity_id", opp.id)
+    .eq("user_id", userId)
+    .maybeSingle()
+
+  if (visError) throw visError
+  if (vis) return opp.id
+  return null
+}
+
+// ---------------------------------------------------------------------------
+// Attachment processing
+// ---------------------------------------------------------------------------
+
+type AttachmentFilterResult = {
+  keptAttachments: AttachmentMetadata[]
+  oversizedNames: string[]
+}
+
+function filterAttachments(attachments: AttachmentMetadata[]): AttachmentFilterResult {
+  const keptAttachments: AttachmentMetadata[] = []
+  const oversizedNames: string[] = []
+
+  for (const att of attachments) {
+    if (att.contentLength > MAX_ATTACHMENT_SIZE) {
+      oversizedNames.push(att.name)
+    } else {
+      keptAttachments.push(att)
+    }
+  }
+
+  return { keptAttachments, oversizedNames }
+}
+
+// ---------------------------------------------------------------------------
+// Deadletter write + admin alert
+// ---------------------------------------------------------------------------
+
+async function writeDeadletter(
+  client: ReturnType<typeof createServiceRoleClient>,
+  parsed: ParsedInboundEmail,
+  payload: PostmarkInboundPayload,
+  reason: string,
+): Promise<void> {
+  const { data: deadletter, error } = await client
+    .from("inbound_email_deadletter")
+    .insert({
+      from_address: parsed.from,
+      to_address: payload.OriginalRecipient ?? payload.To ?? "",
+      subject: parsed.subject,
+      body: parsed.textBody,
+      raw_payload: payload as unknown as Record<string, unknown>,
+      reason,
+      message_id: parsed.messageId,
+      alert_sent: false,
+    })
+    .select("id")
+    .single()
+
+  if (error) throw error
+
+  // Send a real admin alert (not console.error).  If the alert fails the
+  // deadletter is still persisted; a background poller can retry rows where
+  // alert_sent = false.
+  try {
+    // T-010b: notification channel is the admin_alerts table (not console.error)
+    await sendAdminAlert({
+      title: "Inbound email deadlettered",
+      message: `Email from ${parsed.from} was deadlettered: ${reason}`,
+      type: "deadletter",
+      metadata: {
+        deadletterId: deadletter.id,
+        reason,
+        fromAddress: parsed.from,
+        subject: parsed.subject,
+      },
+    })
+
+    await client
+      .from("inbound_email_deadletter")
+      .update({ alert_sent: true })
+      .eq("id", deadletter.id)
+  } catch (alertError) {
+    console.error("Failed to send admin alert for deadletter:", alertError)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Activity insert
+// ---------------------------------------------------------------------------
+
+async function insertActivity(
+  client: ReturnType<typeof createServiceRoleClient>,
+  params: ActivityInsert,
+) {
+  const { data, error } = await client
+    .from("activities")
+    .insert({
+      account_id: params.accountId,
+      opportunity_id: params.opportunityId,
+      user_id: params.userId,
+      type: params.type,
+      external_thread_id: params.externalThreadId,
+      subject: params.subject,
+      body: params.body,
+      metadata: params.metadata,
+    })
+    .select("id")
+    .single()
+
+  if (error) throw error
+  return data
 }
