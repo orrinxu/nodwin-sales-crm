@@ -61,6 +61,9 @@ const eslintConfig = defineConfig([
       
       // Require auth import in auth-checking files
       "custom/require-auth-import": "error",
+      
+      // Ban float math in the money layer
+      "custom/no-float-math-in-money-layer": "error",
     },
   },
   // env.ts is the single designated point of process.env access.
