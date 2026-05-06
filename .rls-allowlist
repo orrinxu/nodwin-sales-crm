@@ -6,7 +6,7 @@
 #
 # Blank lines and lines starting with # are ignored.
 # Patterns are grep -E extended regex.
-#
+
 # ── auth_allowed_domains ───────────────────────────────────────────────────────
 # This table is queried by the Supabase Auth Hook Edge Function on every
 # sign-up. The policies are restricted to service_role, which bypasses RLS
@@ -45,3 +45,15 @@
 # field_definitions is a configuration table. All authenticated users need
 # read access to see field schemas. Write access is admin-only.
 .*custom_fields.*:USING \(true\)
+
+# ── drive_config ────────────────────────────────────────────────────────────────
+# Drive configuration is a per-entity settings table. All authenticated users
+# need read access to discover Drive folder IDs. Write access is admin-only.
+.*drive_config.*:USING \(true\)
+
+# ── entities / business_units ────────────────────────────────────────────────────
+# These are organizational hierarchy tables. All authenticated users need
+# read access to discover entity and business unit structure. Write access
+# is admin-only.
+.*entities.*:USING \(true\)
+.*business_units.*:USING \(true\)
