@@ -6,10 +6,13 @@ export const AI_API_PATTERNS = [
   /api\.moonshot\.cn/i,
 ];
 export const ALLOWLIST_SUFFIX = "lib/ai/router.ts";
+export const ALLOWLIST_PROVIDER_PATTERN = /lib\/ai\/providers\//;
 
 function isAllowlisted(filename) {
   if (!filename) return false;
-  return filename === ALLOWLIST_SUFFIX || filename.endsWith("/" + ALLOWLIST_SUFFIX);
+  if (filename === ALLOWLIST_SUFFIX || filename.endsWith("/" + ALLOWLIST_SUFFIX)) return true;
+  if (ALLOWLIST_PROVIDER_PATTERN.test(filename)) return true;
+  return false;
 }
 
 function matchesAiPattern(str) {
