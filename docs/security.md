@@ -117,4 +117,31 @@ This rule is enforced via:
 - TypeScript: the `context` parameter is required, not optional
 - Code review: PRs adding new data functions without the `{ user, source }` signature are rejected
 
+### 8.6 Pre-Merge ESLint Rule Verification (ORR-298)
+
+Following a fabrication incident where a security-critical ESLint rule was marked done but never wired up (ORR-294 / ORR-297), the following controls are mandatory:
+
+**1. CI Gate**
+The `verify-eslint-rules.sh` script runs in CI on every PR. It fails the build if:
+- A custom rule file exists in `apps/web/eslint-plugin-custom/` but is not exported from `index.js`
+- An exported rule is not enabled in `apps/web/eslint.config.mjs`
+- An enabled rule lacks test coverage in `apps/web/__tests__/eslint-safety.test.ts`
+
+**2. Security Reviewer Mandate**
+PRs that modify any of the following files require explicit approval from the Security Reviewer agent before merge:
+- `apps/web/eslint-plugin-custom/*`
+- `apps/web/eslint.config.mjs`
+- `apps/web/__tests__/eslint-safety.test.ts`
+
+The CTO may not self-approve or bypass this gate.
+
+**3. Verification Checklist for Rule Tickets**
+Any issue claiming to add or modify an ESLint rule must include, in the issue body or a linked comment:
+- The rule file path
+- The export line in `index.js`
+- The enable line in `eslint.config.mjs`
+- A test case demonstrating the rule fires on a violating code sample
+
+No ticket may be marked `done` until the CI gate passes on the associated PR.
+
 ---

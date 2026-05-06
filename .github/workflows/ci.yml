@@ -46,6 +46,10 @@ jobs:
             exit 1
           fi
 
+      - name: Verify ESLint custom rule completeness
+        run: bash scripts/verify-eslint-rules.sh
+        timeout-minutes: 1
+
       - name: Run RLS policy linter
         run: VRLS_WARNINGS_ARE_ERRORS=1 bash scripts/lint-rls.sh
         timeout-minutes: 2
