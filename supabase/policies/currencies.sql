@@ -28,9 +28,7 @@ CREATE POLICY "admin_insert_currencies"
   ON public.currencies
   FOR INSERT
   TO authenticated
-  WITH CHECK (
-    EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND primary_role = 'admin')
-  );
+  WITH CHECK (public.current_user_role() = 'admin');
 
 -- ── Update ──────────────────────────────────────────────────────────────────
 
@@ -39,8 +37,8 @@ CREATE POLICY "admin_update_currencies"
   ON public.currencies
   FOR UPDATE
   TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND primary_role = 'admin'))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND primary_role = 'admin'));
+  USING (public.current_user_role() = 'admin')
+  WITH CHECK (public.current_user_role() = 'admin');
 
 -- ── Delete ──────────────────────────────────────────────────────────────────
 
@@ -49,7 +47,7 @@ CREATE POLICY "admin_delete_currencies"
   ON public.currencies
   FOR DELETE
   TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND primary_role = 'admin'));
+  USING (public.current_user_role() = 'admin');
 
 -- ── Service role ────────────────────────────────────────────────────────────
 
