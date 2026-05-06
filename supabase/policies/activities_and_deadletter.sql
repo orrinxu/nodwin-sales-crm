@@ -4,6 +4,12 @@
 -- RLS policies for public.activities and public.inbound_email_deadletter.
 -- Embedded in 20260505000008_activities_and_deadletter.sql for self-contained
 -- migrations; this file exists for security-review readability.
+--
+-- Note: activities.account_id was made nullable in 20260506000002 to allow
+-- recording activities for unassigned inbound emails (ORR-286). The SELECT
+-- policy handles NULL account_id correctly: the account-ownership EXISTS
+-- clause evaluates to false, leaving user_id match, opportunity visibility,
+-- and admin role as the remaining access paths.
 
 -- ── activities ────────────────────────────────────────────────────────────────
 ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
