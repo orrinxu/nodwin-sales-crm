@@ -224,6 +224,16 @@ pnpm db:test  # runs RLS policy tests
 
 All four must pass. If any fails, fix it before opening the PR. If a failure is genuinely outside your ticket's scope, document it in the PR and surface it to the board.
 
+**Pre-commit hook (mandatory):**
+
+Install the pre-commit hook once per clone. This runs the RLS policy linter before every commit so violations never reach CI.
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Never commit with `--no-verify` to bypass the hook. If the hook fails, fix the RLS issue or add a justified exception to `.rls-allowlist` with a comment explaining why it is safe.
+
 **Stale branch policy:** PRs with merge conflicts caused by already-merged commits will be closed without review. Open a clean PR from a fresh branch.
 
 ### 7.4 PR description format

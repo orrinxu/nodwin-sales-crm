@@ -195,6 +195,70 @@ else
   ((FAILED++)) || true
 fi
 
+# ── Test 12: Allow-list skips file-scoped violations ──
+setup
+cat > "$TEMP_DIR/supabase/policies/bad.sql" <<'EOF'
+CREATE POLICY "allow_all" ON accounts FOR SELECT USING (true);
+EOF
+cat > "$TEMP_DIR/.rls-allowlist" <<'EOF'
+# Allow-list test
+bad:USING \(true\)
+EOF
+output=""
+exit_code=0
+output=$(cd "$TEMP_DIR" && bash "$LINTER" 2>&1) || exit_code=$?
+if [ $exit_code -eq 0 ] && echo "$output" | grep -q "skipped via allow-list"; then
+  echo -e "${GREEN}✓ PASS${NC}: Allow-list skips file-scoped violations"
+  ((PASSED++)) || true
+else
+  echo -e "${RED}✗ FAIL${NC}: Allow-list should skip file-scoped violations"
+  echo "Output: $output"
+  ((FAILED++)) || true
+fi
+
+# ── Test 13: Allow-list does not skip non-matching files ──
+setup
+cat > "$TEMP_DIR/supabase/policies/bad.sql" <<'EOF'
+CREATE POLICY "allow_all" ON accounts FOR SELECT USING (true);
+EOF
+cat > "$TEMP_DIR/supabase/policies/other_bad.sql" <<'EOF'
+CREATE POLICY "allow_all" ON contacts FOR SELECT USING (true);
+EOF
+cat > "$TEMP_DIR/.rls-allowlist" <<'EOF'
+^bad\.sql:USING \(true\)
+EOF
+output=""
+exit_code=0
+output=$(cd "$TEMP_DIR" && bash "$LINTER" 2>&1) || exit_code=$?
+if [ $exit_code -ne 0 ] && echo "$output" | grep -q "other_bad.sql"; then
+  echo -e "${GREEN}✓ PASS${NC}: Allow-list does not skip non-matching files"
+  ((PASSED++)) || true
+else
+  echo -e "${RED}✗ FAIL${NC}: Allow-list should not skip non-matching files"
+  echo "Output: $output"
+  ((FAILED++)) || true
+fi
+
+# ── Test 14: Global allow-list skips across all files ──
+setup
+cat > "$TEMP_DIR/supabase/policies/bad.sql" <<'EOF'
+CREATE POLICY "allow_all" ON accounts FOR SELECT USING (true);
+EOF
+cat > "$TEMP_DIR/.rls-allowlist" <<'EOF'
+USING \(true\)
+EOF
+output=""
+exit_code=0
+output=$(cd "$TEMP_DIR" && bash "$LINTER" 2>&1) || exit_code=$?
+if [ $exit_code -eq 0 ]; then
+  echo -e "${GREEN}✓ PASS${NC}: Global allow-list skips across all files"
+  ((PASSED++)) || true
+else
+  echo -e "${RED}✗ FAIL${NC}: Global allow-list should skip across all files"
+  echo "Output: $output"
+  ((FAILED++)) || true
+fi
+
 # ── Summary ──
 echo ""
 echo "────────────────────────────────────────"
