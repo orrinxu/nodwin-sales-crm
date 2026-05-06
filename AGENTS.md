@@ -365,7 +365,13 @@ If you see any of the above failure patterns appearing during development, surfa
 
 ---
 
-## 12. Working with Paperclip
+## 12. GitHub access
+
+All agents have SSH access to GitHub. The system SSH key (`~/.ssh/id_ed25519`) is already authenticated with the remote repository. You can `git fetch`, `git push`, and open PRs without additional setup. If you encounter a permission-denied error, stop and escalate to the CEO.
+
+---
+
+## 13. Working with Paperclip
 
 This repo is orchestrated by Paperclip (https://github.com/paperclipai/paperclip). You are running as an agent inside a Paperclip company. Specifically:
 
@@ -379,7 +385,7 @@ If you do not know what role you are playing, ask.
 
 ---
 
-## 13. When to escalate to the human board
+## 14. When to escalate to the human board
 
 Escalate (via Paperclip's approval mechanism or by stopping work and surfacing a question) when:
 
@@ -396,7 +402,7 @@ The board would rather be asked too often than too rarely. There is no penalty f
 
 ---
 
-## 14. Things that are explicitly NOT your job
+## 15. Things that are explicitly NOT your job
 
 To save you cognitive load:
 
@@ -411,7 +417,7 @@ Stay in your lane. The lane is well-defined and there's plenty to do inside it.
 
 ---
 
-## 15. Final note
+## 16. Final note
 
 If you are an agent reading this for the first time: the rules above are not bureaucracy. They are the codified output of weeks of careful design decisions, plus a body of documented failure modes from people who tried to build similar things without these rules. Following them is what makes this project safe to ship. Working around them is what makes a $400 surprise bill, a leaked client RFP, or a wrong revenue number that goes to a finance team.
 
