@@ -10,6 +10,11 @@
 -- policy handles NULL account_id correctly: the account-ownership EXISTS
 -- clause evaluates to false, leaving user_id match, opportunity visibility,
 -- and admin role as the remaining access paths.
+--
+-- Note: inbound_email_deadletter.message_id was added in 20260506000003 to
+-- store the originating email's Message-ID for traceability and
+-- deduplication (ORR-288 / T-010b). No RLS changes needed — deadletter is
+-- admin-only.
 
 -- ── activities ────────────────────────────────────────────────────────────────
 ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
