@@ -105,3 +105,31 @@ export async function getFieldDefinitions(
 
   return (data ?? []).map((r) => toDomainField(r as Record<string, unknown>))
 }
+
+// ── Admin: all definitions ──────────────────────────────────────────────────────
+
+export async function getAllFieldDefinitions(
+  ctx: FieldCallContext,
+): Promise<FieldDefinition[]> {
+  void ctx
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("field_definitions")
+    .select("*")
+    .order("display_order", { ascending: true })
+
+  if (error) {
+    throw new Error(`Failed to load field definitions: ${error.message}`)
+  }
+
+  return ((data ?? []) as Record<string, unknown>[])
+    .map((r) => toDomainField(r))
+    .sort((a, b) => {
+      const entityCmp = a.entityType.localeCompare(b.entityType)
+      if (entityCmp !== 0) return entityCmp
+      return a.displayOrder - b.displayOrder
+    })
+}
+
+

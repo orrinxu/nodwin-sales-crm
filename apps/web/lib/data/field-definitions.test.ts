@@ -202,3 +202,19 @@ describe("fieldDefinitionSchema", () => {
     expect(result.success).toBe(false)
   })
 })
+
+describe("getAllFieldDefinitions", () => {
+  it("returns all field definitions without active filter, sorted by entity and order", async () => {
+    mockOrder.mockResolvedValueOnce({
+      data: [{ ...mockDbField, entity_type: "opportunity" }, mockDbSelectField],
+      error: null,
+    })
+
+    const { getAllFieldDefinitions } = await import("./field-definitions")
+    const result = await getAllFieldDefinitions(defaultCtx)
+
+    expect(result).toHaveLength(2)
+    expect(result[0].entityType).toBe("contact")
+    expect(result[1].entityType).toBe("opportunity")
+  })
+})
