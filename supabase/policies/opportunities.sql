@@ -20,6 +20,7 @@ CREATE POLICY "opportunities_select_via_visibility"
       WHERE opportunity_id = public.opportunities.id
         AND user_id = auth.uid()
     )
+    OR public.current_user_role() = 'admin'
   );
 
 DROP POLICY IF EXISTS "opportunities_insert_authenticated" ON public.opportunities;
@@ -70,6 +71,7 @@ CREATE POLICY "opportunity_splits_select_via_opportunity"
       WHERE opportunity_id = public.opportunity_splits.opportunity_id
         AND user_id = auth.uid()
     )
+    OR public.current_user_role() = 'admin'
   );
 
 DROP POLICY IF EXISTS "opportunity_splits_write_admin" ON public.opportunity_splits;
@@ -94,6 +96,7 @@ CREATE POLICY "opportunity_team_members_select_via_opportunity"
       WHERE opportunity_id = public.opportunity_team_members.opportunity_id
         AND user_id = auth.uid()
     )
+    OR public.current_user_role() = 'admin'
   );
 
 DROP POLICY IF EXISTS "opportunity_team_members_write_admin" ON public.opportunity_team_members;
