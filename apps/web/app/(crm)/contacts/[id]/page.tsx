@@ -16,7 +16,7 @@ export default async function ContactDetailPage({
   const ctx = { user, source: "web" as const }
   const [contact, accounts, links, fieldDefinitions] = await Promise.all([
     getContactById(ctx, id),
-    getAccountOptions(ctx),
+    getAccountOptions(),
     getContactAccountLinks(ctx, id).catch(() => []),
     getFieldDefinitions(ctx, "contact"),
   ])
