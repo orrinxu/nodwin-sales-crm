@@ -358,6 +358,20 @@ To prevent stale commits and unnecessary merge conflicts, all agents MUST follow
 3. **No already-merged commits in PRs.** If a branch contains commits already merged to main, do NOT submit a PR. Create a fresh branch and cherry-pick only the unmerged commits.
 4. **One branch = one ticket.** Never reuse a branch for multiple tickets.
 
+### 10.5 Parallel work coordination (prevents merge conflicts)
+
+When multiple agents work on the same phase or feature area simultaneously, merge conflicts are inevitable unless work is coordinated. The Phase 4 integration required manual resolution of 20+ file conflicts because agents built features in isolation and a large "mega commit" landed on main first.
+
+**Rules to prevent this:**
+
+1. **Shared infrastructure first.** If a phase requires new UI components, data-layer patterns, or config changes, ONE agent builds and merges that infrastructure first. Others branch from main AFTER it lands.
+2. **File ownership.** If an agent owns the data layer for a domain (e.g., `lib/data/accounts.ts`), other agents MUST NOT modify that file. They may import from it, but changes go through the owner agent or the CEO.
+3. **Integration branch for large phases.** For phases touching >10 files or multiple domains, the CEO creates an integration branch (`feat/phase-X-integration`). Sub-branches merge into the integration branch frequently (daily, not weekly). The CEO resolves conflicts there, not on individual PRs.
+4. **No "mega commits."** A single commit touching 50+ files is a red flag. Break large features into smaller PRs that land incrementally on main.
+5. **Check main before starting.** Before creating a branch, run `git fetch origin && git log --oneline -5 origin/main`. If a relevant commit landed since your last session, rebase or branch from the updated main.
+
+Violations of these rules that cause integration delays will be surfaced to the board as process issues.
+
 ---
 
 ## 11. The "vibe coding" failure modes — explicit list
