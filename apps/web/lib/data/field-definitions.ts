@@ -153,10 +153,26 @@ export async function createFieldDefinition(
   const parsed = createFieldDefinitionSchema.parse(input)
   const supabase = await createServerClient()
 
-  const key = parsed.label
+  const baseKey = parsed.label
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_|_$/g, "")
+
+  let key = baseKey
+  let counter = 2
+
+  while (true) {
+    const { data: existing } = await supabase
+      .from("field_definitions")
+      .select("key")
+      .eq("key", key)
+      .single()
+
+    if (!existing) break
+
+    key = `${baseKey}_${counter}`
+    counter++
+  }
 
   const { data, error } = await supabase
     .from("field_definitions")
@@ -232,7 +248,7 @@ export const reorderFieldDefinitionsSchema = z.object({
       id: z.string().min(1),
       displayOrder: z.number().int().min(0),
     }),
-  ).min(1),
+  ),
 })
 
 export type ReorderFieldDefinitionsInput = z.infer<typeof reorderFieldDefinitionsSchema>
@@ -241,30 +257,23 @@ export async function reorderFieldDefinitions(
   ctx: FieldCallContext,
   input: ReorderFieldDefinitionsInput,
 ): Promise<void> {
+  void ctx
   const parsed = reorderFieldDefinitionsSchema.parse(input)
   const supabase = await createServerClient()
 
-  const applied: { id: string; displayOrder: number }[] = []
+  if (parsed.items.length === 0) return
 
-  for (const item of parsed.items) {
-    const { error } = await supabase
-      .from("field_definitions")
-      .update({ display_order: item.displayOrder })
-      .eq("id", item.id)
+  const { error } = await supabase
+    .from("field_definitions")
+    .upsert(
+      parsed.items.map((item) => ({
+        id: item.id,
+        display_order: item.displayOrder,
+      })),
+    )
 
-    if (error) {
-      for (const rollback of applied) {
-        await supabase
-          .from("field_definitions")
-          .update({ display_order: rollback.displayOrder })
-          .eq("id", rollback.id)
-      }
-      throw new Error(
-        `Failed to reorder field definition ${item.id}: ${error.message}`,
-      )
-    }
-
-    applied.push(item)
+  if (error) {
+    throw new Error(`Failed to reorder field definitions: ${error.message}`)
   }
 }
 
