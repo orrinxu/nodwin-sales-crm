@@ -43,12 +43,13 @@ interface ParsedCSV {
   rows: Record<string, string>[]
 }
 
-function parseCSVLine(line: string): string[] {
+export function parseCSVLine(line: string): string[] {
   const values: string[] = []
   let current = ""
   let inQuotes = false
 
   for (let i = 0; i < line.length; i++) {
+    // eslint-disable-next-line security/detect-object-injection -- local string var, not object
     const char = line[i]
     if (char === '"') {
       if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
@@ -69,14 +70,16 @@ function parseCSVLine(line: string): string[] {
   return values
 }
 
-function parseCSV(text: string): ParsedCSV {
+export function parseCSV(text: string): ParsedCSV {
   const lines: string[] = []
   let current = ""
   let inQuotes = false
 
   for (let i = 0; i < text.length; i++) {
+    // eslint-disable-next-line security/detect-object-injection -- local string var, not object
     const char = text[i]
     if (char === '"') {
+      current += char
       inQuotes = !inQuotes
     } else if (char === "\n" && !inQuotes) {
       if (current.trim()) lines.push(current.trim())
@@ -96,16 +99,12 @@ function parseCSV(text: string): ParsedCSV {
 
   const rows: Record<string, string>[] = []
   for (let i = 1; i < lines.length; i++) {
+    // eslint-disable-next-line security/detect-object-injection -- lines is a local array, i is numeric
     const values = parseCSVLine(lines[i])
-    const row: Record<string, string> = {}
+    const row = Object.create(null) as Record<string, string>
     for (let h = 0; h < headers.length; h++) {
-      const header = headers[h]
-      Object.defineProperty(row, header, {
-        value: values[h] ?? "",
-        enumerable: true,
-        writable: true,
-        configurable: true,
-      })
+      // eslint-disable-next-line security/detect-object-injection -- row uses Object.create(null); headers are CSV column names; array index is numeric
+      row[headers[h]] = values[h] ?? ""
     }
     rows.push(row)
   }
@@ -115,6 +114,7 @@ function parseCSV(text: string): ParsedCSV {
 
 function getCSVCell(row: Record<string, string>, header: string): string {
   if (Object.prototype.hasOwnProperty.call(row, header)) {
+    // eslint-disable-next-line security/detect-object-injection -- row uses Object.create(null); header is a CSV column name
     return row[header]
   }
   return ""
@@ -137,6 +137,7 @@ function buildAutoMap(headers: string[]): ColumnMapping[] {
   for (const header of headers) {
     const normalized = normalizeForMatch(header)
     const matched = allFieldKeys.find((k) => {
+      // eslint-disable-next-line security/detect-object-injection -- CONTACT_FIELD_LABELS is a const lookup; k comes from predefined allFieldKeys
       const label = CONTACT_FIELD_LABELS[k]
       return normalizeForMatch(k) === normalized || (label != null && normalizeForMatch(label) === normalized)
     })
@@ -357,6 +358,7 @@ export function BulkImportSheet({ trigger, onImport }: BulkImportSheetProps) {
                             <SelectItem value="__skip__">Skip column</SelectItem>
                             {allFieldKeys.map((key) => (
                               <SelectItem key={key} value={key}>
+                                {/* eslint-disable-next-line security/detect-object-injection -- CONTACT_FIELD_LABELS is a const lookup; key comes from predefined allFieldKeys */}
                                 {CONTACT_FIELD_LABELS[key]}
                                 {CONTACT_CSV_FIELDS.find((f) => f.key === key)?.required ? " *" : ""}
                               </SelectItem>

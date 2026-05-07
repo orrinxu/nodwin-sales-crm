@@ -84,6 +84,7 @@ export async function bulkCreateContacts(
   const result: BulkImportResult = { successCount: 0, errorCount: 0, errors: [] }
 
   for (let i = 0; i < rows.length; i++) {
+    // eslint-disable-next-line security/detect-object-injection -- rows is a parameter array with numeric index
     const parseResult = contactCreateSchema.safeParse(rows[i])
     if (!parseResult.success) {
       result.errorCount++
@@ -169,9 +170,7 @@ export async function getContactAccountLinks(
   }))
 }
 
-export async function getAccountOptions(
-  ctx: ContactCallContext,
-): Promise<AccountOption[]> {
+export async function getAccountOptions(): Promise<AccountOption[]> {
   const supabase = await createServerClient()
 
   const { data, error } = await supabase

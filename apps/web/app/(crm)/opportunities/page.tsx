@@ -18,7 +18,7 @@ export default async function OpportunitiesPage() {
 
   const [{ opportunities }, accounts, businessUnits] = await Promise.all([
     getOpportunities(ctx),
-    getAccountOptions(ctx),
+    getAccountOptions(),
     getBusinessUnitOptions(ctx),
   ])
 
