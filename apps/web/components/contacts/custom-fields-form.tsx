@@ -5,6 +5,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Money } from "@/lib/money"
 
+function currencySymbol(code: string): string {
+  const map = new Map<string, string>([
+    ["USD", "$"],
+    ["EUR", "€"],
+    ["GBP", "£"],
+    ["INR", "₹"],
+    ["JPY", "¥"],
+  ])
+  return map.get(code) ?? code
+}
+
 interface CustomFieldsFormProps {
   fieldDefinitions: FieldDefinition[]
   values: Record<string, unknown>
@@ -119,7 +130,7 @@ function FieldInput({ definition: def, value, onChange, error, defaultCurrency }
           </Label>
           <div className="relative">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-              $
+              {currencySymbol(defaultCurrency)}
             </span>
             <Input
               id={`cf-${def.key}`}
@@ -135,7 +146,7 @@ function FieldInput({ definition: def, value, onChange, error, defaultCurrency }
                 }
               }}
               placeholder={def.label}
-              className="pl-6"
+              className={currencySymbol(defaultCurrency).length > 1 ? "pl-10" : "pl-6"}
               step="0.01"
             />
           </div>

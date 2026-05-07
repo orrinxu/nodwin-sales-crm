@@ -43,7 +43,13 @@ function formatValue(value: unknown, def: FieldDefinition): string {
         try {
           return Money.fromCents(cents, currency).toDisplay()
         } catch {
-          return `${currency} ${cents / 100}`
+          // Fallback: format cents without float math
+          const absCents = Math.abs(cents)
+          const centsStr = String(absCents).padStart(3, '0')
+          const dollars = centsStr.slice(0, -2) || '0'
+          const fraction = centsStr.slice(-2)
+          const sign = cents < 0 ? '-' : ''
+          return `${currency} ${sign}${dollars}.${fraction}`
         }
       }
       // Legacy raw number fallback

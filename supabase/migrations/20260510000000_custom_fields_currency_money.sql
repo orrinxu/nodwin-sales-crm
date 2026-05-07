@@ -74,6 +74,10 @@ BEGIN
         IF jsonb_typeof(_value -> 'currency') != 'string' THEN
           RETURN false;
         END IF;
+        -- currency code must be a valid identifier (1-8 alphanumeric chars, e.g. USD, EUR, USDT)
+        IF (_value ->> 'currency') !~ '^[A-Z0-9]{1,8}$' THEN
+          RETURN false;
+        END IF;
         -- cents must be an integer (no fractional sub-units)
         IF (_value ->> 'cents')::numeric != floor((_value ->> 'cents')::numeric) THEN
           RETURN false;

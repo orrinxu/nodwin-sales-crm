@@ -7,7 +7,7 @@
 
 BEGIN;
 
-SELECT plan(41);
+SELECT plan(42);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -190,6 +190,13 @@ SELECT is(
 SELECT ok(
   public.validate_custom_data('opportunity', '{"contract_value":{"cents":1000,"currency":"JPY"}}'::jsonb),
   'currency with JPY passes validation'
+);
+
+-- ── 10g. Currency field with invalid currency code format fails ────────────────
+SELECT is(
+  public.validate_custom_data('opportunity', '{"contract_value":{"cents":1000,"currency":"us-dollar"}}'::jsonb),
+  false,
+  'currency with invalid code format fails validation'
 );
 
 -- ── 11. Valid single_select value passes ──────────────────────────────────────
