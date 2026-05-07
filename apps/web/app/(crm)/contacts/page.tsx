@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/security/auth"
 import { getAccountOptions } from "@/lib/data/contacts"
-import { createContactAction } from "./actions"
+import { createContactAction, bulkImportContactsAction } from "./actions"
 import { ContactsList } from "@/components/contacts/contacts-list"
 
 export default async function ContactsPage() {
@@ -13,6 +13,7 @@ export default async function ContactsPage() {
     <ContactsList
       accounts={accounts}
       createAction={createContactAction}
+      bulkImportAction={bulkImportContactsAction}
     />
   )
 }

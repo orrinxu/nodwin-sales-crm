@@ -54,6 +54,60 @@ export const contactUpdateSchema = contactCreateSchema.partial()
 export type ContactCreateInput = z.infer<typeof contactCreateSchema>
 export type ContactUpdateInput = z.infer<typeof contactUpdateSchema>
 
+export const CONTACT_CSV_FIELDS = [
+  { key: "fullName", required: true },
+  { key: "title", required: false },
+  { key: "email", required: false },
+  { key: "phone", required: false },
+  { key: "notes", required: false },
+] as const
+
+export const CONTACT_FIELD_LABELS: Record<string, string> = {
+  fullName: "Full Name",
+  title: "Title",
+  email: "Email",
+  phone: "Phone",
+  notes: "Notes",
+}
+
+export interface BulkImportResult {
+  successCount: number
+  errorCount: number
+  errors: { row: number; message: string }[]
+}
+
+export async function bulkCreateContacts(
+  ctx: ContactCallContext,
+  rows: ContactCreateInput[],
+): Promise<BulkImportResult> {
+  const supabase = await createServerClient()
+  const result: BulkImportResult = { successCount: 0, errorCount: 0, errors: [] }
+
+  for (let i = 0; i < rows.length; i++) {
+    const parseResult = contactCreateSchema.safeParse(rows[i])
+    if (!parseResult.success) {
+      result.errorCount++
+      result.errors.push({
+        row: i + 1,
+        message: parseResult.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join("; "),
+      })
+      continue
+    }
+
+    const dbData = toDbContact(parseResult.data)
+
+    const { error } = await supabase.from("contacts").insert(dbData)
+    if (error) {
+      result.errorCount++
+      result.errors.push({ row: i + 1, message: error.message })
+    } else {
+      result.successCount++
+    }
+  }
+
+  return result
+}
+
 function toDomainContact(data: Record<string, unknown>): ContactRecord {
   return {
     id: data.id as string,

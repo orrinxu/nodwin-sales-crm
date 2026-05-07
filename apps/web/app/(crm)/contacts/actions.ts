@@ -5,9 +5,11 @@ import { requireUser } from "@/lib/security/auth"
 import {
   createContact,
   updateContact,
+  bulkCreateContacts,
   contactCreateSchema,
   contactUpdateSchema,
 } from "@/lib/data/contacts"
+import type { ContactCreateInput, BulkImportResult } from "@/lib/data/contacts"
 
 export async function createContactAction(input: unknown) {
   const user = await requireUser()
@@ -26,4 +28,14 @@ export async function updateContactAction(id: string, input: unknown) {
   revalidatePath("/contacts")
   revalidatePath(`/contacts/${id}`)
   return contact
+}
+
+export async function bulkImportContactsAction(
+  rows: ContactCreateInput[],
+): Promise<BulkImportResult> {
+  const user = await requireUser()
+  const ctx = { user, source: "web" as const }
+  const result = await bulkCreateContacts(ctx, rows)
+  revalidatePath("/contacts")
+  return result
 }

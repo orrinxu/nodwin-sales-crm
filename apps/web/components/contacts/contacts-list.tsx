@@ -4,15 +4,17 @@ import { Users } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { ContactForm } from "@/components/contacts/contact-form"
+import { BulkImportSheet } from "@/components/contacts/bulk-import-sheet"
 import type { AccountOption } from "@/lib/data/contacts"
-import type { ContactCreateInput, ContactRecord } from "@/lib/data/contacts"
+import type { ContactCreateInput, ContactRecord, BulkImportResult } from "@/lib/data/contacts"
 
 interface ContactsListProps {
   accounts: AccountOption[]
   createAction: (input: ContactCreateInput) => Promise<ContactRecord>
+  bulkImportAction: (rows: ContactCreateInput[]) => Promise<BulkImportResult>
 }
 
-export function ContactsList({ accounts, createAction }: ContactsListProps) {
+export function ContactsList({ accounts, createAction, bulkImportAction }: ContactsListProps) {
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
       <div className="flex items-center justify-between">
@@ -22,11 +24,14 @@ export function ContactsList({ accounts, createAction }: ContactsListProps) {
             Manage your contacts and address book.
           </p>
         </div>
-        <ContactForm
-          accounts={accounts}
-          createAction={createAction}
-          onSuccess={() => {}}
-        />
+        <div className="flex items-center gap-2">
+          <BulkImportSheet onImport={bulkImportAction} />
+          <ContactForm
+            accounts={accounts}
+            createAction={createAction}
+            onSuccess={() => {}}
+          />
+        </div>
       </div>
 
       <Card className="flex flex-1 items-center justify-center">
