@@ -687,6 +687,7 @@ CREATE POLICY "opportunities_select_via_visibility"
       WHERE opportunity_id = public.opportunities.id
         AND user_id = auth.uid()
     )
+    OR public.current_user_role() = 'admin'
   );
 
 -- ── opportunities INSERT ──────────────────────────────────────────────────────
@@ -738,6 +739,7 @@ CREATE POLICY "opportunity_splits_select_via_opportunity"
       WHERE opportunity_id = public.opportunity_splits.opportunity_id
         AND user_id = auth.uid()
     )
+    OR public.current_user_role() = 'admin'
   );
 
 -- ── opportunity_splits INSERT / UPDATE / DELETE ───────────────────────────────
@@ -761,6 +763,7 @@ CREATE POLICY "opportunity_team_members_select_via_opportunity"
       WHERE opportunity_id = public.opportunity_team_members.opportunity_id
         AND user_id = auth.uid()
     )
+    OR public.current_user_role() = 'admin'
   );
 
 -- ── opportunity_team_members INSERT / UPDATE / DELETE ─────────────────────────

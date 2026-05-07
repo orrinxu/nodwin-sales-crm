@@ -1,0 +1,59 @@
+{
+  "$meta": {
+    "version": 1,
+    "updatedAt": "2026-05-04T01:57:19.191Z",
+    "source": "configure"
+  },
+  "database": {
+    "mode": "embedded-postgres",
+    "embeddedPostgresDataDir": "/home/orrin/.paperclip-worktrees/instances/paperclip-db-worker-crm/db",
+    "embeddedPostgresPort": 54330,
+    "backup": {
+      "enabled": true,
+      "intervalMinutes": 60,
+      "retentionDays": 30,
+      "dir": "/home/orrin/.paperclip-worktrees/instances/paperclip-db-worker-crm/data/backups"
+    }
+  },
+  "logging": {
+    "mode": "file",
+    "logDir": "/home/orrin/.paperclip-worktrees/instances/paperclip-db-worker-crm/logs"
+  },
+  "server": {
+    "deploymentMode": "authenticated",
+    "exposure": "private",
+    "host": "0.0.0.0",
+    "port": 3101,
+    "allowedHostnames": [
+      "100.126.116.7",
+      "192.168.88.51"
+    ],
+    "serveUi": true
+  },
+  "auth": {
+    "baseUrlMode": "auto",
+    "disableSignUp": false
+  },
+  "telemetry": {
+    "enabled": true
+  },
+  "storage": {
+    "provider": "local_disk",
+    "localDisk": {
+      "baseDir": "/home/orrin/.paperclip-worktrees/instances/paperclip-db-worker-crm/data/storage"
+    },
+    "s3": {
+      "bucket": "paperclip",
+      "region": "us-east-1",
+      "prefix": "",
+      "forcePathStyle": false
+    }
+  },
+  "secrets": {
+    "provider": "local_encrypted",
+    "strictMode": false,
+    "localEncrypted": {
+      "keyFilePath": "/home/orrin/.paperclip-worktrees/instances/paperclip-db-worker-crm/secrets/master.key"
+    }
+  }
+}

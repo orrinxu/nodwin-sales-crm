@@ -24,16 +24,31 @@ CREATE INDEX idx_osh_created_at ON opportunity_stage_history (created_at DESC);
 
 ALTER TABLE opportunity_stage_history ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view stage history for their opportunities"
+CREATE POLICY "stage_history_select_scoped"
   ON opportunity_stage_history
   FOR SELECT
   USING (
     created_by = auth.uid()
+    OR public.current_user_role() = 'admin'
   );
 
-CREATE POLICY "Users can insert stage history for their opportunities"
+CREATE POLICY "stage_history_insert_author_or_admin"
   ON opportunity_stage_history
   FOR INSERT
   WITH CHECK (
     created_by = auth.uid()
+    OR public.current_user_role() = 'admin'
   );
+
+CREATE POLICY "stage_history_update_author_or_admin"
+  ON opportunity_stage_history
+  FOR UPDATE
+  USING (
+    created_by = auth.uid()
+    OR public.current_user_role() = 'admin'
+  );
+
+CREATE POLICY "stage_history_delete_admin"
+  ON opportunity_stage_history
+  FOR DELETE
+  USING (public.current_user_role() = 'admin');
