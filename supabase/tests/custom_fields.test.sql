@@ -7,7 +7,7 @@
 
 BEGIN;
 
-SELECT plan(35);
+SELECT plan(41);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -130,7 +130,8 @@ VALUES
   ('opportunity', 'decision_maker',   'Decision Maker',  'single_select', '["CEO","CFO","CTO","VP"]'::jsonb, false, 3, true),
   ('opportunity', 'tags',             'Tags',            'multi_select',  '["enterprise","midmarket","smb","strategic"]'::jsonb, false, 4, true),
   ('opportunity', 'old_field',        'Old Field',       'text',          NULL,                        false, 6, false),
-  ('account',     'account_tier',     'Account Tier',    'single_select', '["tier1","tier2","tier3"]'::jsonb, false, 1, true);
+  ('account',     'account_tier',     'Account Tier',    'single_select', '["tier1","tier2","tier3"]'::jsonb, false, 1, true),
+  ('opportunity', 'contract_value',   'Contract Value',  'currency',      NULL,                        false, 7, true);
 
 -- ── 8. Valid text field passes ────────────────────────────────────────────────
 SELECT ok(
@@ -149,6 +150,46 @@ SELECT is(
   public.validate_custom_data('opportunity', '{"expected_revenue":"fifty thousand"}'::jsonb),
   false,
   'string in number field fails validation'
+);
+
+-- ── 10a. Valid currency field (MoneyData) passes ──────────────────────────────
+SELECT ok(
+  public.validate_custom_data('opportunity', '{"contract_value":{"cents":500000,"currency":"USD"}}'::jsonb),
+  'currency MoneyData passes validation'
+);
+
+-- ── 10b. Currency field with raw number fails ─────────────────────────────────
+SELECT is(
+  public.validate_custom_data('opportunity', '{"contract_value":5000.00}'::jsonb),
+  false,
+  'raw number in currency field fails validation'
+);
+
+-- ── 10c. Currency field missing currency key fails ─────────────────────────────
+SELECT is(
+  public.validate_custom_data('opportunity', '{"contract_value":{"cents":500000}}'::jsonb),
+  false,
+  'currency missing currency key fails validation'
+);
+
+-- ── 10d. Currency field with fractional cents fails ────────────────────────────
+SELECT is(
+  public.validate_custom_data('opportunity', '{"contract_value":{"cents":5000.50,"currency":"USD"}}'::jsonb),
+  false,
+  'currency with fractional cents fails validation'
+);
+
+-- ── 10e. Currency field with invalid currency type fails ───────────────────────
+SELECT is(
+  public.validate_custom_data('opportunity', '{"contract_value":{"cents":500000,"currency":42}}'::jsonb),
+  false,
+  'currency with non-string currency code fails validation'
+);
+
+-- ── 10f. Currency field with JPY passes ────────────────────────────────────────
+SELECT ok(
+  public.validate_custom_data('opportunity', '{"contract_value":{"cents":1000,"currency":"JPY"}}'::jsonb),
+  'currency with JPY passes validation'
 );
 
 -- ── 11. Valid single_select value passes ──────────────────────────────────────

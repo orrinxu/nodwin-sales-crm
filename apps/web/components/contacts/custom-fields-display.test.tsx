@@ -93,7 +93,7 @@ describe("CustomFieldsDisplay", () => {
         customData={{
           second_payment_terms: "Net 30",
           is_vip: true,
-          budget: 50000,
+          budget: { cents: 5000000, currency: "USD" },
           regions: ["NA", "EMEA"],
         }}
       />
@@ -106,6 +106,17 @@ describe("CustomFieldsDisplay", () => {
         fieldDefinitions={mockDefs}
         customData={{
           is_vip: false,
+          budget: { cents: 10000000, currency: "USD" },
+        }}
+      />
+    )).not.toThrow()
+  })
+
+  it("renders legacy raw number budget", () => {
+    expect(() => (
+      <CustomFieldsDisplay
+        fieldDefinitions={mockDefs}
+        customData={{
           budget: 100000,
         }}
       />

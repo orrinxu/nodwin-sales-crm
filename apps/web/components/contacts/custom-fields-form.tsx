@@ -3,12 +3,14 @@
 import type { FieldDefinition } from "@/lib/data/field-definitions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Money } from "@/lib/money"
 
 interface CustomFieldsFormProps {
   fieldDefinitions: FieldDefinition[]
   values: Record<string, unknown>
   onChange: (key: string, value: unknown) => void
   errors: Record<string, string | undefined>
+  defaultCurrency?: string
 }
 
 export function CustomFieldsForm({
@@ -16,6 +18,7 @@ export function CustomFieldsForm({
   values,
   onChange,
   errors,
+  defaultCurrency = "USD",
 }: CustomFieldsFormProps) {
   if (fieldDefinitions.length === 0) return null
 
@@ -31,6 +34,7 @@ export function CustomFieldsForm({
           value={values[def.key]}
           onChange={(v) => onChange(def.key, v)}
           error={errors[def.key]}
+          defaultCurrency={defaultCurrency}
         />
       ))}
     </div>
@@ -42,9 +46,10 @@ interface FieldInputProps {
   value: unknown
   onChange: (value: unknown) => void
   error?: string
+  defaultCurrency: string
 }
 
-function FieldInput({ definition: def, value, onChange, error }: FieldInputProps) {
+function FieldInput({ definition: def, value, onChange, error, defaultCurrency }: FieldInputProps) {
   const currentValue = value ?? def.defaultValue ?? ""
 
   switch (def.dataType) {
@@ -68,7 +73,44 @@ function FieldInput({ definition: def, value, onChange, error }: FieldInputProps
       )
 
     case "number":
-    case "currency":
+      return (
+        <div className="grid gap-1.5">
+          <Label htmlFor={`cf-${def.key}`}>
+            {def.label}
+            {def.required && <span className="text-destructive"> *</span>}
+          </Label>
+          <Input
+            id={`cf-${def.key}`}
+            type="number"
+            value={currentValue === "" || currentValue === null ? "" : String(currentValue)}
+            onChange={(e) => {
+              const val = e.target.value
+              onChange(val === "" ? null : Number(val))
+            }}
+            placeholder={def.label}
+            step="1"
+          />
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </div>
+      )
+
+    case "currency": {
+      // Backward compatibility: support raw numbers and MoneyData objects
+      let displayValue = ""
+      if (value !== null && value !== undefined && value !== "") {
+        if (typeof value === "number") {
+          displayValue = String(value)
+        } else if (
+          typeof value === "object" &&
+          value !== null &&
+          "cents" in value &&
+          typeof (value as { cents: unknown }).cents === "number"
+        ) {
+          const cents = (value as { cents: number }).cents
+          const currency = (value as { currency?: string }).currency ?? defaultCurrency
+          displayValue = Money.fromCents(cents, currency).toAmount()
+        }
+      }
       return (
         <div className="grid gap-1.5">
           <Label htmlFor={`cf-${def.key}`}>
@@ -76,27 +118,31 @@ function FieldInput({ definition: def, value, onChange, error }: FieldInputProps
             {def.required && <span className="text-destructive"> *</span>}
           </Label>
           <div className="relative">
-            {def.dataType === "currency" && (
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                $
-              </span>
-            )}
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+              $
+            </span>
             <Input
               id={`cf-${def.key}`}
               type="number"
-              value={currentValue === "" || currentValue === null ? "" : String(currentValue)}
+              value={displayValue}
               onChange={(e) => {
                 const val = e.target.value
-                onChange(val === "" ? null : Number(val))
+                if (val === "") {
+                  onChange(null)
+                } else {
+                  const money = Money.fromAmount(val, defaultCurrency)
+                  onChange(money.toJSON())
+                }
               }}
               placeholder={def.label}
-              className={def.dataType === "currency" ? "pl-6" : ""}
-              step={def.dataType === "currency" ? "0.01" : "1"}
+              className="pl-6"
+              step="0.01"
             />
           </div>
           {error && <p className="text-xs text-destructive">{error}</p>}
         </div>
       )
+    }
 
     case "date":
       return (

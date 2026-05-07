@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import type { FieldDefinition } from "@/lib/data/field-definitions"
+import { Money } from "@/lib/money"
 
 interface CustomFieldsDisplayProps {
   fieldDefinitions: FieldDefinition[]
@@ -29,11 +30,28 @@ function formatValue(value: unknown, def: FieldDefinition): string {
         hour: "2-digit",
         minute: "2-digit",
       })
-    case "currency":
+    case "currency": {
+      // Support MoneyData { cents, currency } format (preferred) and raw number (legacy)
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        "cents" in value &&
+        typeof (value as { cents: unknown }).cents === "number"
+      ) {
+        const cents = (value as { cents: number }).cents
+        const currency = (value as { currency?: string }).currency ?? "USD"
+        try {
+          return Money.fromCents(cents, currency).toDisplay()
+        } catch {
+          return `${currency} ${cents / 100}`
+        }
+      }
+      // Legacy raw number fallback
       return new Intl.NumberFormat("en-US", {
         style: "currency",
         currency: "USD",
       }).format(value as number)
+    }
     case "number":
       return new Intl.NumberFormat("en-US").format(value as number)
     case "url":

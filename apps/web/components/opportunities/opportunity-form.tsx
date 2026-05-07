@@ -286,6 +286,7 @@ export function OpportunityForm({
                   setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
                 }
                 errors={{}}
+                defaultCurrency={opportunity?.currency ?? "USD"}
               />
             )}
 
