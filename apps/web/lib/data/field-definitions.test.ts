@@ -8,9 +8,10 @@ const mockInsert = vi.fn()
 const mockSingle = vi.fn()
 const mockUpdate = vi.fn()
 const mockIn = vi.fn()
+const mockUpsert = vi.fn()
 
 function buildMockChain() {
-  const qb = { select: mockSelect, eq: mockEq, order: mockOrder, insert: mockInsert, single: mockSingle, update: mockUpdate, in: mockIn }
+  const qb = { select: mockSelect, eq: mockEq, order: mockOrder, insert: mockInsert, single: mockSingle, update: mockUpdate, in: mockIn, upsert: mockUpsert }
   for (const key of Object.keys(qb)) {
     qb[key as keyof typeof qb].mockReturnValue(qb)
   }
@@ -309,8 +310,8 @@ describe("updateFieldDefinition", () => {
 })
 
 describe("reorderFieldDefinitions", () => {
-  it("updates display_order sequentially with correct id pairing", async () => {
-    mockEq.mockResolvedValue({ data: null, error: null })
+  it("upserts all items in a single batch call", async () => {
+    mockUpsert.mockResolvedValueOnce({ data: null, error: null })
 
     const { reorderFieldDefinitions } = await import("./field-definitions")
     await reorderFieldDefinitions(defaultCtx, {
@@ -320,41 +321,32 @@ describe("reorderFieldDefinitions", () => {
       ],
     })
 
-    expect(mockFrom).toHaveBeenCalledTimes(2)
+    expect(mockFrom).toHaveBeenCalledTimes(1)
     expect(mockFrom).toHaveBeenCalledWith("field_definitions")
-    expect(mockUpdate).toHaveBeenCalledTimes(2)
-    expect(mockUpdate).toHaveBeenNthCalledWith(1, { display_order: 1 })
-    expect(mockUpdate).toHaveBeenNthCalledWith(2, { display_order: 0 })
-    expect(mockEq).toHaveBeenNthCalledWith(1, "id", "field-2")
-    expect(mockEq).toHaveBeenNthCalledWith(2, "id", "field-1")
+    expect(mockUpsert).toHaveBeenCalledTimes(1)
+    expect(mockUpsert).toHaveBeenCalledWith([
+      { id: "field-2", display_order: 1 },
+      { id: "field-1", display_order: 0 },
+    ])
   })
 
-  it("rolls back applied updates on error", async () => {
-    mockEq
-      .mockResolvedValueOnce({ data: null, error: null })
-      .mockResolvedValueOnce({ data: null, error: new Error("DB error") })
-      .mockResolvedValueOnce({ data: null, error: null })
-
+  it("returns early when items array is empty", async () => {
     const { reorderFieldDefinitions } = await import("./field-definitions")
-    await expect(
-      reorderFieldDefinitions(defaultCtx, {
-        items: [
-          { id: "field-1", displayOrder: 5 },
-          { id: "field-2", displayOrder: 3 },
-        ],
-      }),
-    ).rejects.toThrow("Failed to reorder field definition")
+    await reorderFieldDefinitions(defaultCtx, { items: [] })
+
+    expect(mockFrom).not.toHaveBeenCalled()
+    expect(mockUpsert).not.toHaveBeenCalled()
   })
 
   it("throws on supabase error", async () => {
-    mockEq.mockReturnValueOnce({ error: new Error("DB error") })
+    mockUpsert.mockResolvedValueOnce({ data: null, error: new Error("DB error") })
 
     const { reorderFieldDefinitions } = await import("./field-definitions")
     await expect(
       reorderFieldDefinitions(defaultCtx, {
         items: [{ id: "field-1", displayOrder: 5 }],
       }),
-    ).rejects.toThrow("Failed to reorder field definition")
+    ).rejects.toThrow("Failed to reorder field definitions")
   })
 
   it("rejects input with missing ids", async () => {
