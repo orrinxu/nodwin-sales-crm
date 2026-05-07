@@ -6,9 +6,11 @@ const mockOrder = vi.fn()
 const mockSelect = vi.fn()
 const mockInsert = vi.fn()
 const mockSingle = vi.fn()
+const mockUpdate = vi.fn()
+const mockIn = vi.fn()
 
 function buildMockChain() {
-  const qb = { select: mockSelect, eq: mockEq, order: mockOrder, insert: mockInsert, single: mockSingle }
+  const qb = { select: mockSelect, eq: mockEq, order: mockOrder, insert: mockInsert, single: mockSingle, update: mockUpdate, in: mockIn }
   for (const key of Object.keys(qb)) {
     qb[key as keyof typeof qb].mockReturnValue(qb)
   }
@@ -249,5 +251,59 @@ describe("createFieldDefinition", () => {
       display_order: 0,
     })
     expect(result.label).toBe("Test Label")
+  })
+})
+
+describe("bulkDeleteFieldDefinitions", () => {
+  it("soft-deletes field definitions by setting active=false", async () => {
+    mockIn.mockResolvedValueOnce({ data: null, error: null })
+
+    const { bulkDeleteFieldDefinitions } = await import("./field-definitions")
+    await bulkDeleteFieldDefinitions(defaultCtx, { ids: ["field-1", "field-2"] })
+
+    expect(mockFrom).toHaveBeenCalledWith("field_definitions")
+    expect(mockUpdate).toHaveBeenCalledWith({ active: false })
+    expect(mockIn).toHaveBeenCalledWith("id", ["field-1", "field-2"])
+  })
+})
+
+describe("softDeleteFieldDefinition", () => {
+  it("soft-deletes a single field definition by id", async () => {
+    mockEq.mockResolvedValueOnce({ data: null, error: null })
+
+    const { softDeleteFieldDefinition } = await import("./field-definitions")
+    await softDeleteFieldDefinition(defaultCtx, "field-1")
+
+    expect(mockFrom).toHaveBeenCalledWith("field_definitions")
+    expect(mockUpdate).toHaveBeenCalledWith({ active: false })
+    expect(mockEq).toHaveBeenCalledWith("id", "field-1")
+  })
+})
+
+describe("updateFieldDefinition", () => {
+  it("updates allowed fields on a field definition", async () => {
+    mockEq.mockResolvedValueOnce({ data: null, error: null })
+
+    const { updateFieldDefinition } = await import("./field-definitions")
+    await updateFieldDefinition(defaultCtx, {
+      id: "field-1",
+      label: "Updated Label",
+      required: true,
+      options: ["A", "B"],
+      displayOrder: 5,
+      visibleToRoles: ["admin"],
+      editableByRoles: ["admin"],
+    })
+
+    expect(mockFrom).toHaveBeenCalledWith("field_definitions")
+    expect(mockUpdate).toHaveBeenCalledWith({
+      label: "Updated Label",
+      required: true,
+      options: ["A", "B"],
+      display_order: 5,
+      visible_to_roles: ["admin"],
+      editable_by_roles: ["admin"],
+    })
+    expect(mockEq).toHaveBeenCalledWith("id", "field-1")
   })
 })

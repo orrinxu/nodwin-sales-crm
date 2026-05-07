@@ -179,4 +179,87 @@ export async function createFieldDefinition(
   return toDomainField(data as Record<string, unknown>)
 }
 
+// ── Schemas ─────────────────────────────────────────────────────────────────────
+
+export const bulkDeleteFieldDefinitionsSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, "At least one field definition must be selected"),
+})
+
+export type BulkDeleteFieldDefinitionsInput = z.infer<typeof bulkDeleteFieldDefinitionsSchema>
+
+// ── Bulk soft-delete ─────────────────────────────────────────────────────────────
+
+export async function bulkDeleteFieldDefinitions(
+  ctx: FieldCallContext,
+  input: BulkDeleteFieldDefinitionsInput,
+): Promise<void> {
+  const parsed = bulkDeleteFieldDefinitionsSchema.parse(input)
+  const supabase = await createServerClient()
+
+  const { error } = await supabase
+    .from("field_definitions")
+    .update({ active: false })
+    .in("id", parsed.ids)
+
+  if (error) {
+    throw new Error(`Failed to bulk delete field definitions: ${error.message}`)
+  }
+}
+
+// ── Individual soft-delete ──────────────────────────────────────────────────────
+
+export async function softDeleteFieldDefinition(
+  ctx: FieldCallContext,
+  id: string,
+): Promise<void> {
+  const supabase = await createServerClient()
+
+  const { error } = await supabase
+    .from("field_definitions")
+    .update({ active: false })
+    .eq("id", id)
+
+  if (error) {
+    throw new Error(`Failed to soft-delete field definition: ${error.message}`)
+  }
+}
+
+// ── Update ───────────────────────────────────────────────────────────────────────
+
+export const updateFieldDefinitionSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1, "Label is required"),
+  required: z.boolean(),
+  options: z.array(z.string()).nullable(),
+  displayOrder: z.number().int().min(0),
+  visibleToRoles: z.array(z.string()).nullable(),
+  editableByRoles: z.array(z.string()).nullable(),
+})
+
+export type UpdateFieldDefinitionInput = z.infer<typeof updateFieldDefinitionSchema>
+
+export async function updateFieldDefinition(
+  ctx: FieldCallContext,
+  input: UpdateFieldDefinitionInput,
+): Promise<void> {
+  const parsed = updateFieldDefinitionSchema.parse(input)
+  const supabase = await createServerClient()
+
+  const { error } = await supabase
+    .from("field_definitions")
+    .update({
+      label: parsed.label,
+      required: parsed.required,
+      options: parsed.options,
+      display_order: parsed.displayOrder,
+      visible_to_roles: parsed.visibleToRoles,
+      editable_by_roles: parsed.editableByRoles,
+    })
+    .eq("id", parsed.id)
+
+  if (error) {
+    throw new Error(`Failed to update field definition: ${error.message}`)
+  }
+}
+
 
