@@ -28,13 +28,7 @@ import { CustomFieldsForm } from "@/components/contacts/custom-fields-form"
 const formSchema = z.object({
   name: z.string().min(1, "Name is required").max(200),
   accountId: z.string().min(1, "Account is required"),
-  amount: z.preprocess(
-    (val) => {
-      if (val === undefined || val === "" || val === 0) return undefined
-      return String(val)
-    },
-    z.string().optional(),
-  ),
+  amount: z.string().optional(),
   currency: z.string().max(10).optional().or(z.literal("")),
   closeDate: z.string().optional().or(z.literal("")),
   description: z.string().max(2000).optional().or(z.literal("")),
@@ -51,7 +45,7 @@ interface BusinessUnitOption {
 
 interface OpportunityFormProps {
   opportunity?: OpportunityRecord
-  accounts: AccountOption[]
+  accounts?: AccountOption[]
   businessUnits: BusinessUnitOption[]
   fieldDefinitions?: FieldDefinition[]
   createAction: (input: OpportunityCreateInput) => Promise<OpportunityRecord>
@@ -62,7 +56,7 @@ interface OpportunityFormProps {
 
 export function OpportunityForm({
   opportunity,
-  accounts,
+  accounts = [],
   businessUnits,
   fieldDefinitions = [],
   createAction,

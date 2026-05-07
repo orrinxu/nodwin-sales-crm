@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { render, screen } from "@testing-library/react"
+import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { OpportunityForm } from "./opportunity-form"
 import type { AccountOption } from "@/lib/data/contacts"
 import type { FieldDefinition } from "@/lib/data/field-definitions"
@@ -78,7 +78,7 @@ describe("OpportunityForm", () => {
     expect(screen.getByText("Create Opportunity")).toBeInTheDocument()
   })
 
-  it("renders edit mode with opportunity prop", () => {
+  it("renders edit mode with opportunity prop", async () => {
     render(
       <OpportunityForm
         {...defaultProps}
@@ -104,7 +104,10 @@ describe("OpportunityForm", () => {
         }}
       />,
     )
-    expect(screen.getByText("Edit Opportunity")).toBeInTheDocument()
+    fireEvent.click(screen.getByText("Create Opportunity"))
+    await waitFor(() => {
+      expect(screen.getByText("Edit Opportunity")).toBeInTheDocument()
+    })
   })
 
   it("renders with custom field definitions", () => {
