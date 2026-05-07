@@ -8,7 +8,8 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table"
 
-import type { FieldDefinition } from "@/lib/data/field-definitions"
+import type { FieldDefinition, CreateFieldDefinitionInput } from "@/lib/data/field-definitions"
+import { FieldDefinitionDialog } from "@/components/admin/field-definition-dialog"
 import { Badge } from "@/components/ui/badge"
 import {
   Table,
@@ -21,6 +22,7 @@ import {
 
 interface FieldDefinitionsListProps {
   fieldDefinitions: FieldDefinition[]
+  createAction: (input: CreateFieldDefinitionInput) => Promise<void>
 }
 
 function getDataTypeVariant(dt: string): "default" | "secondary" | "outline" | "destructive" {
@@ -49,6 +51,7 @@ function getDataTypeVariant(dt: string): "default" | "secondary" | "outline" | "
 
 export function FieldDefinitionsList({
   fieldDefinitions,
+  createAction,
 }: FieldDefinitionsListProps) {
   const columns: ColumnDef<FieldDefinition>[] = useMemo(
     () => [
@@ -129,6 +132,7 @@ export function FieldDefinitionsList({
             Manage custom field definitions across all entity types.
           </p>
         </div>
+        <FieldDefinitionDialog createAction={createAction} />
       </div>
 
       <div className="flex-1 p-6">

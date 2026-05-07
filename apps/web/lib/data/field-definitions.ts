@@ -132,4 +132,51 @@ export async function getAllFieldDefinitions(
     })
 }
 
+// ── Create ───────────────────────────────────────────────────────────────────────
+
+export const createFieldDefinitionSchema = z.object({
+  entityType: z.enum(fieldEntityTypes),
+  label: z.string().min(1, "Label is required").max(200),
+  dataType: z.enum(fieldDataTypes),
+  options: z.array(z.string()).nullable(),
+  required: z.boolean().default(false),
+  displayOrder: z.number().int().min(0).default(0),
+})
+
+export type CreateFieldDefinitionInput = z.infer<typeof createFieldDefinitionSchema>
+
+export async function createFieldDefinition(
+  ctx: FieldCallContext,
+  input: CreateFieldDefinitionInput,
+): Promise<FieldDefinition> {
+  void ctx
+  const parsed = createFieldDefinitionSchema.parse(input)
+  const supabase = await createServerClient()
+
+  const key = parsed.label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "")
+
+  const { data, error } = await supabase
+    .from("field_definitions")
+    .insert({
+      entity_type: parsed.entityType,
+      key,
+      label: parsed.label,
+      data_type: parsed.dataType,
+      options: parsed.options,
+      required: parsed.required,
+      display_order: parsed.displayOrder,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    throw new Error(`Failed to create field definition: ${error.message}`)
+  }
+
+  return toDomainField(data as Record<string, unknown>)
+}
+
 
