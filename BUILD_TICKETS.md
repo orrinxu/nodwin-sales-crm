@@ -847,7 +847,7 @@ After this phase you have a working app you can log into.
 
 ---
 
-# Phase 4 — Core CRM
+# Phase 4 — Core CRM (Achieved)
 
 This is the bulk of the build. Tickets are grouped: Accounts → Contacts → Opportunities (list/kanban) → Opportunity detail → Activities → Documents → Custom Fields admin. Most tickets here are `cto` approval level.
 
