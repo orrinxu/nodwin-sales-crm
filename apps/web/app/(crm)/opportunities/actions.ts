@@ -22,6 +22,10 @@ import {
   createActivity,
   activityCreateSchema,
 } from "@/lib/data/activities"
+import {
+  createDocument,
+  documentCreateSchema,
+} from "@/lib/data/documents"
 
 export async function createOpportunityAction(input: unknown) {
   const user = await requireUser()
@@ -99,4 +103,21 @@ export async function createActivityAction(opportunityId: string, input: unknown
   const activity = await createActivity(ctx, parsed)
   revalidatePath(`/opportunities/${opportunityId}`)
   return activity
+}
+
+const documentCreateSchemaStripped = documentCreateSchema.omit({
+  opportunityId: true,
+  accountId: true,
+})
+
+export async function createDocumentAction(opportunityId: string, input: unknown) {
+  const user = await requireUser()
+  const parsed = documentCreateSchemaStripped.parse(input)
+  const ctx = { user, source: "web" as const }
+  const document = await createDocument(ctx, {
+    ...parsed,
+    opportunityId,
+  })
+  revalidatePath(`/opportunities/${opportunityId}`)
+  return document
 }

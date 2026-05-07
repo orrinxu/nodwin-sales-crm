@@ -12,22 +12,30 @@ import {
   TabsTab,
   TabsPanel,
 } from "@/components/ui/tabs"
-import type { OpportunityRecord } from "@/lib/data/opportunities"
-import type { BusinessUnitOption } from "@/lib/data/opportunities"
-import { getStageLabel } from "@/lib/data/opportunities"
+import { DocumentList } from "@/components/opportunities/document-list"
+import { DocumentUploadDialog } from "@/components/opportunities/document-upload-dialog"
+import { RichTextDisplay } from "@/components/ui/rich-text-display"
+import type { OpportunityRecord } from "@/lib/data/opportunities.types"
+import type { BusinessUnitOption } from "@/lib/data/opportunities.types"
+import { getStageLabel } from "@/lib/data/opportunities.types"
+import type { DocumentRecord } from "@/lib/data/documents.types"
 import { DEAL_STAGES } from "@/lib/opportunity"
 import { Money } from "@/lib/money"
 
 interface OpportunityDetailWrapperProps {
   opportunity: OpportunityRecord
   businessUnits: BusinessUnitOption[]
+  documents: DocumentRecord[]
   updateAction: (id: string, input: unknown) => Promise<OpportunityRecord>
+  createDocumentAction: (opportunityId: string, input: unknown) => Promise<unknown>
 }
 
 export function OpportunityDetailWrapper({
   opportunity,
   businessUnits,
+  documents,
   updateAction,
+  createDocumentAction,
 }: OpportunityDetailWrapperProps) {
   const router = useRouter()
 
@@ -180,9 +188,7 @@ export function OpportunityDetailWrapper({
               <CardTitle>Description</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="whitespace-pre-wrap text-sm text-muted-foreground">
-                {opportunity.description}
-              </p>
+              <RichTextDisplay html={opportunity.description} />
             </CardContent>
           </Card>
         )}
@@ -259,13 +265,16 @@ export function OpportunityDetailWrapper({
           </TabsPanel>
 
           <TabsPanel value="documents">
-            <Card>
-              <CardContent className="py-6">
-                <p className="text-sm text-muted-foreground">
-                  Document storage coming in T-063.
-                </p>
-              </CardContent>
-            </Card>
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Documents linked to this opportunity.
+              </p>
+              <DocumentUploadDialog
+                opportunityId={opportunity.id}
+                createAction={createDocumentAction}
+              />
+            </div>
+            <DocumentList documents={documents} />
           </TabsPanel>
         </Tabs>
       </div>
