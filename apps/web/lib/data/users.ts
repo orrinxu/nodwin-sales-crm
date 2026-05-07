@@ -77,6 +77,29 @@ export async function getProfile(ctx: ProfileCallContext): Promise<UserProfile> 
   }
 }
 
+export interface UserOption {
+  id: string
+  fullName: string | null
+}
+
+export async function getUserOptions(ctx: ProfileCallContext): Promise<UserOption[]> {
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, full_name")
+    .order("full_name", { ascending: true })
+
+  if (error) {
+    throw new Error(`Failed to load users: ${error.message}`)
+  }
+
+  return (data ?? []).map((u) => ({
+    id: u.id,
+    fullName: u.full_name,
+  }))
+}
+
 export async function updateProfile(
   ctx: ProfileCallContext,
   input: ProfileUpdateInput,
