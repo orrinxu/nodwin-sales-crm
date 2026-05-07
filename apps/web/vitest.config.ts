@@ -4,8 +4,8 @@ import path from "path"
 export default defineConfig({
   test: {
     globals: true,
-    environment: "node",
-    include: ["lib/**/*.test.ts", "__tests__/**/*.test.ts"],
+    environment: "jsdom",
+    include: ["lib/**/*.test.ts", "__tests__/**/*.test.ts", "components/**/*.test.{ts,tsx}"],
     setupFiles: ["./vitest.setup.ts"],
     coverage: {
       reporter: ["text", "json", "html"],
