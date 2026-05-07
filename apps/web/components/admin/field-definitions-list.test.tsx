@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
 import { FieldDefinitionsList } from "./field-definitions-list"
-import type { FieldDefinition } from "@/lib/data/field-definitions"
+import type { FieldDefinition, ReorderFieldDefinitionsInput } from "@/lib/data/field-definitions"
 
 const mockRefresh = vi.fn()
 
@@ -17,6 +17,7 @@ const mockCreateAction = vi.fn()
 const mockBulkDeleteAction = vi.fn()
 const mockSoftDeleteAction = vi.fn()
 const mockUpdateAction = vi.fn()
+const mockReorderAction = vi.fn<(input: ReorderFieldDefinitionsInput) => Promise<void>>()
 
 const sampleFields: FieldDefinition[] = [
   {
@@ -63,6 +64,7 @@ function renderList() {
       bulkDeleteAction={mockBulkDeleteAction}
       softDeleteAction={mockSoftDeleteAction}
       updateAction={mockUpdateAction}
+      reorderAction={mockReorderAction}
     />,
   )
 }
@@ -83,6 +85,12 @@ describe("FieldDefinitionsList", () => {
     expect(screen.getByText("Custom Fields")).toBeInTheDocument()
   })
 
+  it("shows drag handles for each row", () => {
+    renderList()
+    const handles = screen.getAllByLabelText("Drag to reorder")
+    expect(handles).toHaveLength(sampleFields.length)
+  })
+
   it("shows empty state when no fields defined", () => {
     render(
       <FieldDefinitionsList
@@ -91,6 +99,7 @@ describe("FieldDefinitionsList", () => {
         bulkDeleteAction={mockBulkDeleteAction}
         softDeleteAction={mockSoftDeleteAction}
         updateAction={mockUpdateAction}
+        reorderAction={mockReorderAction}
       />,
     )
     expect(

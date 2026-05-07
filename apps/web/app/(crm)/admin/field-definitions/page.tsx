@@ -4,6 +4,7 @@ import { FieldDefinitionsList } from "@/components/admin/field-definitions-list"
 import {
   bulkDeleteFieldDefinitionsAction,
   createFieldDefinitionAction,
+  reorderFieldDefinitionsAction,
   softDeleteFieldDefinitionAction,
   updateFieldDefinitionAction,
 } from "./actions"
@@ -21,6 +22,7 @@ export default async function AdminFieldDefinitionsPage() {
       bulkDeleteAction={bulkDeleteFieldDefinitionsAction}
       softDeleteAction={softDeleteFieldDefinitionAction}
       updateAction={updateFieldDefinitionAction}
+      reorderAction={reorderFieldDefinitionsAction}
     />
   )
 }

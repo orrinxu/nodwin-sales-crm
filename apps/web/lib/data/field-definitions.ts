@@ -262,4 +262,48 @@ export async function updateFieldDefinition(
   }
 }
 
+// ── Reorder ──────────────────────────────────────────────────────────────────────
+
+export const reorderFieldDefinitionsSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string().min(1),
+      displayOrder: z.number().int().min(0),
+    }),
+  ).min(1),
+})
+
+export type ReorderFieldDefinitionsInput = z.infer<typeof reorderFieldDefinitionsSchema>
+
+export async function reorderFieldDefinitions(
+  ctx: FieldCallContext,
+  input: ReorderFieldDefinitionsInput,
+): Promise<void> {
+  const parsed = reorderFieldDefinitionsSchema.parse(input)
+  const supabase = await createServerClient()
+
+  const applied: { id: string; displayOrder: number }[] = []
+
+  for (const item of parsed.items) {
+    const { error } = await supabase
+      .from("field_definitions")
+      .update({ display_order: item.displayOrder })
+      .eq("id", item.id)
+
+    if (error) {
+      for (const rollback of applied) {
+        await supabase
+          .from("field_definitions")
+          .update({ display_order: rollback.displayOrder })
+          .eq("id", rollback.id)
+      }
+      throw new Error(
+        `Failed to reorder field definition ${item.id}: ${error.message}`,
+      )
+    }
+
+    applied.push(item)
+  }
+}
+
 

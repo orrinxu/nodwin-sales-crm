@@ -2,6 +2,21 @@
 
 import { useCallback, useMemo, useState } from "react"
 import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import {
   flexRender,
   getCoreRowModel,
   useReactTable,
@@ -9,13 +24,14 @@ import {
   type RowSelectionState,
 } from "@tanstack/react-table"
 import { useRouter } from "next/navigation"
-import { PencilIcon, Trash2Icon } from "lucide-react"
+import { GripVerticalIcon, PencilIcon, Trash2Icon } from "lucide-react"
 
 import type {
   CreateFieldDefinitionInput,
   FieldDefinition,
   UpdateFieldDefinitionInput,
 } from "@/lib/data/field-definitions"
+import type { ReorderFieldDefinitionsInput } from "@/lib/data/field-definitions"
 import { FieldDefinitionDialog } from "@/components/admin/field-definition-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -45,6 +61,7 @@ interface FieldDefinitionsListProps {
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
   softDeleteAction: (id: string) => Promise<void>
   updateAction: (input: UpdateFieldDefinitionInput) => Promise<void>
+  reorderAction: (input: ReorderFieldDefinitionsInput) => Promise<void>
 }
 
 function getDataTypeVariant(dt: string): "default" | "secondary" | "outline" | "destructive" {
@@ -71,12 +88,57 @@ function getDataTypeVariant(dt: string): "default" | "secondary" | "outline" | "
   }
 }
 
+function DragHandle({ id }: { id: string }) {
+  const { attributes, listeners, setActivatorNodeRef } = useSortable({ id })
+  return (
+    <button
+      ref={setActivatorNodeRef}
+      {...attributes}
+      {...listeners}
+      className="cursor-grab touch-none text-muted-foreground hover:text-foreground"
+      aria-label="Drag to reorder"
+    >
+      <GripVerticalIcon className="h-4 w-4" />
+    </button>
+  )
+}
+
+function SortableTableRow({
+  id,
+  isSelected,
+  children,
+}: {
+  id: string
+  isSelected: boolean
+  children: React.ReactNode
+}) {
+  const { setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : undefined,
+    position: "relative" as const,
+    zIndex: isDragging ? 1 : undefined,
+  }
+
+  return (
+    <TableRow
+      ref={setNodeRef}
+      style={style}
+      data-state={isSelected ? "selected" : undefined}
+    >
+      {children}
+    </TableRow>
+  )
+}
+
 export function FieldDefinitionsList({
   fieldDefinitions,
   createAction,
   bulkDeleteAction,
   softDeleteAction,
   updateAction,
+  reorderAction,
 }: FieldDefinitionsListProps) {
   const router = useRouter()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -86,13 +148,19 @@ export function FieldDefinitionsList({
   const [editingField, setEditingField] = useState<FieldDefinition | null>(null)
   const [deletingField, setDeletingField] = useState<FieldDefinition | null>(null)
   const [isPending, setIsPending] = useState(false)
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [reorderError, setReorderError] = useState<string | null>(null)
 
   const [editLabel, setEditLabel] = useState("")
   const [editRequired, setEditRequired] = useState(false)
   const [editOptions, setEditOptions] = useState("")
   const [editDisplayOrder, setEditDisplayOrder] = useState(0)
 
-  const [items] = useState<FieldDefinition[]>(fieldDefinitions)
+  const [items, setItems] = useState<FieldDefinition[]>(fieldDefinitions)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  )
 
   const selectedIds = useMemo(
     () =>
@@ -119,6 +187,15 @@ export function FieldDefinitionsList({
 
   const columns: ColumnDef<FieldDefinition>[] = useMemo(
     () => [
+      {
+        id: "drag",
+        header: "",
+        size: 40,
+        cell: ({ row }) => {
+          const field = row.original
+          return <DragHandle id={field.id} />
+        },
+      },
       {
         id: "select",
         header: ({ table }) => (
@@ -237,6 +314,50 @@ export function FieldDefinitionsList({
     getCoreRowModel: getCoreRowModel(),
   })
 
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveDragId(event.active.id as string)
+    setReorderError(null)
+  }, [])
+
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      setActiveDragId(null)
+      setReorderError(null)
+      const { active, over } = event
+      if (!over || active.id === over.id) return
+
+      const oldIndex = items.findIndex((f) => f.id === active.id)
+      const newIndex = items.findIndex((f) => f.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return
+
+      const previousItems = items
+      const reordered = [...items]
+      const [moved] = reordered.splice(oldIndex, 1)
+      reordered.splice(newIndex, 0, moved)
+
+      const withUpdatedOrder = reordered.map((f, i) => ({
+        ...f,
+        displayOrder: i,
+      }))
+
+      setItems(withUpdatedOrder)
+
+      try {
+        await reorderAction({
+          items: withUpdatedOrder.map((f) => ({
+            id: f.id,
+            displayOrder: f.displayOrder,
+          })),
+        })
+        router.refresh()
+      } catch {
+        setItems(previousItems)
+        setReorderError("Failed to reorder fields. Please try again.")
+      }
+    },
+    [items, reorderAction, router],
+  )
+
   const handleBulkDelete = useCallback(async () => {
     if (selectedIds.length === 0) return
     setIsPending(true)
@@ -308,6 +429,11 @@ export function FieldDefinitionsList({
   const showOptionsField =
     editingField?.dataType === "single_select" || editingField?.dataType === "multi_select"
 
+  const activeDragField = useMemo(
+    () => items.find((f) => f.id === activeDragId) ?? null,
+    [items, activeDragId],
+  )
+
   return (
     <div className="flex flex-1 flex-col">
       <div className="flex items-center justify-between border-b px-6 py-3">
@@ -324,6 +450,19 @@ export function FieldDefinitionsList({
 
       <div className="flex-1 p-6">
         <div className="space-y-4">
+          {reorderError && (
+            <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <span>{reorderError}</span>
+              <button
+                className="ml-auto text-destructive/70 hover:text-destructive"
+                onClick={() => setReorderError(null)}
+                aria-label="Dismiss error"
+              >
+                &times;
+              </button>
+            </div>
+          )}
+
           {selectedIds.length > 0 && (
             <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2">
               <span className="text-sm text-muted-foreground">
@@ -343,43 +482,72 @@ export function FieldDefinitionsList({
           )}
 
           <div className="rounded-lg border">
-            <Table>
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead key={header.id}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(header.column.columnDef.header, header.getContext())}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {table.getRowModel().rows.length > 0 ? (
-                  table.getRowModel().rows.map((row) => (
-                    <TableRow key={row.id} data-state={row.getIsSelected() ? "selected" : undefined}>
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </TableCell>
+            <DndContext
+              sensors={sensors}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <Table>
+                <TableHeader>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => (
+                        <TableHead
+                          key={header.id}
+                          style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}
+                        >
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(header.column.columnDef.header, header.getContext())}
+                        </TableHead>
                       ))}
                     </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell
-                      colSpan={columns.length}
-                      className="h-24 text-center text-muted-foreground"
+                  ))}
+                </TableHeader>
+                <TableBody>
+                  {table.getRowModel().rows.length > 0 ? (
+                    <SortableContext
+                      items={items.map((f) => f.id)}
+                      strategy={verticalListSortingStrategy}
                     >
-                      No custom fields defined yet.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                      {table.getRowModel().rows.map((row) => (
+                        <SortableTableRow
+                          key={row.original.id}
+                          id={row.original.id}
+                          isSelected={row.getIsSelected()}
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell key={cell.id}>
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </TableCell>
+                          ))}
+                        </SortableTableRow>
+                      ))}
+                    </SortableContext>
+                  ) : (
+                    <TableRow>
+                      <TableCell
+                        colSpan={columns.length}
+                        className="h-24 text-center text-muted-foreground"
+                      >
+                        No custom fields defined yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+              <DragOverlay>
+                {activeDragField ? (
+                  <div className="flex items-center gap-2 rounded-lg border bg-background px-4 py-2 shadow-lg">
+                    <GripVerticalIcon className="h-4 w-4 text-muted-foreground" />
+                    <Badge variant="secondary" className="capitalize">
+                      {activeDragField.entityType}
+                    </Badge>
+                    <span className="font-medium">{activeDragField.label}</span>
+                  </div>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
           </div>
         </div>
       </div>
