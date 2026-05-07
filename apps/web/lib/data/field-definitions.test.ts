@@ -4,9 +4,13 @@ import { fieldDefinitionSchema } from "./field-definitions"
 const mockEq = vi.fn()
 const mockOrder = vi.fn()
 const mockSelect = vi.fn()
+const mockUpdate = vi.fn()
+const mockIn = vi.fn()
+const mockInsert = vi.fn()
+const mockSingle = vi.fn()
 
 function buildMockChain() {
-  const qb = { select: mockSelect, eq: mockEq, order: mockOrder }
+  const qb = { select: mockSelect, eq: mockEq, order: mockOrder, update: mockUpdate, in: mockIn, insert: mockInsert, single: mockSingle }
   for (const key of Object.keys(qb)) {
     qb[key as keyof typeof qb].mockReturnValue(qb)
   }
@@ -200,5 +204,164 @@ describe("fieldDefinitionSchema", () => {
       updatedAt: "2026-01-15T00:00:00Z",
     })
     expect(result.success).toBe(false)
+  })
+})
+
+describe("createFieldDefinition", () => {
+  it("creates a field definition from a label", async () => {
+    mockSingle.mockResolvedValueOnce({
+      data: { ...mockDbField, key: "test_label", label: "Test Label", display_order: 0 },
+      error: null,
+    })
+
+    const { createFieldDefinition } = await import("./field-definitions")
+    const result = await createFieldDefinition(defaultCtx, {
+      entityType: "contact",
+      label: "Test Label",
+      dataType: "text",
+      options: null,
+      required: false,
+      displayOrder: 0,
+    })
+
+    expect(mockFrom).toHaveBeenCalledWith("field_definitions")
+    expect(mockInsert).toHaveBeenCalledWith({
+      entity_type: "contact",
+      key: "test_label",
+      label: "Test Label",
+      data_type: "text",
+      options: null,
+      required: false,
+      display_order: 0,
+    })
+    expect(result.label).toBe("Test Label")
+  })
+})
+
+describe("getAllFieldDefinitions", () => {
+  it("returns all field definitions without active filter, sorted by entity and order", async () => {
+    mockOrder.mockResolvedValueOnce({
+      data: [{ ...mockDbField, entity_type: "opportunity" }, mockDbSelectField],
+      error: null,
+    })
+
+    const { getAllFieldDefinitions } = await import("./field-definitions")
+    const result = await getAllFieldDefinitions(defaultCtx)
+
+    expect(result).toHaveLength(2)
+    expect(result[0].entityType).toBe("contact")
+    expect(result[1].entityType).toBe("opportunity")
+  })
+})
+
+describe("bulkDeleteFieldDefinitions", () => {
+  it("soft-deletes field definitions by setting active=false", async () => {
+    mockIn.mockResolvedValueOnce({ data: null, error: null })
+
+    const { bulkDeleteFieldDefinitions } = await import("./field-definitions")
+    await bulkDeleteFieldDefinitions(defaultCtx, { ids: ["field-1", "field-2"] })
+
+    expect(mockFrom).toHaveBeenCalledWith("field_definitions")
+    expect(mockUpdate).toHaveBeenCalledWith({ active: false })
+    expect(mockIn).toHaveBeenCalledWith("id", ["field-1", "field-2"])
+  })
+})
+
+describe("softDeleteFieldDefinition", () => {
+  it("soft-deletes a single field definition by id", async () => {
+    mockEq.mockResolvedValueOnce({ data: null, error: null })
+
+    const { softDeleteFieldDefinition } = await import("./field-definitions")
+    await softDeleteFieldDefinition(defaultCtx, "field-1")
+
+    expect(mockFrom).toHaveBeenCalledWith("field_definitions")
+    expect(mockUpdate).toHaveBeenCalledWith({ active: false })
+    expect(mockEq).toHaveBeenCalledWith("id", "field-1")
+  })
+})
+
+describe("reorderFieldDefinitions", () => {
+  it("updates display_order sequentially with correct id pairing", async () => {
+    mockEq.mockResolvedValue({ data: null, error: null })
+
+    const { reorderFieldDefinitions } = await import("./field-definitions")
+    await reorderFieldDefinitions(defaultCtx, {
+      items: [
+        { id: "field-2", displayOrder: 1 },
+        { id: "field-1", displayOrder: 0 },
+      ],
+    })
+
+    expect(mockFrom).toHaveBeenCalledTimes(2)
+    expect(mockFrom).toHaveBeenCalledWith("field_definitions")
+    expect(mockUpdate).toHaveBeenCalledTimes(2)
+    expect(mockUpdate).toHaveBeenNthCalledWith(1, { display_order: 1 })
+    expect(mockUpdate).toHaveBeenNthCalledWith(2, { display_order: 0 })
+    expect(mockEq).toHaveBeenNthCalledWith(1, "id", "field-2")
+    expect(mockEq).toHaveBeenNthCalledWith(2, "id", "field-1")
+  })
+
+  it("rolls back applied updates on error", async () => {
+    mockEq
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: null, error: new Error("DB error") })
+      .mockResolvedValueOnce({ data: null, error: null })
+
+    const { reorderFieldDefinitions } = await import("./field-definitions")
+    await expect(
+      reorderFieldDefinitions(defaultCtx, {
+        items: [
+          { id: "field-1", displayOrder: 5 },
+          { id: "field-2", displayOrder: 3 },
+        ],
+      }),
+    ).rejects.toThrow("Failed to reorder field definition")
+  })
+
+  it("throws on supabase error", async () => {
+    mockEq.mockReturnValueOnce({ error: new Error("DB error") })
+
+    const { reorderFieldDefinitions } = await import("./field-definitions")
+    await expect(
+      reorderFieldDefinitions(defaultCtx, {
+        items: [{ id: "field-1", displayOrder: 5 }],
+      }),
+    ).rejects.toThrow("Failed to reorder field definition")
+  })
+
+  it("rejects input with missing ids", async () => {
+    const { reorderFieldDefinitionsSchema } = await import("./field-definitions")
+    const result = reorderFieldDefinitionsSchema.safeParse({
+      items: [{ displayOrder: 0 }],
+    })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe("updateFieldDefinition", () => {
+  it("updates allowed fields on a field definition", async () => {
+    mockEq.mockResolvedValueOnce({ data: null, error: null })
+
+    const { updateFieldDefinition } = await import("./field-definitions")
+    await updateFieldDefinition(defaultCtx, {
+      id: "field-1",
+      label: "Updated Label",
+      required: true,
+      options: ["A", "B"],
+      displayOrder: 5,
+      visibleToRoles: ["admin"],
+      editableByRoles: ["admin"],
+    })
+
+    expect(mockFrom).toHaveBeenCalledWith("field_definitions")
+    expect(mockUpdate).toHaveBeenCalledWith({
+      label: "Updated Label",
+      required: true,
+      options: ["A", "B"],
+      display_order: 5,
+      visible_to_roles: ["admin"],
+      editable_by_roles: ["admin"],
+    })
+    expect(mockEq).toHaveBeenCalledWith("id", "field-1")
   })
 })
