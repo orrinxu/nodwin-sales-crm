@@ -27,6 +27,11 @@ export interface OpportunityListResult {
   totalCount: number
 }
 
+export interface BusinessUnitOption {
+  id: string
+  name: string
+}
+
 const stageLabels: Record<DealStage, string> = {
   qualify: "Qualify",
   meet_and_present: "Meet & Present",
