@@ -1,0 +1,103 @@
+"use client"
+
+import { useState } from "react"
+import { LayoutGridIcon, ListIcon } from "lucide-react"
+
+import { type OpportunityRecord } from "@/lib/data/opportunities.types"
+import type { OpportunityCreateInput } from "@/lib/data/opportunities"
+import type { AccountOption } from "@/lib/data/contacts"
+import { cn } from "@/lib/utils"
+import { OpportunityBoard } from "@/components/opportunities/opportunity-board"
+import { OpportunityListTable } from "@/components/opportunities/opportunity-list-table"
+
+interface BusinessUnitOption {
+  id: string
+  name: string
+}
+
+interface OpportunitiesViewProps {
+  opportunities: OpportunityRecord[]
+  accounts: AccountOption[]
+  businessUnits: BusinessUnitOption[]
+  createAction: (input: OpportunityCreateInput) => Promise<OpportunityRecord>
+  updateStageAction: (id: string, input: { stage: string }) => Promise<OpportunityRecord>
+  bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
+  bulkUpdateStageAction: (input: { ids: string[]; stage: string }) => Promise<void>
+}
+
+type ViewMode = "kanban" | "table"
+
+export function OpportunitiesView({
+  opportunities,
+  accounts,
+  businessUnits,
+  createAction,
+  updateStageAction,
+  bulkDeleteAction,
+  bulkUpdateStageAction,
+}: OpportunitiesViewProps) {
+  const [viewMode, setViewMode] = useState<ViewMode>("kanban")
+
+  return (
+    <div className="flex flex-1 flex-col">
+      <div className="flex items-center justify-between border-b px-6 py-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Opportunities
+          </h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {viewMode === "kanban"
+              ? "Drag opportunities between stages to update their pipeline status."
+              : "View and manage all opportunities in a table."}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center rounded-lg border p-0.5">
+            <button
+              onClick={() => setViewMode("kanban")}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors",
+                viewMode === "kanban"
+                  ? "bg-muted text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <LayoutGridIcon className="size-4" />
+              Kanban
+            </button>
+            <button
+              onClick={() => setViewMode("table")}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors",
+                viewMode === "table"
+                  ? "bg-muted text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <ListIcon className="size-4" />
+              Table
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {viewMode === "kanban" ? (
+        <OpportunityBoard
+          opportunities={opportunities}
+          accounts={accounts}
+          businessUnits={businessUnits}
+          createAction={createAction}
+          updateStageAction={updateStageAction}
+        />
+      ) : (
+        <div className="flex-1 p-6">
+          <OpportunityListTable
+            opportunities={opportunities}
+            bulkDeleteAction={bulkDeleteAction}
+            bulkUpdateStageAction={bulkUpdateStageAction}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
