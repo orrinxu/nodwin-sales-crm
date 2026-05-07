@@ -555,7 +555,7 @@ export async function getOpportunityTeamMembers(
   }
 
   return (data ?? []).map((r) => {
-    const member = r.member as { full_name: string } | null
+    const member = (Array.isArray(r.member) ? r.member[0] : r.member) as { full_name: string } | null
     return {
       id: r.id as string,
       opportunityId: r.opportunity_id as string,
