@@ -6,17 +6,12 @@ const mockOrder = vi.fn()
 const mockSelect = vi.fn()
 const mockInsert = vi.fn()
 const mockSingle = vi.fn()
-<<<<<<< HEAD
-
-function buildMockChain() {
-  const qb = { select: mockSelect, eq: mockEq, order: mockOrder, insert: mockInsert, single: mockSingle }
-=======
 const mockUpdate = vi.fn()
 const mockIn = vi.fn()
+const mockUpsert = vi.fn()
 
 function buildMockChain() {
-  const qb = { select: mockSelect, eq: mockEq, order: mockOrder, insert: mockInsert, single: mockSingle, update: mockUpdate, in: mockIn }
->>>>>>> origin/feat/orr-356-t067
+  const qb = { select: mockSelect, eq: mockEq, order: mockOrder, insert: mockInsert, single: mockSingle, update: mockUpdate, in: mockIn, upsert: mockUpsert }
   for (const key of Object.keys(qb)) {
     qb[key as keyof typeof qb].mockReturnValue(qb)
   }
@@ -259,8 +254,6 @@ describe("createFieldDefinition", () => {
     expect(result.label).toBe("Test Label")
   })
 })
-<<<<<<< HEAD
-=======
 
 describe("bulkDeleteFieldDefinitions", () => {
   it("soft-deletes field definitions by setting active=false", async () => {
@@ -315,4 +308,52 @@ describe("updateFieldDefinition", () => {
     expect(mockEq).toHaveBeenCalledWith("id", "field-1")
   })
 })
->>>>>>> origin/feat/orr-356-t067
+
+describe("reorderFieldDefinitions", () => {
+  it("upserts all items in a single batch call", async () => {
+    mockUpsert.mockResolvedValueOnce({ data: null, error: null })
+
+    const { reorderFieldDefinitions } = await import("./field-definitions")
+    await reorderFieldDefinitions(defaultCtx, {
+      items: [
+        { id: "field-2", displayOrder: 1 },
+        { id: "field-1", displayOrder: 0 },
+      ],
+    })
+
+    expect(mockFrom).toHaveBeenCalledTimes(1)
+    expect(mockFrom).toHaveBeenCalledWith("field_definitions")
+    expect(mockUpsert).toHaveBeenCalledTimes(1)
+    expect(mockUpsert).toHaveBeenCalledWith([
+      { id: "field-2", display_order: 1 },
+      { id: "field-1", display_order: 0 },
+    ])
+  })
+
+  it("returns early when items array is empty", async () => {
+    const { reorderFieldDefinitions } = await import("./field-definitions")
+    await reorderFieldDefinitions(defaultCtx, { items: [] })
+
+    expect(mockFrom).not.toHaveBeenCalled()
+    expect(mockUpsert).not.toHaveBeenCalled()
+  })
+
+  it("throws on supabase error", async () => {
+    mockUpsert.mockResolvedValueOnce({ data: null, error: new Error("DB error") })
+
+    const { reorderFieldDefinitions } = await import("./field-definitions")
+    await expect(
+      reorderFieldDefinitions(defaultCtx, {
+        items: [{ id: "field-1", displayOrder: 5 }],
+      }),
+    ).rejects.toThrow("Failed to reorder field definitions")
+  })
+
+  it("rejects input with missing ids", async () => {
+    const { reorderFieldDefinitionsSchema } = await import("./field-definitions")
+    const result = reorderFieldDefinitionsSchema.safeParse({
+      items: [{ displayOrder: 0 }],
+    })
+    expect(result.success).toBe(false)
+  })
+})

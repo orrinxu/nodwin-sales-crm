@@ -7,6 +7,8 @@ import {
   bulkDeleteFieldDefinitionsSchema,
   createFieldDefinition,
   createFieldDefinitionSchema,
+  reorderFieldDefinitions,
+  reorderFieldDefinitionsSchema,
   softDeleteFieldDefinition,
   updateFieldDefinition,
   updateFieldDefinitionSchema,
@@ -44,5 +46,14 @@ export async function updateFieldDefinitionAction(input: unknown) {
   const parsed = updateFieldDefinitionSchema.parse(input)
   const ctx = { user, source: "web" as const }
   await updateFieldDefinition(ctx, parsed)
+  revalidatePath("/admin/field-definitions")
+}
+
+export async function reorderFieldDefinitionsAction(input: unknown) {
+  const user = await requireUser()
+  requireRole(user, "admin")
+  const parsed = reorderFieldDefinitionsSchema.parse(input)
+  const ctx = { user, source: "web" as const }
+  await reorderFieldDefinitions(ctx, parsed)
   revalidatePath("/admin/field-definitions")
 }
