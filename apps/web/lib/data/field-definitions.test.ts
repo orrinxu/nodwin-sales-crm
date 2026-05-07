@@ -4,9 +4,11 @@ import { fieldDefinitionSchema } from "./field-definitions"
 const mockEq = vi.fn()
 const mockOrder = vi.fn()
 const mockSelect = vi.fn()
+const mockInsert = vi.fn()
+const mockSingle = vi.fn()
 
 function buildMockChain() {
-  const qb = { select: mockSelect, eq: mockEq, order: mockOrder }
+  const qb = { select: mockSelect, eq: mockEq, order: mockOrder, insert: mockInsert, single: mockSingle }
   for (const key of Object.keys(qb)) {
     qb[key as keyof typeof qb].mockReturnValue(qb)
   }
@@ -216,5 +218,36 @@ describe("getAllFieldDefinitions", () => {
     expect(result).toHaveLength(2)
     expect(result[0].entityType).toBe("contact")
     expect(result[1].entityType).toBe("opportunity")
+  })
+})
+
+describe("createFieldDefinition", () => {
+  it("creates a field definition from a label", async () => {
+    mockSingle.mockResolvedValueOnce({
+      data: { ...mockDbField, key: "test_label", label: "Test Label", display_order: 0 },
+      error: null,
+    })
+
+    const { createFieldDefinition } = await import("./field-definitions")
+    const result = await createFieldDefinition(defaultCtx, {
+      entityType: "contact",
+      label: "Test Label",
+      dataType: "text",
+      options: null,
+      required: false,
+      displayOrder: 0,
+    })
+
+    expect(mockFrom).toHaveBeenCalledWith("field_definitions")
+    expect(mockInsert).toHaveBeenCalledWith({
+      entity_type: "contact",
+      key: "test_label",
+      label: "Test Label",
+      data_type: "text",
+      options: null,
+      required: false,
+      display_order: 0,
+    })
+    expect(result.label).toBe("Test Label")
   })
 })

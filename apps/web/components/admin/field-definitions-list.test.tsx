@@ -6,6 +6,8 @@ import type { FieldDefinition } from "@/lib/data/field-definitions"
 
 vi.mock("server-only", () => ({}))
 
+const mockCreateAction = vi.fn()
+
 const sampleFields: FieldDefinition[] = [
   {
     id: "field-1",
@@ -44,7 +46,7 @@ const sampleFields: FieldDefinition[] = [
 ]
 
 function renderList(fields = sampleFields) {
-  return render(<FieldDefinitionsList fieldDefinitions={fields} />)
+  return render(<FieldDefinitionsList fieldDefinitions={fields} createAction={mockCreateAction} />)
 }
 
 beforeEach(() => {
