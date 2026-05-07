@@ -1,16 +1,27 @@
 "use client"
 
-import { useMemo } from "react"
+import { useCallback, useMemo, useState } from "react"
 import {
   flexRender,
   getCoreRowModel,
   useReactTable,
   type ColumnDef,
+  type RowSelectionState,
 } from "@tanstack/react-table"
+import { useRouter } from "next/navigation"
+import { PencilIcon, Trash2Icon } from "lucide-react"
 
-import type { FieldDefinition, CreateFieldDefinitionInput } from "@/lib/data/field-definitions"
+import type {
+  CreateFieldDefinitionInput,
+  FieldDefinition,
+  UpdateFieldDefinitionInput,
+} from "@/lib/data/field-definitions"
 import { FieldDefinitionDialog } from "@/components/admin/field-definition-dialog"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Table,
   TableBody,
@@ -19,10 +30,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 interface FieldDefinitionsListProps {
   fieldDefinitions: FieldDefinition[]
   createAction: (input: CreateFieldDefinitionInput) => Promise<void>
+  bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
+  softDeleteAction: (id: string) => Promise<void>
+  updateAction: (input: UpdateFieldDefinitionInput) => Promise<void>
 }
 
 function getDataTypeVariant(dt: string): "default" | "secondary" | "outline" | "destructive" {
@@ -52,9 +74,72 @@ function getDataTypeVariant(dt: string): "default" | "secondary" | "outline" | "
 export function FieldDefinitionsList({
   fieldDefinitions,
   createAction,
+  bulkDeleteAction,
+  softDeleteAction,
+  updateAction,
 }: FieldDefinitionsListProps) {
+  const router = useRouter()
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showSingleDeleteDialog, setShowSingleDeleteDialog] = useState(false)
+  const [editingField, setEditingField] = useState<FieldDefinition | null>(null)
+  const [deletingField, setDeletingField] = useState<FieldDefinition | null>(null)
+  const [isPending, setIsPending] = useState(false)
+
+  const [editLabel, setEditLabel] = useState("")
+  const [editRequired, setEditRequired] = useState(false)
+  const [editOptions, setEditOptions] = useState("")
+  const [editDisplayOrder, setEditDisplayOrder] = useState(0)
+
+  const [items] = useState<FieldDefinition[]>(fieldDefinitions)
+
+  const selectedIds = useMemo(
+    () =>
+      Object.entries(rowSelection)
+        .filter(([, isSelected]) => isSelected)
+        .map(([key]) => items.at(Number(key))?.id)
+        .filter((id): id is string => !!id),
+    [rowSelection, items],
+  )
+
+  const openEditDialog = useCallback((field: FieldDefinition) => {
+    setEditingField(field)
+    setEditLabel(field.label)
+    setEditRequired(field.required)
+    setEditOptions(field.options?.join(", ") ?? "")
+    setEditDisplayOrder(field.displayOrder)
+    setShowEditDialog(true)
+  }, [])
+
+  const openSingleDeleteDialog = useCallback((field: FieldDefinition) => {
+    setDeletingField(field)
+    setShowSingleDeleteDialog(true)
+  }, [])
+
   const columns: ColumnDef<FieldDefinition>[] = useMemo(
     () => [
+      {
+        id: "select",
+        header: ({ table }) => (
+          <Checkbox
+            checked={table.getIsAllPageRowsSelected()}
+            indeterminate={table.getIsSomePageRowsSelected() && !table.getIsAllPageRowsSelected()}
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+            aria-label="Select all"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+          />
+        ),
+        enableSorting: false,
+        enableHiding: false,
+        size: 40,
+      },
       {
         accessorKey: "entityType",
         header: "Entity",
@@ -111,15 +196,117 @@ export function FieldDefinitionsList({
             <Badge variant="outline">Inactive</Badge>
           ),
       },
+      {
+        id: "actions",
+        header: "",
+        size: 80,
+        cell: ({ row }) => {
+          const field = row.original
+          return (
+            <div className="flex items-center justify-end gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => openEditDialog(field)}
+                aria-label={`Edit ${field.label}`}
+              >
+                <PencilIcon className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => openSingleDeleteDialog(field)}
+                aria-label={`Delete ${field.label}`}
+              >
+                <Trash2Icon className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
+          )
+        },
+      },
     ],
-    [],
+    [openEditDialog, openSingleDeleteDialog],
   )
 
   const table = useReactTable({
-    data: fieldDefinitions,
+    data: items,
     columns,
+    state: { rowSelection },
+    enableRowSelection: true,
+    onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedIds.length === 0) return
+    setIsPending(true)
+    try {
+      await bulkDeleteAction({ ids: selectedIds })
+      setRowSelection({})
+      setShowDeleteDialog(false)
+      router.refresh()
+    } catch {
+      // handled by caller
+    } finally {
+      setIsPending(false)
+    }
+  }, [selectedIds, bulkDeleteAction, router])
+
+  const handleSingleDelete = useCallback(async () => {
+    if (!deletingField) return
+    setIsPending(true)
+    try {
+      await softDeleteAction(deletingField.id)
+      setDeletingField(null)
+      setShowSingleDeleteDialog(false)
+      router.refresh()
+    } catch {
+      // handled by caller
+    } finally {
+      setIsPending(false)
+    }
+  }, [deletingField, softDeleteAction, router])
+
+  const handleEdit = useCallback(async () => {
+    if (!editingField) return
+    setIsPending(true)
+    try {
+      const isSelectType =
+        editingField.dataType === "single_select" || editingField.dataType === "multi_select"
+      await updateAction({
+        id: editingField.id,
+        label: editLabel,
+        required: editRequired,
+        options: isSelectType
+          ? editOptions
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : null,
+        displayOrder: editDisplayOrder,
+        visibleToRoles: editingField.visibleToRoles,
+        editableByRoles: editingField.editableByRoles,
+      })
+      setEditingField(null)
+      setShowEditDialog(false)
+      router.refresh()
+    } catch {
+      // handled by caller
+    } finally {
+      setIsPending(false)
+    }
+  }, [
+    editingField,
+    editLabel,
+    editRequired,
+    editOptions,
+    editDisplayOrder,
+    updateAction,
+    router,
+  ])
+
+  const showOptionsField =
+    editingField?.dataType === "single_select" || editingField?.dataType === "multi_select"
 
   return (
     <div className="flex flex-1 flex-col">
@@ -136,46 +323,186 @@ export function FieldDefinitionsList({
       </div>
 
       <div className="flex-1 p-6">
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.length > 0 ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
+        <div className="space-y-4">
+          {selectedIds.length > 0 && (
+            <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2">
+              <span className="text-sm text-muted-foreground">
+                {selectedIds.length} selected
+              </span>
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowDeleteDialog(true)}
+                >
+                  <Trash2Icon />
+                  Deactivate
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-lg border">
+            <Table>
+              <TableHeader>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead key={header.id}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                      </TableHead>
                     ))}
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="h-24 text-center text-muted-foreground"
-                  >
-                    No custom fields defined yet.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {table.getRowModel().rows.length > 0 ? (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow key={row.id} data-state={row.getIsSelected() ? "selected" : undefined}>
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      className="h-24 text-center text-muted-foreground"
+                    >
+                      No custom fields defined yet.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       </div>
+
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deactivate Field Definitions</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to deactivate {selectedIds.length} field
+              definition{selectedIds.length !== 1 ? "s" : ""}? Inactive fields
+              are hidden from forms but existing data is preserved.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleBulkDelete}
+              disabled={isPending}
+            >
+              {isPending ? "Deactivating..." : "Deactivate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showSingleDeleteDialog} onOpenChange={setShowSingleDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deactivate Field Definition</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to deactivate &ldquo;{deletingField?.label}&rdquo;?
+              Inactive fields are hidden from forms but existing data is preserved.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowSingleDeleteDialog(false)}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleSingleDelete}
+              disabled={isPending}
+            >
+              {isPending ? "Deactivating..." : "Deactivate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Field Definition</DialogTitle>
+            <DialogDescription>
+              Update the properties for &ldquo;{editingField?.label}&rdquo;.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-label">Label</Label>
+              <Input
+                id="edit-label"
+                value={editLabel}
+                onChange={(e) => setEditLabel(e.target.value)}
+                placeholder="Display label"
+              />
+            </div>
+            {showOptionsField && (
+              <div className="grid gap-2">
+                <Label htmlFor="edit-options">Options (comma-separated)</Label>
+                <Input
+                  id="edit-options"
+                  value={editOptions}
+                  onChange={(e) => setEditOptions(e.target.value)}
+                  placeholder="Option 1, Option 2, Option 3"
+                />
+              </div>
+            )}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-display-order">Display Order</Label>
+              <Input
+                id="edit-display-order"
+                type="number"
+                min={0}
+                value={editDisplayOrder}
+                onChange={(e) => setEditDisplayOrder(Number(e.target.value))}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="edit-required"
+                checked={editRequired}
+                onCheckedChange={(value) => setEditRequired(!!value)}
+              />
+              <Label htmlFor="edit-required">Required</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowEditDialog(false)}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleEdit} disabled={isPending || !editLabel.trim()}>
+              {isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -1,7 +1,12 @@
 import { requireUser, requireRole } from "@/lib/security/auth"
 import { getAllFieldDefinitions } from "@/lib/data/field-definitions"
 import { FieldDefinitionsList } from "@/components/admin/field-definitions-list"
-import { createFieldDefinitionAction } from "./actions"
+import {
+  bulkDeleteFieldDefinitionsAction,
+  createFieldDefinitionAction,
+  softDeleteFieldDefinitionAction,
+  updateFieldDefinitionAction,
+} from "./actions"
 
 export default async function AdminFieldDefinitionsPage() {
   const user = await requireUser()
@@ -13,6 +18,9 @@ export default async function AdminFieldDefinitionsPage() {
     <FieldDefinitionsList
       fieldDefinitions={fieldDefinitions}
       createAction={createFieldDefinitionAction}
+      bulkDeleteAction={bulkDeleteFieldDefinitionsAction}
+      softDeleteAction={softDeleteFieldDefinitionAction}
+      updateAction={updateFieldDefinitionAction}
     />
   )
 }

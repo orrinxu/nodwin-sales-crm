@@ -1,12 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 
 import { FieldDefinitionsList } from "./field-definitions-list"
 import type { FieldDefinition } from "@/lib/data/field-definitions"
 
+const mockRefresh = vi.fn()
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: mockRefresh }),
+}))
+
 vi.mock("server-only", () => ({}))
 
 const mockCreateAction = vi.fn()
+const mockBulkDeleteAction = vi.fn()
+const mockSoftDeleteAction = vi.fn()
+const mockUpdateAction = vi.fn()
 
 const sampleFields: FieldDefinition[] = [
   {
@@ -45,8 +55,16 @@ const sampleFields: FieldDefinition[] = [
   },
 ]
 
-function renderList(fields = sampleFields) {
-  return render(<FieldDefinitionsList fieldDefinitions={fields} createAction={mockCreateAction} />)
+function renderList() {
+  return render(
+    <FieldDefinitionsList
+      fieldDefinitions={sampleFields}
+      createAction={mockCreateAction}
+      bulkDeleteAction={mockBulkDeleteAction}
+      softDeleteAction={mockSoftDeleteAction}
+      updateAction={mockUpdateAction}
+    />,
+  )
 }
 
 beforeEach(() => {
@@ -66,7 +84,15 @@ describe("FieldDefinitionsList", () => {
   })
 
   it("shows empty state when no fields defined", () => {
-    renderList([])
+    render(
+      <FieldDefinitionsList
+        fieldDefinitions={[]}
+        createAction={mockCreateAction}
+        bulkDeleteAction={mockBulkDeleteAction}
+        softDeleteAction={mockSoftDeleteAction}
+        updateAction={mockUpdateAction}
+      />,
+    )
     expect(
       screen.getByText("No custom fields defined yet."),
     ).toBeInTheDocument()
