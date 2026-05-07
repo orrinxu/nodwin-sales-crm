@@ -4,7 +4,8 @@ import {
   getOpportunityById,
   getBusinessUnitOptions,
 } from "@/lib/data/opportunities"
-import { updateOpportunityAction } from "../actions"
+import { getDocumentsForOpportunity } from "@/lib/data/documents"
+import { updateOpportunityAction, createDocumentAction } from "../actions"
 import { OpportunityDetailWrapper } from "@/components/opportunities/opportunity-detail-wrapper"
 
 export default async function OpportunityDetailPage({
@@ -16,9 +17,10 @@ export default async function OpportunityDetailPage({
   const { id } = await params
 
   const ctx = { user, source: "web" as const }
-  const [opportunity, businessUnits] = await Promise.all([
+  const [opportunity, businessUnits, documents] = await Promise.all([
     getOpportunityById(ctx, id),
     getBusinessUnitOptions(ctx),
+    getDocumentsForOpportunity(ctx, id),
   ])
 
   if (!opportunity) {
@@ -29,7 +31,9 @@ export default async function OpportunityDetailPage({
     <OpportunityDetailWrapper
       opportunity={opportunity}
       businessUnits={businessUnits}
+      documents={documents}
       updateAction={updateOpportunityAction}
+      createDocumentAction={createDocumentAction}
     />
   )
 }

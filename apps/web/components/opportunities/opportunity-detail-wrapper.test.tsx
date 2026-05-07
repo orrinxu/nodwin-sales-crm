@@ -2,8 +2,8 @@
 import { describe, it, expect, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
 import { OpportunityDetailWrapper } from "./opportunity-detail-wrapper"
-import type { OpportunityRecord } from "@/lib/data/opportunities"
-import type { BusinessUnitOption } from "@/lib/data/opportunities"
+import type { OpportunityRecord } from "@/lib/data/opportunities.types"
+import type { BusinessUnitOption } from "@/lib/data/opportunities.types"
 
 vi.mock("server-only", () => ({}))
 
@@ -17,6 +17,14 @@ vi.mock("@/lib/money", () => ({
       toDisplay: () => "$50,000.00",
     }),
   },
+}))
+
+vi.mock("@/components/opportunities/document-list", () => ({
+  DocumentList: () => <div data-testid="document-list" />,
+}))
+
+vi.mock("@/components/opportunities/document-upload-dialog", () => ({
+  DocumentUploadDialog: () => <div data-testid="document-upload-dialog" />,
 }))
 
 vi.mock("@/components/opportunities/opportunity-form", () => ({
@@ -74,7 +82,9 @@ function makeOpportunity(overrides: Partial<OpportunityRecord> = {}): Opportunit
 const defaultProps = {
   opportunity: makeOpportunity(),
   businessUnits: mockBusinessUnits,
+  documents: [],
   updateAction: vi.fn(),
+  createDocumentAction: vi.fn(),
 }
 
 describe("OpportunityDetailWrapper", () => {
@@ -213,6 +223,12 @@ describe("OpportunityDetailWrapper", () => {
     it("renders all 7 tabs", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
       expect(screen.getAllByTestId("tabs-tab")).toHaveLength(7)
+    })
+
+    it("renders document components in documents tab", () => {
+      render(<OpportunityDetailWrapper {...defaultProps} />)
+      expect(screen.getByTestId("document-list")).toBeInTheDocument()
+      expect(screen.getByTestId("document-upload-dialog")).toBeInTheDocument()
     })
 
     it("sets notes as default tab", () => {

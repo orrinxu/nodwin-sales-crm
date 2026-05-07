@@ -82,6 +82,13 @@ const eslintConfig = defineConfig([
       "node/no-process-env": "off",
     },
   },
+  // Supabase client reads public env vars at runtime to configure the browser client.
+  {
+    files: ["lib/supabase/client.ts"],
+    rules: {
+      "node/no-process-env": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
