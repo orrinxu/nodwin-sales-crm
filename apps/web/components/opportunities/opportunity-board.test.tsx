@@ -14,7 +14,7 @@ const mockOpportunity: OpportunityRecord = {
   primaryContactId: null,
   stage: "propose",
   probabilityPct: 60,
-  amount: 50000,
+  amount: "50000.00",
   currency: "USD",
   ownerUserId: "user-1",
   ownerName: "Alice Johnson",

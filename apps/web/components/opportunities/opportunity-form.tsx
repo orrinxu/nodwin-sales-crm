@@ -22,11 +22,19 @@ import {
 
 import type { OpportunityRecord, OpportunityCreateInput } from "@/lib/data/opportunities"
 import type { AccountOption } from "@/lib/data/contacts"
+import type { FieldDefinition } from "@/lib/data/field-definitions"
+import { CustomFieldsForm } from "@/components/contacts/custom-fields-form"
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required").max(200),
   accountId: z.string().min(1, "Account is required"),
-  amount: z.coerce.number().min(0).optional().or(z.literal("")),
+  amount: z.preprocess(
+    (val) => {
+      if (val === undefined || val === "" || val === 0) return undefined
+      return String(val)
+    },
+    z.string().optional(),
+  ),
   currency: z.string().max(10).optional().or(z.literal("")),
   closeDate: z.string().optional().or(z.literal("")),
   description: z.string().max(2000).optional().or(z.literal("")),
@@ -42,35 +50,46 @@ interface BusinessUnitOption {
 }
 
 interface OpportunityFormProps {
+  opportunity?: OpportunityRecord
   accounts: AccountOption[]
   businessUnits: BusinessUnitOption[]
+  fieldDefinitions?: FieldDefinition[]
   createAction: (input: OpportunityCreateInput) => Promise<OpportunityRecord>
+  updateAction?: (id: string, input: unknown) => Promise<OpportunityRecord>
   onSuccess: () => void
   trigger?: React.ReactNode
 }
 
 export function OpportunityForm({
+  opportunity,
   accounts,
   businessUnits,
+  fieldDefinitions = [],
   createAction,
+  updateAction,
   onSuccess,
   trigger,
 }: OpportunityFormProps) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>(
+    () => opportunity?.customData ?? {},
+  )
+
+  const isEditing = !!opportunity
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
-      accountId: "",
-      amount: 0,
-      currency: "USD",
-      closeDate: "",
-      description: "",
-      salesUnitId: "",
-      probabilityPct: 0,
+      name: opportunity?.name ?? "",
+      accountId: opportunity?.accountId ?? "",
+      amount: opportunity ? String(opportunity.amount) : undefined,
+      currency: opportunity?.currency ?? "USD",
+      closeDate: opportunity?.closeDate ?? "",
+      description: opportunity?.description ?? "",
+      salesUnitId: opportunity?.salesUnitId ?? "",
+      probabilityPct: opportunity?.probabilityPct ?? 0,
     },
   })
 
@@ -81,18 +100,24 @@ export function OpportunityForm({
       const input: OpportunityCreateInput = {
         name: data.name,
         accountId: data.accountId,
-        amount: data.amount || 0,
+        amount: data.amount,
         currency: data.currency || "USD",
         closeDate: data.closeDate || undefined,
         description: data.description || undefined,
         salesUnitId: data.salesUnitId,
         probabilityPct: data.probabilityPct || 0,
+        customData: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
       }
 
-      await createAction(input)
+      if (isEditing && opportunity && updateAction) {
+        await updateAction(opportunity.id, input)
+      } else {
+        await createAction(input)
+      }
 
       setOpen(false)
       form.reset()
+      setCustomFieldValues(opportunity?.customData ?? {})
       onSuccess()
     } catch (e) {
       setError(e instanceof Error ? e.message : "An unexpected error occurred")
@@ -101,8 +126,27 @@ export function OpportunityForm({
     }
   }
 
+  function handleOpenChange(newOpen: boolean) {
+    setOpen(newOpen)
+    if (newOpen && opportunity) {
+      form.reset({
+        name: opportunity.name,
+        accountId: opportunity.accountId,
+        amount: String(opportunity.amount),
+        currency: opportunity.currency,
+        closeDate: opportunity.closeDate ?? "",
+        description: opportunity.description ?? "",
+        salesUnitId: opportunity.salesUnitId,
+        probabilityPct: opportunity.probabilityPct,
+      })
+      setCustomFieldValues(opportunity.customData ?? {})
+    } else if (newOpen) {
+      setCustomFieldValues({})
+    }
+  }
+
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetTrigger
         render={
           (trigger ?? (
@@ -115,9 +159,11 @@ export function OpportunityForm({
       />
       <SheetContent side="right" className="sm:max-w-lg overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Create Opportunity</SheetTitle>
+          <SheetTitle>{isEditing ? "Edit Opportunity" : "Create Opportunity"}</SheetTitle>
           <SheetDescription>
-            Fill in the details to create a new opportunity.
+            {isEditing
+              ? "Update the opportunity details below."
+              : "Fill in the details to create a new opportunity."}
           </SheetDescription>
         </SheetHeader>
 
@@ -238,6 +284,17 @@ export function OpportunityForm({
               />
             </div>
 
+            {fieldDefinitions.length > 0 && (
+              <CustomFieldsForm
+                fieldDefinitions={fieldDefinitions}
+                values={customFieldValues}
+                onChange={(key, value) =>
+                  setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
+                }
+                errors={{}}
+              />
+            )}
+
             <div className="grid gap-1.5">
               <Label htmlFor="description">Description</Label>
               <textarea
@@ -259,7 +316,7 @@ export function OpportunityForm({
             />
             <Button type="submit" disabled={pending}>
               <Save className="size-4" />
-              {pending ? "Saving..." : "Create Opportunity"}
+              {pending ? "Saving..." : isEditing ? "Save Changes" : "Create Opportunity"}
             </Button>
           </SheetFooter>
         </form>

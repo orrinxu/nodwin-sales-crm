@@ -8,7 +8,8 @@ export interface OpportunityRecord {
   primaryContactId: string | null
   stage: DealStage
   probabilityPct: number
-  amount: number
+  /** Decimal string representation of the amount (e.g. "50000.00"). Never a float. */
+  amount: string
   currency: string
   ownerUserId: string
   ownerName: string | null

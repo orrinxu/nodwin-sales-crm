@@ -4,8 +4,13 @@ import {
   getBusinessUnitOptions,
 } from "@/lib/data/opportunities"
 import { getAccountOptions } from "@/lib/data/contacts"
-import { OpportunityBoard } from "@/components/opportunities/opportunity-board"
-import { createOpportunityAction, updateOpportunityStageAction } from "./actions"
+import { OpportunitiesView } from "@/components/opportunities/opportunities-view"
+import {
+  createOpportunityAction,
+  updateOpportunityStageAction,
+  bulkDeleteOpportunitiesAction,
+  bulkUpdateOpportunityStageAction,
+} from "./actions"
 
 export default async function OpportunitiesPage() {
   const user = await requireUser()
@@ -18,12 +23,14 @@ export default async function OpportunitiesPage() {
   ])
 
   return (
-    <OpportunityBoard
+    <OpportunitiesView
       opportunities={opportunities}
       accounts={accounts}
       businessUnits={businessUnits}
       createAction={createOpportunityAction}
       updateStageAction={updateOpportunityStageAction}
+      bulkDeleteAction={bulkDeleteOpportunitiesAction}
+      bulkUpdateStageAction={bulkUpdateOpportunityStageAction}
     />
   )
 }

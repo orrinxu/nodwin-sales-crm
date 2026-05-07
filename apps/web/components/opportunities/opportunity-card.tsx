@@ -4,6 +4,7 @@ import { useDraggable } from "@dnd-kit/core"
 import { GripVertical, Building2, DollarSign, User } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import type { OpportunityRecord } from "@/lib/data/opportunities"
+import { Money } from "@/lib/money"
 
 interface OpportunityCardProps {
   opportunity: OpportunityRecord
@@ -22,12 +23,10 @@ export function OpportunityCard({ opportunity }: OpportunityCardProps) {
       }
     : undefined
 
-  const formattedAmount = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: opportunity.currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(opportunity.amount)
+  const formattedAmount = Money.fromAmount(
+    opportunity.amount,
+    opportunity.currency,
+  ).toDisplay()
 
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
