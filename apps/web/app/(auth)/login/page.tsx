@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation"
 import { AlertTriangle } from "lucide-react"
 import { LoginButton } from "@/components/auth/login-button"
 import { MagicLinkForm } from "@/components/auth/magic-link-form"
+import { EmailOtpForm } from "@/components/auth/email-otp-form"
 import {
   Card,
   CardContent,
@@ -64,6 +65,9 @@ export default function LoginPage() {
             </div>
           </div>
           <MagicLinkForm />
+          {process.env.NEXT_PUBLIC_ENV === "local-preview" && (
+            <EmailOtpForm />
+          )}
         </CardContent>
       </Card>
     </div>

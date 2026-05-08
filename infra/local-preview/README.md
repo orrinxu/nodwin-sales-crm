@@ -102,6 +102,19 @@ This pulls the latest code, installs dependencies, builds, and restarts the app.
 
 ---
 
+## Checking OTP emails
+
+Supabase local preview uses **Inbucket** to capture outgoing emails. OTP codes sent during
+email-based login can be viewed at:
+
+```
+http://192.168.88.51:54324
+```
+
+Open that URL in a browser, find your sent email, and copy the 6-digit code.
+
+---
+
 ## Notes
 
 - The app binds to `0.0.0.0:3030` so it is accessible to other machines on the LAN.
