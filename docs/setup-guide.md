@@ -3,6 +3,20 @@
 > How to configure authentication for the Nodwin CRM from scratch.
 > Covers Supabase Cloud project creation, Google OAuth credential setup, magic link configuration, and environment wiring.
 
+## Quick start — staging sandbox without a company domain
+
+If you don't have a Nodwin Group domain or Google Workspace access yet, use this abbreviated path to get a working staging sandbox with your own personal accounts. Each step below is a simplified version of the full section listed in parentheses.
+
+1. **Supabase Cloud project** (§1) — create a free-tier Supabase project using your personal email.
+2. **Google OAuth** (§2.1) — create a GCP project using your personal Gmail. Set the OAuth consent screen to **External** (not Internal). Add your personal Gmail as a test user. Use `http://localhost:3000` and your Vercel preview URL (e.g. `https://nodwin-crm-git-dev-username.vercel.app`) as authorized origins/redirects. Leave **Authorized domains** empty — External type doesn't require verified domains.
+3. **Supabase Auth** (§3) — enable the Google provider. For the domain allowlist, leave it empty during dev so any test email can sign up. Skip the Nodwin domain restrictions.
+4. **Magic link email** (§4) — use Supabase's built-in email sender for dev (skip custom SMTP). Or sign up for a free Resend account and use their `onboarding@resend.dev` sender domain — no DNS setup needed.
+5. **Env vars** (§5) — use the Supabase Cloud project ref and anon key. Point Google OAuth env vars at your personal GCP client.
+6. **Local dev** (§6) — test on `http://localhost:3000`. Sign in with your personal Google account.
+7. **Vercel deploy** (§8) — deploy to a free Vercel account. Use the Vercel-subdomain URL (e.g. `nodwin-crm.vercel.app`) as your staging domain. Add it to your GCP OAuth client's authorized origins/redirects.
+
+> **Everything below this point** describes the full production setup with Nodwin Group domains, Google Workspace, SPF/DKIM/DMARC, and the domain allowlist. For a dev/staging sandbox you can skip sections 2.2, 3.2 (domain allowlist), 4.3 (SPF/DKIM/DMARC), and the production Vercel domain setup in §8.
+
 ---
 
 ## Table of contents
@@ -44,10 +58,12 @@ Auth is restricted to Nodwin Group Google Workspace domains (e.g. `@nodwingroup.
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com) and create a new project named `Nodwin CRM <environment>`.
 2. Navigate to **APIs & Services > OAuth consent screen**.
-   - **User type:** `Internal` (only Nodwin Group Google Workspace users will sign in).
+   - **User type:** Choose based on your stage:
+     - **Internal** — production only. Requires a Nodwin Group Google Workspace account. Only workspace users can sign in.
+     - **External** — dev/staging without a company domain. Use your personal Gmail. Add test email addresses under **Test users** (up to 100). No verified domain needed.
    - **App name:** `Nodwin CRM (<environment>)`
-   - **Support email:** Your GCP project owner email (Nodwin Group address).
-   - **Authorized domains:** Add `nodwingroup.com` and the Vercel deployment domain (e.g. `nodwin-crm.vercel.app`).
+   - **Support email:** Your GCP project owner email.
+   - **Authorized domains:** Leave empty for External (dev) type. For Internal (production), add `nodwingroup.com` and the Vercel deployment domain (e.g. `nodwin-crm.vercel.app`).
    - **Scopes:** Add `openid`, `profile`, `email`. No additional scopes are needed.
 3. Navigate to **APIs & Services > Credentials**.
 4. Click **Create Credentials > OAuth client ID**.
@@ -85,15 +101,18 @@ In the GCP OAuth consent screen settings, under **Test users**, you can add indi
 
 ### 3.2 Configure domain allowlist
 
+> **Dev shortcut:** If you don't have a Nodwin domain yet, leave the domain allowlist empty. Any email can sign up during development. Tighten this before production.
+
 1. Go to **Authentication > Settings**.
 2. Under **Auth providers > Additional settings**:
-   - **Site URL:** Your production frontend URL (e.g. `https://crm.nodwingroup.com`). This is used as the default redirect after login.
+   - **Site URL:** Your frontend URL (e.g. `http://localhost:3000` for dev, `https://crm.nodwingroup.com` for production). This is used as the default redirect after login.
    - **Redirect URLs:** Add the same origins from step 2.1:
      - `http://localhost:3000/**`
      - `https://<your-vercel-preview-domain>.vercel.app/**`
      - `https://<your-production-domain>.com/**`
 3. Under **Email > Domain verification**:
-   - Add `nodwingroup.com` (or whatever the Nodwin Group workspace domain is).
+   - Leave empty for dev/staging.
+   - For production, add `nodwingroup.com` (or whatever the Nodwin Group workspace domain is).
    - Optionally add subsidiary domains (e.g. `unpause.asia`, `trinity-gaming.com`) as they come online.
 4. Under **Security > Additional security**:
    - Disable **Allow sign-ups without email confirmation** (we want confirmed accounts or magic links only).
@@ -127,6 +146,8 @@ Two options, in order of preference:
 | **Postmark** | Gold-standard deliverability, used for inbound email parsing | More expensive per email |
 
 > Start with **Resend**. The stack already uses it for transactional email.
+>
+> **Dev shortcut:** Skip custom SMTP and use Supabase's built-in email sender. Magic links will still work — they just may land in spam. Or create a free Resend account and use their sandbox sender (`onboarding@resend.dev`) — no DNS configuration needed.
 
 ### 4.2 Set up custom SMTP in Supabase
 
@@ -173,7 +194,7 @@ SMTP_HOST=smtp.resend.com
 SMTP_PORT=465
 SMTP_USER=<smtp-username>
 SMTP_PASS=<smtp-password>
-SMTP_SENDER_EMAIL=crm@nodwingroup.com
+SMTP_SENDER_EMAIL=crm@nodwingroup.com  # dev: use onboarding@resend.dev or skip SMTP entirely
 SMTP_SENDER_NAME=Nodwin CRM
 
 # --- Resend (if using Resend for transactional email) ---
@@ -205,7 +226,7 @@ Each environment uses a **separate** Supabase project and GCP OAuth client. Do n
 2. Start the app: `pnpm dev`
 3. Visit `http://localhost:3000`. You should see a login page.
 4. Click **Sign in with Google**. You should be redirected to Google's consent screen.
-5. Sign in with a Nodwin Group Google Workspace account.
+5. Sign in with a Google account — your personal Gmail for dev, or a Nodwin Group Workspace account for production.
 6. After consent, you are redirected back to the app. You should be authenticated.
 7. Open the browser's Application/Storage tab and confirm a Supabase session exists in local storage.
 8. Try the magic link flow: enter your email on the login page and click **Send magic link**. Check your inbox for the email. Click the link — you should be signed in without a password.
