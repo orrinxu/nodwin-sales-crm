@@ -13,7 +13,8 @@
 4. [Configure magic link email (custom SMTP)](#4-configure-magic-link-email-custom-smtp)
 5. [Environment variables](#5-environment-variables)
 6. [Verify it works](#6-verify-it-works)
-7. [Vercel deployment](#7-vercel-deployment)
+7. [Link Supabase CLI to Cloud and run migrations](#7-link-supabase-cli-to-cloud-and-run-migrations)
+8. [Vercel deployment](#8-vercel-deployment)
 
 ---
 
@@ -221,7 +222,110 @@ Each environment uses a **separate** Supabase project and GCP OAuth client. Do n
 
 ---
 
-## 7. Vercel deployment
+## 7. Link Supabase CLI to Cloud and run migrations
+
+Once the Supabase Cloud project exists, link it to the repo so migrations are applied from code, not from the Dashboard UI.
+
+### 7.1 Install Supabase CLI
+
+```bash
+# macOS
+brew install supabase/tap/supabase
+
+# Linux (curl)
+curl -fsSL https://github.com/supabase/cli/releases/download/v2.20.12/supabase_linux_amd64.deb -o supabase.deb
+sudo dpkg -i supabase.deb
+
+# Verify
+supabase --version
+```
+
+### 7.2 Link to your Supabase Cloud project
+
+```bash
+# From the root of the repo
+supabase link --project-ref <project-ref>
+```
+
+The CLI prompts for your database password. This creates a `supabase/config.toml` with the project reference and connection details.
+
+> If you haven't run `supabase init` yet, do that first: `supabase init`. It creates the `supabase/` directory structure including `migrations/`, `seed.sql`, and `config.toml`.
+
+### 7.3 Run migrations
+
+If there are existing migration files in `supabase/migrations/`:
+
+```bash
+# Apply all pending migrations to the linked Cloud project
+supabase db push
+```
+
+If there are no migrations yet, you can pull the schema from the Cloud project as the starting baseline:
+
+```bash
+# Dump the Cloud DB schema into a migration file
+supabase db diff --use-migra -f initial_schema
+
+# Apply it locally
+supabase migration up
+```
+
+If you already have a local Supabase instance with a schema you want to migrate:
+
+```bash
+# Step 1: Start local Supabase
+supabase start
+
+# Step 2: Diff local vs prod/staging and generate migration
+supabase db diff --linked -f migrate_local_to_cloud
+
+# Step 3: Push the migration to the linked Cloud project
+supabase db push
+```
+
+### 7.4 Seed data (sandbox only)
+
+```bash
+supabase db reset --linked
+```
+
+This drops, recreates, and seeds the linked (cloud) database. **Never run this against production** — it destroys all data.
+
+### 7.5 Auth config via CLI (alternative to Dashboard)
+
+Auth provider settings can be managed via the Supabase Management API if you prefer code-driven config. For now, the Supabase Dashboard UI (steps in §3) is the recommended path since auth settings are mostly one-time configuration, not iterative code.
+
+### Migration checklist
+
+| Step | Command / Action | Notes |
+|---|---|---|
+| Install Supabase CLI | `supabase --version` | v2.20+ recommended |
+| Init repo structure | `supabase init` | Creates `supabase/` dir |
+| Link to Cloud | `supabase link --project-ref <ref>` | Uses DB password |
+| Push existing migrations | `supabase db push` | Idempotent — safe to re-run |
+| Pull schema baseline | `supabase db diff -f initial_schema` | Only if no migrations exist |
+| Apply seed data | `supabase db reset --linked` | Sandbox/staging only |
+| Verify auth config | Dashboard > Authentication | One-time via UI |
+
+### 7.6 Local-to-Cloud env var switch
+
+After linking, update `.env.local` to point at the Cloud project instead of the local Supabase instance:
+
+```bash
+# Before (local Supabase with Docker):
+# NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+# NEXT_PUBLIC_SUPABASE_ANON_KEY=<local-anon-key>
+
+# After (Supabase Cloud):
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<cloud-anon-key>
+```
+
+The anon key and project ref are in **Supabase Dashboard > Project Settings > API**.
+
+---
+
+## 8. Vercel deployment
 
 When deploying to Vercel:
 
