@@ -1,0 +1,59 @@
+# .rls-allowlist — Legitimate exceptions for RLS policy linter
+#
+# Format per line:
+#   - file_pattern:line_pattern   (scoped to matching files)
+#   - line_pattern                (global, applies to all files)
+#
+# Blank lines and lines starting with # are ignored.
+# Patterns are grep -E extended regex.
+
+# ── auth_allowed_domains ───────────────────────────────────────────────────────
+# This table is queried by the Supabase Auth Hook Edge Function on every
+# sign-up. The policies are restricted to service_role, which bypasses RLS
+# in Supabase by default. These explicit policies are documentation only.
+# No anon/authenticated user can access this table.
+.*auth_allowed_domains.*:USING \(true\)
+.*auth_allowed_domains.*:WITH CHECK \(true\)
+
+# ── audit_log ──────────────────────────────────────────────────────────────────
+# All authenticated users can read audit logs for record history.
+# This is intentional: audit_log is append-only and users need to see
+# history for records they own. Write access is admin-only.
+.*audit.*:auth\.uid\(\) IS NOT NULL
+
+# ── opportunity_splits / opportunity_team_members ──────────────────────────────
+# FOR ALL is used for admin-only write policies on junction tables.
+# These are safe because the USING/WITH CHECK clauses restrict to admin role.
+.*opportunit.*:FOR ALL
+
+# ── money_helpers ──────────────────────────────────────────────────────────────
+# False positive: comment contains the words "for all" but there is no RLS
+# policy in this migration.
+.*money_helpers.*:FOR ALL
+
+# ── ai_usage ───────────────────────────────────────────────────────────────────
+# ai_daily_caps is a configuration table. All authenticated users need read
+# access to see their daily cap. Write access is admin-only.
+.*ai_usage.*:auth\.uid\(\) IS NOT NULL
+
+# ── currencies ─────────────────────────────────────────────────────────────────
+# Currencies is a read-only lookup table. All authenticated users need read
+# access to reference currency codes. Write access is admin-only.
+.*currencies.*:USING \(true\)
+
+# ── custom_fields ───────────────────────────────────────────────────────────────
+# field_definitions is a configuration table. All authenticated users need
+# read access to see field schemas. Write access is admin-only.
+.*custom_fields.*:USING \(true\)
+
+# ── drive_config ────────────────────────────────────────────────────────────────
+# Drive configuration is a per-entity settings table. All authenticated users
+# need read access to discover Drive folder IDs. Write access is admin-only.
+.*drive_config.*:USING \(true\)
+
+# ── entities / business_units ────────────────────────────────────────────────────
+# These are organizational hierarchy tables. All authenticated users need
+# read access to discover entity and business unit structure. Write access
+# is admin-only.
+.*entities.*:USING \(true\)
+.*business_units.*:USING \(true\)

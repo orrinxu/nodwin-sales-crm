@@ -1,0 +1,140 @@
+import { Money } from "../money"
+
+export type AiProvider = "claude" | "gemini" | "kimi" | "deepseek" | "ollama_local"
+
+export type AiFeature =
+  | "search"
+  | "summarise_deal"
+  | "draft_email"
+  | "next_best_action"
+  | "other"
+
+export type AiCallStatus =
+  | "success"
+  | "error"
+  | "rate_limited"
+  | "cap_rejected"
+  | "fallback"
+
+export interface UsageRecord {
+  id: string
+  userId: string
+  provider: AiProvider
+  model: string
+  promptTokens: number
+  completionTokens: number
+  cost: Money
+  feature: AiFeature
+  requestId: string
+  startedAt: string
+  finishedAt: string
+  status: AiCallStatus
+}
+
+export interface InsertUsageParams {
+  userId: string
+  provider: AiProvider
+  model: string
+  promptTokens: number
+  completionTokens: number
+  cost: Money
+  feature: AiFeature
+  requestId: string
+  startedAt: Date
+  finishedAt?: Date
+  status?: AiCallStatus
+}
+
+export type CapScope = "user" | "team" | "company"
+
+export interface CapCheckResult {
+  allowed: boolean
+  reason: string | null
+  capScope: CapScope | null
+  capLimit: Money | null
+  currentSpend: Money | null
+  suggestedAction: "proceed" | "degrade_to_ollama" | "reject"
+}
+
+export interface DailyCapConfig {
+  softCap: Money | null
+  hardCap: Money | null
+}
+
+export interface TeamDailyCap {
+  teamId: string
+  hardCap: Money | null
+}
+
+export interface CompanyDailyCap {
+  entityId: string
+  hardCap: Money | null
+}
+
+export interface UsageLogger {
+  log(params: InsertUsageParams): Promise<UsageRecord>
+}
+
+export interface CapChecker {
+  check(
+    userId: string,
+    estimatedCost: Money,
+    context?: { teamId?: string; entityId?: string },
+  ): Promise<CapCheckResult>
+}
+
+export interface DailyUsage {
+  cost: Money
+  totalPromptTokens: number
+  totalCompletionTokens: number
+  callCount: number
+}
+
+export interface AiCallParams {
+  feature: AiFeature
+  userId: string
+  prompt: string
+  systemPrompt?: string
+  teamId?: string
+  entityId?: string
+  estimatedCost: Money
+  estimatePromptTokens: number
+  estimateCompletionTokens: number
+  requestId: string
+}
+
+export interface AiCallResult {
+  ok: boolean
+  data?: string
+  model?: string
+  provider?: AiProvider
+  reason?: string
+}
+
+export interface CapDataSource {
+  getUserDailyUsage(userId: string): Promise<DailyUsage>
+  getTeamDailyUsage(teamId: string): Promise<{ cost: Money }>
+  getCompanyDailyUsage(entityId: string): Promise<{ cost: Money }>
+  getUserCapOverrides(userId: string): Promise<{
+    userSoftCap: Money | null
+    userHardCap: Money | null
+  }>
+  getTeamHardCap(teamId: string): Promise<Money | null>
+  getCompanyHardCap(entityId: string): Promise<Money | null>
+  getUserTeamId(userId: string): Promise<string | null>
+  getUserEntityId(userId: string): Promise<string | null>
+}
+
+export interface ProviderAdapter {
+  call(prompt: string, systemPrompt?: string): Promise<{
+    text: string
+    model: string
+    promptTokens: number
+    completionTokens: number
+  }>
+}
+
+export const DEFAULT_USER_SOFT_CAP = Money.fromAmount(3, "USD")
+export const DEFAULT_USER_HARD_CAP = Money.fromAmount(5, "USD")
+export const DEFAULT_TEAM_HARD_CAP_PER_USER = Money.fromAmount(5, "USD")
+export const DEFAULT_COMPANY_HARD_CAP = Money.fromAmount(500, "USD")

@@ -82,6 +82,19 @@ See `AGENTS.md` §3 for the pinned stack. Summary:
 
 ## Getting started (human or agent)
 
+### Prerequisites
+
+| Tool | Minimum version | Install |
+|---|---|---|
+| **Docker Desktop** (or Docker Engine) | 24+ | https://docs.docker.com/get-docker/ |
+| **Node.js** | 20+ | https://nodejs.org |
+| **pnpm** | 10+ | `npm i -g pnpm` |
+| **Supabase CLI** | 1.x | `brew install supabase/tap/supabase` or `npm i -g supabase` |
+
+Docker must be running before you execute any `supabase:*` or `db:*` scripts. The Supabase local stack runs entirely in containers.
+
+### Quick start
+
 ```bash
 # 1. Clone and install
 git clone <repo-url>
@@ -148,57 +161,68 @@ nodwin-crm/
 ├── BUILD_TICKETS.md           # ordered ticket list
 ├── CHANGELOG.md               # human-readable changelog
 ├── docs/
-│   ├── SOW.md                 # full strategic source of truth
+│   ├── SOW.md                 # full strategic source of truth (v1.1)
 │   ├── data-model.md          # schema reference
 │   ├── integrations.md        # integration architecture details
 │   ├── security.md            # threat model and pre-launch checklist
-│   └── runbook-incident.md    # what to do when things break
-├── app/                       # Next.js App Router pages
-│   ├── (auth)/                # public auth pages (login, oauth callback)
-│   ├── (crm)/                 # authenticated CRM (the main app)
-│   │   ├── accounts/
-│   │   ├── contacts/
-│   │   ├── opportunities/
-│   │   ├── dashboard/
-│   │   ├── admin/
-│   │   └── settings/
-│   └── api/                   # server-side API routes
-│       ├── ai/                # AI router endpoints (cap-enforced)
-│       ├── webhooks/          # inbound webhooks (signature-verified)
-│       └── ...
-├── components/
-│   ├── ui/                    # shadcn/ui primitives (do not modify)
-│   ├── kanban/                # opportunity kanban
-│   ├── opportunity-detail/
-│   ├── dashboards/
-│   └── ...
-├── lib/
-│   ├── money.ts               # HIGH-RISK
-│   ├── ai/
-│   │   └── router.ts          # HIGH-RISK
-│   ├── webhooks/              # HIGH-RISK
-│   ├── email/
-│   │   └── inbound.ts         # HIGH-RISK
-│   ├── security/              # HIGH-RISK
-│   ├── data/                  # typed Supabase queries
-│   ├── slack/                 # Slack integration helpers
-│   ├── google/                # Google Workspace integration helpers
-│   ├── workflows/             # XState machines (approval, deal stage, etc.)
-│   └── utils/
+│   ├── runbook-incident.md    # incident response procedures
+│   └── _sources/              # source documents (SOW originals)
+├── apps/
+│   └── web/                   # Next.js web application (main app)
+│       ├── app/               # Next.js App Router pages
+│       │   ├── page.tsx       # root page
+│       │   ├── layout.tsx     # root layout
+│       │   ├── globals.css    # Tailwind CSS v4 entry
+│       │   └── api/           # server-side API routes
+│       │       └── auth/
+│       │           └── callback/  # Google OAuth callback
+│       ├── lib/               # shared application code
+│       │   ├── money.ts       # HIGH-RISK — dinero.js wrapper
+│       │   ├── ai/            # HIGH-RISK — AI router + 5 provider adapters
+│       │   │   ├── router.ts
+│       │   │   ├── cap-enforcement.ts
+│       │   │   ├── usage-logger.ts
+│       │   │   ├── supabase-cap-source.ts
+│       │   │   └── providers/ (anthropic, gemini, deepseek, moonshot, ollama)
+│       │   ├── webhooks/      # HIGH-RISK — signature verification
+│       │   │   └── postmark.ts
+│       │   ├── email/         # HIGH-RISK — inbound email parser
+│       │   │   └── inbound.ts
+│       │   ├── security/      # HIGH-RISK — auth, audit, env, errors
+│       │   │   ├── auth.ts
+│       │   │   ├── audit.ts
+│       │   │   └── env.ts
+│       │   ├── data/          # typed Supabase queries (one file per entity)
+│       │   │   └── opportunity-stage-history.ts
+│       │   ├── workflows/     # XState state machines
+│       │   │   ├── deal-stage.ts
+│       │   │   ├── approval.ts
+│       │   │   └── *.test.ts
+│       │   └── utils.ts
+│       ├── __tests__/         # Vitest test files
+│       ├── next.config.ts
+│       └── vitest.config.ts
 ├── supabase/
-│   ├── migrations/            # HIGH-RISK — SQL migrations, ordered
+│   ├── migrations/            # HIGH-RISK — SQL migrations, ordered (12 files)
 │   ├── policies/              # HIGH-RISK — RLS policies, one file per table
-│   ├── tests/                 # .test.sql RLS tests
-│   ├── functions/             # Edge functions (server-side)
+│   ├── tests/                 # pgTAP RLS tests (9 files)
+│   ├── functions/             # Edge functions (empty — planned)
 │   └── seed/                  # sandbox seed data (dev only)
+├── infra/
+│   └── local-preview/         # PM2 + local preview deployment
+│       ├── ecosystem.config.js
+│       └── deploy.sh
+├── scripts/                   # CI / utility scripts
+│   ├── check-rls-coverage.sh
+│   ├── lint-rls.sh
+│   └── paperclip-issue-update.sh
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml             # lint + typecheck + test + RLS test
-│       ├── secret-scan.yml    # gitleaks
-│       └── deploy.yml         # production deploy (manual approval gate)
+│       └── secret-scan.yml    # gitleaks
 ├── .eslintrc.cjs              # HIGH-RISK — do not weaken rules
 ├── .env.example               # documented env vars (no real values)
-└── (config: package.json, tsconfig.json, etc.)
+└── (config: package.json, tsconfig.json, pnpm-workspace.yaml, etc.)
 ```
 
 ---
@@ -214,6 +238,8 @@ nodwin-crm/
 ---
 
 ## Deployment
+
+See `docs/deploy-vercel.md` for the full Vercel setup guide (project creation, env vars, DNS, OAuth, troubleshooting).
 
 | Environment | Frontend | Supabase | Purpose |
 |---|---|---|---|

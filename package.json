@@ -8,10 +8,22 @@
     "build": "pnpm --filter web build",
     "lint": "pnpm --filter web lint",
     "typecheck": "pnpm --filter web typecheck",
-    "test": "pnpm --filter web test"
+    "test": "pnpm --filter web test",
+    "supabase:start": "supabase start",
+    "db:migrate": "supabase db push",
+    "db:reset": "supabase db reset",
+    "db:seed": "supabase db query --local --file supabase/seed/seed-test-data.sql",
+    "db:test": "supabase test db",
+    "rls:check": "bash scripts/check-rls-coverage.sh"
   },
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=10.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.39",
+    "eslint-plugin-n": "17.24.0",
+    "eslint-plugin-security": "4.0.0",
+    "vitest": "4.1.5"
   }
 }

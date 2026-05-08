@@ -1,0 +1,148 @@
+# CI Pipeline - Nodwin Sales CRM
+# Runs on every PR: install, lint, typecheck, vitest, RLS tests, build
+#
+# Tool installation: any new tool used in this workflow MUST be installed via a
+# setup action or apt-get earlier in the same job. Do not assume tools are
+# pre-installed.
+#
+# Performance notes:
+# - pnpm dependency cache between runs
+# - Node 20+ (Next.js 15 requirement)
+# - Supabase start adds ~3 min; total budget is 20 min
+#
+# Branch protection: PRs to main require all checks to pass.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  NEXT_TELEMETRY_DISABLED: 1
+  NODE_OPTIONS: --max-old-space-size=4096
+
+jobs:
+  ci:
+    name: CI Pipeline
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Reject merge conflict markers
+        run: |
+          if grep -rE '^<{7}|^={7}|^>{7}' --include='*.ts' --include='*.tsx' --include='*.js' --include='*.sql' --include='*.json' --include='*.yml' --include='*.yaml' --include='*.md' . --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=out --exclude-dir=.git; then
+            echo "ERROR: Unresolved merge conflict markers found in repository."
+            exit 1
+          fi
+
+      - name: Verify ESLint custom rule completeness
+        run: bash scripts/verify-eslint-rules.sh
+        timeout-minutes: 1
+
+      - name: Run RLS policy linter
+        run: VRLS_WARNINGS_ARE_ERRORS=1 bash scripts/lint-rls.sh
+        timeout-minutes: 2
+
+      - name: Run RLS policy coverage check
+        run: bash scripts/check-rls-coverage.sh
+        timeout-minutes: 1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        timeout-minutes: 5
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pnpm-store
+            node_modules
+            apps/*/node_modules
+          key: ${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-
+
+      - name: Lint
+        run: pnpm lint
+        timeout-minutes: 5
+
+      - name: Typecheck
+        run: pnpm typecheck
+        timeout-minutes: 10
+
+      - name: Run unit tests
+        run: pnpm test
+        timeout-minutes: 10
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start Supabase local stack
+        run: |
+          set -o pipefail
+          supabase start 2>&1 | tee /tmp/supabase-start.log
+          if grep -qiE '(does not have.*(rls|row level security)|rls.*warning|warning.*rls)' /tmp/supabase-start.log; then
+            echo "::error::RLS warnings detected in Supabase startup output"
+            exit 1
+          fi
+        timeout-minutes: 8
+
+      - name: Run RLS tests
+        run: pnpm db:test
+        timeout-minutes: 5
+
+      - name: Build
+        run: pnpm build
+        timeout-minutes: 10
+
+  secret-scan:
+    name: Secret Scanner
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2.3.7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload gitleaks results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-results
+          path: gitleaks-report.json
+          retention-days: 30

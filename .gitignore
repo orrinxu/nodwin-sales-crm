@@ -46,3 +46,4 @@ github_ssh.pub
 
 # Vercel
 .vercel
+.paperclip/

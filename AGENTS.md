@@ -192,7 +192,7 @@ The board may also configure Paperclip to require approval before any change to 
 
 1. Read the ticket in full.
 2. Read this file. (Yes, every session.)
-3. Skim `BUILD_TICKETS.md` to see what came before and what comes after — context matters.
+3. Before any work on a ticket, **read the full ticket detail in `BUILD_TICKETS.md`** (search for the ticket ID heading). Do not begin work based on the ticket summary alone. If `BUILD_TICKETS.md` lacks the detail you need, ask the board — but only after confirming the file doesn't contain it.
 4. If the ticket touches a high-risk file (§6), say so up front in your first message on the ticket.
 5. If anything is ambiguous, ask the board before coding. Ambiguity is not your call to resolve.
 
@@ -206,7 +206,14 @@ The board may also configure Paperclip to require approval before any change to 
 
 ### 7.3 Before opening a PR
 
-Run locally:
+**Branch hygiene (prevents stale commits and merge conflicts):**
+
+1. **Every new branch MUST be created from `origin/main`**: `git fetch origin && git switch -c feat/orr-xxx origin/main`
+2. **Before opening a PR, rebase on latest main**: `git fetch origin && git rebase origin/main`. Resolve conflicts before requesting review.
+3. **If your branch contains commits already merged to main**, do NOT open a PR. Create a fresh branch from `origin/main` and cherry-pick only unmerged commits.
+4. **One branch = one ticket**. Never reuse a branch for a different ticket.
+
+**Local checks:**
 
 ```bash
 pnpm lint
@@ -216,6 +223,18 @@ pnpm db:test  # runs RLS policy tests
 ```
 
 All four must pass. If any fails, fix it before opening the PR. If a failure is genuinely outside your ticket's scope, document it in the PR and surface it to the board.
+
+**Pre-commit hook (mandatory):**
+
+Install the pre-commit hook once per clone. This runs the RLS policy linter before every commit so violations never reach CI.
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Never commit with `--no-verify` to bypass the hook. If the hook fails, fix the RLS issue or add a justified exception to `.rls-allowlist` with a comment explaining why it is safe.
+
+**Stale branch policy:** PRs with merge conflicts caused by already-merged commits will be closed without review. Open a clean PR from a fresh branch.
 
 ### 7.4 PR description format
 
@@ -235,6 +254,9 @@ All four must pass. If any fails, fix it before opening the PR. If a failure is 
 ## Manual verification
 <what you did to confirm this works beyond automated tests>
 
+## Workflow runs (required if PR touches .github/workflows/)
+<link to a successful CI run on this PR's branch, with green checks for all affected workflows>
+
 ## Open questions for the board
 <anything you want a human to look at, or "none">
 ```
@@ -246,6 +268,15 @@ All four must pass. If any fails, fix it before opening the PR. If a failure is 
   - A test confirming the policy allows the intended user
   - A test confirming the policy denies an unauthorised user
   - A test for at least one edge case (e.g., user removed from team, visibility tier changed)
+- The `scripts/check-rls-coverage.sh` linter enforces this automatically in CI.
+- **Legitimate exceptions** may be granted via the `SECURITY_REVIEWER_EXEMPT` annotation in the policy file:
+  ```sql
+  -- SECURITY_REVIEWER_EXEMPT
+  -- Reviewer: <agent_id>
+  -- Date: <YYYY-MM-DD>
+  -- Reason: <why this table/policy is exempt from test coverage>
+  ```
+  Exemptions require explicit security reviewer approval and must include the reviewer's identity, date, and justification.
 - Every webhook handler has a test exercising signature verification — including a forged-signature case that must reject.
 - Every money operation has a test using `dinero.js` semantics (no float comparisons).
 - E2E tests for major user flows (deal creation, stage advance, approval, P&L generation) but only after the feature is functionally complete.
@@ -255,6 +286,10 @@ All four must pass. If any fails, fix it before opening the PR. If a failure is 
 - Comment the *why*, not the *what*.
 - If you write a comment explaining why something looks weird, also leave a note for whether it can be cleaned up later or whether it's load-bearing weirdness.
 - Do not write apologetic or hedging comments ("I think this works", "not sure if this is right"). If you're not sure, ask the board.
+
+### 7.7 Data-layer source parameter
+
+Every function in `lib/data/` accepts an explicit `{ user, source }` parameter and passes both to audit logging. The `source` value is one of: `'web' | 'mcp' | 'webhook' | 'system'`. RLS uses `user` for permission checks. Rate limiting and audit context use `source` to distinguish the call origin. Functions that omit either parameter must be flagged in code review and rejected.
 
 ---
 
@@ -281,17 +316,56 @@ A ticket is done when:
 5. PR has been reviewed by the CTO agent (or the board, if the ticket touches a high-risk file).
 6. PR is merged to `main`.
 7. The ticket is updated with a brief summary of what shipped.
+8. **File existence verified on `main`:** Before closing a ticket, the CEO must confirm that every file listed in "Files in scope" actually exists on `main` with non-trivial content. Run `git ls-files | grep <expected_file>` for each scoped file. If any file is absent or empty/stub-only, the ticket is NOT done — it is blocked pending merge or implementation. A ticket may not be marked `done` solely because a PR was opened, a feature branch exists, or local tests passed. **The file must be in `main`.**
 
-A ticket is **not** done because the code "works on my machine" or "looks right." It is done when it's in `main` with passing CI and a sign-off.
+A ticket is **not** done because the code "works on my machine", "looks right", or "is on a feature branch." It is done when it's in `main` with passing CI and a sign-off, and the files are verifiably present.
 
 ---
 
-## 10. The "vibe coding" failure modes — explicit list
+## 10. Ticket scope and discipline
+
+### 10.1 One ticket = one PR
+
+- **A single PR implements exactly one ticket.** Do not combine multiple tickets into a single PR, even if they are "related" or "small."
+- If you finish a ticket and notice adjacent work that should also be done, open a new ticket — do not append it to the current PR.
+- PRs that combine tickets without explicit CEO approval will be rejected.
+
+### 10.2 Don't silently expand scope
+
+- If you discover during implementation that your ticket requires building infrastructure that was previously marked `done` but does not exist on `main`, **stop immediately.**
+- Do not silently implement the missing work. Post a comment on your ticket explaining the blocker and tag the CTO/CEO.
+- The CTO/CEO will either reopen the original ticket, create a new ticket for the missing work, or explicitly adjust your ticket's scope.
+- Workers who silently expand scope without surfacing the change will receive a process warning. Repeated violations may result in reassignment.
+
+### 10.3 Don't combine tickets
+
+- Never use a single branch or PR to close multiple independent tickets.
+- Never add "while I'm here" refactors, feature additions, or bug fixes that are not in the ticket's described scope.
+- If a linter or typechecker flags issues in code outside your ticket's scope, surface it — do not fix it silently.
+
+### 10.4 Branch hygiene
+
+To prevent stale commits and unnecessary merge conflicts, all agents MUST follow these branching rules:
+
+1. **Branch from latest main.** Every new branch MUST be created from the latest `origin/main`:
+   ```
+   git fetch origin && git switch -c feat/orr-xxx origin/main
+   ```
+2. **Rebase before PR.** Before submitting a PR, rebase on the latest main:
+   ```
+   git fetch origin && git rebase origin/main
+   ```
+3. **No already-merged commits in PRs.** If a branch contains commits already merged to main, do NOT submit a PR. Create a fresh branch and cherry-pick only the unmerged commits.
+4. **One branch = one ticket.** Never reuse a branch for multiple tickets.
+
+---
+
+## 11. The "vibe coding" failure modes — explicit list
 
 This project is being built primarily via AI-assisted coding with a non-coder lead. The historical failure modes for this approach are well-documented and have all been observed before. Pre-emptively, every agent must guard against:
 
 1. **The "Auth Emails Vanish" problem.** Resolved by mandatory custom SMTP from day one. If you find code using Supabase default SMTP for transactional email, that is a bug — open a ticket.
-2. **The "Public RLS" catastrophe.** Resolved by mandatory RLS on every public table, mandatory `.test.sql` for every policy, and CI that runs the test suite. If you create a table without RLS and tests, that is a bug.
+2. **The "Public RLS" catastrophe.** Resolved by mandatory RLS on every public table, mandatory `.test.sql` for every policy, the `scripts/check-rls-coverage.sh` linter (enforced in CI), and CI that runs the full test suite. If you create a table without RLS and tests, that is a bug. Legitimate exceptions require `SECURITY_REVIEWER_EXEMPT` with reviewer approval (see §7.5).
 3. **The "Stripe Webhook Wide Open" mistake.** Resolved by the rule that every webhook handler's first line is signature verification, and CI/lint that flags missing verification. Even though we don't use Stripe, this applies to every webhook — Slack, Postmark, Google.
 4. **The "Agent Lost the Plot" drift.** Resolved by this file being read every session, by ticket-scoped work, and by `BUILD_TICKETS.md` enforcing sequence.
 5. **The "Free Tier Abuse Drain."** Resolved by `lib/ai/router.ts` enforcing per-user, per-team, per-company hard caps, plus rate limits at the API gateway, plus provider-dashboard-level caps. If you find an AI call path bypassing the router, that is a bug.
@@ -301,7 +375,13 @@ If you see any of the above failure patterns appearing during development, surfa
 
 ---
 
-## 11. Working with Paperclip
+## 12. GitHub access
+
+All agents have SSH access to GitHub. The system SSH key (`~/.ssh/id_ed25519`) is already authenticated with the remote repository. You can `git fetch`, `git push`, and open PRs without additional setup. If you encounter a permission-denied error, stop and escalate to the CEO.
+
+---
+
+## 13. Working with Paperclip
 
 This repo is orchestrated by Paperclip (https://github.com/paperclipai/paperclip). You are running as an agent inside a Paperclip company. Specifically:
 
@@ -315,7 +395,7 @@ If you do not know what role you are playing, ask.
 
 ---
 
-## 12. When to escalate to the human board
+## 14. When to escalate to the human board
 
 Escalate (via Paperclip's approval mechanism or by stopping work and surfacing a question) when:
 
@@ -332,7 +412,7 @@ The board would rather be asked too often than too rarely. There is no penalty f
 
 ---
 
-## 13. Things that are explicitly NOT your job
+## 15. Things that are explicitly NOT your job
 
 To save you cognitive load:
 
@@ -347,7 +427,7 @@ Stay in your lane. The lane is well-defined and there's plenty to do inside it.
 
 ---
 
-## 14. Final note
+## 16. Final note
 
 If you are an agent reading this for the first time: the rules above are not bureaucracy. They are the codified output of weeks of careful design decisions, plus a body of documented failure modes from people who tried to build similar things without these rules. Following them is what makes this project safe to ship. Working around them is what makes a $400 surprise bill, a leaked client RFP, or a wrong revenue number that goes to a finance team.
 
