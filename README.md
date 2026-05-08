@@ -239,6 +239,8 @@ nodwin-crm/
 
 ## Deployment
 
+See `docs/deploy-vercel.md` for the full Vercel setup guide (project creation, env vars, DNS, OAuth, troubleshooting).
+
 | Environment | Frontend | Supabase | Purpose |
 |---|---|---|---|
 | Local | `pnpm dev` | local docker | individual development |

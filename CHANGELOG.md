@@ -5,6 +5,12 @@ For code changes, see git history and individual PR descriptions.
 
 ---
 
+## 2026-05-08
+
+### Added
+
+- **Vercel deployment guide (ORR-390):** `docs/deploy-vercel.md` — comprehensive setup instructions mirroring the GitHub CI pipeline. Covers project creation, environment variables, DNS, Google OAuth callback configuration, per-environment settings, migration strategy, and troubleshooting. README deployment section updated to link to the new guide.
+
 ## 2026-05-06
 
 ### Added
