@@ -30,10 +30,10 @@ describe("MagicLinkForm", () => {
     expect(screen.getByRole("button", { name: /send magic link/i })).toBeInTheDocument()
   })
 
-  it("disables send button when email is empty", () => {
+  it("enables send button even when email is empty", () => {
     render(<MagicLinkForm />)
 
-    expect(screen.getByRole("button", { name: /send magic link/i })).toBeDisabled()
+    expect(screen.getByRole("button", { name: /send magic link/i })).not.toBeDisabled()
   })
 
   it("calls signInWithOtp on email submit", async () => {

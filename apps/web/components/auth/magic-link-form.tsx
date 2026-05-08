@@ -104,7 +104,7 @@ export function MagicLinkForm() {
         </div>
         <Button
           type="submit"
-          disabled={loading || !form.watch("email")}
+          disabled={loading}
         >
           {loading ? (
             <Loader2 className="mr-2 size-4 animate-spin" />
