@@ -49,7 +49,7 @@ enabled = true
 [auth]
 enabled = true
 site_url = "http://192.168.88.51:3030"
-additional_redirect_urls = ["http://192.168.88.51:3030", "http://192.168.88.51:3030/api/auth/callback"]
+additional_redirect_urls = ["http://192.168.88.51:3030", "http://192.168.88.51:3030/api/auth/callback", "http://192.168.88.51:3030/auth/confirm"]
 jwt_expiry = 3600
 enable_signup = true
 
