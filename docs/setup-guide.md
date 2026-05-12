@@ -42,7 +42,7 @@ Two projects are needed (one per environment). Start with the production project
    - **Name:** `nodwin-crm-<environment>` (e.g. `nodwin-crm-production`)
    - **Database password:** Generate a strong one. Store in 1Password / vault.
    - **Region:** `Singapore` (`ap-southeast-1`) — closest to the East Asia user base.
-    - **Pricing plan:** `Pro` (required for custom SMTP, larger DB size, and daily backups). For a dev sandbox, the **Free** tier is sufficient.
+   - **Pricing plan:** `Pro` (required for custom SMTP, larger DB size, and daily backups). For a dev sandbox, the **Free** tier is sufficient.
 4. Wait for the project to spin up (~2 minutes).
 5. Note the **Project URL**, **Project API keys** (anon + service_role), and **Project ID** from **Project Settings > General**.
 
@@ -59,6 +59,7 @@ Auth is restricted to Nodwin Group Google Workspace domains (e.g. `@nodwingroup.
 > **Plan your URLs before creating the OAuth client.** Google does not support wildcards in authorized origins or redirect URIs. Vercel generates a unique hostname per branch/commit (e.g. `project-git-feature-xyz.vercel.app`), so you cannot register every preview URL individually. You must use a **single stable domain alias** for each non-production environment:
 >
 > - A custom subdomain like `staging-crm.nodwingroup.com` pointed at Vercel via a CNAME record.
+> - A personal domain subdomain like `nodwin-crm-staging.orrinxu.com` — useful for dev sandboxes without company DNS access.
 > - Or a Vercel-pinned alias: in the Vercel project dashboard under **Deployments**, find the staging branch deployment, click **Domains**, and add an alias bound to that specific deployment. This gives you a fixed URL like `staging-crm.vercel.app`.
 >
 > Register only this one stable URL in GCP. Do not commit to managing individual preview URLs — every new branch would break OAuth.
@@ -79,11 +80,11 @@ Auth is restricted to Nodwin Group Google Workspace domains (e.g. `@nodwingroup.
    - **Authorized JavaScript origins:** Register only **one stable URL per environment**:
      - `http://localhost:3000` (local dev)
      - `https://<your-stable-staging-domain>` (staging — see callout above)
-     - `https://crm.nodwingroup.com` (production)
-    - **Authorized redirect URIs:** Register exactly one URI per environment. When Supabase is the OAuth broker (which it is in this setup), Google redirects to Supabase's callback endpoint, not the app's:
+      - `https://crm.nodwingroup.com` (production)
+   - **Authorized redirect URIs:** Register exactly one URI per environment. When Supabase is the OAuth broker (which it is in this setup), Google redirects to Supabase's callback endpoint, not the app's:
       - `https://<project-ref>.supabase.co/auth/v1/callback`
-    - **Do not** add app-specific paths like `/auth/callback` here. The app's callback URLs belong in **Supabase's** Redirect URLs (Authentication > Settings), not in GCP.
-    - Click **Create**.
+   - **Do not** add app-specific paths like `/auth/callback` here. The app's callback URLs belong in **Supabase's** Redirect URLs (Authentication > Settings), not in GCP.
+   - Click **Create**.
 5. Copy the **Client ID** and **Client Secret**. Store them in 1Password / vault.
 
 > **One redirect URI per GCP client, period.** Since the Supabase callback URL (`https://<project-ref>.supabase.co/auth/v1/callback`) is the same for all environments served by that Supabase project, you only need one entry. The Supabase project itself redirects to the correct app URL after authentication based on its **Site URL** and **Redirect URLs** settings — configure those per environment in the Supabase dashboard.
