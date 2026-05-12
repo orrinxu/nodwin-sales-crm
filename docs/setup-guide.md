@@ -7,13 +7,13 @@
 
 If you don't have a Nodwin Group domain or Google Workspace access yet, use this abbreviated path to get a working staging sandbox with your own personal accounts. Each step below is a simplified version of the full section listed in parentheses.
 
-1. **Supabase Cloud project** (§1) — create a free-tier Supabase project using your personal email.
-2. **Google OAuth** (§2.1) — create a GCP project using your personal Gmail. Set the OAuth consent screen to **External** (not Internal). Add your personal Gmail as a test user. Register a single stable URL (Vercel production domain or pinned alias, see §2.1) as authorized origin/redirect. Leave **Authorized domains** empty — External type doesn't require verified domains.
-3. **Supabase Auth** (§3) — enable the Google provider and Email provider. Skip the domain allowlist trigger during dev (see §3.2).
+1. **Supabase project** (§1) — create a **free-tier** Supabase Cloud project using your personal email, or use the local Supabase stack via `pnpm supabase:start` (Docker required). Free tier is sufficient for a dev sandbox.
+2. **Google OAuth** (§2.1) — create a GCP project using your personal Gmail. Set the OAuth consent screen to **External** (not Internal). Add your personal email(s) as test users. When registering redirect URIs in GCP, use **only** `https://<project-ref>.supabase.co/auth/v1/callback` — Supabase is the OAuth broker, not the app. The app's own domains (Vercel URLs, localhost) belong in **Supabase's** Redirect URLs allowlist (under Authentication > Settings), not in GCP.
+3. **Supabase Auth** (§3) — enable the Google provider. In **Authentication > Settings**, add your app URL(s) to **Redirect URLs**. Skip the domain allowlist trigger during dev (see §3.2).
 4. **Magic link email** (§4) — use Supabase's built-in email sender for dev (skip custom SMTP). Or create a free Resend account and use their sandbox sender (`onboarding@resend.dev`) — no DNS setup needed.
-5. **Env vars** (§5) — use the Supabase Cloud project ref and anon key.
+5. **Env vars** (§5) — use the Supabase project ref and anon key (from Cloud dashboard or from `pnpm supabase:start` output).
 6. **Local dev** (§6) — test on `http://localhost:3000`. Sign in with your personal Google account.
-7. **Vercel deploy** (§8) — deploy to a free Vercel account. Use a stable domain alias as your staging URL (see §2.1). Add it to your GCP OAuth client's authorized origins/redirects.
+7. **Vercel deploy** (§8) — deploy to a free Vercel account. Use a stable domain alias as your staging URL (see §2.1). Add the final URL to Supabase's Redirect URLs, not GCP.
 
 > **Everything below this point** describes the full production setup with Nodwin Group domains, Google Workspace, SPF/DKIM/DMARC, and the domain allowlist. For a dev/staging sandbox you can skip sections 2.1 (stable domain guidance still applies), 2.2, 3.2 (domain allowlist trigger), 4.3 (SPF/DKIM/DMARC), and the production Vercel domain setup in §8.
 
@@ -42,7 +42,7 @@ Two projects are needed (one per environment). Start with the production project
    - **Name:** `nodwin-crm-<environment>` (e.g. `nodwin-crm-production`)
    - **Database password:** Generate a strong one. Store in 1Password / vault.
    - **Region:** `Singapore` (`ap-southeast-1`) — closest to the East Asia user base.
-   - **Pricing plan:** `Pro` (required for custom SMTP, larger DB size, and daily backups).
+    - **Pricing plan:** `Pro` (required for custom SMTP, larger DB size, and daily backups). For a dev sandbox, the **Free** tier is sufficient.
 4. Wait for the project to spin up (~2 minutes).
 5. Note the **Project URL**, **Project API keys** (anon + service_role), and **Project ID** from **Project Settings > General**.
 
@@ -80,15 +80,13 @@ Auth is restricted to Nodwin Group Google Workspace domains (e.g. `@nodwingroup.
      - `http://localhost:3000` (local dev)
      - `https://<your-stable-staging-domain>` (staging — see callout above)
      - `https://crm.nodwingroup.com` (production)
-   - **Authorized redirect URIs:**
-     - `http://localhost:3000/auth/callback` (local dev)
-     - `https://<project-ref>.supabase.co/auth/v1/callback` (local dev fallback — see note below)
-     - `https://<your-stable-staging-domain>/auth/callback` (staging)
-     - `https://crm.nodwingroup.com/auth/callback` (production)
-   - Click **Create**.
+    - **Authorized redirect URIs:** Register exactly one URI per environment. When Supabase is the OAuth broker (which it is in this setup), Google redirects to Supabase's callback endpoint, not the app's:
+      - `https://<project-ref>.supabase.co/auth/v1/callback`
+    - **Do not** add app-specific paths like `/auth/callback` here. The app's callback URLs belong in **Supabase's** Redirect URLs (Authentication > Settings), not in GCP.
+    - Click **Create**.
 5. Copy the **Client ID** and **Client Secret**. Store them in 1Password / vault.
 
-> **Why two local redirect URIs?** Next.js can handle the callback on its own route, but during local Supabase testing you may need to point at the Supabase Auth callback directly. Both are harmless to include.
+> **One redirect URI per GCP client, period.** Since the Supabase callback URL (`https://<project-ref>.supabase.co/auth/v1/callback`) is the same for all environments served by that Supabase project, you only need one entry. The Supabase project itself redirects to the correct app URL after authentication based on its **Site URL** and **Redirect URLs** settings — configure those per environment in the Supabase dashboard.
 
 ### 2.2 Restrict by domain (optional but recommended)
 
@@ -258,7 +256,7 @@ Each environment uses a **separate** Supabase project and GCP OAuth client. Do n
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `redirect_uri_mismatch` | Redirect URI in GCP OAuth client doesn't match the actual callback URL | Verify the authorized redirect URIs in GCP (§2.1 step 4) match exactly. Remember: every environment uses its own stable URL — no wildcards |
+| `redirect_uri_mismatch` | Redirect URI in GCP OAuth client doesn't match the actual callback URL | Verify the authorized redirect URI in GCP points to `https://<project-ref>.supabase.co/auth/v1/callback`, not to the app. Then check that the app's URL is listed in Supabase **Authentication > Settings > Redirect URLs** |
 | `Invalid login credentials` | Domain not in the allowlist trigger, or user not found | Check the Postgres trigger in `supabase/migrations/` (see §3.2). If the trigger isn't deployed, any domain can sign up |
 | Magic link email not arriving | SPF/DKIM not configured, or custom SMTP settings incorrect | Verify DNS records (§4.3), test SMTP from Supabase dashboard (§4.2 step 6) |
 | Google login button does nothing | Google provider not fully configured in Supabase dashboard, or wrong credentials | Check **Authentication > Providers > Google** has correct Client ID and Secret |

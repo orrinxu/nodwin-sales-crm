@@ -95,7 +95,7 @@ Docker must be running before you execute any `supabase:*` or `db:*` scripts. Th
 
 ### Quick start
 
-See **`docs/startup-guide.md`** for the full step-by-step setup. One-liner:
+See **`docs/startup-guide.md`** for the full step-by-step local dev setup. See **`docs/setup-guide.md`** for the authentication configuration (OAuth, Supabase Cloud, magic link). One-liner:
 
 ```bash
 git clone <repo-url> && cd nodwin-crm && pnpm install && \
@@ -149,6 +149,7 @@ nodwin-crm/
 ├── docs/
 │   ├── SOW.md                 # full strategic source of truth (v1.1)
 │   ├── startup-guide.md       # step-by-step local dev setup
+│   ├── setup-guide.md         # authentication setup (OAuth, Supabase Cloud, magic link)
 │   ├── data-model.md          # schema reference
 │   ├── integrations.md        # integration architecture details
 │   ├── security.md            # threat model and pre-launch checklist

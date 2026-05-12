@@ -157,7 +157,7 @@ pnpm build            # Production build
 | `pnpm dev` fails with env validation error | Missing or incorrect env var | Check `apps/web/.env.local`; run `pnpm supabase:start` to get anon/service keys |
 | `pnpm db:migrate` fails | Supabase local stack not started | Run `pnpm supabase:start` first |
 | Auth redirects to localhost | `APP_URL` not set in `.env.local` | Set `APP_URL=http://localhost:3000` |
-| Google OAuth returns "redirect_uri_mismatch" | Callback URL not registered | Add `http://localhost:3000/api/auth/callback` to Google Cloud Console OAuth client |
+| Google OAuth returns "redirect_uri_mismatch" | Callback URL not registered in GCP, or app URL missing from Supabase Redirect URLs | Register `https://<project-ref>.supabase.co/auth/v1/callback` in GCP (see `docs/setup-guide.md` §2.1). Add app URL to Supabase **Authentication > Settings > Redirect URLs** |
 | Seed fails with "relation does not exist" | Migrations not yet applied | Run `pnpm db:migrate` before `pnpm db:seed` |
 | App loads but shows 401 on queries | Anon key mismatch | Copy the exact anon key from `pnpm supabase:start` output |
 | Build fails after pulling latest | Lockfile or dependency drift | Run `pnpm install` to update lockfile, then `pnpm build` |
