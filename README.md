@@ -95,33 +95,19 @@ Docker must be running before you execute any `supabase:*` or `db:*` scripts. Th
 
 ### Quick start
 
+See **`docs/startup-guide.md`** for the full step-by-step setup. One-liner:
+
 ```bash
-# 1. Clone and install
-git clone <repo-url>
-cd nodwin-crm
-pnpm install
-
-# 2. Copy env template and fill in your dev values
-cp .env.example .env.local
-
-# 3. Start local Supabase (requires Docker)
-pnpm supabase:start
-
-# 4. Run migrations
-pnpm db:migrate
-
-# 5. Seed sandbox data (development only — never run against production)
-pnpm db:seed
-
-# 6. Start the dev server
-pnpm dev
+git clone <repo-url> && cd nodwin-crm && pnpm install && \
+  cp apps/web/.env.example apps/web/.env.local && \
+  pnpm supabase:start && pnpm db:migrate && pnpm db:seed && pnpm dev
 ```
 
 App runs at http://localhost:3000. Supabase Studio at http://localhost:54323.
 
 ### Required env vars
 
-See `.env.example` for the full list. The minimum to boot locally:
+See `apps/web/.env.example` for the full list. The minimum to boot locally:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -162,6 +148,7 @@ nodwin-crm/
 ├── CHANGELOG.md               # human-readable changelog
 ├── docs/
 │   ├── SOW.md                 # full strategic source of truth (v1.1)
+│   ├── startup-guide.md       # step-by-step local dev setup
 │   ├── data-model.md          # schema reference
 │   ├── integrations.md        # integration architecture details
 │   ├── security.md            # threat model and pre-launch checklist

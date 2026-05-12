@@ -5,6 +5,12 @@ For code changes, see git history and individual PR descriptions.
 
 ---
 
+## 2026-05-12
+
+### Added
+
+- **Startup guide (ORR-408):** `docs/startup-guide.md` — step-by-step local dev setup with environment config, Supabase local stack, seed data, verification checklist, and troubleshooting. README quick-start corrected to point at `apps/web/.env.example`.
+
 ## 2026-05-08
 
 ### Added
