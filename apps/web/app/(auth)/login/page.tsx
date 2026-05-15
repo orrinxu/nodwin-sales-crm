@@ -1,6 +1,7 @@
 "use client"
 
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
+import { useEffect } from "react"
 import { AlertTriangle } from "lucide-react"
 import { LoginButton } from "@/components/auth/login-button"
 import { MagicLinkForm } from "@/components/auth/magic-link-form"
@@ -16,6 +17,17 @@ import {
 export default function LoginPage() {
   const searchParams = useSearchParams()
   const error = searchParams.get("error")
+  const router = useRouter()
+
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_ENV === "local-preview") {
+      router.replace("/contacts")
+    }
+  }, [router])
+
+  if (process.env.NEXT_PUBLIC_ENV === "local-preview") {
+    return null
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
