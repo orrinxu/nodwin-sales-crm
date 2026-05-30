@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest"
 import { UnauthorisedError, ForbiddenError } from "./errors"
 
 const mockGetUser = vi.fn()
@@ -31,9 +31,20 @@ vi.mock("./env", () => ({
   },
 }))
 
+const ORIGINAL_ENV = process.env.NEXT_PUBLIC_ENV
+
 beforeEach(() => {
   vi.clearAllMocks()
   mockGetUser.mockReset()
+  delete process.env.NEXT_PUBLIC_ENV
+})
+
+afterAll(() => {
+  if (ORIGINAL_ENV !== undefined) {
+    process.env.NEXT_PUBLIC_ENV = ORIGINAL_ENV
+  } else {
+    delete process.env.NEXT_PUBLIC_ENV
+  }
 })
 
 describe("requireUser", () => {
@@ -147,6 +158,20 @@ describe("requireUser", () => {
 
     expect(result.id).toBe("user-4")
     expect(result.email).toBe("dave@nodwin.com")
+  })
+
+  it("returns local-preview admin when NEXT_PUBLIC_ENV is local-preview", async () => {
+    process.env.NEXT_PUBLIC_ENV = "local-preview"
+
+    const { requireUser } = await import("./auth")
+    const result = await requireUser()
+
+    expect(result).toEqual({
+      id: "a0000000001-0001-0001-0001-000000000001",
+      email: "alice.admin@nodwin-test.example",
+      role: "admin",
+    })
+    expect(mockGetUser).not.toHaveBeenCalled()
   })
 
   it("handles missing email gracefully", async () => {

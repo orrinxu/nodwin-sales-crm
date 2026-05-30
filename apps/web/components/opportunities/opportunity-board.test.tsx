@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest"
-import { getStageLabel } from "@/lib/data/opportunities"
-import type { OpportunityRecord } from "@/lib/data/opportunities"
+import { getStageLabel } from "@/lib/data/opportunities.types"
+import type { OpportunityRecord } from "@/lib/data/opportunities.types"
 import { OpportunityCard } from "./opportunity-card"
 import { OpportunityColumn } from "./opportunity-column"
 

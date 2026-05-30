@@ -21,17 +21,12 @@ import {
   getStageLabel,
   type OpportunityRecord,
 } from "@/lib/data/opportunities.types"
-import type { OpportunityCreateInput } from "@/lib/data/opportunities"
+import type { OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/opportunities.types"
 import type { AccountOption } from "@/lib/data/contacts"
 import { OpportunityCard } from "@/components/opportunities/opportunity-card"
 import { OpportunityColumn } from "@/components/opportunities/opportunity-column"
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
 import { OpportunityQuickCreate } from "@/components/opportunities/opportunity-quick-create"
-
-interface BusinessUnitOption {
-  id: string
-  name: string
-}
 
 interface OpportunityBoardProps {
   opportunities: OpportunityRecord[]

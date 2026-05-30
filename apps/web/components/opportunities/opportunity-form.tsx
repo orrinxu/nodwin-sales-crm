@@ -20,9 +20,9 @@ import {
   SheetClose,
 } from "@/components/ui/sheet"
 
-import type { OpportunityRecord, OpportunityCreateInput } from "@/lib/data/opportunities"
+import type { OpportunityRecord, OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/opportunities.types"
 import type { AccountOption } from "@/lib/data/contacts"
-import type { FieldDefinition } from "@/lib/data/field-definitions"
+import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import { CustomFieldsForm } from "@/components/contacts/custom-fields-form"
 
 const formSchema = z.object({
@@ -37,11 +37,6 @@ const formSchema = z.object({
 })
 
 type FormData = z.infer<typeof formSchema>
-
-interface BusinessUnitOption {
-  id: string
-  name: string
-}
 
 interface OpportunityFormProps {
   opportunity?: OpportunityRecord

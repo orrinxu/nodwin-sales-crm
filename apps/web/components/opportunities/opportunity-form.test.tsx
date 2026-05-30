@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { OpportunityForm } from "./opportunity-form"
 import type { AccountOption } from "@/lib/data/contacts"
-import type { FieldDefinition } from "@/lib/data/field-definitions"
+import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 
 vi.mock("server-only", () => ({}))
 

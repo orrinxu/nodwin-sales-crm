@@ -40,3 +40,62 @@ const stageLabels: Record<DealStage, string> = {
 export function getStageLabel(stage: DealStage): string {
   return stageLabels[stage]
 }
+
+export interface BusinessUnitOption {
+  id: string
+  name: string
+}
+
+export interface OpportunityCreateInput {
+  name: string
+  accountId: string
+  amount?: string
+  currency?: string
+  closeDate?: string
+  description?: string
+  ownerUserId?: string
+  salesUnitId: string
+  probabilityPct?: number
+  customData?: Record<string, unknown>
+}
+
+export interface OpportunitySplit {
+  id: string
+  opportunityId: string
+  salesUnitId: string
+  userId: string | null
+  pct: number
+  notes: string | null
+  createdAt: string
+}
+
+export interface OpportunitySplitInput {
+  salesUnitId: string
+  userId?: string | null
+  pct: number
+  notes?: string | null
+}
+
+export interface OpportunitySplitsUpdateInput {
+  splits: OpportunitySplitInput[]
+}
+
+export interface OpportunityTeamMember {
+  id: string
+  opportunityId: string
+  userId: string
+  userName: string | null
+  role: string
+  addedBy: string | null
+  addedAt: string
+}
+
+export interface OpportunityTeamMemberInput {
+  userId: string
+  role: string
+}
+
+export interface UserOption {
+  id: string
+  fullName: string
+}

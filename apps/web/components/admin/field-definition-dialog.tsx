@@ -30,7 +30,7 @@ import {
   fieldDataTypes,
   fieldEntityTypes,
   type CreateFieldDefinitionInput,
-} from "@/lib/data/field-definitions"
+} from "@/lib/data/field-definitions.types"
 
 const formSchema = z.object({
   entityType: z.enum(fieldEntityTypes, { required_error: "Entity type is required" }),

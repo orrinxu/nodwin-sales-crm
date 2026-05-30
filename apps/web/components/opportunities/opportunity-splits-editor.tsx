@@ -16,7 +16,7 @@ import type {
   OpportunitySplitInput,
   BusinessUnitOption,
   UserOption,
-} from "@/lib/data/opportunities"
+} from "@/lib/data/opportunities.types"
 
 interface OpportunitySplitsEditorProps {
   splits: OpportunitySplit[]

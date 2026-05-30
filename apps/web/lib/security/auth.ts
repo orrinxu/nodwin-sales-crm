@@ -11,9 +11,18 @@ export interface AuthenticatedUser {
   role: string | undefined
 }
 
+const LOCAL_PREVIEW_ADMIN: AuthenticatedUser = {
+  id: "a0000000001-0001-0001-0001-000000000001",
+  email: "alice.admin@nodwin-test.example",
+  role: "admin",
+}
+
 export async function requireUser(
   request?: NextRequest,
 ): Promise<AuthenticatedUser> {
+  if (process.env.NEXT_PUBLIC_ENV === "local-preview") {
+    return LOCAL_PREVIEW_ADMIN
+  }
 
   let supabase
   if (request) {

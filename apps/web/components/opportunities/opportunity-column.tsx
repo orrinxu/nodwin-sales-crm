@@ -2,7 +2,7 @@
 
 import { useDroppable } from "@dnd-kit/core"
 import type { DealStage } from "@/lib/opportunity"
-import type { OpportunityRecord } from "@/lib/data/opportunities"
+import type { OpportunityRecord } from "@/lib/data/opportunities.types"
 import { OpportunityCard } from "@/components/opportunities/opportunity-card"
 
 interface OpportunityColumnProps {

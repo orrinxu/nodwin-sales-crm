@@ -30,8 +30,8 @@ import type {
   CreateFieldDefinitionInput,
   FieldDefinition,
   UpdateFieldDefinitionInput,
-} from "@/lib/data/field-definitions"
-import type { ReorderFieldDefinitionsInput } from "@/lib/data/field-definitions"
+} from "@/lib/data/field-definitions.types"
+import type { ReorderFieldDefinitionsInput } from "@/lib/data/field-definitions.types"
 import { FieldDefinitionDialog } from "@/components/admin/field-definition-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
