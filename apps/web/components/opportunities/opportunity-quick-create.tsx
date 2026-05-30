@@ -24,13 +24,8 @@ import {
   SelectItem,
 } from "@/components/ui/select"
 
-import type { OpportunityRecord, OpportunityCreateInput } from "@/lib/data/opportunities"
+import type { OpportunityRecord, OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/opportunities.types"
 import type { AccountOption } from "@/lib/data/contacts"
-
-interface BusinessUnitOption {
-  id: string
-  name: string
-}
 
 interface FormErrors {
   name?: string

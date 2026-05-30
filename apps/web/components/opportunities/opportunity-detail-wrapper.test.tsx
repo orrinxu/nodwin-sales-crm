@@ -2,8 +2,7 @@
 import { describe, it, expect, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
 import { OpportunityDetailWrapper } from "./opportunity-detail-wrapper"
-import type { OpportunityRecord } from "@/lib/data/opportunities"
-import type { BusinessUnitOption } from "@/lib/data/opportunities"
+import type { OpportunityRecord, BusinessUnitOption } from "@/lib/data/opportunities.types"
 
 vi.mock("server-only", () => ({}))
 

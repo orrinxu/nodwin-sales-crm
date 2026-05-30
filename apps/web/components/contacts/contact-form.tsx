@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sheet"
 
 import type { ContactRecord, ContactCreateInput, AccountOption } from "@/lib/data/contacts"
-import type { FieldDefinition } from "@/lib/data/field-definitions"
+import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import { CustomFieldsForm } from "@/components/contacts/custom-fields-form"
 
 const SOCIAL_PLATFORMS = ["linkedin", "twitter", "facebook", "instagram", "github", "other"]

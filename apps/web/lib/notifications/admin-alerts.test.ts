@@ -47,12 +47,12 @@ describe("sendAdminAlert", () => {
   })
 
   it("inserts with default created_by when not provided", async () => {
-    let captured: Record<string, unknown> | null = null
+    const captured = { value: null as Record<string, unknown> | null }
     mockFrom.mockImplementation((table: string) => {
       if (table === "admin_alerts") {
         return {
           insert: (obj: Record<string, unknown>) => {
-            captured = obj
+            captured.value = obj
             return {
               select: () => ({
                 single: () => Promise.resolve({ data: { id: "alert-456" }, error: null }),
@@ -70,16 +70,16 @@ describe("sendAdminAlert", () => {
       type: "info",
     })
 
-    expect(captured?.created_by).toBe("00000000-0000-0000-0000-000000000000")
+    expect(captured.value?.created_by).toBe("00000000-0000-0000-0000-000000000000")
   })
 
   it("inserts with provided created_by", async () => {
-    let captured: Record<string, unknown> | null = null
+    const captured = { value: null as Record<string, unknown> | null }
     mockFrom.mockImplementation((table: string) => {
       if (table === "admin_alerts") {
         return {
           insert: (obj: Record<string, unknown>) => {
-            captured = obj
+            captured.value = obj
             return {
               select: () => ({
                 single: () => Promise.resolve({ data: { id: "alert-789" }, error: null }),
@@ -100,7 +100,7 @@ describe("sendAdminAlert", () => {
       "user-abc-123",
     )
 
-    expect(captured?.created_by).toBe("user-abc-123")
+    expect(captured.value?.created_by).toBe("user-abc-123")
   })
 
   it("throws when the database insert fails", async () => {
@@ -127,12 +127,12 @@ describe("sendAdminAlert", () => {
   })
 
   it("defaults metadata to empty object when not provided", async () => {
-    let captured: Record<string, unknown> | null = null
+    const captured = { value: null as Record<string, unknown> | null }
     mockFrom.mockImplementation((table: string) => {
       if (table === "admin_alerts") {
         return {
           insert: (obj: Record<string, unknown>) => {
-            captured = obj
+            captured.value = obj
             return {
               select: () => ({
                 single: () => Promise.resolve({ data: { id: "alert-default" }, error: null }),
@@ -150,6 +150,6 @@ describe("sendAdminAlert", () => {
       type: "info",
     })
 
-    expect(captured?.metadata).toEqual({})
+    expect(captured.value?.metadata).toEqual({})
   })
 })

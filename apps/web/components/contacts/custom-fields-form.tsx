@@ -1,6 +1,6 @@
 "use client"
 
-import type { FieldDefinition } from "@/lib/data/field-definitions"
+import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 

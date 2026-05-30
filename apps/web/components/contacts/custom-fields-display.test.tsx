@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { CustomFieldsDisplay } from "./custom-fields-display"
-import type { FieldDefinition } from "@/lib/data/field-definitions"
+import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 
 const mockDefs: FieldDefinition[] = [
   {

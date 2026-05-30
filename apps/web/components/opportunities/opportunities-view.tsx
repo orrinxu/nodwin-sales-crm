@@ -4,16 +4,11 @@ import { useState } from "react"
 import { LayoutGridIcon, ListIcon } from "lucide-react"
 
 import { type OpportunityRecord } from "@/lib/data/opportunities.types"
-import type { OpportunityCreateInput } from "@/lib/data/opportunities"
+import type { OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/opportunities.types"
 import type { AccountOption } from "@/lib/data/contacts"
 import { cn } from "@/lib/utils"
 import { OpportunityBoard } from "@/components/opportunities/opportunity-board"
 import { OpportunityListTable } from "@/components/opportunities/opportunity-list-table"
-
-interface BusinessUnitOption {
-  id: string
-  name: string
-}
 
 interface OpportunitiesViewProps {
   opportunities: OpportunityRecord[]

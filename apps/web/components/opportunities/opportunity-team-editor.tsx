@@ -9,7 +9,7 @@ import type {
   OpportunityTeamMember,
   OpportunityTeamMemberInput,
   UserOption,
-} from "@/lib/data/opportunities"
+} from "@/lib/data/opportunities.types"
 
 const TEAM_ROLES = ["owner", "contributor", "viewer", "approver"] as const
 

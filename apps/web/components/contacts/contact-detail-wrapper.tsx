@@ -6,7 +6,7 @@ import { Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ContactForm } from "@/components/contacts/contact-form"
 import type { ContactRecord, ContactCreateInput, AccountOption } from "@/lib/data/contacts"
-import type { FieldDefinition } from "@/lib/data/field-definitions"
+import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import { CustomFieldsDisplay } from "@/components/contacts/custom-fields-display"
 
 interface ContactDetailWrapperProps {

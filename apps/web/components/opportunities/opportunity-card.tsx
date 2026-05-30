@@ -3,7 +3,7 @@
 import { useDraggable } from "@dnd-kit/core"
 import { GripVertical, Building2, DollarSign, User } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
-import type { OpportunityRecord } from "@/lib/data/opportunities"
+import type { OpportunityRecord } from "@/lib/data/opportunities.types"
 import { Money } from "@/lib/money"
 
 interface OpportunityCardProps {

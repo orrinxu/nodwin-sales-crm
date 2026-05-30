@@ -12,9 +12,8 @@ import {
   TabsTab,
   TabsPanel,
 } from "@/components/ui/tabs"
-import type { OpportunityRecord } from "@/lib/data/opportunities"
-import type { BusinessUnitOption } from "@/lib/data/opportunities"
-import { getStageLabel } from "@/lib/data/opportunities"
+import type { OpportunityRecord, BusinessUnitOption } from "@/lib/data/opportunities.types"
+import { getStageLabel } from "@/lib/data/opportunities.types"
 import { DEAL_STAGES } from "@/lib/opportunity"
 import { Money } from "@/lib/money"
 

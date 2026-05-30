@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
 import { FieldDefinitionsList } from "./field-definitions-list"
-import type { FieldDefinition, ReorderFieldDefinitionsInput } from "@/lib/data/field-definitions"
+import type { FieldDefinition, ReorderFieldDefinitionsInput } from "@/lib/data/field-definitions.types"
 
 const mockRefresh = vi.fn()
 
@@ -17,7 +17,7 @@ const mockCreateAction = vi.fn()
 const mockBulkDeleteAction = vi.fn()
 const mockSoftDeleteAction = vi.fn()
 const mockUpdateAction = vi.fn()
-const mockReorderAction = vi.fn<[ReorderFieldDefinitionsInput], Promise<void>>()
+const mockReorderAction = vi.fn<(input: ReorderFieldDefinitionsInput) => Promise<void>>()
 
 const sampleFields: FieldDefinition[] = [
   {
