@@ -9,9 +9,10 @@ const mockIn = vi.fn()
 const mockInsert = vi.fn()
 const mockSingle = vi.fn()
 const mockUpsert = vi.fn()
+const mockLike = vi.fn()
 
 function buildMockChain() {
-  const qb = { select: mockSelect, eq: mockEq, order: mockOrder, insert: mockInsert, single: mockSingle, update: mockUpdate, in: mockIn, upsert: mockUpsert }
+  const qb = { select: mockSelect, eq: mockEq, order: mockOrder, insert: mockInsert, single: mockSingle, update: mockUpdate, in: mockIn, upsert: mockUpsert, like: mockLike }
   for (const key of Object.keys(qb)) {
     qb[key as keyof typeof qb].mockReturnValue(qb)
   }
@@ -210,17 +211,16 @@ describe("fieldDefinitionSchema", () => {
 
 describe("createFieldDefinition", () => {
   it("creates a field definition from a label", async () => {
-    // First .single() checks for existing key — none found
-    mockSingle
-      .mockResolvedValueOnce({
-        data: null,
-        error: { message: "No rows found" },
-      })
-      // Second .single() returns the inserted record
-      .mockResolvedValueOnce({
-        data: { ...mockDbField, key: "test_label", label: "Test Label", display_order: 0 },
-        error: null,
-      })
+    // .like() query returns no existing keys
+    mockLike.mockResolvedValueOnce({
+      data: [],
+      error: null,
+    })
+    // insert .single() returns the inserted record
+    mockSingle.mockResolvedValueOnce({
+      data: { ...mockDbField, key: "test_label", label: "Test Label", display_order: 0 },
+      error: null,
+    })
 
     const { createFieldDefinition } = await import("./field-definitions")
     const result = await createFieldDefinition(defaultCtx, {
@@ -233,6 +233,7 @@ describe("createFieldDefinition", () => {
     })
 
     expect(mockFrom).toHaveBeenCalledWith("field_definitions")
+    expect(mockLike).toHaveBeenCalledWith("key", "test_label%")
     expect(mockInsert).toHaveBeenCalledWith({
       entity_type: "contact",
       key: "test_label",
@@ -246,22 +247,16 @@ describe("createFieldDefinition", () => {
   })
 
   it("deduplicates key when collision exists", async () => {
-    // First .single() call checks for existing key — finds one
-    mockSingle
-      .mockResolvedValueOnce({
-        data: { key: "test_label" },
-        error: null,
-      })
-      // Second .single() call checks for "test_label_2" — finds none
-      .mockResolvedValueOnce({
-        data: null,
-        error: { message: "No rows found" },
-      })
-      // Third .single() call returns the inserted record
-      .mockResolvedValueOnce({
-        data: { ...mockDbField, key: "test_label_2", label: "Test Label", display_order: 0 },
-        error: null,
-      })
+    // .like() query finds existing key "test_label"
+    mockLike.mockResolvedValueOnce({
+      data: [{ key: "test_label" }],
+      error: null,
+    })
+    // insert .single() returns the inserted record
+    mockSingle.mockResolvedValueOnce({
+      data: { ...mockDbField, key: "test_label_2", label: "Test Label", display_order: 0 },
+      error: null,
+    })
 
     const { createFieldDefinition } = await import("./field-definitions")
     const result = await createFieldDefinition(defaultCtx, {
@@ -274,6 +269,7 @@ describe("createFieldDefinition", () => {
     })
 
     expect(result.key).toBe("test_label_2")
+    expect(mockLike).toHaveBeenCalledWith("key", "test_label%")
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({
         key: "test_label_2",

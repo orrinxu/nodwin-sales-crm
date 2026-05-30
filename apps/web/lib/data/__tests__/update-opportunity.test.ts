@@ -12,10 +12,12 @@ const mockOrder = vi.fn()
 const mockUpdate = vi.fn()
 
 function buildQueryBuilder() {
-  mockSelect.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder })
-  mockEq.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder })
-  mockOrder.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder })
-  return { select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder }
+  const qb = { select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder, update: mockUpdate }
+  mockSelect.mockReturnValue(qb)
+  mockEq.mockReturnValue(qb)
+  mockOrder.mockReturnValue(qb)
+  mockUpdate.mockReturnValue(qb)
+  return qb
 }
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -60,15 +62,15 @@ describe("updateOpportunity", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     buildQueryBuilder()
-    mockFrom.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder, update: mockUpdate })
-    mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+    mockFrom.mockReturnValue(buildQueryBuilder())
     mockMoneyFromAmount.mockReturnValue({ toAmount: () => "50000.00" })
   })
 
   it("updates a single field (name only)", async () => {
-    mockSingle
-      .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
-      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, name: "Bigger Deal" }, error: null })
+    mockSingle.mockResolvedValueOnce({
+      data: { ...mockDbOpportunity, name: "Bigger Deal" },
+      error: null,
+    })
 
     const { updateOpportunity } = await import("../opportunities")
     const result = await updateOpportunity(defaultCtx, "opp-1", { name: "Bigger Deal" })
@@ -78,12 +80,10 @@ describe("updateOpportunity", () => {
   })
 
   it("updates multiple fields", async () => {
-    mockSingle
-      .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
-      .mockResolvedValueOnce({
-        data: { ...mockDbOpportunity, name: "Bigger Deal", probability_pct: 90, close_date: "2026-08-01" },
-        error: null,
-      })
+    mockSingle.mockResolvedValueOnce({
+      data: { ...mockDbOpportunity, name: "Bigger Deal", probability_pct: 90, close_date: "2026-08-01" },
+      error: null,
+    })
 
     const { updateOpportunity } = await import("../opportunities")
     const result = await updateOpportunity(defaultCtx, "opp-1", {
@@ -98,20 +98,17 @@ describe("updateOpportunity", () => {
   })
 
   it("updates amount using Money conversion", async () => {
-    mockMoneyFromAmount
-      .mockReturnValueOnce({ toAmount: () => "100000.00" })
-      .mockReturnValueOnce({ toAmount: () => "100000.00" })
-      .mockReturnValueOnce({ toAmount: () => "100000.00" })
+    mockMoneyFromAmount.mockReturnValue({ toAmount: () => "100000.00" })
 
     mockSingle
-      .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
+      .mockResolvedValueOnce({ data: { currency: "USD" }, error: null })
       .mockResolvedValueOnce({ data: { ...mockDbOpportunity, amount: 100000 }, error: null })
 
     const { updateOpportunity } = await import("../opportunities")
     const result = await updateOpportunity(defaultCtx, "opp-1", { amount: "100000" })
 
     expect(result.amount).toBe("100000.00")
-    expect(mockMoneyFromAmount).toHaveBeenNthCalledWith(2, "100000", "USD")
+    expect(mockMoneyFromAmount).toHaveBeenCalledWith("100000", "USD")
     expect(mockUpdate).toHaveBeenCalledWith({ amount: "100000.00" })
   })
 
@@ -125,9 +122,7 @@ describe("updateOpportunity", () => {
   })
 
   it("skips supabase update when no fields changed", async () => {
-    mockSingle
-      .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
-      .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
+    mockSingle.mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
 
     const { updateOpportunity } = await import("../opportunities")
     const result = await updateOpportunity(defaultCtx, "opp-1", {})
@@ -137,9 +132,10 @@ describe("updateOpportunity", () => {
   })
 
   it("clears closeDate when empty string is passed", async () => {
-    mockSingle
-      .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
-      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, close_date: null }, error: null })
+    mockSingle.mockResolvedValueOnce({
+      data: { ...mockDbOpportunity, close_date: null },
+      error: null,
+    })
 
     const { updateOpportunity } = await import("../opportunities")
     await updateOpportunity(defaultCtx, "opp-1", { closeDate: "" })
@@ -148,9 +144,10 @@ describe("updateOpportunity", () => {
   })
 
   it("clears description when empty string is passed", async () => {
-    mockSingle
-      .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
-      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, description: null }, error: null })
+    mockSingle.mockResolvedValueOnce({
+      data: { ...mockDbOpportunity, description: null },
+      error: null,
+    })
 
     const { updateOpportunity } = await import("../opportunities")
     await updateOpportunity(defaultCtx, "opp-1", { description: "" })
@@ -159,12 +156,7 @@ describe("updateOpportunity", () => {
   })
 
   it("throws on supabase update error", async () => {
-    mockSingle
-      .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
-
-    mockUpdate.mockReturnValueOnce({
-      eq: vi.fn().mockResolvedValue({ error: new Error("DB update failed") }),
-    })
+    mockSingle.mockResolvedValueOnce({ data: null, error: new Error("DB update failed") })
 
     const { updateOpportunity } = await import("../opportunities")
     await expect(
@@ -180,9 +172,10 @@ describe("updateOpportunity", () => {
   })
 
   it("updates currency", async () => {
-    mockSingle
-      .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
-      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, currency: "EUR" }, error: null })
+    mockSingle.mockResolvedValueOnce({
+      data: { ...mockDbOpportunity, currency: "EUR" },
+      error: null,
+    })
 
     const { updateOpportunity } = await import("../opportunities")
     await updateOpportunity(defaultCtx, "opp-1", { currency: "EUR" })
@@ -191,17 +184,14 @@ describe("updateOpportunity", () => {
   })
 
   it("throws when opportunity not found after update", async () => {
-    mockSingle
-      .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
-      .mockResolvedValueOnce({ data: null, error: { code: "PGRST116" } })
-
-    mockUpdate.mockReturnValueOnce({
-      eq: vi.fn().mockResolvedValue({ error: null }),
+    mockSingle.mockResolvedValueOnce({
+      data: null,
+      error: { code: "PGRST116" },
     })
 
     const { updateOpportunity } = await import("../opportunities")
     await expect(
       updateOpportunity(defaultCtx, "opp-1", { name: "Ghost" }),
-    ).rejects.toThrow("Opportunity not found after update")
+    ).rejects.toThrow("Opportunity not found for update")
   })
 })

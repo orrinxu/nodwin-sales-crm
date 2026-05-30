@@ -40,6 +40,9 @@ import type {
   ReorderFieldDefinitionsInput,
 } from "./field-definitions.types"
 
+const SLUG_NON_ALNUM = /[^a-z0-9]+/g
+const SLUG_TRIM_UNDERSCORE = /^_|_$/g
+
 function toDomainField(data: Record<string, unknown>): FieldDefinition {
   return {
     id: data.id as string,
@@ -68,7 +71,7 @@ export async function getFieldDefinitions(
 
   const { data, error } = await supabase
     .from("field_definitions")
-    .select("*")
+    .select("id, entity_type, key, label, data_type, options, required, default_value, visible_to_roles, editable_by_roles, visible_at_stages, display_order, active, created_at, updated_at")
     .eq("entity_type", entityType)
     .eq("active", true)
     .order("display_order", { ascending: true })
@@ -90,7 +93,7 @@ export async function getAllFieldDefinitions(
 
   const { data, error } = await supabase
     .from("field_definitions")
-    .select("*")
+    .select("id, entity_type, key, label, data_type, options, required, default_value, visible_to_roles, editable_by_roles, visible_at_stages, display_order, active, created_at, updated_at")
     .order("display_order", { ascending: true })
 
   if (error) {
@@ -118,23 +121,23 @@ export async function createFieldDefinition(
 
   const baseKey = parsed.label
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_|_$/g, "")
+    .replace(SLUG_NON_ALNUM, "_")
+    .replace(SLUG_TRIM_UNDERSCORE, "")
 
   let key = baseKey
-  let counter = 2
 
-  while (true) {
-    const { data: existing } = await supabase
-      .from("field_definitions")
-      .select("key")
-      .eq("key", key)
-      .single()
+  const { data: existingKeys } = await supabase
+    .from("field_definitions")
+    .select("key")
+    .like("key", `${baseKey}%`)
 
-    if (!existing) break
-
-    key = `${baseKey}_${counter}`
-    counter++
+  const taken = new Set((existingKeys ?? []).map((r) => r.key))
+  if (taken.has(key)) {
+    let counter = 2
+    while (taken.has(key)) {
+      key = `${baseKey}_${counter}`
+      counter++
+    }
   }
 
   const { data, error } = await supabase

@@ -73,10 +73,18 @@ function toDomainOpportunity(data: Record<string, unknown>): OpportunityRecord {
   }
 }
 
+export interface GetOpportunitiesParams {
+  limit?: number
+  offset?: number
+}
+
 export async function getOpportunities(
   ctx: OpportunityCallContext,
+  params: GetOpportunitiesParams = {},
 ): Promise<OpportunityListResult> {
   const supabase = await createServerClient()
+  const limit = params.limit ?? 50
+  const offset = params.offset ?? 0
 
   const { data, error, count } = await supabase
     .from("opportunities")
@@ -104,6 +112,7 @@ export async function getOpportunities(
       { count: "exact" },
     )
     .order("updated_at", { ascending: false })
+    .range(offset, offset + limit - 1)
 
   if (error) {
     throw new Error(`Failed to load opportunities: ${error.message}`)
@@ -276,16 +285,32 @@ export async function updateOpportunity(
   const parsed = opportunityUpdateSchema.parse(input)
   const supabase = await createServerClient()
 
-  const existing = await getOpportunityById(ctx, id)
-  if (!existing) throw new Error("Opportunity not found for update")
+  let updateCurrency: string | undefined
+  if (parsed.amount !== undefined) {
+    if (parsed.currency !== undefined) {
+      updateCurrency = parsed.currency
+    } else {
+      const { data, error } = await supabase
+        .from("opportunities")
+        .select("currency")
+        .eq("id", id)
+        .single()
+      if (error) {
+        if (error.code === "PGRST116") {
+          throw new Error("Opportunity not found for update")
+        }
+        throw new Error(`Failed to load opportunity currency: ${error.message}`)
+      }
+      updateCurrency = data.currency as string
+    }
+  }
 
   const dbData: Record<string, unknown> = {}
 
   if (parsed.name !== undefined) dbData.name = parsed.name
   if (parsed.accountId !== undefined) dbData.account_id = parsed.accountId
   if (parsed.amount !== undefined) {
-    const updateCurrency = parsed.currency ?? existing.currency
-    dbData.amount = Money.fromAmount(parsed.amount, updateCurrency).toAmount()
+    dbData.amount = Money.fromAmount(parsed.amount, updateCurrency!).toAmount()
   }
   if (parsed.currency !== undefined) dbData.currency = parsed.currency
   if (parsed.closeDate !== undefined) dbData.close_date = parsed.closeDate || null
@@ -295,20 +320,48 @@ export async function updateOpportunity(
   if (parsed.probabilityPct !== undefined) dbData.probability_pct = parsed.probabilityPct
   if (parsed.customData !== undefined) dbData.custom_data = parsed.customData
 
-  if (Object.keys(dbData).length > 0) {
-    const { error } = await supabase
-      .from("opportunities")
-      .update(dbData)
-      .eq("id", id)
-
-    if (error) {
-      throw new Error(`Failed to update opportunity: ${error.message}`)
-    }
+  if (Object.keys(dbData).length === 0) {
+    const existing = await getOpportunityById(ctx, id)
+    if (!existing) throw new Error("Opportunity not found for update")
+    return existing
   }
 
-  const updated = await getOpportunityById(ctx, id)
-  if (!updated) throw new Error("Opportunity not found after update")
-  return updated
+  const { data, error } = await supabase
+    .from("opportunities")
+    .update(dbData)
+    .eq("id", id)
+    .select(
+      `
+      id,
+      name,
+      account_id,
+      primary_contact_id,
+      stage,
+      probability_pct,
+      amount,
+      currency,
+      owner_user_id,
+      sales_unit_id,
+      description,
+      close_date,
+      loss_reason,
+      custom_data,
+      created_at,
+      updated_at,
+      account:account_id ( name ),
+      owner:owner_user_id ( full_name )
+    `,
+    )
+    .single()
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      throw new Error("Opportunity not found for update")
+    }
+    throw new Error(`Failed to update opportunity: ${error.message}`)
+  }
+
+  return toDomainOpportunity(data as Record<string, unknown>)
 }
 
 export async function updateOpportunityStage(
@@ -319,25 +372,63 @@ export async function updateOpportunityStage(
   const parsed = opportunityStageUpdateSchema.parse(input)
   const supabase = await createServerClient()
 
-  const existing = await getOpportunityById(ctx, id)
-  if (!existing) throw new Error("Opportunity not found for stage update")
+  const { data: existing, error: fetchError } = await supabase
+    .from("opportunities")
+    .select("stage")
+    .eq("id", id)
+    .single()
 
-  if (existing.stage !== parsed.stage) {
-    const event = determineStageEvent(existing.stage, parsed.stage)
+  if (fetchError) {
+    if (fetchError.code === "PGRST116") {
+      throw new Error("Opportunity not found for stage update")
+    }
+    throw new Error(`Failed to load opportunity stage: ${fetchError.message}`)
+  }
 
-    const { error } = await supabase
+  const currentStage = existing.stage as DealStage
+
+  if (currentStage !== parsed.stage) {
+    const event = determineStageEvent(currentStage, parsed.stage)
+
+    const { data, error } = await supabase
       .from("opportunities")
       .update({ stage: parsed.stage })
       .eq("id", id)
+      .select(
+        `
+        id,
+        name,
+        account_id,
+        primary_contact_id,
+        stage,
+        probability_pct,
+        amount,
+        currency,
+        owner_user_id,
+        sales_unit_id,
+        description,
+        close_date,
+        loss_reason,
+        custom_data,
+        created_at,
+        updated_at,
+        account:account_id ( name ),
+        owner:owner_user_id ( full_name )
+      `,
+      )
+      .single()
 
     if (error) {
+      if (error.code === "PGRST116") {
+        throw new Error("Opportunity not found for stage update")
+      }
       throw new Error(`Failed to update opportunity stage: ${error.message}`)
     }
 
     try {
       await insertStageHistoryEntry(ctx, {
         opportunityId: id,
-        fromStage: existing.stage,
+        fromStage: currentStage,
         toStage: parsed.stage,
         event,
         createdBy: ctx.user.id,
@@ -348,11 +439,13 @@ export async function updateOpportunityStage(
         historyError instanceof Error ? historyError.message : historyError,
       )
     }
+
+    return toDomainOpportunity(data as Record<string, unknown>)
   }
 
-  const updated = await getOpportunityById(ctx, id)
-  if (!updated) throw new Error("Opportunity not found after stage update")
-  return updated
+  const unchanged = await getOpportunityById(ctx, id)
+  if (!unchanged) throw new Error("Opportunity not found after stage update")
+  return unchanged
 }
 
 export const bulkStageUpdateSchema = z.object({

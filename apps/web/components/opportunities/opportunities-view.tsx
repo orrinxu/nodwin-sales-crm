@@ -18,6 +18,9 @@ interface OpportunitiesViewProps {
   updateStageAction: (id: string, input: { stage: string }) => Promise<OpportunityRecord>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
   bulkUpdateStageAction: (input: { ids: string[]; stage: string }) => Promise<void>
+  totalCount?: number
+  page?: number
+  limit?: number
 }
 
 type ViewMode = "kanban" | "table"
@@ -30,6 +33,7 @@ export function OpportunitiesView({
   updateStageAction,
   bulkDeleteAction,
   bulkUpdateStageAction,
+  totalCount,
 }: OpportunitiesViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("kanban")
 
@@ -44,6 +48,9 @@ export function OpportunitiesView({
             {viewMode === "kanban"
               ? "Drag opportunities between stages to update their pipeline status."
               : "View and manage all opportunities in a table."}
+            {totalCount !== undefined && (
+              <span className="ml-1">({opportunities.length} of {totalCount})</span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">

@@ -79,7 +79,7 @@ export async function getContactById(
 
   const { data, error } = await supabase
     .from("contacts")
-    .select("*")
+    .select("id, full_name, primary_account_id, title, email, phone, socials, notes, owner_user_id, custom_data, created_at, updated_at")
     .eq("id", id)
     .single()
 
@@ -180,7 +180,7 @@ export async function createContact(
   const { data, error } = await supabase
     .from("contacts")
     .insert(dbData)
-    .select("*")
+    .select("id, full_name, primary_account_id, title, email, phone, socials, notes, owner_user_id, custom_data, created_at, updated_at")
     .single()
 
   if (error) {
@@ -228,13 +228,22 @@ export async function updateContact(
   if (parsed.customData !== undefined) dbData.custom_data = parsed.customData
 
   if (Object.keys(dbData).length > 0) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("contacts")
       .update(dbData)
       .eq("id", id)
+      .select("id, full_name, primary_account_id, title, email, phone, socials, notes, owner_user_id, custom_data, created_at, updated_at")
+      .single()
 
     if (error) {
+      if (error.code === "PGRST116") {
+        throw new Error("Contact not found for update")
+      }
       throw new Error(`Failed to update contact: ${error.message}`)
+    }
+
+    if (parsed.accountLinkIds === undefined) {
+      return toDomainContact(data as Record<string, unknown>)
     }
   }
 
@@ -264,7 +273,24 @@ export async function updateContact(
     }
   }
 
-  const contact = await getContactById(ctx, id)
-  if (!contact) throw new Error("Contact not found after update")
-  return contact
+  if (Object.keys(dbData).length === 0) {
+    const contact = await getContactById(ctx, id)
+    if (!contact) throw new Error("Contact not found after update")
+    return contact
+  }
+
+  const { data, error: refetchError } = await supabase
+    .from("contacts")
+    .select("id, full_name, primary_account_id, title, email, phone, socials, notes, owner_user_id, custom_data, created_at, updated_at")
+    .eq("id", id)
+    .single()
+
+  if (refetchError) {
+    if (refetchError.code === "PGRST116") {
+      throw new Error("Contact not found after update")
+    }
+    throw new Error(`Failed to load contact after update: ${refetchError.message}`)
+  }
+
+  return toDomainContact(data as Record<string, unknown>)
 }
