@@ -51,6 +51,27 @@ pnpm dev
 
 > **Skip OAuth for pure local testing:** Set `NEXT_PUBLIC_ENV=local-preview` in `.env.local` to bypass auth and auto-login as admin. **Never use this in staging or production.**
 
+### Access from other devices on your network
+
+By default `pnpm dev` binds to `localhost` (`127.0.0.1`) — only the same machine can reach it. To test from a phone or another laptop on the same Wi-Fi:
+
+```bash
+# 1. Find your machine's LAN IP
+# macOS / Linux:
+ipconfig getifaddr en0        # or: hostname -I
+# Windows:
+ipconfig                      # look for "IPv4 Address"
+
+# 2. Start the dev server bound to all interfaces
+HOSTNAME=0.0.0.0 PORT=3000 pnpm dev
+# or on Windows PowerShell:
+# $env:HOSTNAME="0.0.0.0"; $env:PORT="3000"; pnpm dev
+```
+
+Then visit `http://<your-lan-ip>:3000` from the other device.
+
+> **Firewall note:** You may need to allow Node.js through your OS firewall the first time you bind to `0.0.0.0`.
+
 ---
 
 ## Option 2: Vercel staging preview (for team sharing)
