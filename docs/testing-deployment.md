@@ -39,13 +39,13 @@ pnpm supabase:start
 pnpm db:migrate
 pnpm db:seed
 
-# 6. Start dev server
-pnpm dev
+# 6. Start dev server on port 3002
+PORT=3002 pnpm dev
 ```
 
 | URL | What |
 |---|---|
-| http://localhost:3000 | App (login page) |
+| http://localhost:3002 | App (login page) |
 | http://localhost:54323 | Supabase Studio (browse DB) |
 | http://localhost:54324 | Inbucket (captured emails) |
 
@@ -63,12 +63,12 @@ ipconfig getifaddr en0        # or: hostname -I
 ipconfig                      # look for "IPv4 Address"
 
 # 2. Start the dev server bound to all interfaces
-HOSTNAME=0.0.0.0 PORT=3000 pnpm dev
+HOSTNAME=0.0.0.0 PORT=3002 pnpm dev
 # or on Windows PowerShell:
-# $env:HOSTNAME="0.0.0.0"; $env:PORT="3000"; pnpm dev
+# $env:HOSTNAME="0.0.0.0"; $env:PORT="3002"; pnpm dev
 ```
 
-Then visit `http://<your-lan-ip>:3000` from the other device.
+Then visit `http://<your-lan-ip>:3002` from the other device.
 
 > **Firewall note:** You may need to allow Node.js through your OS firewall the first time you bind to `0.0.0.0`.
 
@@ -165,7 +165,7 @@ After any deployment, run this to confirm the app is healthy:
 
 ```bash
 # Local
-curl -s http://localhost:3000/api/health | jq .
+curl -s http://localhost:3002/api/health | jq .
 
 # Staging
 curl -s https://<your-staging-url>/api/health | jq .
