@@ -175,6 +175,78 @@ Expected: `{"status":"ok"}`
 
 ---
 
+## Troubleshooting: App won't load
+
+If `http://localhost:3002` shows nothing or an error, check these in order:
+
+### 1. Is Supabase running?
+
+```bash
+pnpm supabase:start
+```
+
+You should see `Started supabase local development setup` with URLs and keys. If Docker is not running, this fails.
+
+### 2. Did you copy the keys into `.env.local`?
+
+After `pnpm supabase:start`, copy the exact **anon key** and **service_role key** into `apps/web/.env.local`. A typo here causes silent 401 errors.
+
+### 3. Did you run migrations?
+
+```bash
+pnpm db:migrate
+```
+
+Without this, the database tables don't exist and the app may crash on startup.
+
+### 4. Is port 3002 already in use?
+
+```bash
+# macOS / Linux
+lsof -i :3002
+
+# Windows
+netstat -ano | findstr :3002
+```
+
+If something else is using 3002, either kill that process or use a different port: `PORT=3003 pnpm dev`.
+
+### 5. Check the terminal for errors
+
+Run the dev server and watch the terminal output:
+
+```bash
+PORT=3002 pnpm dev
+```
+
+Common errors:
+- `Missing environment variable` → fill in `.env.local`
+- `ECONNREFUSED 127.0.0.1:54321` → Supabase is not running
+- `Module not found` → run `pnpm install`
+- `Build error` → run `pnpm lint` and `pnpm typecheck` to see what's broken
+
+### 6. Try the smoke test
+
+```bash
+curl -s http://localhost:3002/api/health
+```
+
+- If it returns `{"status":"ok"}` → the server is up; check your browser
+- If it returns nothing or an error → the server failed to start; check the terminal
+
+### 7. Still stuck?
+
+Run this diagnostic and share the output:
+
+```bash
+echo "--- Node version ---" && node -v
+echo "--- pnpm version ---" && pnpm -v
+echo "--- Docker running ---" && docker info > /dev/null 2>&1 && echo "yes" || echo "no"
+echo "--- Supabase status ---" && pnpm supabase:status 2>/dev/null || echo "not running"
+echo "--- Env file exists ---" && test -f apps/web/.env.local && echo "yes" || echo "no"
+echo "--- Port 3002 ---" && lsof -i :3002 2>/dev/null || netstat -ano | findstr :3002 2>/dev/null || echo "checking..."
+```
+
 ## Related docs
 
 - [`startup-guide.md`](startup-guide.md) — full local dev setup with troubleshooting
