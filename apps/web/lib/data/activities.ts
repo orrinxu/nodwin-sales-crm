@@ -22,7 +22,9 @@ export type ActivityType = (typeof ACTIVITY_TYPES)[number]
 export interface ActivityRecord {
   id: string
   opportunityId: string | null
+  opportunityName: string | null
   accountId: string | null
+  accountName: string | null
   userId: string
   userName: string | null
   type: ActivityType
@@ -45,12 +47,33 @@ export const activityCreateSchema = z.object({
 
 export type ActivityCreateInput = z.infer<typeof activityCreateSchema>
 
+const ACTIVITY_SELECT = `
+  id,
+  account_id,
+  opportunity_id,
+  user_id,
+  type,
+  external_thread_id,
+  subject,
+  body,
+  metadata,
+  created_at,
+  updated_at,
+  author:user_id ( full_name ),
+  opportunity:opportunity_id ( name ),
+  account:account_id ( name )
+`
+
 function toDomainActivity(data: Record<string, unknown>): ActivityRecord {
   const author = data.author as { full_name: string } | null
+  const opportunity = data.opportunity as { name: string } | null
+  const account = data.account as { name: string } | null
   return {
     id: data.id as string,
     opportunityId: (data.opportunity_id as string) ?? null,
+    opportunityName: opportunity?.name ?? null,
     accountId: (data.account_id as string) ?? null,
+    accountName: account?.name ?? null,
     userId: data.user_id as string,
     userName: author?.full_name ?? null,
     type: data.type as ActivityType,
@@ -63,6 +86,31 @@ function toDomainActivity(data: Record<string, unknown>): ActivityRecord {
   }
 }
 
+export async function getActivities(
+  ctx: ActivityCallContext,
+  options?: { type?: ActivityType; limit?: number },
+): Promise<ActivityRecord[]> {
+  const supabase = await createServerClient()
+
+  let query = supabase
+    .from("activities")
+    .select(ACTIVITY_SELECT)
+    .order("created_at", { ascending: false })
+    .limit(options?.limit ?? 50)
+
+  if (options?.type) {
+    query = query.eq("type", options.type)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    throw new Error(`Failed to load activities: ${error.message}`)
+  }
+
+  return (data ?? []).map((r) => toDomainActivity(r as Record<string, unknown>))
+}
+
 export async function getActivitiesForOpportunity(
   ctx: ActivityCallContext,
   opportunityId: string,
@@ -71,22 +119,7 @@ export async function getActivitiesForOpportunity(
 
   const { data, error } = await supabase
     .from("activities")
-    .select(
-      `
-      id,
-      account_id,
-      opportunity_id,
-      user_id,
-      type,
-      external_thread_id,
-      subject,
-      body,
-      metadata,
-      created_at,
-      updated_at,
-      author:user_id ( full_name )
-    `,
-    )
+    .select(ACTIVITY_SELECT)
     .eq("opportunity_id", opportunityId)
     .order("created_at", { ascending: false })
 
@@ -117,22 +150,7 @@ export async function createActivity(
         source: ctx.source,
       },
     })
-    .select(
-      `
-      id,
-      account_id,
-      opportunity_id,
-      user_id,
-      type,
-      external_thread_id,
-      subject,
-      body,
-      metadata,
-      created_at,
-      updated_at,
-      author:user_id ( full_name )
-    `,
-    )
+    .select(ACTIVITY_SELECT)
     .single()
 
   if (error) {
