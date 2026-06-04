@@ -18,6 +18,14 @@ vi.mock("@/lib/money", () => ({
   },
 }))
 
+vi.mock("@/components/opportunities/activity-timeline", () => ({
+  ActivityTimeline: () => <div data-testid="activity-timeline" />,
+}))
+
+vi.mock("@/components/opportunities/activity-composer", () => ({
+  ActivityComposer: () => <div data-testid="activity-composer" />,
+}))
+
 vi.mock("@/components/opportunities/opportunity-form", () => ({
   OpportunityForm: ({ trigger }: { trigger?: React.ReactNode }) => (
     <div data-testid="opportunity-form">
@@ -74,6 +82,8 @@ const defaultProps = {
   opportunity: makeOpportunity(),
   businessUnits: mockBusinessUnits,
   updateAction: vi.fn(),
+  activities: [],
+  createActivityAction: vi.fn(),
 }
 
 describe("OpportunityDetailWrapper", () => {

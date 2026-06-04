@@ -1,18 +1,23 @@
 import { requireUser } from "@/lib/security/auth"
-import { getAccountOptions } from "@/lib/data/contacts"
-import { createContactAction } from "./actions"
+import { getAccountOptions, getContacts } from "@/lib/data/contacts"
+import { createContactAction, bulkDeleteContactsAction } from "./actions"
 import { ContactsList } from "@/components/contacts/contacts-list"
 
 export default async function ContactsPage() {
   const user = await requireUser()
 
   const ctx = { user, source: "web" as const }
-  const accounts = await getAccountOptions(ctx)
+  const [accounts, { contacts }] = await Promise.all([
+    getAccountOptions(ctx),
+    getContacts(ctx),
+  ])
 
   return (
     <ContactsList
       accounts={accounts}
+      contacts={contacts}
       createAction={createContactAction}
+      bulkDeleteAction={bulkDeleteContactsAction}
     />
   )
 }

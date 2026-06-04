@@ -23,6 +23,22 @@ export interface ContactRecord {
   updatedAt: string
 }
 
+export interface ContactListRecord extends ContactRecord {
+  primaryAccountName: string | null
+  ownerName: string | null
+}
+
+export interface ContactListResult {
+  contacts: ContactListRecord[]
+  totalCount: number
+}
+
+export interface ContactListSearchParams {
+  query?: string
+  accountId?: string
+  ownerId?: string
+}
+
 export interface AccountOption {
   id: string
   name: string
@@ -91,6 +107,83 @@ export async function getContactById(
   }
 
   return toDomainContact(data as Record<string, unknown>)
+}
+
+function toDomainContactListRecord(data: Record<string, unknown>): ContactListRecord {
+  const account = data.primary_account as { name: string } | null
+  const owner = data.owner as { full_name: string } | null
+  return {
+    ...toDomainContact(data),
+    primaryAccountName: account?.name ?? null,
+    ownerName: owner?.full_name ?? null,
+  }
+}
+
+export async function getContacts(
+  ctx: ContactCallContext,
+  params?: ContactListSearchParams,
+): Promise<ContactListResult> {
+  const supabase = await createServerClient()
+
+  let query = supabase
+    .from("contacts")
+    .select(
+      `
+      *,
+      primary_account:primary_account_id ( name ),
+      owner:owner_user_id ( full_name )
+    `,
+      { count: "exact" },
+    )
+
+  if (params?.query) {
+    const q = `%${params.query}%`
+    query = query.or(
+      `full_name.ilike.${q},email.ilike.${q},phone.ilike.${q},title.ilike.${q}`,
+    )
+  }
+
+  if (params?.accountId) {
+    query = query.eq("primary_account_id", params.accountId)
+  }
+
+  if (params?.ownerId) {
+    query = query.eq("owner_user_id", params.ownerId)
+  }
+
+  const { data, error, count } = await query.order("created_at", { ascending: false })
+
+  if (error) {
+    throw new Error(`Failed to load contacts: ${error.message}`)
+  }
+
+  const contacts = (data ?? []).map(toDomainContactListRecord)
+  const totalCount = count ?? 0
+
+  return { contacts, totalCount }
+}
+
+export const bulkDeleteContactsSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, "At least one contact must be selected"),
+})
+
+export type BulkDeleteContactsInput = z.infer<typeof bulkDeleteContactsSchema>
+
+export async function bulkDeleteContacts(
+  ctx: ContactCallContext,
+  input: BulkDeleteContactsInput,
+): Promise<void> {
+  const parsed = bulkDeleteContactsSchema.parse(input)
+  const supabase = await createServerClient()
+
+  const { error } = await supabase
+    .from("contacts")
+    .delete()
+    .in("id", parsed.ids)
+
+  if (error) {
+    throw new Error(`Failed to bulk delete contacts: ${error.message}`)
+  }
 }
 
 export async function getContactAccountLinks(

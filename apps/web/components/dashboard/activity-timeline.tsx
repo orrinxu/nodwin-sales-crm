@@ -1,112 +1,143 @@
 "use client"
 
-import { Phone, StickyNote, Mail, Calendar, CheckSquare, Clock } from "lucide-react"
-import type { ActivityRecord } from "@/lib/data/activities"
+import { Phone, Mail, Video, FileText, CheckSquare } from "lucide-react"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { cn } from "@/lib/utils"
 
-interface ActivityTimelineProps {
-  activities: ActivityRecord[]
+interface Activity {
+  id: string
+  type: "call" | "email" | "email_inbound" | "email_outbound" | "meeting" | "note" | "task"
+  subject: string | null
+  body: string | null
+  userName: string | null
+  createdAt: string
+  opportunityName: string | null
 }
 
-const activityIcons: Record<string, React.ComponentType<{ className?: string }>> = {
-  note: StickyNote,
+const activityIcons: Record<string, typeof Phone> = {
   call: Phone,
+  email: Mail,
   email_inbound: Mail,
   email_outbound: Mail,
-  meeting: Calendar,
+  meeting: Video,
+  note: FileText,
   task: CheckSquare,
 }
 
-const activityLabels: Record<string, string> = {
-  note: "Note",
-  call: "Call",
-  email_inbound: "Inbound Email",
-  email_outbound: "Outbound Email",
-  meeting: "Meeting",
-  task: "Task",
+const activityColors: Record<string, string> = {
+  call: "text-sky-600 bg-sky-100",
+  email: "text-violet-600 bg-violet-100",
+  email_inbound: "text-violet-600 bg-violet-100",
+  email_outbound: "text-violet-600 bg-violet-100",
+  meeting: "text-orange-600 bg-orange-100",
+  note: "text-amber-600 bg-amber-100",
+  task: "text-emerald-600 bg-emerald-100",
 }
 
-function formatRelativeTime(dateStr: string): string {
-  const now = Date.now()
-  const date = new Date(dateStr).getTime()
-  const diffMs = now - date
-  const diffMins = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMins / 60)
-  const diffDays = Math.floor(diffHours / 24)
-
-  if (diffMins < 1) return "just now"
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays < 7) return `${diffDays}d ago`
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
+interface ActivityTimelineProps {
+  activities: Activity[]
+  maxItems?: number
 }
 
-export function ActivityTimeline({ activities }: ActivityTimelineProps) {
-  if (activities.length === 0) {
-    return (
-      <div className="rounded-lg border bg-card p-4">
-        <h2 className="mb-4 text-lg font-semibold">Recent Activity</h2>
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          No recent activity.
-        </p>
-      </div>
-    )
+export function ActivityTimeline({
+  activities,
+  maxItems = 6,
+}: ActivityTimelineProps) {
+  const display = activities.slice(0, maxItems)
+
+  function formatTime(dateString: string) {
+    const date = new Date(dateString)
+    return date.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    })
   }
 
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <h2 className="mb-4 text-lg font-semibold">Recent Activity</h2>
-      <div className="relative">
-        <div className="absolute left-[17px] top-2 bottom-2 w-px bg-border" />
-        <div className="grid gap-4">
-          {activities.map((activity) => {
-            const Icon = activityIcons[activity.type] ?? StickyNote
-            const label = activityLabels[activity.type] ?? activity.type
-            const duration = activity.metadata?.duration_minutes as number | undefined
+    <Card>
+      <CardHeader>
+        <CardTitle>Recent Activity</CardTitle>
+        <CardDescription>Latest updates from your team</CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">
+        <ScrollArea className="h-[360px] px-6">
+          <div className="flex flex-col gap-1 pb-6">
+            {display.map((activity, index) => {
+              const Icon = activityIcons[activity.type] ?? FileText
+              const colorClass = activityColors[activity.type] ?? "text-muted-foreground bg-muted"
+              const isLast = index === display.length - 1
 
-            return (
-              <div key={activity.id} className="relative flex gap-3 pl-1">
-                <div className="z-10 flex size-9 items-center justify-center rounded-full border bg-background">
-                  <Icon className="size-4 text-muted-foreground" />
-                </div>
-                <div className="flex-1 space-y-1 pt-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{label}</span>
-                    {activity.subject && (
-                      <>
-                        <span className="text-xs text-muted-foreground">·</span>
-                        <span className="text-sm text-muted-foreground">
-                          {activity.subject}
+              return (
+                <div key={activity.id} className="flex gap-4">
+                  <div className="flex flex-col items-center">
+                    <div
+                      className={cn(
+                        "flex size-9 items-center justify-center rounded-full",
+                        colorClass,
+                      )}
+                    >
+                      <Icon className="size-4" />
+                    </div>
+                    {!isLast && <div className="w-px flex-1 bg-border" />}
+                  </div>
+
+                  <div className={cn("flex-1 pb-6", isLast && "pb-0")}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm font-medium leading-tight">
+                          {activity.subject ?? "Untitled"}
                         </span>
-                      </>
-                    )}
-                  </div>
-                  {activity.body && (
-                    <p className="whitespace-pre-wrap text-sm line-clamp-2">
-                      {activity.body}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{activity.userName ?? "Unknown"}</span>
-                    <span>·</span>
-                    <span>{formatRelativeTime(activity.createdAt)}</span>
-                    {duration != null && (
-                      <>
-                        <span>·</span>
-                        <Clock className="size-3" />
-                        <span>{duration} min</span>
-                      </>
-                    )}
+                        {activity.body && (
+                          <p className="text-sm text-muted-foreground line-clamp-2">
+                            {activity.body}
+                          </p>
+                        )}
+                      </div>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {formatTime(activity.createdAt)}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Avatar className="size-5">
+                        <AvatarFallback className="bg-muted text-[10px]">
+                          {activity.userName
+                            ? activity.userName
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                            : "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-xs text-muted-foreground">
+                        {activity.userName ?? "Unknown"}
+                      </span>
+                      {activity.opportunityName && (
+                        <>
+                          <span className="text-xs text-muted-foreground">·</span>
+                          <span className="text-xs text-muted-foreground">
+                            {activity.opportunityName}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    </div>
+              )
+            })}
+          </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
   )
 }

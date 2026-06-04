@@ -1,89 +1,130 @@
 "use client"
 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { ArrowRight, Calendar, Building2 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import Link from "next/link"
-import { ArrowUpRight } from "lucide-react"
-import { Money } from "@/lib/money"
-import { getStageLabel } from "@/lib/data/opportunities.types"
-import type { OpportunityRecord } from "@/lib/data/opportunities.types"
+
+interface Deal {
+  id: string
+  name: string
+  company: string | null
+  stage: string
+  stageLabel: string
+  amount: string
+  probabilityPct: number
+  closeDate: string | null
+}
 
 interface RecentDealsProps {
-  deals: OpportunityRecord[]
+  deals: Deal[]
+  maxItems?: number
 }
 
-type StageBadgeKey = "closed_won" | "closed_lost"
-
-const stageColor: Record<StageBadgeKey, string> = {
-  closed_won: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  closed_lost:
-    "bg-destructive/10 text-destructive dark:bg-destructive/20",
+function formatDate(dateString: string | null): string {
+  if (!dateString) return "TBD"
+  const date = new Date(dateString)
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
 }
 
-function getStageBadgeClass(stage: string): string {
-  if (stage === "closed_won") return stageColor.closed_won
-  if (stage === "closed_lost") return stageColor.closed_lost
-  return "bg-muted text-muted-foreground"
-}
-
-export function RecentDeals({ deals }: RecentDealsProps) {
-  if (deals.length === 0) {
-    return (
-      <div className="rounded-lg border bg-card p-4">
-        <h2 className="mb-4 text-lg font-semibold">Recent Deals</h2>
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          No deals yet.
-        </p>
-      </div>
-    )
+function formatInr(value: string): string {
+  const num = Number(value)
+  if (num >= 10000000) {
+    return `₹${(num / 10000000).toFixed(1)}Cr`
+  } else if (num >= 100000) {
+    return `₹${(num / 100000).toFixed(1)}L`
   }
+  return `₹${num.toLocaleString("en-IN")}`
+}
+
+export function RecentDeals({ deals, maxItems = 5 }: RecentDealsProps) {
+  const sorted = [...deals]
+    .sort((a, b) => {
+      if (!a.closeDate) return 1
+      if (!b.closeDate) return -1
+      return new Date(b.closeDate).getTime() - new Date(a.closeDate).getTime()
+    })
+    .slice(0, maxItems)
 
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <h2 className="mb-4 text-lg font-semibold">Recent Deals</h2>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left text-muted-foreground">
-              <th className="pb-2 font-medium">Deal</th>
-              <th className="pb-2 font-medium">Account</th>
-              <th className="pb-2 font-medium">Stage</th>
-              <th className="pb-2 font-medium text-right">Amount</th>
-              <th className="pb-2 font-medium">Owner</th>
-              <th className="pb-2 w-10" />
-            </tr>
-          </thead>
-          <tbody>
-            {deals.map((deal) => (
-              <tr key={deal.id} className="border-b last:border-0">
-                <td className="py-2 font-medium">{deal.name}</td>
-                <td className="py-2 text-muted-foreground">
-                  {deal.accountName ?? "—"}
-                </td>
-                <td className="py-2">
-                  <span
-                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getStageBadgeClass(deal.stage)}`}
-                  >
-                    {getStageLabel(deal.stage)}
-                  </span>
-                </td>
-                <td className="py-2 text-right tabular-nums">
-                  {Money.fromAmount(deal.amount, deal.currency).toDisplay()}
-                </td>
-                <td className="py-2 text-muted-foreground">
-                  {deal.ownerName ?? "—"}
-                </td>
-                <td className="py-2">
-                  <Link
-                    href={`/opportunities/${deal.id}`}
-                    className="inline-flex items-center text-muted-foreground hover:text-foreground"
-                  >
-                    <ArrowUpRight className="size-4" />
-                  </Link>
-                </td>
-              </tr>
+    <Card>
+      <CardHeader className="flex-row items-center justify-between">
+        <div>
+          <CardTitle>Recent Deals</CardTitle>
+          <CardDescription>Latest updates in your pipeline</CardDescription>
+        </div>
+        <Link href="/opportunities">
+          <Button variant="ghost" size="sm" className="text-primary">
+            View All
+            <ArrowRight data-icon="inline-end" />
+          </Button>
+        </Link>
+      </CardHeader>
+      <CardContent className="p-0">
+        <ScrollArea className="h-[300px]">
+          <div className="flex flex-col">
+            {sorted.map((deal, index) => (
+              <Link
+                key={deal.id}
+                href={`/opportunities/${deal.id}`}
+                className={cn(
+                  "group flex items-center justify-between px-6 py-4 transition-colors hover:bg-muted/50",
+                  index < sorted.length - 1 && "border-b border-border",
+                )}
+              >
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{deal.name}</span>
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "text-xs",
+                        deal.stage === "closed_won" && "bg-emerald-100 text-emerald-700",
+                        deal.stage === "closed_lost" && "bg-destructive/15 text-destructive",
+                      )}
+                    >
+                      {deal.stageLabel}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    {deal.company && (
+                      <span className="flex items-center gap-1">
+                        <Building2 className="size-3" />
+                        {deal.company}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <Calendar className="size-3" />
+                      {formatDate(deal.closeDate)}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-semibold">
+                    {formatInr(deal.amount)}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {deal.probabilityPct}% likely
+                  </div>
+                </div>
+              </Link>
             ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+          </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
   )
 }
