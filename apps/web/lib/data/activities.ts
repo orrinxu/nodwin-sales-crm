@@ -63,6 +63,59 @@ function toDomainActivity(data: Record<string, unknown>): ActivityRecord {
   }
 }
 
+export interface ActivityWithRelations extends ActivityRecord {
+  opportunityName: string | null
+  accountName: string | null
+}
+
+function toActivityWithRelations(
+  data: Record<string, unknown>,
+): ActivityWithRelations {
+  const activity = toDomainActivity(data)
+  const opportunity = data.opportunity as { name: string } | null
+  const account = data.account as { name: string } | null
+  return {
+    ...activity,
+    opportunityName: opportunity?.name ?? null,
+    accountName: account?.name ?? null,
+  }
+}
+
+export async function getActivities(
+  ctx: ActivityCallContext,
+): Promise<ActivityWithRelations[]> {
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("activities")
+    .select(
+      `
+      id,
+      account_id,
+      opportunity_id,
+      user_id,
+      type,
+      external_thread_id,
+      subject,
+      body,
+      metadata,
+      created_at,
+      updated_at,
+      author:user_id ( full_name ),
+      opportunity:opportunity_id ( name ),
+      account:account_id ( name )
+    `,
+    )
+    .order("created_at", { ascending: false })
+    .limit(200)
+
+  if (error) {
+    throw new Error(`Failed to load activities: ${error.message}`)
+  }
+
+  return (data ?? []).map((r) => toActivityWithRelations(r as Record<string, unknown>))
+}
+
 export async function getActivitiesForOpportunity(
   ctx: ActivityCallContext,
   opportunityId: string,
