@@ -1,42 +1,59 @@
-import Link from "next/link"
-import { Users, LayoutGrid, Sliders } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
+import { requireUser } from "@/lib/security/auth"
+import { getDashboardMetrics } from "@/lib/data/dashboard"
+import { MetricsGrid } from "@/components/dashboard/metrics-card"
+import { PipelineSummary } from "@/components/dashboard/pipeline-summary"
+import { ActivityTimeline } from "@/components/dashboard/activity-timeline"
+import { RecentDeals } from "@/components/dashboard/recent-deals"
 
-const sections = [
-  { href: "/contacts", label: "Contacts", description: "Manage your contacts and address book.", icon: Users },
-  { href: "/opportunities", label: "Opportunities", description: "Track deals, pipeline stages, and revenue.", icon: LayoutGrid },
-  { href: "/admin/field-definitions", label: "Custom Fields", description: "Manage custom field definitions.", icon: Sliders },
-]
+export default async function DashboardPage() {
+  const user = await requireUser()
+  const ctx = { user, source: "web" as const }
+  const { metrics, pipelineSummary, recentDeals, recentActivities } =
+    await getDashboardMetrics(ctx)
 
-export default function Home() {
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Nodwin Sales CRM</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Internal sales CRM for the Nodwin Group.
+    <div className="flex flex-col gap-6 p-6">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+        <p className="text-sm text-muted-foreground">
+          Welcome back, {user.email?.split("@")[0] ?? "User"}. Here&apos;s
+          your sales overview.
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {sections.map(({ href, label, description, icon: Icon }) => (
-          <Link key={href} href={href}>
-            <Card className="h-full transition-shadow hover:shadow-md">
-              <CardContent className="flex items-start gap-4 p-6">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-                  <Icon className="size-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <h2 className="text-base font-medium">{label}</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {description}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+      <MetricsGrid metrics={metrics} />
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <PipelineSummary stages={pipelineSummary} />
+        </div>
+        <div className="lg:col-span-1">
+          <ActivityTimeline
+            activities={recentActivities.map((a) => ({
+              id: a.id,
+              type: a.type,
+              subject: a.subject,
+              body: a.body,
+              userName: a.userName,
+              createdAt: a.createdAt,
+              opportunityName: a.opportunityName,
+            }))}
+          />
+        </div>
       </div>
+
+      <RecentDeals
+        deals={recentDeals.map((d) => ({
+          id: d.id,
+          name: d.name,
+          company: d.company,
+          stage: d.stage,
+          stageLabel: d.stageLabel,
+          amount: d.amount,
+          probabilityPct: d.probabilityPct,
+          closeDate: d.closeDate,
+        }))}
+      />
     </div>
   )
 }

@@ -5,8 +5,10 @@ import { requireUser } from "@/lib/security/auth"
 import {
   createContact,
   updateContact,
+  bulkDeleteContacts,
   contactCreateSchema,
   contactUpdateSchema,
+  bulkDeleteContactsSchema,
 } from "@/lib/data/contacts"
 
 export async function createContactAction(input: unknown) {
@@ -26,4 +28,12 @@ export async function updateContactAction(id: string, input: unknown) {
   revalidatePath("/contacts")
   revalidatePath(`/contacts/${id}`)
   return contact
+}
+
+export async function bulkDeleteContactsAction(input: unknown) {
+  const user = await requireUser()
+  const parsed = bulkDeleteContactsSchema.parse(input)
+  const ctx = { user, source: "web" as const }
+  await bulkDeleteContacts(ctx, parsed)
+  revalidatePath("/contacts")
 }

@@ -1,0 +1,130 @@
+"use client"
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { ArrowRight, Calendar, Building2 } from "lucide-react"
+import { cn } from "@/lib/utils"
+import Link from "next/link"
+
+interface Deal {
+  id: string
+  name: string
+  company: string | null
+  stage: string
+  stageLabel: string
+  amount: string
+  probabilityPct: number
+  closeDate: string | null
+}
+
+interface RecentDealsProps {
+  deals: Deal[]
+  maxItems?: number
+}
+
+function formatDate(dateString: string | null): string {
+  if (!dateString) return "TBD"
+  const date = new Date(dateString)
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
+}
+
+function formatInr(value: string): string {
+  const num = Number(value)
+  if (num >= 10000000) {
+    return `₹${(num / 10000000).toFixed(1)}Cr`
+  } else if (num >= 100000) {
+    return `₹${(num / 100000).toFixed(1)}L`
+  }
+  return `₹${num.toLocaleString("en-IN")}`
+}
+
+export function RecentDeals({ deals, maxItems = 5 }: RecentDealsProps) {
+  const sorted = [...deals]
+    .sort((a, b) => {
+      if (!a.closeDate) return 1
+      if (!b.closeDate) return -1
+      return new Date(b.closeDate).getTime() - new Date(a.closeDate).getTime()
+    })
+    .slice(0, maxItems)
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between">
+        <div>
+          <CardTitle>Recent Deals</CardTitle>
+          <CardDescription>Latest updates in your pipeline</CardDescription>
+        </div>
+        <Link href="/opportunities">
+          <Button variant="ghost" size="sm" className="text-primary">
+            View All
+            <ArrowRight data-icon="inline-end" />
+          </Button>
+        </Link>
+      </CardHeader>
+      <CardContent className="p-0">
+        <ScrollArea className="h-[300px]">
+          <div className="flex flex-col">
+            {sorted.map((deal, index) => (
+              <Link
+                key={deal.id}
+                href={`/opportunities/${deal.id}`}
+                className={cn(
+                  "group flex items-center justify-between px-6 py-4 transition-colors hover:bg-muted/50",
+                  index < sorted.length - 1 && "border-b border-border",
+                )}
+              >
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{deal.name}</span>
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "text-xs",
+                        deal.stage === "closed_won" && "bg-emerald-100 text-emerald-700",
+                        deal.stage === "closed_lost" && "bg-destructive/15 text-destructive",
+                      )}
+                    >
+                      {deal.stageLabel}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    {deal.company && (
+                      <span className="flex items-center gap-1">
+                        <Building2 className="size-3" />
+                        {deal.company}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <Calendar className="size-3" />
+                      {formatDate(deal.closeDate)}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-semibold">
+                    {formatInr(deal.amount)}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {deal.probabilityPct}% likely
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
+  )
+}

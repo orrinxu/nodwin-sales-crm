@@ -6,6 +6,8 @@ import { Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
+import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
+import { ActivityComposer } from "@/components/opportunities/activity-composer"
 import {
   Tabs,
   TabsList,
@@ -13,6 +15,7 @@ import {
   TabsPanel,
 } from "@/components/ui/tabs"
 import type { OpportunityRecord, BusinessUnitOption } from "@/lib/data/opportunities.types"
+import type { ActivityRecord } from "@/lib/data/activities"
 import { getStageLabel } from "@/lib/data/opportunities.types"
 import { DEAL_STAGES } from "@/lib/opportunity"
 import { Money } from "@/lib/money"
@@ -21,12 +24,16 @@ interface OpportunityDetailWrapperProps {
   opportunity: OpportunityRecord
   businessUnits: BusinessUnitOption[]
   updateAction: (id: string, input: unknown) => Promise<OpportunityRecord>
+  activities: ActivityRecord[]
+  createActivityAction: (opportunityId: string, input: unknown) => Promise<ActivityRecord>
 }
 
 export function OpportunityDetailWrapper({
   opportunity,
   businessUnits,
   updateAction,
+  activities,
+  createActivityAction,
 }: OpportunityDetailWrapperProps) {
   const router = useRouter()
 
@@ -208,21 +215,33 @@ export function OpportunityDetailWrapper({
           </TabsPanel>
 
           <TabsPanel value="notes">
-            <Card>
-              <CardContent className="py-6">
-                <p className="text-sm text-muted-foreground">
-                  Notes coming in a future ticket.
-                </p>
-              </CardContent>
-            </Card>
+            <div className="grid gap-6">
+              <ActivityComposer
+                opportunityId={opportunity.id}
+                accountId={opportunity.accountId}
+                createAction={createActivityAction}
+                onCreated={() => router.refresh()}
+              />
+              <Card>
+                <CardHeader>
+                  <CardTitle>Notes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ActivityTimeline
+                    activities={activities.filter((a) => a.type === "note")}
+                  />
+                </CardContent>
+              </Card>
+            </div>
           </TabsPanel>
 
           <TabsPanel value="activity">
             <Card>
-              <CardContent className="py-6">
-                <p className="text-sm text-muted-foreground">
-                  Activity timeline coming in a future ticket.
-                </p>
+              <CardHeader>
+                <CardTitle>Activity Timeline</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ActivityTimeline activities={activities} />
               </CardContent>
             </Card>
           </TabsPanel>
