@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/security/auth"
-import { getAccountOptions, getContactList } from "@/lib/data/contacts"
+import { getAccountOptions, getContactList, CONTACT_STATUSES } from "@/lib/data/contacts"
 import type { ContactListFilters } from "@/lib/data/contacts"
 import { createContactAction } from "./actions"
 import { ContactsList } from "@/components/contacts/contacts-list"
@@ -14,7 +14,7 @@ export default async function ContactsPage(props: {
 
   const searchParams = await props.searchParams
   const filters: ContactListFilters = {}
-  if (searchParams?.status && ["active", "inactive", "lead", "customer", "archived"].includes(searchParams.status)) {
+  if (searchParams?.status && (CONTACT_STATUSES as readonly string[]).includes(searchParams.status)) {
     filters.status = searchParams.status as ContactListFilters["status"]
   }
 

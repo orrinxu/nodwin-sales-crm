@@ -3,6 +3,18 @@ import { z } from "zod"
 import { createServerClient } from "@/lib/supabase/server"
 import type { AuthenticatedUser } from "@/lib/security/auth"
 
+export const CONTACT_STATUSES = [
+  "active",
+  "inactive",
+  "lead",
+  "customer",
+  "archived",
+] as const
+
+export type ContactStatus = (typeof CONTACT_STATUSES)[number]
+
+const contactStatusSchema = z.enum(CONTACT_STATUSES)
+
 export interface ContactCallContext {
   user: AuthenticatedUser
   source: "web" | "mcp" | "webhook" | "system"
@@ -18,6 +30,7 @@ export interface ContactRecord {
   socials: Record<string, string>
   notes: string | null
   ownerUserId: string | null
+  status: ContactStatus
   customData: Record<string, unknown>
   createdAt: string
   updatedAt: string
@@ -55,6 +68,11 @@ export type ContactCreateInput = z.infer<typeof contactCreateSchema>
 export type ContactUpdateInput = z.infer<typeof contactUpdateSchema>
 
 function toDomainContact(data: Record<string, unknown>): ContactRecord {
+  const rawStatus = data.status as string | undefined
+  const status = CONTACT_STATUSES.includes(rawStatus as ContactStatus)
+    ? (rawStatus as ContactStatus)
+    : "active"
+
   return {
     id: data.id as string,
     fullName: data.full_name as string,
@@ -65,6 +83,7 @@ function toDomainContact(data: Record<string, unknown>): ContactRecord {
     socials: (data.socials ?? {}) as Record<string, string>,
     notes: (data.notes as string) ?? null,
     ownerUserId: (data.owner_user_id as string) ?? null,
+    status,
     customData: (data.custom_data ?? {}) as Record<string, unknown>,
     createdAt: data.created_at as string,
     updatedAt: data.updated_at as string,
@@ -130,8 +149,9 @@ export async function getContactList(
     .select("*")
     .order("created_at", { ascending: false })
 
-  if (filters?.status) {
-    query = query.eq("status", filters.status)
+  const status = contactStatusSchema.safeParse(filters?.status).data
+  if (status) {
+    query = query.eq("status", status)
   }
 
   const { data, error } = await query
