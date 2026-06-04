@@ -115,6 +115,34 @@ export async function getContactAccountLinks(
   }))
 }
 
+export interface ContactListFilters {
+  status?: ContactStatus | null
+}
+
+export async function getContactList(
+  ctx: ContactCallContext,
+  filters?: ContactListFilters,
+): Promise<ContactRecord[]> {
+  const supabase = await createServerClient()
+
+  let query = supabase
+    .from("contacts")
+    .select("*")
+    .order("created_at", { ascending: false })
+
+  if (filters?.status) {
+    query = query.eq("status", filters.status)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    throw new Error(`Failed to load contacts: ${error.message}`)
+  }
+
+  return (data ?? []).map((r) => toDomainContact(r as Record<string, unknown>))
+}
+
 export async function getAccountOptions(
   ctx: ContactCallContext,
 ): Promise<AccountOption[]> {
