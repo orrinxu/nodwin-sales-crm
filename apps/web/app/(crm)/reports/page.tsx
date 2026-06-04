@@ -1,10 +1,14 @@
 import { requireUser } from "@/lib/security/auth"
-import { getPipelineSummary } from "@/lib/data/reports"
-import { ReportsContent } from "./reports-content"
+import { getReportData } from "@/lib/data/reports"
+import { ReportsView } from "@/components/reports/reports-view"
+
+export const metadata = {
+  title: "Reports - Nodwin CRM",
+}
 
 export default async function ReportsPage() {
-  const user = await requireUser()
-  const pipeline = await getPipelineSummary({ user, source: "web" })
+  await requireUser()
+  const reportData = await getReportData()
 
-  return <ReportsContent pipeline={pipeline} />
+  return <ReportsView data={reportData} />
 }

@@ -1,97 +1,180 @@
 import "server-only"
 import { createServerClient } from "@/lib/supabase/server"
-import type { AuthenticatedUser } from "@/lib/security/auth"
-import { Money } from "@/lib/money"
-import { DEAL_STAGES, type DealStage } from "@/lib/opportunity"
+import { DEAL_STAGES, isTerminalStage } from "@/lib/opportunity"
+import type { DealStage } from "@/lib/opportunity"
+import { getStageLabel } from "@/lib/data/opportunities.types"
 
-export interface ReportCallContext {
-  user: AuthenticatedUser
-  source: "web" | "mcp" | "webhook" | "system"
-}
-
-export interface PipelineStageSummary {
-  stage: DealStage
+export interface PipelineByStage {
+  stage: string
   label: string
   count: number
-  totalAmount: string
-  currency: string
+  amount: number
 }
 
-export interface PipelineSummary {
-  stages: PipelineStageSummary[]
-  totalCount: number
-  totalAmount: string
-  currency: string
+export interface WonLostRevenue {
+  type: "won" | "lost" | "open"
+  amount: number
+  count: number
 }
 
-const STAGE_LABELS: Record<DealStage, string> = {
-  qualify: "Qualify",
-  meet_and_present: "Meet & Present",
-  propose: "Propose",
-  negotiate: "Negotiate",
-  verbal_agreement: "Verbal Agreement",
-  closed_won: "Closed Won",
-  closed_lost: "Closed Lost",
+export interface MonthlyTrend {
+  month: string
+  created: number
+  won: number
+  amount: number
 }
 
-export async function getPipelineSummary(
-  _ctx: ReportCallContext,
-): Promise<PipelineSummary> {
+export interface TopAccount {
+  name: string
+  amount: number
+  count: number
+}
+
+export interface ReportData {
+  pipelineByStage: PipelineByStage[]
+  wonLostRevenue: WonLostRevenue[]
+  monthlyTrends: MonthlyTrend[]
+  topAccounts: TopAccount[]
+  totalPipeline: number
+  totalWon: number
+  avgDealSize: number
+  winRate: number
+}
+
+export async function getReportData(): Promise<ReportData> {
   const supabase = await createServerClient()
 
-  const { data, error } = await supabase
+  const { data: opportunities, error } = await supabase
     .from("opportunities")
-    .select("stage, amount, currency")
+    .select(`
+      id,
+      name,
+      stage,
+      amount,
+      currency,
+      close_date,
+      created_at,
+      account:account_id ( name )
+    `)
+    .order("created_at", { ascending: false })
+    .limit(500)
 
   if (error) {
-    throw new Error(`Failed to load pipeline report data: ${error.message}`)
+    throw new Error(`Failed to load report data: ${error.message}`)
   }
 
-  const defaultCurrency = "USD"
+  const raw = (opportunities ?? []) as Array<{
+    id: string
+    name: string
+    stage: string
+    amount: string | number
+    currency: string
+    close_date: string | null
+    created_at: string
+    account: Array<{ name: string }> | null
+  }>
 
-  const stageCounts = new Map<DealStage, number>()
-  const stageAmounts = new Map<DealStage, { cents: number; currency: string }>()
+  const records = raw.map((r) => ({
+    ...r,
+    account: Array.isArray(r.account) && r.account.length > 0 ? r.account[0] : null,
+  }))
 
+  const stageBuckets: Record<string, { count: number; amount: number }> = {}
   for (const stage of DEAL_STAGES) {
-    stageCounts.set(stage, 0)
-    stageAmounts.set(stage, { cents: 0, currency: defaultCurrency })
+    stageBuckets[stage] = { count: 0, amount: 0 }
   }
 
-  for (const row of data ?? []) {
-    const stage = (row.stage as DealStage) ?? "qualify"
-    const amountStr = row.amount != null ? String(row.amount) : "0"
-    const currency = (row.currency as string) ?? defaultCurrency
+  let totalWonAmount = 0
+  let totalLostAmount = 0
+  let wonCount = 0
+  let lostCount = 0
+  let openCount = 0
+  let openAmount = 0
 
-    stageCounts.set(stage, (stageCounts.get(stage) ?? 0) + 1)
+  const monthlyMap: Record<string, { created: number; won: number; amount: number }> = {}
+  const accountMap: Record<string, { name: string; amount: number; count: number }> = {}
 
-    if (currency === defaultCurrency) {
-      const current = stageAmounts.get(stage)!
-      const money = Money.fromAmount(amountStr, currency)
-      current.cents += money.cents
+  for (const opp of records) {
+    const stage = opp.stage as DealStage
+    const amount = Number(opp.amount) || 0
+    const bucket = stageBuckets[stage]
+    if (bucket) {
+      bucket.count++
+      bucket.amount += amount
     }
+
+    if (stage === "closed_won") {
+      totalWonAmount += amount
+      wonCount++
+    } else if (stage === "closed_lost") {
+      totalLostAmount += amount
+      lostCount++
+    } else {
+      openCount++
+      openAmount += amount
+    }
+
+    const month = (opp.created_at ?? "").slice(0, 7)
+    if (month) {
+      if (!monthlyMap[month]) {
+        monthlyMap[month] = { created: 0, won: 0, amount: 0 }
+      }
+      monthlyMap[month].created++
+      if (stage === "closed_won") {
+        monthlyMap[month].won++
+        monthlyMap[month].amount += amount
+      }
+    }
+
+    const accountName = opp.account?.name ?? "Unknown"
+    if (!accountMap[accountName]) {
+      accountMap[accountName] = { name: accountName, amount: 0, count: 0 }
+    }
+    accountMap[accountName].amount += amount
+    accountMap[accountName].count++
   }
 
-  const stages: PipelineStageSummary[] = DEAL_STAGES.map((stage) => {
-    const amount = stageAmounts.get(stage)!
-    return {
-      stage,
-      label: STAGE_LABELS[stage],
-      count: stageCounts.get(stage) ?? 0,
-      totalAmount: Money.fromCents(amount.cents, defaultCurrency).toAmount(),
-      currency: defaultCurrency,
-    }
-  })
+  const pipelineByStage: PipelineByStage[] = DEAL_STAGES.filter(
+    (s) => !isTerminalStage(s),
+  ).map((stage) => ({
+    stage,
+    label: getStageLabel(stage),
+    count: stageBuckets[stage]?.count ?? 0,
+    amount: stageBuckets[stage]?.amount ?? 0,
+  }))
 
-  const totalCount = stages.reduce((sum, s) => sum + s.count, 0)
-  const totalCents = stages.reduce(
-    (sum, s) => sum + Money.fromAmount(s.totalAmount, defaultCurrency).cents,
-    0,
-  )
+  const wonLostRevenue: WonLostRevenue[] = [
+    { type: "won", amount: totalWonAmount, count: wonCount },
+    { type: "lost", amount: totalLostAmount, count: lostCount },
+    { type: "open", amount: openAmount, count: openCount },
+  ]
+
+  const monthlyTrends: MonthlyTrend[] = Object.entries(monthlyMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, data]) => ({
+      month,
+      created: data.created,
+      won: data.won,
+      amount: data.amount,
+    }))
+
+  const topAccounts: TopAccount[] = Object.values(accountMap)
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 10)
+
+  const totalPipeline = pipelineByStage.reduce((sum, s) => sum + s.amount, 0)
+  const totalDeals = wonCount + lostCount
+  const winRate = totalDeals > 0 ? Math.round((wonCount / totalDeals) * 100) : 0
+  const avgDealSize = wonCount > 0 ? Math.round(totalWonAmount / wonCount) : 0
 
   return {
-    stages,
-    totalCount,
-    totalAmount: Money.fromCents(totalCents, defaultCurrency).toAmount(),
-    currency: defaultCurrency,
+    pipelineByStage,
+    wonLostRevenue,
+    monthlyTrends,
+    topAccounts,
+    totalPipeline,
+    totalWon: totalWonAmount,
+    avgDealSize,
+    winRate,
   }
 }

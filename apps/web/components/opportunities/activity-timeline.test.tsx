@@ -8,7 +8,9 @@ vi.mock("server-only", () => ({}))
 const baseActivity: ActivityRecord = {
   id: "act-1",
   opportunityId: "opp-1",
+  opportunityName: "Big Deal",
   accountId: "acct-1",
+  accountName: "Acme Corp",
   userId: "user-1",
   userName: "Alice",
   type: "note",
