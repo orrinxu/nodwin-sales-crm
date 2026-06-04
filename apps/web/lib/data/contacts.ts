@@ -8,6 +8,9 @@ export interface ContactCallContext {
   source: "web" | "mcp" | "webhook" | "system"
 }
 
+export const CONTACT_STATUSES = ["active", "inactive", "lead", "customer", "archived"] as const
+export type ContactStatus = (typeof CONTACT_STATUSES)[number]
+
 export interface ContactRecord {
   id: string
   fullName: string
@@ -18,6 +21,7 @@ export interface ContactRecord {
   socials: Record<string, string>
   notes: string | null
   ownerUserId: string | null
+  status: ContactStatus
   customData: Record<string, unknown>
   createdAt: string
   updatedAt: string
@@ -45,6 +49,7 @@ export const contactCreateSchema = z.object({
   socials: socialsSchema.optional(),
   notes: z.string().max(5000).nullable().optional().or(z.literal("")),
   ownerUserId: z.string().uuid().nullable().optional(),
+  status: z.enum(CONTACT_STATUSES).optional(),
   accountLinkIds: z.array(z.string().uuid()).optional(),
   customData: z.record(z.string(), z.unknown()).optional(),
 })
@@ -65,6 +70,7 @@ function toDomainContact(data: Record<string, unknown>): ContactRecord {
     socials: (data.socials ?? {}) as Record<string, string>,
     notes: (data.notes as string) ?? null,
     ownerUserId: (data.owner_user_id as string) ?? null,
+    status: (data.status as ContactStatus) ?? "active",
     customData: (data.custom_data ?? {}) as Record<string, unknown>,
     createdAt: data.created_at as string,
     updatedAt: data.updated_at as string,
@@ -161,6 +167,9 @@ function toDbContact(input: ContactCreateInput): Record<string, unknown> {
   if (input.ownerUserId !== undefined) {
     dbData.owner_user_id = input.ownerUserId ?? null
   }
+  if (input.status !== undefined) {
+    dbData.status = input.status
+  }
   if (input.customData !== undefined) {
     dbData.custom_data = input.customData
   }
@@ -225,6 +234,7 @@ export async function updateContact(
   if (parsed.socials !== undefined) dbData.socials = parsed.socials
   if (parsed.notes !== undefined) dbData.notes = parsed.notes || null
   if (parsed.ownerUserId !== undefined) dbData.owner_user_id = parsed.ownerUserId ?? null
+  if (parsed.status !== undefined) dbData.status = parsed.status
   if (parsed.customData !== undefined) dbData.custom_data = parsed.customData
 
   if (Object.keys(dbData).length > 0) {

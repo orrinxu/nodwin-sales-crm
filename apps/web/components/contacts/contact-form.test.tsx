@@ -34,6 +34,7 @@ describe("ContactForm", () => {
           socials: { linkedin: "https://linkedin.com/in/john" },
           notes: "A note",
           ownerUserId: null,
+          status: "active",
           customData: {},
           createdAt: "2026-01-01T00:00:00Z",
           updatedAt: "2026-01-15T00:00:00Z",
