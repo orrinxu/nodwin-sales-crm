@@ -106,7 +106,7 @@ export function ContactsList({ accounts, contacts, createAction }: ContactsListP
   const searchParams = useSearchParams()
   const [searchQuery, setSearchQuery] = useState("")
 
-  const currentStatus = searchParams.get("status") || null
+  const currentStatus = searchParams.get("status") || undefined
 
   const filteredContacts = useMemo(() => {
     if (!searchQuery.trim()) return contacts
@@ -174,7 +174,7 @@ export function ContactsList({ accounts, contacts, createAction }: ContactsListP
     getCoreRowModel: getCoreRowModel(),
   })
 
-  const handleStatusChange = (value: string | null) => {
+  const handleStatusChange = (value: string) => {
     const params = new URLSearchParams(searchParams.toString())
     if (value && value !== "all") {
       params.set("status", value)
