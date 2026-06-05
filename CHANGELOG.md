@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Startup guide (ORR-408):** `docs/startup-guide.md` — step-by-step local dev setup with environment config, Supabase local stack, seed data, verification checklist, and troubleshooting
 - **Setup guide OAuth fix (ORR-408):** Quick start corrected in `docs/setup-guide.md` — OAuth redirect URI now points to `https://<project-ref>.supabase.co/auth/v1/callback` (Supabase is the broker, not the app); free-tier noted as sufficient for dev sandbox; local Supabase listed as alternative to Cloud project. GCP redirect URI documentation fixed in §2.1 and troubleshooting table
 - **README:** Quick start corrected to point at `apps/web/.env.example`; `setup-guide.md` and `startup-guide.md` added to project structure listing
+- **Smoke test procedure (ORR-452):** `docs/smoke-test.md` — codified 3-check pre-deploy smoke test (branch guard, schema check, route health check + process restart). `docs/runbook-incident.md` updated to reference the smoke procedure in the P-1 response and as a pre-deploy gate.
 
 ## 2026-05-08
 
@@ -48,4 +49,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Queue Phase 9.5 (MCP server) for post-East-Asia rollout. Add `{ user, source }` parameter requirement to `lib/data/` functions in preparation.
->>>>>>> Stashed changes

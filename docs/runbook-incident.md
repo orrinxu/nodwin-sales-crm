@@ -1,11 +1,25 @@
 # Incident Response Runbook
 
 > Owner: Tech Writer
-> Last updated: 2026-05-06
+> Last updated: 2026-06-05
 
 ## Scope
 
 This runbook covers incident response procedures for the Nodwin CRM running on the production stack (Vercel + Supabase + AI providers + Postmark/Resend email + Google Workspace + Slack).
+
+## Pre-Deploy Smoke Check
+
+Before declaring any deploy complete, run the [3-Check Smoke Procedure](smoke-test.md):
+
+1. **Branch check** — assert the checked-out branch is `main`
+2. **Schema check** — verify migrations are applied and expected tables exist
+3. **Route health check** — curl a `(crm)/` route expecting HTTP 200
+4. **Process restart** — restart PM2 and re-check
+
+If any check fails, do not mark the deploy as done. Follow the failure procedures in
+`docs/smoke-test.md` or escalate per the severity table below.
+
+---
 
 ## Pre-Launch Requirements
 
@@ -41,6 +55,8 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 **Symptoms:** App returns 5xx, blank page, or "Application error". Supabase Studio unreachable.
 
 **Steps:**
+
+0. **Run the [3-Check Smoke Procedure](smoke-test.md)** to rule out branch mismatch, unapplied schema, or stale process — the most common causes of "service down" on local preview deployments. If all 3 checks pass, proceed to infrastructure-level diagnosis.
 
 1. **Check Vercel dashboard** (`vercel.com/nodwin-crm`) → Deployments → Latest production deploy. Is it healthy?
    - If deploy failed: check build logs. Common causes: TypeScript error, missing env var, failed migration.
