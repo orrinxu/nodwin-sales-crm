@@ -111,6 +111,10 @@ jobs:
           fi
         timeout-minutes: 8
 
+      - name: Supabase schema lint
+        run: supabase db lint --local --level error --fail-on error
+        timeout-minutes: 2
+
       - name: Run RLS tests
         run: pnpm db:test
         timeout-minutes: 5

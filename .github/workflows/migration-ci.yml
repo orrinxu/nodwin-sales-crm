@@ -1,0 +1,53 @@
+name: Migration CI
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/policies/**'
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  migration-checks:
+    name: Schema Lint & Diff
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start Supabase local stack
+        run: supabase start
+        timeout-minutes: 8
+
+      - name: Schema lint
+        run: supabase db lint --local --level error --fail-on error
+        timeout-minutes: 2
+
+      - name: Schema diff against main
+        if: hashFiles('supabase/.temp/project-ref') != ''
+        run: |
+          git fetch origin main
+          supabase db diff --linked --file /tmp/diff.sql origin/main...HEAD 2>&1 | tee /tmp/diff-output.txt
+          if [ -s /tmp/diff.sql ]; then
+            echo "## Schema drift detected" >> "$GITHUB_STEP_SUMMARY"
+            echo '```sql' >> "$GITHUB_STEP_SUMMARY"
+            cat /tmp/diff.sql >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No schema drift detected."
+          fi
+        timeout-minutes: 3
