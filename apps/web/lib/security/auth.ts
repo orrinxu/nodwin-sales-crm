@@ -20,7 +20,7 @@ const LOCAL_PREVIEW_ADMIN: AuthenticatedUser = {
 export async function requireUser(
   request?: NextRequest,
 ): Promise<AuthenticatedUser> {
-  if (process.env.NEXT_PUBLIC_ENV === "local-preview") {
+  if (process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_ENV === "local-preview") {
     return LOCAL_PREVIEW_ADMIN
   }
 

@@ -32,11 +32,17 @@ vi.mock("./env", () => ({
 }))
 
 const ORIGINAL_ENV = process.env.NEXT_PUBLIC_ENV
+const ORIGINAL_NODE_ENV = process.env.NODE_ENV
 
 beforeEach(() => {
   vi.clearAllMocks()
   mockGetUser.mockReset()
   delete process.env.NEXT_PUBLIC_ENV
+  if (ORIGINAL_NODE_ENV !== undefined) {
+    process.env.NODE_ENV = ORIGINAL_NODE_ENV
+  } else {
+    delete process.env.NODE_ENV
+  }
 })
 
 afterAll(() => {
@@ -44,6 +50,11 @@ afterAll(() => {
     process.env.NEXT_PUBLIC_ENV = ORIGINAL_ENV
   } else {
     delete process.env.NEXT_PUBLIC_ENV
+  }
+  if (ORIGINAL_NODE_ENV !== undefined) {
+    process.env.NODE_ENV = ORIGINAL_NODE_ENV
+  } else {
+    delete process.env.NODE_ENV
   }
 })
 
@@ -172,6 +183,45 @@ describe("requireUser", () => {
       role: "admin",
     })
     expect(mockGetUser).not.toHaveBeenCalled()
+  })
+
+  it("bypasses local-preview when NODE_ENV is not production", async () => {
+    process.env.NODE_ENV = "development"
+    process.env.NEXT_PUBLIC_ENV = "local-preview"
+
+    const { requireUser } = await import("./auth")
+    const result = await requireUser()
+
+    expect(result).toEqual({
+      id: "a0000000001-0001-0001-0001-000000000001",
+      email: "alice.admin@nodwin-test.example",
+      role: "admin",
+    })
+    expect(mockGetUser).not.toHaveBeenCalled()
+  })
+
+  it("does not bypass in production even with local-preview env", async () => {
+    process.env.NODE_ENV = "production"
+    process.env.NEXT_PUBLIC_ENV = "local-preview"
+
+    mockGetUser.mockResolvedValue({
+      data: {
+        user: {
+          id: "prod-user",
+          email: "real@nodwin.com",
+          app_metadata: { role: "admin" },
+          user_metadata: {},
+        },
+      },
+      error: null,
+    })
+
+    const { requireUser } = await import("./auth")
+    const result = await requireUser()
+
+    expect(result.id).toBe("prod-user")
+    expect(result.email).toBe("real@nodwin.com")
+    expect(mockGetUser).toHaveBeenCalled()
   })
 
   it("handles missing email gracefully", async () => {
