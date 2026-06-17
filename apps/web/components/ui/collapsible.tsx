@@ -9,6 +9,7 @@ function Collapsible({
   defaultOpen,
   onOpenChange,
   className,
+  children,
   ...props
 }: React.ComponentProps<"div"> & {
   open?: boolean
@@ -33,7 +34,7 @@ function Collapsible({
       className={cn(className)}
       {...props}
     >
-      {React.Children.map(props.children, (child) => {
+      {React.Children.map(children, (child) => {
         if (!React.isValidElement<{ "data-state"?: string; onClick?: unknown; "aria-expanded"?: boolean }>(child)) return child
         if (
           typeof child.type === "function" &&
@@ -64,7 +65,7 @@ function CollapsibleTrigger({
       role="button"
       tabIndex={0}
       className={cn(
-        "flex items-center gap-1 cursor-pointer select-none rounded-md transition-colors hover:bg-muted/50",
+        "flex items-center gap-1 cursor-pointer select-none rounded-md transition-colors hover:bg-muted/50 data-[state=open]:[&>svg]:rotate-90",
         className,
       )}
       onKeyDown={(e) => {
@@ -75,7 +76,7 @@ function CollapsibleTrigger({
       }}
       {...props}
     >
-      <ChevronRight className="size-3.5 shrink-0 transition-transform duration-200 data-[state=open]:rotate-90" />
+      <ChevronRight className="size-3.5 shrink-0 transition-transform duration-200" />
       {children}
     </div>
   )
