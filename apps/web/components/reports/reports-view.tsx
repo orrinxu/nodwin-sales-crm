@@ -15,9 +15,15 @@ import {
   Line,
   Legend,
 } from "recharts"
+import { AlertTriangle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MetricsGrid } from "@/components/dashboard/metrics-card"
-import type { ReportData } from "@/lib/data/reports"
+import type {
+  PipelineMetrics,
+  PipelineStageSummary,
+  RevenueBreakdown,
+  MonthlyTrend,
+  TopAccount,
+} from "@/lib/data/metrics"
 
 const COLORS: Record<string, string> = {
   qualify: "#3b82f6",
@@ -30,14 +36,15 @@ const COLORS: Record<string, string> = {
   open: "#6b7280",
 }
 
-function fmt(v: unknown) {
-  const n = typeof v === "number" ? v : Number(v ?? 0)
-  return new Intl.NumberFormat("en-US", {
+const TERMINAL_STAGES = new Set(["closed_won", "closed_lost"])
+
+function fmt(value: number, currency: string): string {
+  return new Intl.NumberFormat("en-IN", {
     style: "currency",
-    currency: "USD",
+    currency,
     notation: "compact",
     maximumFractionDigits: 0,
-  }).format(n)
+  }).format(value)
 }
 
 const tooltipStyle: React.CSSProperties = {
@@ -48,51 +55,52 @@ const tooltipStyle: React.CSSProperties = {
   boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
 }
 
-function EmptyChart({ message }: { message: string }) {
-  return (
-    <div className="flex h-80 items-center justify-center">
-      <p className="text-sm text-muted-foreground">{message}</p>
-    </div>
-  )
+interface ReportsViewProps {
+  metrics: PipelineMetrics
+  pipelineStages: PipelineStageSummary[]
+  revenueBreakdown: RevenueBreakdown[]
+  monthlyTrends: MonthlyTrend[]
+  topAccounts: TopAccount[]
 }
 
-function chartOrEmpty<T>(
-  data: T[],
-  emptyMessage: string,
-  render: (data: T[]) => React.ReactNode,
-) {
-  if (data.length === 0) {
-    return <EmptyChart message={emptyMessage} />
-  }
-  return render(data)
-}
+export function ReportsView({
+  metrics,
+  pipelineStages,
+  revenueBreakdown,
+  monthlyTrends,
+  topAccounts,
+}: ReportsViewProps) {
+  const currency = metrics.currency
 
-export function ReportsView({ data }: { data: ReportData }) {
-  const pipelineData = data.pipelineByStage.map((s) => ({
-    name: s.label,
-    amount: s.amount,
-    fill: COLORS[s.stage] ?? "#6b7280",
-  }))
+  const pipelineData = pipelineStages
+    .filter((s) => !TERMINAL_STAGES.has(s.stage))
+    .map((s) => ({
+      name: s.label,
+      amount: s.amount,
+      fill: COLORS[s.stage] ?? "#6b7280",
+    }))
 
-  const wonLostData = data.wonLostRevenue.map((s) => ({
-    name: s.type.charAt(0).toUpperCase() + s.type.slice(1),
-    value: s.amount,
+  const wonLostData = revenueBreakdown.map((r) => ({
+    name: r.type.charAt(0).toUpperCase() + r.type.slice(1),
+    value: r.amount,
     color:
-      s.type === "won" ? COLORS.won : s.type === "lost" ? COLORS.lost : COLORS.open,
+      r.type === "won"
+        ? COLORS.won
+        : r.type === "lost"
+          ? COLORS.lost
+          : COLORS.open,
   }))
 
-  const trendData = data.monthlyTrends.map((s) => ({
-    month: s.month,
-    Created: s.created,
-    Won: s.won,
+  const trendData = monthlyTrends.map((m) => ({
+    month: m.month,
+    Created: m.created,
+    Won: m.won,
   }))
 
-  const accountData = data.topAccounts.map((s) => ({
-    name: s.name.length > 20 ? s.name.slice(0, 20) + "..." : s.name,
-    amount: s.amount,
+  const accountData = topAccounts.map((a) => ({
+    name: a.name.length > 20 ? a.name.slice(0, 20) + "..." : a.name,
+    amount: a.amount,
   }))
-
-  const hasRevenue = wonLostData.some((d) => d.value > 0)
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -103,34 +111,70 @@ export function ReportsView({ data }: { data: ReportData }) {
         </p>
       </div>
 
-      <MetricsGrid
-        metrics={[
-          {
-            label: "Total Pipeline",
-            value: fmt(data.totalPipeline),
-            change: 0,
-            trend: "neutral" as const,
-          },
-          {
-            label: "Closed Won",
-            value: fmt(data.totalWon),
-            change: 0,
-            trend: "neutral" as const,
-          },
-          {
-            label: "Win Rate",
-            value: `${data.winRate}%`,
-            change: 0,
-            trend: "neutral" as const,
-          },
-          {
-            label: "Avg Deal Size",
-            value: fmt(data.avgDealSize),
-            change: 0,
-            trend: "neutral" as const,
-          },
-        ]}
-      />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Pipeline Value
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {fmt(metrics.pipelineValue, currency)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Deals Won
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.dealsWon}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Win Rate
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.winRate}%</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Avg Deal Size
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {fmt(metrics.avgDealSize, currency)}
+            </div>
+          </CardContent>
+        </Card>
+        {metrics.unconvertibleCount > 0 && (
+          <Card className="border-amber-500/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium text-amber-600">
+                <AlertTriangle className="size-4" />
+                Non-{currency} Deals
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-amber-600">
+                {metrics.unconvertibleCount}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Excluded from pipeline totals
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
@@ -138,16 +182,24 @@ export function ReportsView({ data }: { data: ReportData }) {
             <CardTitle>Pipeline by Stage</CardTitle>
           </CardHeader>
           <CardContent>
-            {data.totalPipeline === 0 ? (
-              <EmptyChart message="No active deals in pipeline." />
+            {pipelineData.length === 0 ? (
+              <div className="flex h-80 items-center justify-center text-sm text-muted-foreground">
+                No pipeline data available.
+              </div>
             ) : (
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={pipelineData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="name" className="text-xs" />
-                    <YAxis className="text-xs" tickFormatter={fmt} />
-                    <Tooltip formatter={fmt} contentStyle={tooltipStyle} />
+                    <YAxis
+                      className="text-xs"
+                      tickFormatter={(v: number) => fmt(v, currency)}
+                    />
+                    <Tooltip
+                      formatter={(v) => [fmt(Number(v ?? 0), currency), ""]}
+                      contentStyle={tooltipStyle}
+                    />
                     <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
                       {pipelineData.map((entry, index) => (
                         <Cell key={index} fill={entry.fill} />
@@ -165,8 +217,10 @@ export function ReportsView({ data }: { data: ReportData }) {
             <CardTitle>Revenue Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            {!hasRevenue ? (
-              <EmptyChart message="No won or lost deals yet." />
+            {wonLostData.every((d) => d.value === 0) ? (
+              <div className="flex h-80 items-center justify-center text-sm text-muted-foreground">
+                No revenue data available.
+              </div>
             ) : (
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
@@ -185,7 +239,10 @@ export function ReportsView({ data }: { data: ReportData }) {
                         <Cell key={index} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={fmt} contentStyle={tooltipStyle} />
+                    <Tooltip
+                      formatter={(v) => [fmt(Number(v ?? 0), currency), ""]}
+                      contentStyle={tooltipStyle}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -198,10 +255,14 @@ export function ReportsView({ data }: { data: ReportData }) {
             <CardTitle>Deal Trends</CardTitle>
           </CardHeader>
           <CardContent>
-            {chartOrEmpty(trendData, "No deal activity yet.", (data) => (
+            {trendData.length === 0 ? (
+              <div className="flex h-80 items-center justify-center text-sm text-muted-foreground">
+                No trend data available.
+              </div>
+            ) : (
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={data}>
+                  <LineChart data={trendData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="month" className="text-xs" />
                     <YAxis className="text-xs" allowDecimals={false} />
@@ -224,7 +285,7 @@ export function ReportsView({ data }: { data: ReportData }) {
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-            ))}
+            )}
           </CardContent>
         </Card>
 
@@ -233,15 +294,19 @@ export function ReportsView({ data }: { data: ReportData }) {
             <CardTitle>Top Accounts by Revenue</CardTitle>
           </CardHeader>
           <CardContent>
-            {chartOrEmpty(accountData, "No accounts with deal activity.", (data) => (
+            {accountData.length === 0 ? (
+              <div className="flex h-80 items-center justify-center text-sm text-muted-foreground">
+                No account data available.
+              </div>
+            ) : (
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data} layout="vertical">
+                  <BarChart data={accountData} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis
                       type="number"
                       className="text-xs"
-                      tickFormatter={fmt}
+                      tickFormatter={(v: number) => fmt(v, currency)}
                     />
                     <YAxis
                       dataKey="name"
@@ -249,12 +314,15 @@ export function ReportsView({ data }: { data: ReportData }) {
                       className="text-xs"
                       width={120}
                     />
-                    <Tooltip formatter={fmt} contentStyle={tooltipStyle} />
+                    <Tooltip
+                      formatter={(v) => [fmt(Number(v ?? 0), currency), ""]}
+                      contentStyle={tooltipStyle}
+                    />
                     <Bar dataKey="amount" radius={[0, 4, 4, 0]} fill="#8b5cf6" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            ))}
+            )}
           </CardContent>
         </Card>
       </div>
