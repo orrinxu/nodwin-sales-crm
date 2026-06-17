@@ -57,3 +57,8 @@
 # is admin-only.
 .*entities.*:USING \(true\)
 .*business_units.*:USING \(true\)
+
+# ── fx_rates ──────────────────────────────────────────────────────────────────
+# FX rates is a lookup table for currency conversion. All authenticated users
+# need read access to reference exchange rates. Write access is finance/admin only.
+.*fx_rates.*:USING \(true\)
