@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts"
-import type { PipelineStageSummary } from "@/lib/data/dashboard"
+import type { PipelineStageSummary } from "@/lib/data/metrics"
 
 const CHART_COLORS = {
   active: "var(--chart-2)",
@@ -25,11 +25,14 @@ function getStageColor(stage: string): string {
   return CHART_COLORS.default
 }
 
-function formatChartCurrency(value: string | number, currency: string): string {
-  const num = typeof value === "string" ? parseFloat(value) : value
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M ${currency}`
-  if (num >= 1_000) return `${(num / 1_000).toFixed(0)}K ${currency}`
-  return `${num.toFixed(0)} ${currency}`
+function formatChartCurrency(value: number, currency: string): string {
+  const formatter = new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+    notation: "compact",
+  })
+  return formatter.format(value)
 }
 
 function CustomTooltip({
@@ -47,7 +50,7 @@ function CustomTooltip({
     <div className="rounded-lg border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md">
       <p className="font-medium">{d.label}</p>
       <p>{d.count} opportunities</p>
-      <p>{formatChartCurrency(d.totalAmount, currency)}</p>
+      <p>{formatChartCurrency(d.amount, currency)}</p>
     </div>
   )
 }
@@ -61,9 +64,8 @@ export function PipelineChart({ stages, currency }: PipelineChartProps) {
   const chartData = stages.map((s) => ({
     label: s.label,
     count: s.count,
-    amount: parseFloat(s.totalAmount),
+    amount: s.amount,
     stage: s.stage,
-    totalAmount: s.totalAmount,
   }))
 
   return (

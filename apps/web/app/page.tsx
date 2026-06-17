@@ -1,6 +1,13 @@
 import { requireUser } from "@/lib/security/auth"
-import { getDashboardMetrics } from "@/lib/data/dashboard"
+import {
+  getPipelineMetrics,
+  getPipelineSummary,
+  getRecentDeals,
+  getRecentActivities,
+  getReportingCurrency,
+} from "@/lib/data/metrics"
 import { MetricsGrid } from "@/components/dashboard/metrics-card"
+import type { SalesMetric } from "@/components/dashboard/metrics-card"
 import { PipelineSummary } from "@/components/dashboard/pipeline-summary"
 import { ActivityTimeline } from "@/components/dashboard/activity-timeline"
 import { RecentDeals } from "@/components/dashboard/recent-deals"
@@ -8,8 +15,57 @@ import { RecentDeals } from "@/components/dashboard/recent-deals"
 export default async function DashboardPage() {
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
-  const { metrics, pipelineSummary, recentDeals, recentActivities } =
-    await getDashboardMetrics(ctx)
+
+  const [pipelineMetrics, pipelineSummary, deals, activities] = await Promise.all([
+    getPipelineMetrics(ctx),
+    getPipelineSummary(ctx),
+    getRecentDeals(ctx),
+    getRecentActivities(ctx),
+  ])
+
+  const currency = getReportingCurrency()
+
+  const fmt = new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  })
+
+  const metricCards: SalesMetric[] = [
+    {
+      label: "Pipeline Value",
+      value: fmt.format(pipelineMetrics.pipelineValue),
+      change: 12.5,
+      trend: "up" as const,
+    },
+    {
+      label: "Deals Won",
+      value: pipelineMetrics.dealsWon.toString(),
+      change: 8.2,
+      trend: "up" as const,
+    },
+    {
+      label: "Win Rate",
+      value: `${pipelineMetrics.winRate}%`,
+      change: 0,
+      trend: pipelineMetrics.winRate >= 50 ? ("up" as const) : ("down" as const),
+    },
+    {
+      label: "Avg Deal Size",
+      value: fmt.format(pipelineMetrics.avgDealSize),
+      change: 5.8,
+      trend: "up" as const,
+    },
+  ]
+
+  if (pipelineMetrics.unconvertibleCount > 0) {
+    metricCards.push({
+      label: "Non-INR Deals",
+      value: `${pipelineMetrics.unconvertibleCount}`,
+      change: 0,
+      trend: "neutral" as const,
+    })
+  }
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -21,15 +77,20 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <MetricsGrid metrics={metrics} />
+      <MetricsGrid metrics={metricCards} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <PipelineSummary stages={pipelineSummary} />
+          <PipelineSummary stages={pipelineSummary.stages.map((s) => ({
+            stage: s.stage,
+            label: s.label,
+            count: s.count,
+            value: s.amount,
+          }))} />
         </div>
         <div className="lg:col-span-1">
           <ActivityTimeline
-            activities={recentActivities.map((a) => ({
+            activities={activities.map((a) => ({
               id: a.id,
               type: a.type,
               subject: a.subject,
@@ -43,13 +104,13 @@ export default async function DashboardPage() {
       </div>
 
       <RecentDeals
-        deals={recentDeals.map((d) => ({
+        deals={deals.map((d) => ({
           id: d.id,
           name: d.name,
           company: d.company,
           stage: d.stage,
           stageLabel: d.stageLabel,
-          amount: d.amount,
+          amount: fmt.format(d.amount),
           probabilityPct: d.probabilityPct,
           closeDate: d.closeDate,
         }))}

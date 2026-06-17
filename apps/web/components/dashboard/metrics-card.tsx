@@ -4,7 +4,7 @@ import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
-interface SalesMetric {
+export interface SalesMetric {
   label: string
   value: string
   change: number

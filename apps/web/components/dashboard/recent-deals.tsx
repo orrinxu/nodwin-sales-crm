@@ -40,16 +40,6 @@ function formatDate(dateString: string | null): string {
   })
 }
 
-function formatInr(value: string): string {
-  const num = Number(value)
-  if (num >= 10000000) {
-    return `₹${(num / 10000000).toFixed(1)}Cr`
-  } else if (num >= 100000) {
-    return `₹${(num / 100000).toFixed(1)}L`
-  }
-  return `₹${num.toLocaleString("en-IN")}`
-}
-
 export function RecentDeals({ deals, maxItems = 5 }: RecentDealsProps) {
   const sorted = [...deals]
     .sort((a, b) => {
@@ -114,7 +104,7 @@ export function RecentDeals({ deals, maxItems = 5 }: RecentDealsProps) {
                 </div>
                 <div className="text-right">
                   <div className="text-lg font-semibold">
-                    {formatInr(deal.amount)}
+                    {deal.amount}
                   </div>
                   <div className="text-sm text-muted-foreground">
                     {deal.probabilityPct}% likely

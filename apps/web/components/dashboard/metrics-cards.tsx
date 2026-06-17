@@ -1,24 +1,27 @@
 "use client"
 
-import { TrendingUp, CheckCircle2, XCircle, DollarSign, Percent } from "lucide-react"
-import type { SalesMetrics } from "@/lib/data/dashboard"
+import { TrendingUp, CheckCircle2, XCircle, DollarSign, Percent, AlertTriangle } from "lucide-react"
+import type { PipelineMetrics } from "@/lib/data/metrics"
+import { cn } from "@/lib/utils"
 
 interface MetricsCardsProps {
-  metrics: SalesMetrics
+  metrics: PipelineMetrics
 }
 
-function formatCurrency(value: string, currency: string): string {
-  const num = parseFloat(value)
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M ${currency}`
-  if (num >= 1_000) return `${(num / 1_000).toFixed(0)}K ${currency}`
-  return `${num.toFixed(0)} ${currency}`
+function fmt(value: number, currency: string): string {
+  const formatter = new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  })
+  return formatter.format(value)
 }
 
 export function MetricsCards({ metrics }: MetricsCardsProps) {
   const cards = [
     {
       label: "Pipeline Value",
-      value: formatCurrency(metrics.pipelineValue, metrics.pipelineCurrency),
+      value: fmt(metrics.pipelineValue, metrics.currency),
       icon: DollarSign,
     },
     {
@@ -40,10 +43,19 @@ export function MetricsCards({ metrics }: MetricsCardsProps) {
     },
     {
       label: "Avg Deal Size",
-      value: formatCurrency(metrics.avgDealSize, metrics.avgDealCurrency),
+      value: fmt(metrics.avgDealSize, metrics.currency),
       icon: TrendingUp,
     },
   ]
+
+  if (metrics.unconvertibleCount > 0) {
+    cards.push({
+      label: "Non-INR Deals",
+      value: metrics.unconvertibleCount.toString(),
+      icon: AlertTriangle,
+      color: "text-amber-500",
+    })
+  }
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -56,7 +68,7 @@ export function MetricsCards({ metrics }: MetricsCardsProps) {
           >
             <div className="flex items-center gap-2">
               <Icon
-                className={`size-4 text-muted-foreground ${card.color ?? ""}`}
+                className={cn("size-4 text-muted-foreground", card.color)}
               />
               <p className="text-sm text-muted-foreground">{card.label}</p>
             </div>
