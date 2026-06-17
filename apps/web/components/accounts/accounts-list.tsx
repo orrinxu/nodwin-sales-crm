@@ -4,12 +4,14 @@ import { useCallback, useMemo, useState } from "react"
 import {
   flexRender,
   getCoreRowModel,
+  getSortedRowModel,
   useReactTable,
   type ColumnDef,
   type RowSelectionState,
+  type SortingState,
 } from "@tanstack/react-table"
 import { useRouter } from "next/navigation"
-import { Search, Trash2Icon, Building2, X } from "lucide-react"
+import { Search, Trash2Icon, Building2, X, ArrowUpDown } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -41,6 +43,19 @@ import { Card } from "@/components/ui/card"
 import { AccountForm } from "@/components/accounts/account-form"
 import type { AccountListRecord, AccountCreateInput, AccountRecord } from "@/lib/data/accounts"
 
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "—"
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(new Date(dateStr))
+  } catch {
+    return dateStr
+  }
+}
+
 interface AccountsListProps {
   accounts: AccountListRecord[]
   industryOptions: string[]
@@ -58,6 +73,7 @@ export function AccountsList({
 }: AccountsListProps) {
   const router = useRouter()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [sorting, setSorting] = useState<SortingState>([])
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isPending, setIsPending] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
@@ -125,7 +141,16 @@ export function AccountsList({
       },
       {
         accessorKey: "name",
-        header: "Name",
+        header: ({ column }) => (
+          <Button
+            variant="ghost"
+            className="-ml-3 h-8 data-[sorted]:text-foreground"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            Name
+            <ArrowUpDown className="ml-2 size-4" />
+          </Button>
+        ),
         cell: ({ row }) => (
           <button
             className="font-medium hover:underline text-left"
@@ -137,13 +162,45 @@ export function AccountsList({
       },
       {
         accessorKey: "industry",
-        header: "Industry",
+        header: ({ column }) => (
+          <Button
+            variant="ghost"
+            className="-ml-3 h-8 data-[sorted]:text-foreground"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            Industry
+            <ArrowUpDown className="ml-2 size-4" />
+          </Button>
+        ),
         cell: ({ row }) => row.getValue("industry") ?? "—",
       },
       {
         accessorKey: "country",
-        header: "Country",
+        header: ({ column }) => (
+          <Button
+            variant="ghost"
+            className="-ml-3 h-8 data-[sorted]:text-foreground"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            Country
+            <ArrowUpDown className="ml-2 size-4" />
+          </Button>
+        ),
         cell: ({ row }) => row.getValue("country") ?? "—",
+      },
+      {
+        accessorKey: "createdAt",
+        header: ({ column }) => (
+          <Button
+            variant="ghost"
+            className="-ml-3 h-8 data-[sorted]:text-foreground"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            Created
+            <ArrowUpDown className="ml-2 size-4" />
+          </Button>
+        ),
+        cell: ({ row }) => formatDate(row.getValue("createdAt")),
       },
       {
         accessorKey: "website",
@@ -188,10 +245,12 @@ export function AccountsList({
   const table = useReactTable({
     data: filteredAccounts,
     columns,
-    state: { rowSelection },
+    state: { rowSelection, sorting },
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
+    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
   })
 
   const handleBulkDelete = useCallback(async () => {
