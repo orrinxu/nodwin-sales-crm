@@ -33,8 +33,10 @@ export function determineStageEvent(
   if (isTerminalStage(from) && !isTerminalStage(to)) return "REOPEN"
   if (to === "closed_won") return "CLOSE_WON"
   if (to === "closed_lost") return "CLOSE_LOST"
+  /* eslint-disable security/detect-object-injection -- stage keys are typed DealStage */
   if (STAGE_ORDER[to] > STAGE_ORDER[from]) return "ADVANCE"
   if (STAGE_ORDER[to] < STAGE_ORDER[from]) return "MOVE_BACKWARD"
+  /* eslint-enable security/detect-object-injection */
   return "ADVANCE"
 }
 

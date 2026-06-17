@@ -66,6 +66,7 @@ function recordVote(
   approverId: string,
   vote: ApproverVote,
 ): Record<number, StepApproval> {
+  // eslint-disable-next-line security/detect-object-injection -- stepId is a typed numeric key
   const current = stepApprovals[stepId] ?? {
     approved: false,
     rejected: false,
@@ -90,6 +91,7 @@ function approveVoteCanAdvance(
   if (event.stepId !== stepId) return false
   const step = findStep(context, stepId)
   if (!isValidApprover(step, event.approverId)) return false
+  // eslint-disable-next-line security/detect-object-injection -- stepId is a typed numeric key
   const before = context.stepApprovals[stepId]
   const wouldBeStepApproval: StepApproval = {
     ...(before ?? { approved: false, rejected: false, skipped: false, votes: {} }),
@@ -122,6 +124,7 @@ function isApproverCanStay(
   if (event.stepId !== stepId) return false
   const step = findStep(context, stepId)
   if (!isValidApprover(step, event.approverId)) return false
+  // eslint-disable-next-line security/detect-object-injection -- stepId is a typed numeric key
   const stepApproval = context.stepApprovals[stepId]
   return !computeCanAdvance(step, stepApproval)
 }

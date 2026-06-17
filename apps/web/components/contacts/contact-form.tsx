@@ -333,6 +333,7 @@ export function ContactForm({
                   <div key={index} className="flex items-center gap-2">
                     <select
                       className="h-8 w-28 rounded-lg border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                      // eslint-disable-next-line security/detect-object-injection -- numeric index
                       value={watchedSocials[index].platform}
                       onChange={(e) => updateSocialField(index, "platform", e.target.value)}
                     >
@@ -346,6 +347,7 @@ export function ContactForm({
                     <Input
                       placeholder="Profile URL"
                       className="flex-1"
+                      // eslint-disable-next-line security/detect-object-injection -- numeric index
                       value={watchedSocials[index].url}
                       onChange={(e) => updateSocialField(index, "url", e.target.value)}
                     />

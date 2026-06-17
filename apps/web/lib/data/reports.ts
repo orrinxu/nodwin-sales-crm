@@ -79,6 +79,7 @@ export async function getReportData(): Promise<ReportData> {
     account: Array.isArray(r.account) && r.account.length > 0 ? r.account[0] : null,
   }))
 
+  /* eslint-disable security/detect-object-injection -- dynamic map keys originate from typed constants or DB strings */
   const stageBuckets: Record<string, { count: number; amount: number }> = {}
   for (const stage of DEAL_STAGES) {
     stageBuckets[stage] = { count: 0, amount: 0 }
@@ -142,6 +143,7 @@ export async function getReportData(): Promise<ReportData> {
     count: stageBuckets[stage]?.count ?? 0,
     amount: stageBuckets[stage]?.amount ?? 0,
   }))
+  /* eslint-enable security/detect-object-injection */
 
   const wonLostRevenue: WonLostRevenue[] = [
     { type: "won", amount: totalWonAmount, count: wonCount },

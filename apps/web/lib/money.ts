@@ -15,7 +15,7 @@ import {
   toDecimal,
   toSnapshot,
   transformScale,
-  trimScale,
+
   type Dinero,
   type DineroCurrency,
   halfUp,
@@ -42,6 +42,7 @@ function toDineroCurrency(code: CurrencyCode): DineroCurrency<number> {
     INR: { code: "INR", base: 10, exponent: 2 },
     JPY: { code: "JPY", base: 10, exponent: 0 },
   }
+  // eslint-disable-next-line security/detect-object-injection -- code is typed CurrencyCode
   return map[code] ?? { code, base: 10, exponent: 2 }
 }
 
