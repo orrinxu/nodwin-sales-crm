@@ -68,7 +68,7 @@ export interface AccountOpportunity {
   id: string
   name: string
   stage: DealStage
-  amount: number
+  amount: string
   currency: string
   closeDate: string | null
   probabilityPct: number
@@ -381,7 +381,7 @@ export async function getOpportunitiesForAccount(
     id: r.id as string,
     name: r.name as string,
     stage: r.stage as DealStage,
-    amount: Number(r.amount ?? 0),
+    amount: String(r.amount ?? "0"),
     currency: (r.currency as string) ?? "USD",
     closeDate: (r.close_date as string) ?? null,
     probabilityPct: Number(r.probability_pct ?? 0),

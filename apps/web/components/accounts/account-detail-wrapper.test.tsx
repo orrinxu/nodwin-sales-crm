@@ -25,6 +25,18 @@ vi.mock("@/lib/data/opportunities.types", () => ({
   getStageLabel: (stage: string) => stage.charAt(0).toUpperCase() + stage.slice(1),
 }))
 
+vi.mock("@/lib/money", () => ({
+  Money: {
+    fromAmount: (amount: string) => ({
+      toDisplay: () =>
+        new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD",
+        }).format(Number(amount)),
+    }),
+  },
+}))
+
 function makeAccount(overrides: Partial<AccountRecord> = {}): AccountRecord {
   return {
     id: "acct-1",
@@ -69,7 +81,7 @@ const defaultOpportunities: AccountOpportunity[] = [
     id: "opp-1",
     name: "Enterprise Deal",
     stage: "propose",
-    amount: 100000,
+    amount: "100000.00",
     currency: "USD",
     closeDate: "2026-12-15",
     probabilityPct: 60,

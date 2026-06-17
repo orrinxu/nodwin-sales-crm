@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { AccountForm } from "@/components/accounts/account-form"
 import { CustomFieldsDisplay } from "@/components/contacts/custom-fields-display"
 import { getStageLabel } from "@/lib/data/opportunities.types"
+import { Money } from "@/lib/money"
 import type { AccountRecord, AccountUpdateInput, AccountRelationship, AccountOpportunity, AccountDocument } from "@/lib/data/accounts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 
@@ -279,10 +280,7 @@ export function AccountDetailWrapper({
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-medium">
-                        {new Intl.NumberFormat("en-US", {
-                          style: "currency",
-                          currency: opp.currency,
-                        }).format(opp.amount)}
+                        {Money.fromAmount(opp.amount, opp.currency).toDisplay()}
                       </p>
                       {opp.closeDate && (
                         <p className="text-xs text-muted-foreground">
