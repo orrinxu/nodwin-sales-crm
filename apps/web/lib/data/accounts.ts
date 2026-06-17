@@ -82,7 +82,7 @@ export const accountCreateSchema = z.object({
   industry: z.string().max(100).nullable().optional().or(z.literal("")),
   description: z.string().max(5000).nullable().optional().or(z.literal("")),
   accountOwnerUserId: z.string().uuid().nullable().optional(),
-  emailDomains: z.array(z.string().email("Must be a valid email")).optional(),
+  emailDomains: z.array(z.string().min(1)).optional(),
   customData: z.record(z.string(), z.unknown()).optional(),
 })
 
