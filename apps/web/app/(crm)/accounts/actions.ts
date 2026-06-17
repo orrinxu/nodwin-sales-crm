@@ -5,8 +5,10 @@ import { requireUser } from "@/lib/security/auth"
 import {
   createAccount,
   updateAccount,
+  bulkDeleteAccounts,
   accountCreateSchema,
   accountUpdateSchema,
+  bulkDeleteAccountsSchema,
 } from "@/lib/data/accounts"
 
 export async function createAccountAction(input: unknown) {
@@ -26,4 +28,12 @@ export async function updateAccountAction(id: string, input: unknown) {
   revalidatePath("/accounts")
   revalidatePath(`/accounts/${id}`)
   return account
+}
+
+export async function bulkDeleteAccountsAction(input: unknown) {
+  const user = await requireUser()
+  const parsed = bulkDeleteAccountsSchema.parse(input)
+  const ctx = { user, source: "web" as const }
+  await bulkDeleteAccounts(ctx, parsed)
+  revalidatePath("/accounts")
 }
