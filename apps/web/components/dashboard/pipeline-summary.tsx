@@ -19,13 +19,13 @@ interface PipelineSummaryProps {
   stages: StageSummary[]
 }
 
-function formatInr(value: number): string {
-  if (value >= 10000000) {
-    return `₹${(value / 10000000).toFixed(1)}Cr`
-  } else if (value >= 100000) {
-    return `₹${(value / 100000).toFixed(1)}L`
-  }
-  return `₹${value.toLocaleString("en-IN")}`
+function formatCurrency(value: number): string {
+  const formatter = new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  })
+  return formatter.format(value)
 }
 
 const stageColors: Record<string, string> = {
@@ -55,7 +55,7 @@ export function PipelineSummary({ stages }: PipelineSummaryProps) {
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium">{stage.label}</span>
                   <span className="text-muted-foreground">
-                    {stage.count} deals · {formatInr(stage.value)}
+                    {stage.count} deals · {formatCurrency(stage.value)}
                   </span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-muted">
