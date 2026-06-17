@@ -9,32 +9,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { AccountForm } from "@/components/accounts/account-form"
 import { CustomFieldsDisplay } from "@/components/contacts/custom-fields-display"
+import { RelationshipTree } from "@/components/accounts/relationship-tree"
 import { getStageLabel } from "@/lib/data/opportunities.types"
-import type { AccountRecord, AccountUpdateInput, AccountRelationship, AccountOpportunity } from "@/lib/data/accounts"
+import type { AccountRecord, AccountUpdateInput, AccountRelationshipGraph, AccountOpportunity } from "@/lib/data/accounts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 
 interface AccountDetailWrapperProps {
   account: AccountRecord
   fieldDefinitions: FieldDefinition[]
-  relationships: AccountRelationship[]
+  relationshipGraph: AccountRelationshipGraph | null
   contacts: { id: string; fullName: string; title: string | null; email: string | null }[]
   opportunities: AccountOpportunity[]
   ownerName: string | null
   updateAction: (id: string, input: AccountUpdateInput) => Promise<AccountRecord>
 }
 
-const RELATIONSHIP_LABELS: Record<string, string> = {
-  subsidiary_of: "Subsidiary of",
-  procurement_via: "Procurement via",
-  partner_with: "Partner with",
-  parent_of: "Parent of",
-  sister_company: "Sister company",
-}
-
 export function AccountDetailWrapper({
   account,
   fieldDefinitions,
-  relationships,
+  relationshipGraph,
   contacts,
   opportunities,
   ownerName,
@@ -299,37 +292,9 @@ export function AccountDetailWrapper({
           </Card>
         )}
 
-        {relationships.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Related Accounts ({relationships.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="divide-y divide-border">
-                {relationships.map((rel) => (
-                  <div
-                    key={rel.id}
-                    className="flex items-center justify-between py-2 first:pt-0 last:pb-0"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        {RELATIONSHIP_LABELS[rel.kind] ?? rel.kind}
-                      </Badge>
-                      <span className="text-sm">{rel.toAccountName}</span>
-                    </div>
-                    {rel.notes && (
-                      <span className="text-xs text-muted-foreground max-w-[40%] truncate">
-                        {rel.notes}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {relationshipGraph && <RelationshipTree graph={relationshipGraph} />}
 
-        {contacts.length === 0 && opportunities.length === 0 && relationships.length === 0 && (
+        {!relationshipGraph && contacts.length === 0 && opportunities.length === 0 && (
           <Card>
             <CardContent className="py-6">
               <p className="text-center text-sm text-muted-foreground">

@@ -63,6 +63,97 @@ export interface AccountOpportunity {
   probabilityPct: number
 }
 
+export type AccountRelationshipKind =
+  | "subsidiary_of"
+  | "procurement_via"
+  | "partner_with"
+  | "parent_of"
+  | "sister_company"
+
+export interface RelationshipTreeNode {
+  id: string
+  accountId: string
+  accountName: string
+  kind: AccountRelationshipKind | null
+  direction: "outbound" | "inbound" | null
+  notes: string | null
+  children: RelationshipTreeNode[]
+}
+
+export interface AccountRelationshipGraph {
+  root: RelationshipTreeNode
+}
+
+export async function getAccountRelationshipGraph(
+  ctx: AccountCallContext,
+  accountId: string,
+): Promise<AccountRelationshipGraph> {
+  const supabase = await createServerClient()
+
+  const { data: accountData, error: accountError } = await supabase
+    .from("accounts")
+    .select("id, name")
+    .eq("id", accountId)
+    .single()
+
+  if (accountError) {
+    throw new Error(`Failed to load account: ${accountError.message}`)
+  }
+
+  const accountName = (accountData as { name: string }).name
+
+  const [{ data: outbound }, { data: inboundData }] = await Promise.all([
+    supabase
+      .from("account_relationships")
+      .select(`*, to_account:to_account_id ( name )`)
+      .eq("from_account_id", accountId),
+    supabase
+      .from("account_relationships")
+      .select(`*, from_account:from_account_id ( name )`)
+      .eq("to_account_id", accountId),
+  ])
+
+  const children: RelationshipTreeNode[] = []
+
+  for (const r of (outbound ?? []) as Record<string, unknown>[]) {
+    const toAcc = r.to_account as { name: string } | null
+    children.push({
+      id: r.id as string,
+      accountId: r.to_account_id as string,
+      accountName: toAcc?.name ?? "\u2014",
+      kind: r.kind as AccountRelationshipKind,
+      direction: "outbound",
+      notes: (r.notes as string) ?? null,
+      children: [],
+    })
+  }
+
+  for (const r of (inboundData ?? []) as Record<string, unknown>[]) {
+    const fromAcc = r.from_account as { name: string } | null
+    children.push({
+      id: r.id as string,
+      accountId: r.from_account_id as string,
+      accountName: fromAcc?.name ?? "\u2014",
+      kind: r.kind as AccountRelationshipKind,
+      direction: "inbound",
+      notes: (r.notes as string) ?? null,
+      children: [],
+    })
+  }
+
+  return {
+    root: {
+      id: accountId,
+      accountId,
+      accountName,
+      kind: null,
+      direction: null,
+      notes: null,
+      children,
+    },
+  }
+}
+
 export const accountCreateSchema = z.object({
   name: z.string().min(1, "Account name is required").max(200),
   legalName: z.string().max(200).nullable().optional().or(z.literal("")),

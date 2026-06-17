@@ -2,7 +2,7 @@ import { notFound } from "next/navigation"
 import { requireUser } from "@/lib/security/auth"
 import {
   getAccountById,
-  getAccountRelationships,
+  getAccountRelationshipGraph,
   getContactsForAccount,
   getOpportunitiesForAccount,
   getOwnerOptions,
@@ -20,10 +20,10 @@ export default async function AccountDetailPage({
   const { id } = await params
 
   const ctx = { user, source: "web" as const }
-  const [account, fieldDefinitions, relationships, contacts, opportunities, owners] = await Promise.all([
+  const [account, fieldDefinitions, relationshipGraph, contacts, opportunities, owners] = await Promise.all([
     getAccountById(ctx, id),
     getFieldDefinitions(ctx, "account"),
-    getAccountRelationships(ctx, id).catch(() => []),
+    getAccountRelationshipGraph(ctx, id).catch(() => null),
     getContactsForAccount(ctx, id).catch(() => []),
     getOpportunitiesForAccount(ctx, id).catch(() => []),
     getOwnerOptions(ctx).catch(() => []),
@@ -39,7 +39,7 @@ export default async function AccountDetailPage({
     <AccountDetailWrapper
       account={account}
       fieldDefinitions={fieldDefinitions}
-      relationships={relationships}
+      relationshipGraph={relationshipGraph}
       contacts={contacts}
       opportunities={opportunities}
       ownerName={owner?.name ?? null}
