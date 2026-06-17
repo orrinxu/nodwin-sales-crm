@@ -18,7 +18,7 @@ import type {
   OpportunityTeamMember,
   UserOption,
 } from "./opportunities.types"
-import { getStageLabel } from "./opportunities.types"
+
 
 export type {
   OpportunityRecord,
@@ -74,7 +74,7 @@ function toDomainOpportunity(data: Record<string, unknown>): OpportunityRecord {
 }
 
 export async function getOpportunities(
-  ctx: OpportunityCallContext,
+  _ctx: OpportunityCallContext,
 ): Promise<OpportunityListResult> {
   const supabase = await createServerClient()
 
@@ -159,7 +159,7 @@ export async function getOpportunityById(
 }
 
 export async function getBusinessUnitOptions(
-  ctx: OpportunityCallContext,
+  _ctx: OpportunityCallContext,
 ): Promise<BusinessUnitOption[]> {
   const supabase = await createServerClient()
 
@@ -579,7 +579,7 @@ export async function updateOpportunityTeamMembers(
 // ── User Options ────────────────────────────────────────────────────────────────
 
 export async function getUserOptions(
-  ctx: OpportunityCallContext,
+  _ctx: OpportunityCallContext,
 ): Promise<UserOption[]> {
   const supabase = await createServerClient()
 
@@ -601,10 +601,8 @@ export async function getUserOptions(
 
 // ── Type equivalence assertions (z.infer must match canonical interfaces) ───────
 
-/* eslint-disable @typescript-eslint/no-unused-vars */
 type _Assert<T extends true> = T
 type _A1 = _Assert<z.infer<typeof opportunityCreateSchema> extends import("./opportunities.types").OpportunityCreateInput ? true : false>
 type _A2 = _Assert<import("./opportunities.types").OpportunityCreateInput extends z.infer<typeof opportunityCreateSchema> ? true : false>
 type _A3 = _Assert<z.infer<typeof opportunitySplitsUpdateSchema> extends import("./opportunities.types").OpportunitySplitsUpdateInput ? true : false>
 type _A4 = _Assert<import("./opportunities.types").OpportunitySplitsUpdateInput extends z.infer<typeof opportunitySplitsUpdateSchema> ? true : false>
-/* eslint-enable @typescript-eslint/no-unused-vars */

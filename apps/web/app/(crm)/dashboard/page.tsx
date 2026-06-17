@@ -6,7 +6,6 @@ import {
   getRecentActivities,
   getReportingCurrency,
 } from "@/lib/data/metrics"
-import type { PipelineMetrics, PipelineStageSummary } from "@/lib/data/metrics"
 import { MetricsCards } from "@/components/dashboard/metrics-cards"
 import { PipelineChart } from "@/components/dashboard/pipeline-chart"
 import { ActivityTimeline } from "@/components/dashboard/activity-timeline"

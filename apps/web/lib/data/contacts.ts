@@ -209,7 +209,7 @@ export async function getContactAccountLinks(
 }
 
 export async function getAccountOptions(
-  ctx: ContactCallContext,
+  _ctx: ContactCallContext,
 ): Promise<AccountOption[]> {
   const supabase = await createServerClient()
 

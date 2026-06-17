@@ -43,7 +43,7 @@ export function getReportingCurrency(): string {
   return "INR"
 }
 
-export async function getPipelineMetrics(ctx: DashboardContext): Promise<PipelineMetrics> {
+export async function getPipelineMetrics(_ctx: DashboardContext): Promise<PipelineMetrics> {
   const supabase = await createServerClient()
 
   const { data: opportunities, error } = await supabase
@@ -104,7 +104,7 @@ export async function getPipelineMetrics(ctx: DashboardContext): Promise<Pipelin
   }
 }
 
-export async function getPipelineSummary(ctx: DashboardContext): Promise<{
+export async function getPipelineSummary(_ctx: DashboardContext): Promise<{
   stages: PipelineStageSummary[]
   totalCount: number
   totalAmount: number
@@ -188,8 +188,6 @@ export async function getRecentDeals(
   if (error) {
     throw new Error(`Failed to load recent deals: ${error.message}`)
   }
-
-  const reportingCurrency = getReportingCurrency()
 
   return ((rawDeals ?? []) as Array<Record<string, unknown>>).map((d) => {
     const account = d.account as { name: string } | null

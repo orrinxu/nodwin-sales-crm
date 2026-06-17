@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Plus, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
 import type {
   OpportunityTeamMember,
   OpportunityTeamMemberInput,
@@ -52,11 +52,6 @@ export function OpportunityTeamEditor({
     setItems((prev) =>
       prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)),
     )
-  }
-
-  function getUserName(userId: string): string {
-    if (!userId) return ""
-    return users.find((u) => u.id === userId)?.fullName ?? userId
   }
 
   async function handleSave() {

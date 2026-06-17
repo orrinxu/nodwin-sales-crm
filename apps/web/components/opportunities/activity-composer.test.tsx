@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { render, screen, within } from "@testing-library/react"
+import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { ActivityComposer } from "./activity-composer"
 import type { ActivityRecord } from "@/lib/data/activities"

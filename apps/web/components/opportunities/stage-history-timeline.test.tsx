@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
 import { StageHistoryTimeline } from "./stage-history-timeline"
 import type { StageHistoryRecord } from "@/lib/data/opportunity-stage-history"
-import { getStageLabel } from "@/lib/data/opportunities.types"
+
 
 vi.mock("server-only", () => ({}))
 

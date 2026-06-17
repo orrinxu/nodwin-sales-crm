@@ -8,6 +8,18 @@ import { plugin } from "./eslint-plugin-custom/index.js";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  // Standard TypeScript conventions
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
   // Security-focused ESLint plugins
   {
     plugins: {

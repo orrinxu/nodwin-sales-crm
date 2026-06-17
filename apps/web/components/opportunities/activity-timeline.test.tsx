@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest"
 import { render, screen } from "@testing-library/react"
 import { ActivityTimeline } from "./activity-timeline"
-import type { ActivityRecord, ActivityType } from "@/lib/data/activities"
+import type { ActivityRecord } from "@/lib/data/activities"
 
 vi.mock("server-only", () => ({}))
 

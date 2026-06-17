@@ -7,7 +7,6 @@ import {
   getApprovalStepState,
   checkCanTransitionToApproved,
   type ApprovalContext,
-  type ApprovalStep,
 } from "./approval"
 
 describe("Approval State Machine", () => {
