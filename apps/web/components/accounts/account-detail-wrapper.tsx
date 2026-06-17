@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Pencil, Globe, MapPin, Briefcase, Mail } from "lucide-react"
+import { Pencil, Globe, MapPin, Briefcase, Mail, FileText } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { AccountForm } from "@/components/accounts/account-form"
 import { CustomFieldsDisplay } from "@/components/contacts/custom-fields-display"
 import { getStageLabel } from "@/lib/data/opportunities.types"
-import type { AccountRecord, AccountUpdateInput, AccountRelationship, AccountOpportunity } from "@/lib/data/accounts"
+import type { AccountRecord, AccountUpdateInput, AccountRelationship, AccountOpportunity, AccountDocument } from "@/lib/data/accounts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 
 interface AccountDetailWrapperProps {
@@ -19,6 +19,7 @@ interface AccountDetailWrapperProps {
   relationships: AccountRelationship[]
   contacts: { id: string; fullName: string; title: string | null; email: string | null }[]
   opportunities: AccountOpportunity[]
+  documents: AccountDocument[]
   ownerName: string | null
   updateAction: (id: string, input: AccountUpdateInput) => Promise<AccountRecord>
 }
@@ -37,6 +38,7 @@ export function AccountDetailWrapper({
   relationships,
   contacts,
   opportunities,
+  documents,
   ownerName,
   updateAction,
 }: AccountDetailWrapperProps) {
@@ -299,6 +301,39 @@ export function AccountDetailWrapper({
           </Card>
         )}
 
+        {documents.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Documents ({documents.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="divide-y divide-border">
+                {documents.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between py-2 first:pt-0 last:pb-0"
+                  >
+                    <div className="flex items-center gap-2">
+                      <FileText className="size-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">{doc.name}</p>
+                        <p className="text-xs text-muted-foreground">{doc.category}</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(doc.uploadedAt).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {relationships.length > 0 && (
           <Card>
             <CardHeader>
@@ -329,11 +364,11 @@ export function AccountDetailWrapper({
           </Card>
         )}
 
-        {contacts.length === 0 && opportunities.length === 0 && relationships.length === 0 && (
+        {contacts.length === 0 && opportunities.length === 0 && documents.length === 0 && relationships.length === 0 && (
           <Card>
             <CardContent className="py-6">
               <p className="text-center text-sm text-muted-foreground">
-                No related contacts, opportunities, or linked accounts yet.
+                No related contacts, opportunities, documents, or linked accounts yet.
               </p>
             </CardContent>
           </Card>
