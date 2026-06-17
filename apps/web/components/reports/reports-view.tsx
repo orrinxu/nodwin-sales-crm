@@ -16,6 +16,7 @@ import {
   Legend,
 } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { MetricsGrid } from "@/components/dashboard/metrics-card"
 import type { ReportData } from "@/lib/data/reports"
 
 const COLORS: Record<string, string> = {
@@ -47,6 +48,25 @@ const tooltipStyle: React.CSSProperties = {
   boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
 }
 
+function EmptyChart({ message }: { message: string }) {
+  return (
+    <div className="flex h-80 items-center justify-center">
+      <p className="text-sm text-muted-foreground">{message}</p>
+    </div>
+  )
+}
+
+function chartOrEmpty<T>(
+  data: T[],
+  emptyMessage: string,
+  render: (data: T[]) => React.ReactNode,
+) {
+  if (data.length === 0) {
+    return <EmptyChart message={emptyMessage} />
+  }
+  return render(data)
+}
+
 export function ReportsView({ data }: { data: ReportData }) {
   const pipelineData = data.pipelineByStage.map((s) => ({
     name: s.label,
@@ -72,6 +92,8 @@ export function ReportsView({ data }: { data: ReportData }) {
     amount: s.amount,
   }))
 
+  const hasRevenue = wonLostData.some((d) => d.value > 0)
+
   return (
     <div className="flex flex-col gap-6 p-6">
       <div>
@@ -81,48 +103,34 @@ export function ReportsView({ data }: { data: ReportData }) {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Pipeline
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{fmt(data.totalPipeline)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Closed Won
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{fmt(data.totalWon)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Win Rate
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{data.winRate}%</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Avg Deal Size
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{fmt(data.avgDealSize)}</div>
-          </CardContent>
-        </Card>
-      </div>
+      <MetricsGrid
+        metrics={[
+          {
+            label: "Total Pipeline",
+            value: fmt(data.totalPipeline),
+            change: 0,
+            trend: "neutral" as const,
+          },
+          {
+            label: "Closed Won",
+            value: fmt(data.totalWon),
+            change: 0,
+            trend: "neutral" as const,
+          },
+          {
+            label: "Win Rate",
+            value: `${data.winRate}%`,
+            change: 0,
+            trend: "neutral" as const,
+          },
+          {
+            label: "Avg Deal Size",
+            value: fmt(data.avgDealSize),
+            change: 0,
+            trend: "neutral" as const,
+          },
+        ]}
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
@@ -130,21 +138,25 @@ export function ReportsView({ data }: { data: ReportData }) {
             <CardTitle>Pipeline by Stage</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={pipelineData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="name" className="text-xs" />
-                  <YAxis className="text-xs" tickFormatter={fmt} />
-                  <Tooltip formatter={fmt} contentStyle={tooltipStyle} />
-                  <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
-                    {pipelineData.map((entry, index) => (
-                      <Cell key={index} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            {data.totalPipeline === 0 ? (
+              <EmptyChart message="No active deals in pipeline." />
+            ) : (
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={pipelineData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="name" className="text-xs" />
+                    <YAxis className="text-xs" tickFormatter={fmt} />
+                    <Tooltip formatter={fmt} contentStyle={tooltipStyle} />
+                    <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
+                      {pipelineData.map((entry, index) => (
+                        <Cell key={index} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -153,27 +165,31 @@ export function ReportsView({ data }: { data: ReportData }) {
             <CardTitle>Revenue Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={wonLostData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={2}
-                    dataKey="value"
-                    label={({ name }) => name}
-                  >
-                    {wonLostData.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={fmt} contentStyle={tooltipStyle} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+            {!hasRevenue ? (
+              <EmptyChart message="No won or lost deals yet." />
+            ) : (
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={wonLostData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={2}
+                      dataKey="value"
+                      label={({ name }) => name}
+                    >
+                      {wonLostData.map((entry, index) => (
+                        <Cell key={index} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={fmt} contentStyle={tooltipStyle} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -182,31 +198,33 @@ export function ReportsView({ data }: { data: ReportData }) {
             <CardTitle>Deal Trends</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trendData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="month" className="text-xs" />
-                  <YAxis className="text-xs" allowDecimals={false} />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="Created"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="Won"
-                    stroke="#22c55e"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            {chartOrEmpty(trendData, "No deal activity yet.", (data) => (
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={data}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="month" className="text-xs" />
+                    <YAxis className="text-xs" allowDecimals={false} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="Created"
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="Won"
+                      stroke="#22c55e"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ))}
           </CardContent>
         </Card>
 
@@ -215,26 +233,28 @@ export function ReportsView({ data }: { data: ReportData }) {
             <CardTitle>Top Accounts by Revenue</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={accountData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis
-                    type="number"
-                    className="text-xs"
-                    tickFormatter={fmt}
-                  />
-                  <YAxis
-                    dataKey="name"
-                    type="category"
-                    className="text-xs"
-                    width={120}
-                  />
-                  <Tooltip formatter={fmt} contentStyle={tooltipStyle} />
-                  <Bar dataKey="amount" radius={[0, 4, 4, 0]} fill="#8b5cf6" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            {chartOrEmpty(accountData, "No accounts with deal activity.", (data) => (
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis
+                      type="number"
+                      className="text-xs"
+                      tickFormatter={fmt}
+                    />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      className="text-xs"
+                      width={120}
+                    />
+                    <Tooltip formatter={fmt} contentStyle={tooltipStyle} />
+                    <Bar dataKey="amount" radius={[0, 4, 4, 0]} fill="#8b5cf6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ))}
           </CardContent>
         </Card>
       </div>
