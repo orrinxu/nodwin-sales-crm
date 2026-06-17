@@ -36,6 +36,7 @@ const navigation = [
   { name: "Pipeline", href: "/opportunities", icon: Kanban },
   { name: "Accounts", href: "/accounts", icon: Building2 },
   { name: "Contacts", href: "/contacts", icon: Users },
+  { name: "Accounts", href: "/accounts", icon: Building2 },
   { name: "Activities", href: "/activities", icon: History },
   { name: "Reports", href: "/reports", icon: BarChart3 },
   { name: "Admin", href: "/admin/field-definitions", icon: Sliders },
