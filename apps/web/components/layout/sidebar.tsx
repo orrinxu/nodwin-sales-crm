@@ -34,8 +34,8 @@ import {
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Pipeline", href: "/opportunities", icon: Kanban },
-  { name: "Contacts", href: "/contacts", icon: Users },
   { name: "Accounts", href: "/accounts", icon: Building2 },
+  { name: "Contacts", href: "/contacts", icon: Users },
   { name: "Activities", href: "/activities", icon: History },
   { name: "Reports", href: "/reports", icon: BarChart3 },
   { name: "Admin", href: "/admin/field-definitions", icon: Sliders },
