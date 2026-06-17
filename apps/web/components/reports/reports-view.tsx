@@ -36,7 +36,7 @@ function fmt(v: unknown) {
     currency: "USD",
     notation: "compact",
     maximumFractionDigits: 0,
-  }).format(n)
+  }).format(n / 100)
 }
 
 const tooltipStyle: React.CSSProperties = {
@@ -50,13 +50,13 @@ const tooltipStyle: React.CSSProperties = {
 export function ReportsView({ data }: { data: ReportData }) {
   const pipelineData = data.pipelineByStage.map((s) => ({
     name: s.label,
-    amount: s.amount,
+    cents: s.cents,
     fill: COLORS[s.stage] ?? "#6b7280",
   }))
 
   const wonLostData = data.wonLostRevenue.map((s) => ({
     name: s.type.charAt(0).toUpperCase() + s.type.slice(1),
-    value: s.amount,
+    cents: s.cents,
     color:
       s.type === "won" ? COLORS.won : s.type === "lost" ? COLORS.lost : COLORS.open,
   }))
@@ -69,7 +69,7 @@ export function ReportsView({ data }: { data: ReportData }) {
 
   const accountData = data.topAccounts.map((s) => ({
     name: s.name.length > 20 ? s.name.slice(0, 20) + "..." : s.name,
-    amount: s.amount,
+    cents: s.cents,
   }))
 
   return (
@@ -89,7 +89,7 @@ export function ReportsView({ data }: { data: ReportData }) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fmt(data.totalPipeline)}</div>
+            <div className="text-2xl font-bold">{fmt(data.totalPipelineCents)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -99,7 +99,7 @@ export function ReportsView({ data }: { data: ReportData }) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fmt(data.totalWon)}</div>
+            <div className="text-2xl font-bold">{fmt(data.totalWonCents)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -119,7 +119,7 @@ export function ReportsView({ data }: { data: ReportData }) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fmt(data.avgDealSize)}</div>
+            <div className="text-2xl font-bold">{fmt(data.avgDealCents)}</div>
           </CardContent>
         </Card>
       </div>
@@ -137,7 +137,7 @@ export function ReportsView({ data }: { data: ReportData }) {
                   <XAxis dataKey="name" className="text-xs" />
                   <YAxis className="text-xs" tickFormatter={fmt} />
                   <Tooltip formatter={fmt} contentStyle={tooltipStyle} />
-                  <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
+                  <Bar dataKey="cents" radius={[4, 4, 0, 0]}>
                     {pipelineData.map((entry, index) => (
                       <Cell key={index} fill={entry.fill} />
                     ))}
@@ -163,7 +163,7 @@ export function ReportsView({ data }: { data: ReportData }) {
                     innerRadius={60}
                     outerRadius={100}
                     paddingAngle={2}
-                    dataKey="value"
+                     dataKey="cents"
                     label={({ name }) => name}
                   >
                     {wonLostData.map((entry, index) => (
@@ -231,7 +231,7 @@ export function ReportsView({ data }: { data: ReportData }) {
                     width={120}
                   />
                   <Tooltip formatter={fmt} contentStyle={tooltipStyle} />
-                  <Bar dataKey="amount" radius={[0, 4, 4, 0]} fill="#8b5cf6" />
+                  <Bar dataKey="cents" radius={[0, 4, 4, 0]} fill="#8b5cf6" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
