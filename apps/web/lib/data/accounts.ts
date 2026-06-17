@@ -25,6 +25,7 @@ export interface AccountRecord {
   updatedAt: string
   createdBy: string | null
   updatedBy: string | null
+  deletedAt: string | null
 }
 
 export interface AccountListRecord extends AccountRecord {
@@ -51,6 +52,16 @@ export interface AccountRelationship {
   kind: "subsidiary_of" | "procurement_via" | "partner_with" | "parent_of" | "sister_company"
   notes: string | null
   toAccountName: string
+}
+
+export interface AccountDocument {
+  id: string
+  name: string
+  mimeType: string
+  category: string
+  uploadedAt: string
+  linkUrl: string | null
+  driveFileId: string
 }
 
 export interface AccountOpportunity {
@@ -187,6 +198,7 @@ function toDomainAccount(data: Record<string, unknown>): AccountRecord {
     updatedAt: data.updated_at as string,
     createdBy: (data.created_by as string) ?? null,
     updatedBy: (data.updated_by as string) ?? null,
+    deletedAt: (data.deleted_at as string) ?? null,
   }
 }
 
@@ -200,6 +212,7 @@ export async function getAccountById(
     .from("accounts")
     .select("*")
     .eq("id", id)
+    .is("deleted_at", null)
     .single()
 
   if (error) {
@@ -239,6 +252,7 @@ export async function getAccounts(
       `,
       { count: "exact" },
     )
+    .is("deleted_at", null)
 
   if (params?.query) {
     const q = `%${params.query}%`
@@ -488,6 +502,28 @@ export async function bulkDeleteAccounts(
   }
 }
 
+export async function softDeleteAccount(
+  ctx: AccountCallContext,
+  id: string,
+): Promise<AccountRecord> {
+  void ctx
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("accounts")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("deleted_at", null)
+    .select("*")
+    .single()
+
+  if (error) {
+    throw new Error(`Failed to soft-delete account: ${error.message}`)
+  }
+
+  return toDomainAccount(data as Record<string, unknown>)
+}
+
 export async function getIndustryOptions(
   ctx: AccountCallContext,
 ): Promise<string[]> {
@@ -497,6 +533,7 @@ export async function getIndustryOptions(
   const { data, error } = await supabase
     .from("accounts")
     .select("industry")
+    .is("deleted_at", null)
     .not("industry", "is", null)
     .order("industry")
 
@@ -531,4 +568,52 @@ export async function getOwnerOptions(
     id: r.id as string,
     name: (r.full_name as string) || (r.email as string) || "\u2014",
   }))
+}
+
+export async function getAccountLinkedOpportunities(
+  ctx: AccountCallContext,
+  accountId: string,
+): Promise<AccountOpportunity[]> {
+  return getOpportunitiesForAccount(ctx, accountId)
+}
+
+export async function getAccountLinkedContacts(
+  ctx: AccountCallContext,
+  accountId: string,
+): Promise<Pick<ContactRecord, "id" | "fullName" | "title" | "email">[]> {
+  return getContactsForAccount(ctx, accountId)
+}
+
+export async function getAccountLinkedDocuments(
+  ctx: AccountCallContext,
+  accountId: string,
+): Promise<AccountDocument[]> {
+  void ctx
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("documents")
+    .select("id, name, mime_type, category, uploaded_at, link_url, drive_file_id")
+    .eq("account_id", accountId)
+    .order("uploaded_at", { ascending: false })
+
+  if (error) {
+    throw new Error(`Failed to load linked documents: ${error.message}`)
+  }
+
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    id: r.id as string,
+    name: r.name as string,
+    mimeType: r.mime_type as string,
+    category: r.category as string,
+    uploadedAt: r.uploaded_at as string,
+    linkUrl: (r.link_url as string) ?? null,
+    driveFileId: r.drive_file_id as string,
+  }))
+}
+
+export async function getAccountOwnerOptions(
+  ctx: AccountCallContext,
+): Promise<{ id: string; name: string }[]> {
+  return getOwnerOptions(ctx)
 }
