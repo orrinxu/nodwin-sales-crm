@@ -80,24 +80,48 @@ export function AccountDetailWrapper({
       </div>
 
       <div className="flex flex-1 flex-col gap-6 p-6">
-        <div className="flex items-start gap-4">
-          <div className="flex-1">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {account.name}
-            </h1>
-            <div className="mt-2 flex items-center gap-3">
-              {account.industry && (
-                <Badge variant="secondary">{account.industry}</Badge>
-              )}
-              {ownerName && (
-                <span className="text-sm text-muted-foreground">{ownerName}</span>
-              )}
-              {!ownerName && (
-                <span className="text-sm text-muted-foreground">Unassigned</span>
-              )}
+            <div className="flex items-start gap-4">
+              <div className="flex-1">
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  {account.name}
+                </h1>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {account.industry && (
+                    <Badge variant="secondary">
+                      {account.industry.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                    </Badge>
+                  )}
+                  {account.accountType && (
+                    <Badge variant="outline">
+                      {account.accountType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                    </Badge>
+                  )}
+                  {account.lifecycleStatus && (
+                    <Badge variant="secondary">
+                      {account.lifecycleStatus.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                    </Badge>
+                  )}
+                  {!account.active && (
+                    <Badge variant="destructive">Inactive</Badge>
+                  )}
+                  {ownerName && (
+                    <span className="text-sm text-muted-foreground ml-1">{ownerName}</span>
+                  )}
+                  {!ownerName && (
+                    <span className="text-sm text-muted-foreground ml-1">Unassigned</span>
+                  )}
+                </div>
+                {account.tags && account.tags.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {account.tags.map((tag) => (
+                      <Badge key={tag} variant="outline" className="text-xs">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
 
         <div className="grid gap-6 sm:grid-cols-2">
           <Card>
@@ -164,31 +188,65 @@ export function AccountDetailWrapper({
             <CardHeader>
               <CardTitle>Details</CardTitle>
             </CardHeader>
-            <CardContent>
-              <dl className="grid gap-4">
-                <div className="grid gap-1">
-                  <dt className="text-xs text-muted-foreground">Owner</dt>
-                  <dd className="text-sm font-medium">
-                    {ownerName ?? "\u2014"}
-                  </dd>
-                </div>
-                {account.emailDomains && account.emailDomains.length > 0 && (
+              <CardContent>
+                <dl className="grid gap-4">
                   <div className="grid gap-1">
-                    <dt className="text-xs text-muted-foreground">Email Domains</dt>
-                    <dd>
-                      <div className="flex flex-wrap gap-1">
-                        {account.emailDomains.map((domain) => (
-                          <Badge key={domain} variant="outline" className="gap-1">
-                            <Mail className="size-3" />
-                            {domain}
-                          </Badge>
-                        ))}
-                      </div>
+                    <dt className="text-xs text-muted-foreground">Owner</dt>
+                    <dd className="text-sm font-medium">
+                      {ownerName ?? "\u2014"}
                     </dd>
                   </div>
-                )}
-              </dl>
-            </CardContent>
+                  {account.tier && (
+                    <div className="grid gap-1">
+                      <dt className="text-xs text-muted-foreground">Tier</dt>
+                      <dd className="text-sm font-medium">
+                        {account.tier.charAt(0).toUpperCase() + account.tier.slice(1)}
+                      </dd>
+                    </div>
+                  )}
+                  {account.region && (
+                    <div className="grid gap-1">
+                      <dt className="text-xs text-muted-foreground">Region</dt>
+                      <dd className="text-sm font-medium">{account.region.toUpperCase()}</dd>
+                    </div>
+                  )}
+                  {account.source && (
+                    <div className="grid gap-1">
+                      <dt className="text-xs text-muted-foreground">Source</dt>
+                      <dd className="text-sm font-medium">
+                        {account.source.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                      </dd>
+                    </div>
+                  )}
+                  {account.defaultCurrency && (
+                    <div className="grid gap-1">
+                      <dt className="text-xs text-muted-foreground">Default Currency</dt>
+                      <dd className="text-sm font-medium">{account.defaultCurrency}</dd>
+                    </div>
+                  )}
+                  {account.legacySalesforceId && (
+                    <div className="grid gap-1">
+                      <dt className="text-xs text-muted-foreground">Salesforce ID</dt>
+                      <dd className="text-sm font-medium font-mono text-xs">{account.legacySalesforceId}</dd>
+                    </div>
+                  )}
+                  {account.emailDomains && account.emailDomains.length > 0 && (
+                    <div className="grid gap-1">
+                      <dt className="text-xs text-muted-foreground">Email Domains</dt>
+                      <dd>
+                        <div className="flex flex-wrap gap-1">
+                          {account.emailDomains.map((domain) => (
+                            <Badge key={domain} variant="outline" className="gap-1">
+                              <Mail className="size-3" />
+                              {domain}
+                            </Badge>
+                          ))}
+                        </div>
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </CardContent>
           </Card>
         </div>
 
