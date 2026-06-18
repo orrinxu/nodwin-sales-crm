@@ -40,6 +40,13 @@ function buildOrderLimitQuery(returnData: unknown[] | null, error?: { message: s
   })
 }
 
+describe("getReportingCurrency", () => {
+  it("returns INR", async () => {
+    const { getReportingCurrency } = await import("./metrics")
+    expect(getReportingCurrency()).toBe("INR")
+  })
+})
+
 describe("getPipelineMetrics", () => {
   it("returns zero metrics when there is no data", async () => {
     buildQuery([])
@@ -150,6 +157,34 @@ describe("getPipelineMetrics", () => {
     expect(result.dealsWon).toBe(0)
   })
 
+  it("computes average deal size from won and active deals", async () => {
+    buildQuery([
+      { stage: "closed_won", amount: 40000, currency: "INR" },
+      { stage: "closed_won", amount: 60000, currency: "INR" },
+      { stage: "propose", amount: 30000, currency: "INR" },
+      { stage: "qualify", amount: 20000, currency: "INR" },
+    ])
+    const { getPipelineMetrics } = await import("./metrics")
+    const result = await getPipelineMetrics(defaultCtx)
+
+    expect(result.avgDealSize).toBe(37500)
+    expect(result.pipelineValue).toBe(50000)
+    expect(result.dealsWon).toBe(2)
+  })
+
+  it("computes avgDealSize when there are only active (non-terminal) deals", async () => {
+    buildQuery([
+      { stage: "qualify", amount: 10000, currency: "INR" },
+      { stage: "propose", amount: 20000, currency: "INR" },
+    ])
+    const { getPipelineMetrics } = await import("./metrics")
+    const result = await getPipelineMetrics(defaultCtx)
+
+    expect(result.dealsWon).toBe(0)
+    expect(result.dealsLost).toBe(0)
+    expect(result.avgDealSize).toBe(15000)
+  })
+
   it("throws on supabase error", async () => {
     buildQuery(null, { message: "Connection refused" })
     const { getPipelineMetrics } = await import("./metrics")
@@ -250,6 +285,23 @@ describe("getPipelineSummary", () => {
     expect(propose?.amount).toBe(0)
   })
 
+  it("counts unknown stages in totalCount and totalAmount but skips them in stage buckets", async () => {
+    buildQuery([
+      { stage: "qualify", amount: 5000, currency: "INR" },
+      { stage: "unknown_future_stage", amount: 10000, currency: "INR" },
+    ])
+    const { getPipelineSummary } = await import("./metrics")
+    const result = await getPipelineSummary(defaultCtx)
+
+    expect(result.totalCount).toBe(2)
+    expect(result.totalAmount).toBe(15000)
+    const qualify = result.stages.find((s) => s.stage === "qualify")
+    expect(qualify?.count).toBe(1)
+    expect(qualify?.amount).toBe(5000)
+    const bucketTotal = result.stages.reduce((acc, s) => acc + s.amount, 0)
+    expect(bucketTotal).toBe(5000)
+  })
+
   it("throws on supabase error", async () => {
     buildQuery(null, { message: "Connection refused" })
     const { getPipelineSummary } = await import("./metrics")
@@ -333,6 +385,58 @@ describe("getRecentActivities", () => {
     expect(result[0].subject).toBeNull()
     expect(result[0].body).toBeNull()
     expect(result[0].metadata).toEqual({})
+  })
+
+  it("includes joined opportunity and account names", async () => {
+    buildOrderLimitQuery([
+      {
+        id: "act-1",
+        account_id: "acct-1",
+        opportunity_id: "opp-1",
+        user_id: "user-1",
+        type: "email",
+        external_thread_id: null,
+        subject: "Follow-up",
+        body: "Checking in",
+        metadata: {},
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+        author: { full_name: "Bob" },
+        opportunity: { name: "Acme Renewal" },
+        account: { name: "Acme Corp" },
+      },
+    ])
+    const { getRecentActivities } = await import("./metrics")
+    const result = await getRecentActivities(defaultCtx)
+
+    expect(result[0].opportunityName).toBe("Acme Renewal")
+    expect(result[0].accountName).toBe("Acme Corp")
+  })
+
+  it("handles null opportunity and account joins", async () => {
+    buildOrderLimitQuery([
+      {
+        id: "act-1",
+        account_id: null,
+        opportunity_id: null,
+        user_id: "user-1",
+        type: "note",
+        external_thread_id: null,
+        subject: null,
+        body: null,
+        metadata: null,
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+        author: null,
+        opportunity: null,
+        account: null,
+      },
+    ])
+    const { getRecentActivities } = await import("./metrics")
+    const result = await getRecentActivities(defaultCtx)
+
+    expect(result[0].opportunityName).toBeNull()
+    expect(result[0].accountName).toBeNull()
   })
 
   it("respects the limit parameter", async () => {
@@ -429,6 +533,25 @@ describe("getRecentDeals", () => {
 
     expect(result[0].company).toBeNull()
     expect(result[0].amount).toBe(0)
+  })
+
+  it("defaults null stage to qualify", async () => {
+    buildOrderLimitQuery([
+      {
+        id: "opp-1",
+        name: "Unknown Stage Deal",
+        stage: null,
+        amount: 10000,
+        probability_pct: 10,
+        close_date: null,
+        account: null,
+      },
+    ])
+    const { getRecentDeals } = await import("./metrics")
+    const result = await getRecentDeals(defaultCtx)
+
+    expect(result[0].stage).toBe("qualify")
+    expect(result[0].stageLabel).toBe("Qualify")
   })
 
   it("respects the limit parameter", async () => {
