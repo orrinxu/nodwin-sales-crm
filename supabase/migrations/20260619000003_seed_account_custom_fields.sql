@@ -1,4 +1,4 @@
--- supabase/migrations/20260620000002_seed_account_custom_fields.sql
+-- supabase/migrations/20260619000003_seed_account_custom_fields.sql
 -- HIGH-RISK FILE — see AGENTS.md §6.
 --
 -- Seeds v1 custom fields for entity_type=account into field_definitions
