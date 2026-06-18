@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(38);
+SELECT plan(56);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -77,6 +77,38 @@ VALUES ('00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-0000000
 -- Insert split so split-unit manager gets visibility.
 INSERT INTO public.opportunity_splits (opportunity_id, sales_unit_id, pct)
 VALUES ('00000000-0000-0000-0000-000000000001', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 100);
+
+-- ── Cross-entity fixtures (Scope §2) ───────────────────────────────────────────
+
+-- Second entity (NG India) — the "other" rep moved here so cross-entity
+-- isolation is tested with real entity boundaries, not just unrelated users.
+INSERT INTO public.entities (id, name)
+VALUES ('f0f0f0f0-f0f0-f0f0-f0f0-f0f0f0f0f0f0', 'NG India Entity');
+
+-- Second business unit under NG India entity.
+INSERT INTO public.business_units (id, name, entity_id, kind, manager_user_id)
+VALUES
+  ('b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0', 'NG India Sales', 'f0f0f0f0-f0f0-f0f0-f0f0-f0f0f0f0f0f0', 'sales', '10000000-0000-0000-0000-000000000005');
+
+-- Move "other" rep to NG India entity (before they had placeholder entity bbbbbbbb).
+UPDATE public.users
+   SET primary_entity_id = 'f0f0f0f0-f0f0-f0f0-f0f0-f0f0f0f0f0f0'
+ WHERE id = '10000000-0000-0000-0000-000000000007';
+
+-- NG India deal — owned by other@nodwin.com.
+INSERT INTO public.opportunities (
+  id, name, account_id, stage, owner_user_id, sales_initiator_user_id, sales_unit_id, amount, currency, visibility_tier
+) VALUES (
+  'd0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0',
+  'NG India Opp',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+  'propose',
+  '10000000-0000-0000-0000-000000000007',
+  '10000000-0000-0000-0000-000000000007',
+  'b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0',
+  50000, 'INR',
+  'standard'
+);
 
 -- ── 1. Owner can see standard opportunity ─────────────────────────────────────
 SELECT tests.as_user('owner@nodwin.com');
@@ -255,6 +287,13 @@ SELECT isnt_empty(
   'manager change updates visibility chain'
 );
 
+-- Restore the owner's manager so later tests don't inherit stale visibility.
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+UPDATE public.users
+   SET manager_user_id = '10000000-0000-0000-0000-000000000002'
+ WHERE id = '10000000-0000-0000-0000-000000000001';
+
 -- ── 19. Visibility table has correct reasons for standard opp ─────────────────
 SELECT tests.as_service_role();
 SET LOCAL ROLE postgres;
@@ -423,6 +462,235 @@ SET LOCAL ROLE authenticated;
 SELECT isnt_empty(
   $$SELECT id FROM public.business_units WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'$$,
   'manager can select their business_units'
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Expanded RLS Tests (ORR-486 — PRE-CUTOVER SECURITY GATE)
+-- Covers: cross-entity isolation, visibility refresh on tier/owner/split change,
+-- write-path denial (non-admin DELETE, non-admin opportunity_splits write),
+-- and admin bypass verification.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- ── 39. Cross-entity: East Asia rep cannot see NG India deal ───────────────────
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+-- Ensure the NG India deal has correct visibility computed.
+SELECT public.recompute_visibility_for_opportunity('d0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0');
+
+SELECT tests.as_user('owner@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.opportunities WHERE id = 'd0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0'$$,
+  'cross-entity: East Asia rep cannot see NG India deal'
+);
+
+-- ── 40. NG India rep can see own deal ──────────────────────────────────────────
+SELECT tests.as_user('other@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.opportunities WHERE id = 'd0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0'$$,
+  'ng india rep can see own deal'
+);
+
+-- ── 41. Cross-entity team member add grants visibility ─────────────────────────
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+INSERT INTO public.opportunity_team_members (opportunity_id, user_id, role)
+VALUES ('d0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0', '10000000-0000-0000-0000-000000000001', 'viewer');
+
+SELECT tests.as_user('owner@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.opportunities WHERE id = 'd0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0'$$,
+  'cross-entity: team member add grants visibility across entities'
+);
+
+-- ── 42. Cross-entity team member remove revokes visibility ─────────────────────
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+DELETE FROM public.opportunity_team_members
+ WHERE opportunity_id = 'd0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0'
+   AND user_id = '10000000-0000-0000-0000-000000000001';
+
+SELECT tests.as_user('owner@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.opportunities WHERE id = 'd0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0'$$,
+  'cross-entity: team member remove revokes visibility'
+);
+
+-- ── 43. Visibility tier change: standard→restricted removes manager visibility ─
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+UPDATE public.opportunities SET visibility_tier = 'standard' WHERE id = '00000000-0000-0000-0000-000000000001';
+
+SELECT tests.as_user('manager@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.opportunities WHERE id = '00000000-0000-0000-0000-000000000001'$$,
+  'tier change: manager sees standard deal (baseline)'
+);
+
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+UPDATE public.opportunities SET visibility_tier = 'restricted' WHERE id = '00000000-0000-0000-0000-000000000001';
+
+SELECT tests.as_user('manager@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.opportunities WHERE id = '00000000-0000-0000-0000-000000000001'$$,
+  'tier change: standard→restricted removes manager visibility'
+);
+
+-- ── 44. Visibility tier change: restricted→standard restores manager visibility ─
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+UPDATE public.opportunities SET visibility_tier = 'standard' WHERE id = '00000000-0000-0000-0000-000000000001';
+
+SELECT tests.as_user('manager@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.opportunities WHERE id = '00000000-0000-0000-0000-000000000001'$$,
+  'tier change: restricted→standard restores manager visibility'
+);
+
+-- ── 45. Owner change: new owner gains, old owner loses visibility ──────────────
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+UPDATE public.opportunities SET owner_user_id = '10000000-0000-0000-0000-000000000004' WHERE id = '00000000-0000-0000-0000-000000000001';
+
+SELECT tests.as_user('owner@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.opportunities WHERE id = '00000000-0000-0000-0000-000000000001'$$,
+  'owner change: old owner loses visibility'
+);
+
+SELECT tests.as_user('team@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.opportunities WHERE id = '00000000-0000-0000-0000-000000000001'$$,
+  'owner change: new owner gains visibility'
+);
+
+-- Restore original owner for remaining tests.
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+UPDATE public.opportunities SET owner_user_id = '10000000-0000-0000-0000-000000000001' WHERE id = '00000000-0000-0000-0000-000000000001';
+
+-- ── 46. Split-unit manager gains visibility when split targets their BU ───────
+-- Use the NG India deal (which has no splits).  Create a BU managed by override
+-- and add a split to it.  override should gain visibility.
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+
+INSERT INTO public.business_units (id, name, entity_id, kind, manager_user_id)
+VALUES ('c0c0c0c0-c0c0-c0c0-c0c0-c0c0c0c0c0c0', 'Override BU', 'f0f0f0f0-f0f0-f0f0-f0f0-f0f0f0f0f0f0', 'sales', '10000000-0000-0000-0000-000000000006');
+
+-- verify override (not owner, not team, not in manager chain) cannot see NG India deal yet
+SELECT tests.as_user('override@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.opportunities WHERE id = 'd0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0'$$,
+  'override cannot see NG India deal before split targets their BU'
+);
+
+-- Add split targeting override's BU.
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+INSERT INTO public.opportunity_splits (opportunity_id, sales_unit_id, pct)
+VALUES ('d0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0', 'c0c0c0c0-c0c0-c0c0-c0c0-c0c0c0c0c0c0', 100);
+
+-- override@nodwin.com should now see the deal as split-unit manager.
+SELECT tests.as_user('override@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.opportunities WHERE id = 'd0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0'$$,
+  'override gains visibility after split targets their BU'
+);
+
+-- ── 47. Split BU change removes visibility for departed unit manager ───────────
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+UPDATE public.opportunity_splits
+   SET sales_unit_id = 'b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0'
+ WHERE opportunity_id = 'd0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0'
+   AND sales_unit_id = 'c0c0c0c0-c0c0-c0c0-c0c0-c0c0c0c0c0c0';
+
+-- verify override loses visibility (BU change removed their BU as a split target)
+SELECT tests.as_user('override@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.opportunities WHERE id = 'd0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0'$$,
+  'override loses visibility after split BU changes away from their BU'
+);
+
+-- verify the new BU manager (split_mgr) gains visibility
+SELECT tests.as_user('split_mgr@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.opportunities WHERE id = 'd0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0'$$,
+  'split_mgr gains visibility after split BU changes to their BU'
+);
+
+-- ── 48. Non-owner sales_rep cannot DELETE opportunity (admin-only policy) ──────
+SELECT tests.as_user('owner@nodwin.com');
+SET LOCAL ROLE authenticated;
+DELETE FROM public.opportunities WHERE id = '00000000-0000-0000-0000-000000000001';
+SELECT isnt_empty(
+  $$SELECT id FROM public.opportunities WHERE id = '00000000-0000-0000-0000-000000000001'$$,
+  'non-admin cannot delete opportunity (silently blocked)'
+);
+
+-- ── 49. Non-admin cannot INSERT into opportunity_splits ────────────────────────
+SELECT tests.as_user('owner@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT throws_ok(
+  $$INSERT INTO public.opportunity_splits (id, opportunity_id, sales_unit_id, pct) VALUES (gen_random_uuid(), '00000000-0000-0000-0000-000000000001', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 50)$$,
+  '42501',
+  NULL,
+  'non-admin cannot insert opportunity_splits'
+);
+
+-- ── 50. Admin can see all opportunities including cross-entity deals ───────────
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.opportunities WHERE id = 'd0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0'$$,
+  'admin can see ng india deal (cross-entity)'
+);
+
+SELECT isnt_empty(
+  $$SELECT id FROM public.opportunities WHERE id = '00000000-0000-0000-0000-000000000001'$$,
+  'admin can see standard opportunity'
+);
+
+-- ── 51. Admin can delete any opportunity ───────────────────────────────────────
+-- Create a temporary no-split opportunity because the splits-sum trigger
+-- (check_opportunity_splits_sum) blocks CASCADE-deleting an opp with splits
+-- when the DELETE leaves 0 remaining splits ≠ 100.  This is a known business-
+-- logic bug (nothing to do with RLS) that we work around here.
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+INSERT INTO public.opportunities (
+  id, name, account_id, stage, owner_user_id, sales_initiator_user_id, sales_unit_id, amount, currency, visibility_tier
+) VALUES (
+  'e0e0e0e0-e0e0-e0e0-e0e0-e0e0e0e0e0e0',
+  'Admin Delete Test Opp',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+  'qualify',
+  '10000000-0000-0000-0000-000000000007',
+  '10000000-0000-0000-0000-000000000007',
+  'b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0',
+  1000, 'INR',
+  'standard'
+);
+
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT lives_ok(
+  $$DELETE FROM public.opportunities WHERE id = 'e0e0e0e0-e0e0-e0e0-e0e0-e0e0e0e0e0e0'$$,
+  'admin can delete opportunity'
 );
 
 SELECT * FROM finish();
