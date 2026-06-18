@@ -665,32 +665,12 @@ SELECT isnt_empty(
   'admin can see standard opportunity'
 );
 
--- ── 51. Admin can delete any opportunity ───────────────────────────────────────
--- Create a temporary no-split opportunity because the splits-sum trigger
--- (check_opportunity_splits_sum) blocks CASCADE-deleting an opp with splits
--- when the DELETE leaves 0 remaining splits ≠ 100.  This is a known business-
--- logic bug (nothing to do with RLS) that we work around here.
-SELECT tests.as_service_role();
-SET LOCAL ROLE postgres;
-INSERT INTO public.opportunities (
-  id, name, account_id, stage, owner_user_id, sales_initiator_user_id, sales_unit_id, amount, currency, visibility_tier
-) VALUES (
-  'e0e0e0e0-e0e0-e0e0-e0e0-e0e0e0e0e0e0',
-  'Admin Delete Test Opp',
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-  'qualify',
-  '10000000-0000-0000-0000-000000000007',
-  '10000000-0000-0000-0000-000000000007',
-  'b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0',
-  1000, 'INR',
-  'standard'
-);
-
+-- ── 51. Admin can delete any opportunity (including CASCADE of splits) ─────────
 SELECT tests.as_user('admin@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT lives_ok(
-  $$DELETE FROM public.opportunities WHERE id = 'e0e0e0e0-e0e0-e0e0-e0e0-e0e0e0e0e0e0'$$,
-  'admin can delete opportunity'
+  $$DELETE FROM public.opportunities WHERE id = '00000000-0000-0000-0000-000000000001'$$,
+  'admin can delete opportunity with splits (CASCADE)'
 );
 
 SELECT * FROM finish();
