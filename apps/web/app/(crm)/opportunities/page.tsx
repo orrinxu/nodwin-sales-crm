@@ -10,6 +10,7 @@ import {
   updateOpportunityStageAction,
   bulkDeleteOpportunitiesAction,
   bulkUpdateOpportunityStageAction,
+  searchAccountsAction,
 } from "./actions"
 
 export default async function OpportunitiesPage() {
@@ -23,14 +24,15 @@ export default async function OpportunitiesPage() {
   ])
 
   return (
-    <OpportunitiesView
-      opportunities={opportunities}
-      accounts={accounts}
-      businessUnits={businessUnits}
-      createAction={createOpportunityAction}
-      updateStageAction={updateOpportunityStageAction}
-      bulkDeleteAction={bulkDeleteOpportunitiesAction}
-      bulkUpdateStageAction={bulkUpdateOpportunityStageAction}
-    />
+      <OpportunitiesView
+        opportunities={opportunities}
+        accounts={accounts}
+        businessUnits={businessUnits}
+        createAction={createOpportunityAction}
+        updateStageAction={updateOpportunityStageAction}
+        bulkDeleteAction={bulkDeleteOpportunitiesAction}
+        bulkUpdateStageAction={bulkUpdateOpportunityStageAction}
+        searchAccountsAction={searchAccountsAction}
+      />
   )
 }

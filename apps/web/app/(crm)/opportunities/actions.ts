@@ -22,6 +22,7 @@ import {
   createActivity,
   activityCreateSchema,
 } from "@/lib/data/activities"
+import { searchAccountOptions } from "@/lib/data/contacts"
 
 export async function createOpportunityAction(input: unknown) {
   const user = await requireUser()
@@ -99,4 +100,10 @@ export async function createActivityAction(opportunityId: string, input: unknown
   const activity = await createActivity(ctx, parsed)
   revalidatePath(`/opportunities/${opportunityId}`)
   return activity
+}
+
+export async function searchAccountsAction(query: string) {
+  const user = await requireUser()
+  const ctx = { user, source: "web" as const }
+  return searchAccountOptions(ctx, query)
 }

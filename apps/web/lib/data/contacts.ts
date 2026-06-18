@@ -228,6 +228,29 @@ export async function getAccountOptions(
   }))
 }
 
+export async function searchAccountOptions(
+  ctx: ContactCallContext,
+  query: string,
+): Promise<AccountOption[]> {
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("id, name")
+    .ilike("name", `%${query}%`)
+    .order("name", { ascending: true })
+    .limit(20)
+
+  if (error) {
+    throw new Error(`Failed to search accounts: ${error.message}`)
+  }
+
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    name: r.name as string,
+  }))
+}
+
 function toDbContact(input: ContactCreateInput): Record<string, unknown> {
   const dbData: Record<string, unknown> = {
     full_name: input.fullName,

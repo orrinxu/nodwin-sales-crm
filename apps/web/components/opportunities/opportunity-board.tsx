@@ -23,6 +23,7 @@ import {
 } from "@/lib/data/opportunities.types"
 import type { OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/opportunities.types"
 import type { AccountOption } from "@/lib/data/contacts"
+import type { EntityOption } from "@/components/entity-combobox"
 import { OpportunityCard } from "@/components/opportunities/opportunity-card"
 import { OpportunityColumn } from "@/components/opportunities/opportunity-column"
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
@@ -37,6 +38,7 @@ interface OpportunityBoardProps {
     id: string,
     input: { stage: string },
   ) => Promise<OpportunityRecord>
+  searchAccountsAction?: (query: string) => Promise<EntityOption[]>
 }
 
 export function OpportunityBoard({
@@ -45,6 +47,7 @@ export function OpportunityBoard({
   businessUnits,
   createAction,
   updateStageAction,
+  searchAccountsAction,
 }: OpportunityBoardProps) {
   const router = useRouter()
   const [activeOpportunity, setActiveOpportunity] =
@@ -116,10 +119,11 @@ export function OpportunityBoard({
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 lg:p-6 lg:pt-0">
         <div className="flex items-center justify-end gap-2">
           <OpportunityQuickCreate
-            accounts={accounts}
+            accounts={accounts.map((a) => ({ id: a.id, label: a.name }))}
             businessUnits={businessUnits}
             createAction={createAction}
             onSuccess={() => router.refresh()}
+            searchAccountsAction={searchAccountsAction}
           />
           <OpportunityForm
             accounts={accounts}
