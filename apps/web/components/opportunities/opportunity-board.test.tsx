@@ -18,7 +18,6 @@ const mockOpportunity: OpportunityRecord = {
   currency: "USD",
   ownerUserId: "user-1",
   ownerName: "Alice Johnson",
-  salesInitiatorUserId: "user-1",
   salesUnitId: "unit-1",
   revenueRecognitionUnitId: null,
   billingEntityId: null,
