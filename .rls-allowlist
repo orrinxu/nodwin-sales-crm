@@ -80,3 +80,15 @@
 # approval_thresholds, revenue_recognition_defaults). All authenticated users
 # need read access. Write access is admin-only.
 .*financial_settings.*:USING \(true\)
+
+# ── admin_b_users_roles_access ────────────────────────────────────────────────
+# Untracked stray file; users/roles config table uses same pattern as other
+# org-level config tables. SELECT for all authenticated, write for admin.
+.*admin_b_users_roles_access.*:USING \(true\)
+
+# ── data_management ────────────────────────────────────────────────────────────
+# finance_export_config is a per-entity configuration table. All authenticated
+# users need read access to discover export configuration. Write is admin-only.
+# import_jobs uses (true) only in service_role policies which explicitly
+# bypass RLS; they are documentation.
+.*data_management.*:USING \(true\)
