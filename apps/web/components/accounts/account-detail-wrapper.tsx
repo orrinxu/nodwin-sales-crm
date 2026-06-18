@@ -20,6 +20,7 @@ interface AccountDetailWrapperProps {
   relationshipGraph: AccountRelationshipGraph | null
   contacts: { id: string; fullName: string; title: string | null; email: string | null }[]
   opportunities: AccountOpportunity[]
+  stageLabels: Record<string, string>
   ownerName: string | null
   updateAction: (id: string, input: AccountUpdateInput) => Promise<AccountRecord>
 }
@@ -30,6 +31,7 @@ export function AccountDetailWrapper({
   relationshipGraph,
   contacts,
   opportunities,
+  stageLabels,
   ownerName,
   updateAction,
 }: AccountDetailWrapperProps) {
@@ -259,7 +261,7 @@ export function AccountDetailWrapper({
                       </Link>
                       <div className="flex items-center gap-2 mt-0.5">
                         <Badge variant="secondary" className="text-xs">
-                          {getStageLabel(opp.stage)}
+                          {getStageLabel(opp.stage, stageLabels)}
                         </Badge>
                         {opp.probabilityPct > 0 && (
                           <span className="text-xs text-muted-foreground">

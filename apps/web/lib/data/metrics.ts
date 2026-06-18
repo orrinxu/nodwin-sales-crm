@@ -4,6 +4,7 @@ import type { AuthenticatedUser } from "@/lib/security/auth"
 import { DEAL_STAGES } from "@/lib/opportunity"
 import type { DealStage } from "@/lib/opportunity"
 import { getStageLabel } from "@/lib/data/opportunities.types"
+import { getStageLabelMap } from "@/lib/data/sales-process-config"
 import type { ActivityRecord, ActivityType } from "./activities"
 import { lookupRate, convertWithRate } from "@/lib/money/convert"
 import type { RawRate } from "@/lib/money/convert"
@@ -212,6 +213,15 @@ function computeAverage(sum: number, count: number): number {
   return count > 0 ? Math.round(sum / count) : 0
 }
 
+const STAGE_LABEL_CACHE = new Map<string, Record<string, string>>()
+
+async function getStageLabels(): Promise<Record<string, string>> {
+  if (!STAGE_LABEL_CACHE.has("all")) {
+    STAGE_LABEL_CACHE.set("all", await getStageLabelMap())
+  }
+  return STAGE_LABEL_CACHE.get("all")!
+}
+
 export async function getPipelineSummary(ctx: DashboardContext): Promise<{
   stages: PipelineStageSummary[]
   totalCount: number
@@ -260,9 +270,11 @@ export async function getPipelineSummary(ctx: DashboardContext): Promise<{
     }
   }
 
+  const stageLabels = await getStageLabels()
   const stages: PipelineStageSummary[] = DEAL_STAGES.map((stage) => ({
     stage,
-    label: getStageLabel(stage),
+    // eslint-disable-next-line security/detect-object-injection -- stage is typed DealStage
+    label: stageLabels[stage] ?? getStageLabel(stage),
     count: stageBuckets.get(stage)?.count ?? 0,
     amount: stageBuckets.get(stage)?.amount ?? 0,
   }))
@@ -294,6 +306,7 @@ export async function getRecentDeals(
     throw new Error(`Failed to load recent deals: ${error.message}`)
   }
 
+  const stageLabels = await getStageLabels()
   return ((rawDeals ?? []) as Array<Record<string, unknown>>).map((d) => {
     const account = d.account as { name: string } | null
     const stage = (d.stage as DealStage) ?? "qualify"
@@ -302,7 +315,8 @@ export async function getRecentDeals(
       name: d.name as string,
       company: account?.name ?? null,
       stage,
-      stageLabel: getStageLabel(stage),
+      // eslint-disable-next-line security/detect-object-injection -- stage is typed DealStage
+      stageLabel: stageLabels[stage] ?? getStageLabel(stage),
       amount: Number(d.amount ?? 0),
       probabilityPct: Number(d.probability_pct ?? 0),
       closeDate: (d.close_date as string) ?? null,

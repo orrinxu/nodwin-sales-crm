@@ -6,6 +6,11 @@ const mockFrom = vi.fn()
 const mockSelect = vi.fn()
 const mockOrder = vi.fn()
 const mockLimit = vi.fn()
+const mockCurrenciesIn = vi.fn()
+const mockCurrenciesSelect = vi.fn()
+const mockStageEq = vi.fn()
+const mockStageOrder = vi.fn()
+const mockStageSelect = vi.fn()
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(() => ({
@@ -14,8 +19,33 @@ vi.mock("@/lib/supabase/server", () => ({
 }))
 
 function buildQueryBuilder() {
-  mockFrom.mockReturnValue({
-    select: mockSelect,
+  mockCurrenciesIn.mockResolvedValue({
+    data: [{ code: "USD", scale: 2 }],
+    error: null,
+  })
+  mockCurrenciesSelect.mockReturnValue({ in: mockCurrenciesIn })
+  mockStageEq.mockReturnValue({ order: mockStageOrder })
+  mockStageOrder.mockResolvedValue({
+    data: [
+      { key: "qualify", label: "Qualify" },
+      { key: "meet_and_present", label: "Meet & Present" },
+      { key: "propose", label: "Propose" },
+      { key: "negotiate", label: "Negotiate" },
+      { key: "verbal_agreement", label: "Verbal Agreement" },
+      { key: "closed_won", label: "Closed Won" },
+      { key: "closed_lost", label: "Closed Lost" },
+    ],
+    error: null,
+  })
+  mockStageSelect.mockReturnValue({ eq: mockStageEq })
+  mockFrom.mockImplementation((table: string) => {
+    if (table === "currencies") {
+      return { select: mockCurrenciesSelect }
+    }
+    if (table === "pipeline_stages") {
+      return { select: mockStageSelect }
+    }
+    return { select: mockSelect }
   })
   mockSelect.mockReturnValue({
     order: mockOrder,
@@ -24,7 +54,6 @@ function buildQueryBuilder() {
     limit: mockLimit,
   })
   mockLimit.mockResolvedValue({ data: [], error: null })
-  return { select: mockSelect, order: mockOrder, limit: mockLimit }
 }
 
 beforeEach(() => {

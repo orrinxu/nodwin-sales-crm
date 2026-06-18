@@ -23,6 +23,7 @@ import { Money } from "@/lib/money"
 interface OpportunityDetailWrapperProps {
   opportunity: OpportunityRecord
   businessUnits: BusinessUnitOption[]
+  stageLabels: Record<string, string>
   updateAction: (id: string, input: unknown) => Promise<OpportunityRecord>
   activities: ActivityRecord[]
   createActivityAction: (opportunityId: string, input: unknown) => Promise<ActivityRecord>
@@ -31,6 +32,7 @@ interface OpportunityDetailWrapperProps {
 export function OpportunityDetailWrapper({
   opportunity,
   businessUnits,
+  stageLabels,
   updateAction,
   activities,
   createActivityAction,
@@ -71,7 +73,7 @@ export function OpportunityDetailWrapper({
             </h1>
             <div className="mt-2 flex items-center gap-3">
               <span className="inline-flex items-center rounded-md border bg-muted px-2.5 py-0.5 text-sm font-medium">
-                {getStageLabel(opportunity.stage)}
+                {getStageLabel(opportunity.stage, stageLabels)}
               </span>
               <span className="text-sm text-muted-foreground">
                 {opportunity.ownerName ?? "Unassigned"}
@@ -100,9 +102,9 @@ export function OpportunityDetailWrapper({
               ))}
             </div>
             <div className="mt-1 flex gap-1 text-[10px] text-muted-foreground">
-              <span>{getStageLabel(DEAL_STAGES[0])}</span>
+              <span>{getStageLabel(DEAL_STAGES[0], stageLabels)}</span>
               <span className="flex-1 text-right">
-                {getStageLabel(DEAL_STAGES[DEAL_STAGES.length - 1])}
+                {getStageLabel(DEAL_STAGES[DEAL_STAGES.length - 1], stageLabels)}
               </span>
             </div>
           </div>
@@ -160,7 +162,7 @@ export function OpportunityDetailWrapper({
                 <div className="grid gap-1">
                   <dt className="text-xs text-muted-foreground">Stage</dt>
                   <dd className="text-sm font-medium">
-                    {getStageLabel(opportunity.stage)}
+                    {getStageLabel(opportunity.stage, stageLabels)}
                   </dd>
                 </div>
                 <div className="grid gap-1">

@@ -12,6 +12,14 @@ import {
   Sliders,
   ChevronDown,
   Gamepad2,
+  Globe,
+  Briefcase,
+  LinkIcon,
+  Shield,
+  Eye,
+  KeyRound,
+  Lock,
+  ArrowUpDown,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -24,12 +32,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import { useSignOut } from "@/lib/auth/session-manager"
 import {
   Sheet,
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet"
+import { useState } from "react"
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -38,7 +52,19 @@ const navigation = [
   { name: "Contacts", href: "/contacts", icon: Users },
   { name: "Activities", href: "/activities", icon: History },
   { name: "Reports", href: "/reports", icon: BarChart3 },
-  { name: "Admin", href: "/admin/field-definitions", icon: Sliders },
+]
+
+const adminItems = [
+  { name: "Users", href: "/admin/users", icon: Users },
+  { name: "Roles", href: "/admin/roles", icon: Shield },
+  { name: "Sign-in Domains", href: "/admin/sign-in-domains", icon: Lock },
+  { name: "Authentication", href: "/admin/authentication", icon: KeyRound },
+  { name: "Visibility", href: "/admin/visibility", icon: Eye },
+  { name: "Custom Fields", href: "/admin/field-definitions", icon: Sliders },
+  { name: "Entities", href: "/admin/entities", icon: Globe },
+  { name: "Business Units", href: "/admin/business-units", icon: Briefcase },
+  { name: "Relationship Types", href: "/admin/relationship-types", icon: LinkIcon },
+  { name: "Sales Process", href: "/admin/sales-process", icon: ArrowUpDown },
 ]
 
 interface SidebarProps {
@@ -51,6 +77,8 @@ interface SidebarProps {
 
 function SidebarNav({ className }: { className?: string }) {
   const pathname = usePathname()
+  const isAdminActive = pathname.startsWith("/admin")
+  const [adminOpen, setAdminOpen] = useState(isAdminActive)
 
   return (
     <nav className={cn("flex flex-col gap-1", className)}>
@@ -77,6 +105,46 @@ function SidebarNav({ className }: { className?: string }) {
           </Link>
         )
       })}
+
+      <Collapsible
+        open={adminOpen}
+        onOpenChange={setAdminOpen}
+        className="flex flex-col gap-1"
+      >
+        <CollapsibleTrigger
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+            isAdminActive
+              ? "text-sidebar-accent-foreground"
+              : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+          )}
+        >
+          <Sliders className={cn("size-4 shrink-0", isAdminActive && "text-primary")} />
+          Admin
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="ml-1 flex flex-col gap-1 border-l border-border pl-5 pt-1">
+            {adminItems.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive
+                      ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  )}
+                >
+                  <item.icon className="size-3.5 shrink-0" />
+                  {item.name}
+                </Link>
+              )
+            })}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
     </nav>
   )
 }

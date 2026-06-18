@@ -46,6 +46,7 @@ import { Trash2Icon, ArrowUpDownIcon } from "lucide-react"
 
 interface OpportunityListTableProps {
   opportunities: OpportunityRecord[]
+  stageLabels: Record<string, string>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
   bulkUpdateStageAction: (input: {
     ids: string[]
@@ -78,6 +79,7 @@ function formatDate(dateStr: string | null): string {
 
 export function OpportunityListTable({
   opportunities,
+  stageLabels,
   bulkDeleteAction,
   bulkUpdateStageAction,
 }: OpportunityListTableProps) {
@@ -137,7 +139,7 @@ export function OpportunityListTable({
       {
         accessorKey: "stage",
         header: "Stage",
-        cell: ({ row }) => getStageLabel(row.getValue("stage")),
+        cell: ({ row }) => getStageLabel(row.getValue("stage"), stageLabels),
       },
       {
         accessorKey: "amount",
@@ -338,7 +340,7 @@ export function OpportunityListTable({
               <SelectContent>
                 {ALL_STAGES.map((stage) => (
                   <SelectItem key={stage} value={stage}>
-                    {getStageLabel(stage)}
+                    {getStageLabel(stage, stageLabels)}
                   </SelectItem>
                 ))}
               </SelectContent>

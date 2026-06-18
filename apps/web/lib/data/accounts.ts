@@ -212,13 +212,20 @@ export async function getAccountById(
   return toDomainAccount(data as Record<string, unknown>)
 }
 
+function extractCount(val: unknown): number {
+  if (Array.isArray(val) && val.length > 0 && typeof val[0] === "object" && val[0] !== null && "count" in val[0]) {
+    return Number((val[0] as { count: unknown }).count) || 0
+  }
+  return Number(val) || 0
+}
+
 function toDomainAccountListRecord(data: Record<string, unknown>): AccountListRecord {
   const owner = data.owner as { full_name: string } | null
   return {
     ...toDomainAccount(data),
     ownerName: owner?.full_name ?? null,
-    contactCount: (data.contact_count as number) ?? 0,
-    opportunityCount: (data.opportunity_count as number) ?? 0,
+    contactCount: extractCount(data.contact_count),
+    opportunityCount: extractCount(data.opportunity_count),
   }
 }
 

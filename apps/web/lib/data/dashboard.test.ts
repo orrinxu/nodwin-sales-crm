@@ -8,6 +8,9 @@ const mockSelect = vi.fn()
 const mockFrom = vi.fn()
 const mockCurrenciesIn = vi.fn()
 const mockCurrenciesSelect = vi.fn()
+const mockStageEq = vi.fn()
+const mockStageOrder = vi.fn()
+const mockStageSelect = vi.fn()
 const mockLookupRate = vi.fn()
 const mockConvertWithRate = vi.fn()
 
@@ -35,6 +38,21 @@ beforeEach(() => {
     error: null,
   })
   mockCurrenciesSelect.mockReturnValue({ in: mockCurrenciesIn })
+  // Default: pipeline_stages returns stage labels
+  mockStageEq.mockReturnValue({ order: mockStageOrder })
+  mockStageOrder.mockResolvedValue({
+    data: [
+      { key: "qualify", label: "Qualify" },
+      { key: "meet_and_present", label: "Meet & Present" },
+      { key: "propose", label: "Propose" },
+      { key: "negotiate", label: "Negotiate" },
+      { key: "verbal_agreement", label: "Verbal Agreement" },
+      { key: "closed_won", label: "Closed Won" },
+      { key: "closed_lost", label: "Closed Lost" },
+    ],
+    error: null,
+  })
+  mockStageSelect.mockReturnValue({ eq: mockStageEq })
   // Default: return currency rate (1 INR → 0.01 USD)
   mockLookupRate.mockResolvedValue({
     rate: 0.01,
@@ -60,6 +78,9 @@ function buildQuery(returnData: unknown[] | null, error?: { message: string }) {
     if (table === "currencies") {
       return { select: mockCurrenciesSelect }
     }
+    if (table === "pipeline_stages") {
+      return { select: mockStageSelect }
+    }
     return { select: mockSelect }
   })
 }
@@ -74,6 +95,9 @@ function buildOrderLimitQuery(returnData: unknown[] | null, error?: { message: s
   mockFrom.mockImplementation((table: string) => {
     if (table === "currencies") {
       return { select: mockCurrenciesSelect }
+    }
+    if (table === "pipeline_stages") {
+      return { select: mockStageSelect }
     }
     return { select: mockSelect }
   })

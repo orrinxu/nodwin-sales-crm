@@ -109,7 +109,7 @@ The merge commit `6828621` was pushed to the remote by Paperclip during the debu
 
 4. [ ] Create a consolidated "hosting checklist" in `docs/` that covers: branch prerequisite, DB schema prerequisite, migration command, verification procedure.
 5. [ ] Resolve the port convention: pick one port (3030 from PM2 or 3002 from testing guide) and update all docs to match.
-6. [ ] Update `docs/testing-deployment.md` to include a branch-check step and a verification section that routes through `(crm)/`.
+6. [x] Update `docs/testing-deployment.md` to include a branch-check step and a verification section that routes through `(crm)/`. ✅
 
 ### Long-term (process)
 

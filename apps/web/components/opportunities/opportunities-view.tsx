@@ -14,8 +14,10 @@ interface OpportunitiesViewProps {
   opportunities: OpportunityRecord[]
   accounts: AccountOption[]
   businessUnits: BusinessUnitOption[]
+  stageLabels: Record<string, string>
+  lossReasons: { id: string; label: string }[]
   createAction: (input: OpportunityCreateInput) => Promise<OpportunityRecord>
-  updateStageAction: (id: string, input: { stage: string }) => Promise<OpportunityRecord>
+  updateStageAction: (id: string, input: { stage: string; lossReason?: string | null }) => Promise<OpportunityRecord>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
   bulkUpdateStageAction: (input: { ids: string[]; stage: string }) => Promise<void>
 }
@@ -26,6 +28,8 @@ export function OpportunitiesView({
   opportunities,
   accounts,
   businessUnits,
+  stageLabels,
+  lossReasons,
   createAction,
   updateStageAction,
   bulkDeleteAction,
@@ -81,6 +85,8 @@ export function OpportunitiesView({
           opportunities={opportunities}
           accounts={accounts}
           businessUnits={businessUnits}
+          stageLabels={stageLabels}
+          lossReasons={lossReasons}
           createAction={createAction}
           updateStageAction={updateStageAction}
         />
@@ -88,6 +94,7 @@ export function OpportunitiesView({
         <div className="flex-1 p-6">
           <OpportunityListTable
             opportunities={opportunities}
+            stageLabels={stageLabels}
             bulkDeleteAction={bulkDeleteAction}
             bulkUpdateStageAction={bulkUpdateStageAction}
           />

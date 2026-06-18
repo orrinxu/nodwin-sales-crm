@@ -37,7 +37,15 @@ const stageLabels: Record<DealStage, string> = {
   closed_lost: "Closed Lost",
 }
 
-export function getStageLabel(stage: DealStage): string {
+export function getStageLabel(
+  stage: DealStage,
+  labels?: Record<string, string>,
+): string {
+  if (labels) {
+    // eslint-disable-next-line security/detect-object-injection -- stage is typed DealStage
+    const label = labels[stage]
+    if (label) return label
+  }
   // eslint-disable-next-line security/detect-object-injection -- stage is typed DealStage
   return stageLabels[stage]
 }

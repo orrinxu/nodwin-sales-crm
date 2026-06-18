@@ -62,3 +62,15 @@
 # FX rates is a lookup table for currency conversion. All authenticated users
 # need read access to reference exchange rates. Write access is finance/admin only.
 .*fx_rates.*:USING \(true\)
+
+# ── admin_b_users_roles_access ─────────────────────────────────────────────────
+# Role-level access tables (roles, user_invites, announcement_overrides, etc.).
+# All authenticated users need read access to discover their role/org structure.
+# Write access is admin-only.
+.*admin_b_users_roles_access.*:USING \(true\)
+
+# ── sales_process_config ──────────────────────────────────────────────────────
+# Lookup tables for pipeline metadata (stages, loss reasons, project types,
+# revenue categories, stage-gate rules). All authenticated users need read
+# access to reference configuration. Write access is admin-only.
+.*sales_process_config.*:USING \(true\)

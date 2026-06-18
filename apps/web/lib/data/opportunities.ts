@@ -42,6 +42,7 @@ export interface OpportunityCallContext {
 
 export const opportunityStageUpdateSchema = z.object({
   stage: z.enum(DEAL_STAGES),
+  lossReason: z.string().max(200).nullable().optional(),
 })
 
 export type OpportunityStageUpdateInput = z.infer<typeof opportunityStageUpdateSchema>
@@ -311,6 +312,44 @@ export async function updateOpportunity(
   return updated
 }
 
+async function checkStageGateRules(
+  targetStage: string,
+  existing: OpportunityRecord,
+): Promise<void> {
+  const supabase = await createServerClient()
+  const { data: rules, error } = await supabase
+    .from("stage_gate_rules")
+    .select("*")
+    .eq("stage_key", targetStage)
+    .eq("active", true)
+
+  if (error) {
+    throw new Error(`Failed to check stage gate rules: ${error.message}`)
+  }
+
+  if (!rules || rules.length === 0) return
+
+  for (const rule of rules as Array<{
+    entity_type: string
+    field_key: string
+    required: boolean
+  }>) {
+    if (!rule.required) continue
+
+    const customData = existing.customData as Record<string, unknown> | null
+    const value = customData?.[rule.field_key]
+
+    if (
+      rule.entity_type === "opportunity" &&
+      (value === undefined || value === null || value === "")
+    ) {
+      throw new Error(
+        `Stage gate: field "${rule.field_key}" is required before moving to this stage`,
+      )
+    }
+  }
+}
+
 export async function updateOpportunityStage(
   ctx: OpportunityCallContext,
   id: string,
@@ -322,17 +361,31 @@ export async function updateOpportunityStage(
   const existing = await getOpportunityById(ctx, id)
   if (!existing) throw new Error("Opportunity not found for stage update")
 
-  if (existing.stage !== parsed.stage) {
-    const event = determineStageEvent(existing.stage, parsed.stage)
+  await checkStageGateRules(parsed.stage, existing)
 
+  const dbUpdate: Record<string, unknown> = {}
+
+  if (existing.stage !== parsed.stage) {
+    dbUpdate.stage = parsed.stage
+  }
+
+  if (parsed.stage === "closed_lost" && parsed.lossReason !== undefined) {
+    dbUpdate.loss_reason = parsed.lossReason
+  }
+
+  if (Object.keys(dbUpdate).length > 0) {
     const { error } = await supabase
       .from("opportunities")
-      .update({ stage: parsed.stage })
+      .update(dbUpdate)
       .eq("id", id)
 
     if (error) {
       throw new Error(`Failed to update opportunity stage: ${error.message}`)
     }
+  }
+
+  if (existing.stage !== parsed.stage) {
+    const event = determineStageEvent(existing.stage, parsed.stage)
 
     try {
       await insertStageHistoryEntry(ctx, {
@@ -340,6 +393,7 @@ export async function updateOpportunityStage(
         fromStage: existing.stage,
         toStage: parsed.stage,
         event,
+        reason: parsed.lossReason ?? undefined,
         createdBy: ctx.user.id,
       })
     } catch (historyError) {

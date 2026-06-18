@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase/server"
 import { DEAL_STAGES, isTerminalStage } from "@/lib/opportunity"
 import type { DealStage } from "@/lib/opportunity"
 import { getStageLabel } from "@/lib/data/opportunities.types"
+import { getStageLabelMap } from "@/lib/data/sales-process-config"
 import { getReportingCurrency, fetchAndConvert } from "@/lib/data/metrics"
 
 export interface PipelineByStage {
@@ -146,11 +147,13 @@ export async function getReportData(): Promise<ReportData> {
     accountMap[accountName].count++
   }
 
+  const stageLabels = await getStageLabelMap()
   const pipelineByStage: PipelineByStage[] = DEAL_STAGES.filter(
     (s) => !isTerminalStage(s),
   ).map((stage) => ({
     stage,
-    label: getStageLabel(stage),
+    // eslint-disable-next-line security/detect-object-injection -- stage is typed DealStage
+    label: stageLabels[stage] ?? getStageLabel(stage),
     count: stageBuckets[stage]?.count ?? 0,
     amount: stageBuckets[stage]?.amount ?? 0,
   }))

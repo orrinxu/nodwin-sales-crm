@@ -4,6 +4,7 @@ import {
   getOpportunityById,
   getBusinessUnitOptions,
 } from "@/lib/data/opportunities"
+import { getStageLabelMap } from "@/lib/data/sales-process-config"
 import { getActivitiesForOpportunity } from "@/lib/data/activities"
 import { updateOpportunityAction, createActivityAction } from "../actions"
 import { OpportunityDetailWrapper } from "@/components/opportunities/opportunity-detail-wrapper"
@@ -17,10 +18,11 @@ export default async function OpportunityDetailPage({
   const { id } = await params
 
   const ctx = { user, source: "web" as const }
-  const [opportunity, businessUnits, activities] = await Promise.all([
+  const [opportunity, businessUnits, activities, stageLabels] = await Promise.all([
     getOpportunityById(ctx, id),
     getBusinessUnitOptions(ctx),
     getActivitiesForOpportunity(ctx, id),
+    getStageLabelMap(),
   ])
 
   if (!opportunity) {
@@ -31,6 +33,7 @@ export default async function OpportunityDetailPage({
     <OpportunityDetailWrapper
       opportunity={opportunity}
       businessUnits={businessUnits}
+      stageLabels={stageLabels}
       updateAction={updateOpportunityAction}
       activities={activities}
       createActivityAction={createActivityAction}

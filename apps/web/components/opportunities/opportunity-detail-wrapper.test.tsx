@@ -81,6 +81,15 @@ function makeOpportunity(overrides: Partial<OpportunityRecord> = {}): Opportunit
 const defaultProps = {
   opportunity: makeOpportunity(),
   businessUnits: mockBusinessUnits,
+  stageLabels: {
+    qualify: "Qualify",
+    meet_and_present: "Meet & Present",
+    propose: "Propose",
+    negotiate: "Negotiate",
+    verbal_agreement: "Verbal Agreement",
+    closed_won: "Closed Won",
+    closed_lost: "Closed Lost",
+  },
   updateAction: vi.fn(),
   activities: [],
   createActivityAction: vi.fn(),

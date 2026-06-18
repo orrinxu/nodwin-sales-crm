@@ -74,6 +74,16 @@ vi.mock("next/navigation", () => ({
 
 import { OpportunityListTable } from "./opportunity-list-table"
 
+const stageLabels = {
+  qualify: "Qualify",
+  meet_and_present: "Meet & Present",
+  propose: "Propose",
+  negotiate: "Negotiate",
+  verbal_agreement: "Verbal Agreement",
+  closed_won: "Closed Won",
+  closed_lost: "Closed Lost",
+}
+
 describe("OpportunityListTable", () => {
   const bulkDeleteAction = vi.fn()
   const bulkUpdateStageAction = vi.fn()
@@ -86,6 +96,7 @@ describe("OpportunityListTable", () => {
     render(
       <OpportunityListTable
         opportunities={mockOpportunities}
+        stageLabels={stageLabels}
         bulkDeleteAction={bulkDeleteAction}
         bulkUpdateStageAction={bulkUpdateStageAction}
       />,
@@ -100,6 +111,7 @@ describe("OpportunityListTable", () => {
     render(
       <OpportunityListTable
         opportunities={mockOpportunities}
+        stageLabels={stageLabels}
         bulkDeleteAction={bulkDeleteAction}
         bulkUpdateStageAction={bulkUpdateStageAction}
       />,
@@ -117,6 +129,7 @@ describe("OpportunityListTable", () => {
     render(
       <OpportunityListTable
         opportunities={[]}
+        stageLabels={stageLabels}
         bulkDeleteAction={bulkDeleteAction}
         bulkUpdateStageAction={bulkUpdateStageAction}
       />,
@@ -131,6 +144,7 @@ describe("OpportunityListTable", () => {
     render(
       <OpportunityListTable
         opportunities={mockOpportunities}
+        stageLabels={stageLabels}
         bulkDeleteAction={bulkDeleteAction}
         bulkUpdateStageAction={bulkUpdateStageAction}
       />,
@@ -145,6 +159,7 @@ describe("OpportunityListTable", () => {
     render(
       <OpportunityListTable
         opportunities={mockOpportunities}
+        stageLabels={stageLabels}
         bulkDeleteAction={bulkDeleteAction}
         bulkUpdateStageAction={bulkUpdateStageAction}
       />,
@@ -160,6 +175,7 @@ describe("OpportunityListTable", () => {
     render(
       <OpportunityListTable
         opportunities={mockOpportunities}
+        stageLabels={stageLabels}
         bulkDeleteAction={bulkDeleteAction}
         bulkUpdateStageAction={bulkUpdateStageAction}
       />,
@@ -175,6 +191,7 @@ describe("OpportunityListTable", () => {
     render(
       <OpportunityListTable
         opportunities={mockOpportunities}
+        stageLabels={stageLabels}
         bulkDeleteAction={bulkDeleteAction}
         bulkUpdateStageAction={bulkUpdateStageAction}
       />,
@@ -195,6 +212,7 @@ describe("OpportunityListTable", () => {
     render(
       <OpportunityListTable
         opportunities={mockOpportunities}
+        stageLabels={stageLabels}
         bulkDeleteAction={bulkDeleteAction}
         bulkUpdateStageAction={bulkUpdateStageAction}
       />,

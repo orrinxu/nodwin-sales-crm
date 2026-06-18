@@ -4,6 +4,11 @@ import {
   getBusinessUnitOptions,
 } from "@/lib/data/opportunities"
 import { getAccountOptions } from "@/lib/data/contacts"
+import {
+  getStageLabelMap,
+  getLossReasons,
+} from "@/lib/data/sales-process-config"
+import type { SalesProcessCallContext } from "@/lib/data/sales-process-config"
 import { OpportunitiesView } from "@/components/opportunities/opportunities-view"
 import {
   createOpportunityAction,
@@ -16,10 +21,14 @@ export default async function OpportunitiesPage() {
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
 
-  const [{ opportunities }, accounts, businessUnits] = await Promise.all([
+  const spCtx: SalesProcessCallContext = { user, source: "web" }
+
+  const [{ opportunities }, accounts, businessUnits, stageLabels, lossReasons] = await Promise.all([
     getOpportunities(ctx),
     getAccountOptions(ctx),
     getBusinessUnitOptions(ctx),
+    getStageLabelMap(),
+    getLossReasons(spCtx),
   ])
 
   return (
@@ -27,6 +36,8 @@ export default async function OpportunitiesPage() {
       opportunities={opportunities}
       accounts={accounts}
       businessUnits={businessUnits}
+      stageLabels={stageLabels}
+      lossReasons={lossReasons.map((r) => ({ id: r.id, label: r.label }))}
       createAction={createOpportunityAction}
       updateStageAction={updateOpportunityStageAction}
       bulkDeleteAction={bulkDeleteOpportunitiesAction}
