@@ -78,7 +78,7 @@ ALTER TABLE public.opportunities
 CREATE OR REPLACE FUNCTION public.set_opportunity_owner_default()
 RETURNS trigger
 LANGUAGE plpgsql
-SECURITY DEFINER
+SECURITY INVOKER
 SET search_path = public
 AS $$
 BEGIN
