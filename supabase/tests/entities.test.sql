@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(8);
+SELECT plan(16);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -107,6 +107,68 @@ SELECT cmp_ok(
   '>=',
   1,
   'audit_log captured at least one entity change for row'
+);
+
+-- ── 9. Branding columns exist and are nullable ───────────────────────────────
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+SELECT col_is_null(
+  'public', 'entities', 'display_name',
+  'entities.display_name exists and defaults to null'
+);
+SELECT col_is_null(
+  'public', 'entities', 'logo_url',
+  'entities.logo_url exists and defaults to null'
+);
+SELECT col_is_null(
+  'public', 'entities', 'email_footer',
+  'entities.email_footer exists and defaults to null'
+);
+
+-- ── 10. Admin can set branding columns ───────────────────────────────────────
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+UPDATE public.entities
+SET display_name = 'Nodwin Gaming',
+    logo_url     = 'https://example.com/logo.png',
+    email_footer = 'Nodwin Gaming — sent via Nodwin CRM'
+WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+
+SELECT is(
+  (SELECT display_name FROM public.entities WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
+  'Nodwin Gaming',
+  'admin can set display_name'
+);
+SELECT is(
+  (SELECT logo_url FROM public.entities WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
+  'https://example.com/logo.png',
+  'admin can set logo_url'
+);
+SELECT is(
+  (SELECT email_footer FROM public.entities WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
+  'Nodwin Gaming — sent via Nodwin CRM',
+  'admin can set email_footer'
+);
+
+-- ── 11. Non-admin cannot set branding columns ────────────────────────────────
+SELECT tests.as_user('rep@nodwin.com');
+SET LOCAL ROLE authenticated;
+UPDATE public.entities
+SET display_name = 'Hacked'
+WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+SELECT is(
+  (SELECT display_name FROM public.entities WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
+  'Nodwin Gaming',
+  'rep cannot change branding columns (silently blocked)'
+);
+
+-- ── 12. Rep can read branding columns ────────────────────────────────────────
+SELECT tests.as_user('rep@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is(
+  (SELECT logo_url FROM public.entities WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
+  'https://example.com/logo.png',
+  'rep can read entity branding columns'
 );
 
 SELECT * FROM finish();

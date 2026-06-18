@@ -3,6 +3,7 @@
 -- Run via: supabase db seed  (or supabase db reset --seed)
 --
 -- Currencies are seeded in migration 20260505000002_currencies.sql.
+-- Relationship types are seeded in migration 20260618000001.
 -- This file seeds entities, business_units, test users, accounts,
 -- and opportunities per ORR-312 / T-035.
 --
@@ -15,23 +16,43 @@
 
 INSERT INTO public.entities (
   id, name, legal_name, country, base_currency,
-  fiscal_year_start_month, active, custom_data
+  fiscal_year_start_month, active, custom_data,
+  display_name, logo_url, email_footer
 ) VALUES
-  ('e000000001-0001-0001-0001-000000000001', 'NG India', 'Nodwin Gaming Sports Private Limited', 'IN', 'INR', 4, true, '{"timezone":"Asia/Kolkata","region":"APAC"}'::jsonb),
-  ('e000000002-0002-0002-0002-000000000002', 'NG Spr', 'Nodwin Gaming Singapore Pte Ltd', 'SG', 'SGD', 4, true, '{"timezone":"Asia/Singapore","region":"APAC"}'::jsonb),
-  ('e000000003-0003-0003-0003-000000000003', 'Unpause', 'Unpause Media FZ-LLC', 'AE', 'AED', 1, true, '{"timezone":"Asia/Dubai","region":"MENA"}'::jsonb),
-  ('e000000004-0004-0004-0004-000000000004', 'PSH', 'PSH Events LLC', 'SA', 'SAR', 1, true, '{"timezone":"Asia/Riyadh","region":"MENA"}'::jsonb),
-  ('e000000005-0005-0005-0005-000000000005', 'Trinity', 'Trinity Gaming UK Ltd', 'GB', 'GBP', 4, true, '{"timezone":"Europe/London","region":"EMEA"}'::jsonb),
-  ('e000000006-0006-0006-0006-000000000006', 'AFK', 'AFK Esports (Pty) Ltd', 'ZA', 'ZAR', 3, true, '{"timezone":"Africa/Johannesburg","region":"EMEA"}'::jsonb),
-  ('e000000007-0007-0007-0007-000000000007', 'Branded', 'Branded Media Inc', 'US', 'USD', 1, true, '{"timezone":"America/New_York","region":"AMER"}'::jsonb),
-  ('e000000008-0008-0008-0008-000000000008', 'Nodwin Mena', 'Nodwin Gaming MENA FZ-LLC', 'AE', 'AED', 1, true, '{"timezone":"Asia/Dubai","region":"MENA"}'::jsonb),
-  ('e000000009-0009-0009-0009-000000000009', 'Starladder', 'Starladder Ltd', 'CY', 'EUR', 1, true, '{"timezone":"Asia/Nicosia","region":"EMEA"}'::jsonb),
-  ('e000000010-0010-0010-0010-000000000010', 'Comic Con', 'Comic Con India Pvt Ltd', 'IN', 'INR', 4, true, '{"timezone":"Asia/Kolkata","region":"APAC"}'::jsonb)
+  ('e000000001-0001-0001-0001-000000000001', 'NG India', 'Nodwin Gaming Sports Private Limited', 'IN', 'INR', 4, true, '{"timezone":"Asia/Kolkata","region":"APAC"}'::jsonb, 'Nodwin Gaming India', NULL, NULL),
+  ('e000000002-0002-0002-0002-000000000002', 'NG Spr', 'Nodwin Gaming Singapore Pte Ltd', 'SG', 'SGD', 4, true, '{"timezone":"Asia/Singapore","region":"APAC"}'::jsonb, 'Nodwin Gaming Singapore', NULL, NULL),
+  ('e000000003-0003-0003-0003-000000000003', 'Unpause', 'Unpause Media FZ-LLC', 'AE', 'AED', 1, true, '{"timezone":"Asia/Dubai","region":"MENA"}'::jsonb, NULL, NULL, NULL),
+  ('e000000004-0004-0004-0004-000000000004', 'PSH', 'PSH Events LLC', 'SA', 'SAR', 1, true, '{"timezone":"Asia/Riyadh","region":"MENA"}'::jsonb, NULL, NULL, NULL),
+  ('e000000005-0005-0005-0005-000000000005', 'Trinity', 'Trinity Gaming UK Ltd', 'GB', 'GBP', 4, true, '{"timezone":"Europe/London","region":"EMEA"}'::jsonb, 'Trinity Gaming', NULL, NULL),
+  ('e000000006-0006-0006-0006-000000000006', 'AFK', 'AFK Esports (Pty) Ltd', 'ZA', 'ZAR', 3, true, '{"timezone":"Africa/Johannesburg","region":"EMEA"}'::jsonb, NULL, NULL, NULL),
+  ('e000000007-0007-0007-0007-000000000007', 'Branded', 'Branded Media Inc', 'US', 'USD', 1, true, '{"timezone":"America/New_York","region":"AMER"}'::jsonb, 'Branded Media', NULL, NULL),
+  ('e000000008-0008-0008-0008-000000000008', 'Nodwin Mena', 'Nodwin Gaming MENA FZ-LLC', 'AE', 'AED', 1, true, '{"timezone":"Asia/Dubai","region":"MENA"}'::jsonb, 'Nodwin Gaming MENA', NULL, NULL),
+  ('e000000009-0009-0009-0009-000000000009', 'Starladder', 'Starladder Ltd', 'CY', 'EUR', 1, true, '{"timezone":"Asia/Nicosia","region":"EMEA"}'::jsonb, NULL, NULL, NULL),
+  ('e000000010-0010-0010-0010-000000000010', 'Comic Con', 'Comic Con India Pvt Ltd', 'IN', 'INR', 4, true, '{"timezone":"Asia/Kolkata","region":"APAC"}'::jsonb, 'Comic Con India', NULL, NULL)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name, legal_name = EXCLUDED.legal_name,
   country = EXCLUDED.country, base_currency = EXCLUDED.base_currency,
   fiscal_year_start_month = EXCLUDED.fiscal_year_start_month,
-  active = EXCLUDED.active, custom_data = EXCLUDED.custom_data;
+  active = EXCLUDED.active, custom_data = EXCLUDED.custom_data,
+  display_name = EXCLUDED.display_name,
+  logo_url = EXCLUDED.logo_url,
+  email_footer = EXCLUDED.email_footer;
+
+-- ===========================================================================
+-- 1b. RELATIONSHIP TYPES — company-tree vocabulary
+-- ===========================================================================
+
+INSERT INTO public.relationship_types (code, label, description, sort_order)
+VALUES
+  ('subsidiary_of',   'Subsidiary Of',   'This account is a subsidiary of the target account',     1),
+  ('parent_of',       'Parent Of',       'This account is the parent of the target account',       2),
+  ('sister_company',  'Sister Company',  'These accounts are sister companies under a parent',     3),
+  ('partner_with',    'Partner With',    'This account partners with the target account',          4),
+  ('procurement_via', 'Procurement Via', 'Procurement flows through the target account',           5)
+ON CONFLICT (code) DO UPDATE SET
+  label       = EXCLUDED.label,
+  description = EXCLUDED.description,
+  sort_order  = EXCLUDED.sort_order;
 
 -- ===========================================================================
 -- 2. BUSINESS UNITS -- per-entity sales, ops, and revenue recognition units
