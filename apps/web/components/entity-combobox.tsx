@@ -168,7 +168,7 @@ export function EntityCombobox({
       onOpenChange={(newOpen) => {
         if (!inputValueRef.current) setOpen(!!newOpen)
       }}
-      value={value ?? undefined}
+      value={value}
       onValueChange={handleValueChange}
       onInputValueChange={(v) => setInputValue(v ?? "")}
       className={className}

@@ -228,10 +228,12 @@ describe("EntityCombobox", () => {
 
       await user.click(screen.getByRole("combobox"))
 
-      const items = screen.getAllByRole("option")
-      for (const item of items) {
-        expect(item.querySelector("[data-slot]")).toBeFalsy()
-      }
+      expect(screen.getByText("Acme Corp")).toBeInTheDocument()
+      expect(screen.getByText("Globex Inc")).toBeInTheDocument()
+      expect(screen.getByText("Waystar Royco")).toBeInTheDocument()
+      expect(
+        document.querySelectorAll("span.text-xs.text-muted-foreground"),
+      ).toHaveLength(0)
     })
   })
 
