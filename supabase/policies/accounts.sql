@@ -15,9 +15,14 @@ CREATE POLICY "accounts_select_scoped"
   FOR SELECT
   TO authenticated
   USING (
-    account_owner_user_id = auth.uid()
-    OR created_by = auth.uid()
-    OR public.current_user_role() = 'admin'
+    public.current_user_role() = 'admin'
+    OR (
+      deleted_at IS NULL
+      AND (
+        account_owner_user_id = auth.uid()
+        OR created_by = auth.uid()
+      )
+    )
   );
 
 DROP POLICY IF EXISTS "accounts_insert_admin" ON public.accounts;
