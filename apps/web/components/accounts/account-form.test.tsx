@@ -105,7 +105,58 @@ const mockFieldDefinitions: FieldDefinition[] = [
     updatedAt: "2026-01-01T00:00:00Z",
   },
   {
-    id: "cf-5",
+    id: "cf-6",
+    entityType: "account",
+    key: "account_tier",
+    label: "Account Tier",
+    dataType: "single_select",
+    options: ["Tier 1", "Tier 2", "Tier 3"],
+    required: false,
+    defaultValue: null,
+    visibleToRoles: null,
+    editableByRoles: null,
+    visibleAtStages: null,
+    displayOrder: 5,
+    active: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: "cf-7",
+    entityType: "account",
+    key: "lifecycle_status",
+    label: "Lifecycle Status",
+    dataType: "single_select",
+    options: ["Prospect", "Active", "Churned"],
+    required: false,
+    defaultValue: null,
+    visibleToRoles: null,
+    editableByRoles: null,
+    visibleAtStages: null,
+    displayOrder: 6,
+    active: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: "cf-8",
+    entityType: "account",
+    key: "region",
+    label: "Region",
+    dataType: "single_select",
+    options: ["APAC", "EMEA", "LATAM", "NA"],
+    required: false,
+    defaultValue: null,
+    visibleToRoles: null,
+    editableByRoles: null,
+    visibleAtStages: null,
+    displayOrder: 7,
+    active: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: "cf-99",
     entityType: "account",
     key: "custom_field_x",
     label: "Extra Field",
@@ -116,7 +167,7 @@ const mockFieldDefinitions: FieldDefinition[] = [
     visibleToRoles: null,
     editableByRoles: null,
     visibleAtStages: null,
-    displayOrder: 5,
+    displayOrder: 99,
     active: true,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
@@ -270,11 +321,19 @@ describe("AccountForm", () => {
       })
     })
 
-    it("renders Classification & Territory section", async () => {
-      render(<AccountForm {...defaultProps} />)
+    it("renders Classification & Territory section with field definitions", async () => {
+      render(<AccountForm {...defaultProps} fieldDefinitions={mockFieldDefinitions} />)
       fireEvent.click(screen.getByText("Create Account"))
       await waitFor(() => {
         expect(screen.getByText("Classification & Territory")).toBeInTheDocument()
+      })
+    })
+
+    it("does not render Classification & Territory section when no section 4 defs exist", async () => {
+      render(<AccountForm {...defaultProps} />)
+      fireEvent.click(screen.getByText("Create Account"))
+      await waitFor(() => {
+        expect(screen.queryByText("Classification & Territory")).not.toBeInTheDocument()
       })
     })
 
@@ -321,6 +380,17 @@ describe("AccountForm", () => {
       fireEvent.click(screen.getByText("Create Account"))
       await waitFor(() => {
         expect(screen.getByText("Commercial")).toBeInTheDocument()
+      })
+    })
+
+    it("places account_tier, lifecycle_status, and region in Section 4 (Classification & Territory)", async () => {
+      render(<AccountForm {...defaultProps} fieldDefinitions={mockFieldDefinitions} />)
+      fireEvent.click(screen.getByText("Create Account"))
+      await waitFor(() => {
+        expect(screen.getByText("Classification & Territory")).toBeInTheDocument()
+        expect(screen.getByTestId("cf-account_tier")).toBeInTheDocument()
+        expect(screen.getByTestId("cf-lifecycle_status")).toBeInTheDocument()
+        expect(screen.getByTestId("cf-region")).toBeInTheDocument()
       })
     })
 

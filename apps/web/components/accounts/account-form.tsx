@@ -38,6 +38,7 @@ const RELATIONSHIP_KIND_OPTIONS: { value: AccountRelationshipKind; label: string
 ]
 
 const SECTION_3_CF_KEYS = ["payment_terms", "credit_risk_flag", "tax_gst_in", "tax_pan_in", "tax_vat_eu", "tax_trn_mena"]
+const SECTION_4_CF_KEYS = ["account_tier", "lifecycle_status", "region", "sales_unit", "source", "tags"]
 const SECTION_5_CF_KEYS = ["phone_main", "hq_address"]
 
 const formSchema = z.object({
@@ -118,12 +119,13 @@ export function AccountForm({
 
   const ownerValue = form.watch("accountOwnerUserId")
 
-  const { section3Defs, section5Defs, section7Defs } = useMemo(() => {
+  const { section3Defs, section4Defs, section5Defs, section7Defs } = useMemo(() => {
     const s3 = fieldDefinitions.filter((d) => SECTION_3_CF_KEYS.includes(d.key))
+    const s4 = fieldDefinitions.filter((d) => SECTION_4_CF_KEYS.includes(d.key))
     const s5 = fieldDefinitions.filter((d) => SECTION_5_CF_KEYS.includes(d.key))
-    const used = new Set([...SECTION_3_CF_KEYS, ...SECTION_5_CF_KEYS])
+    const used = new Set([...SECTION_3_CF_KEYS, ...SECTION_4_CF_KEYS, ...SECTION_5_CF_KEYS])
     const s7 = fieldDefinitions.filter((d) => !used.has(d.key))
-    return { section3Defs: s3, section5Defs: s5, section7Defs: s7 }
+    return { section3Defs: s3, section4Defs: s4, section5Defs: s5, section7Defs: s7 }
   }, [fieldDefinitions])
 
   async function onSubmit(data: FormData) {
@@ -347,11 +349,18 @@ export function AccountForm({
             )}
 
             {/* ── Section 4: Classification & Territory ────────────────────────────── */}
-            <CollapsibleSection title="Classification & Territory" defaultOpen={false}>
-              <p className="text-sm text-muted-foreground">
-                Classification fields (tier, lifecycle status, region, sales unit, source, tags) are being added in a future release.
-              </p>
-            </CollapsibleSection>
+            {section4Defs.length > 0 && (
+              <CollapsibleSection title="Classification & Territory" defaultOpen={false}>
+                <CustomFieldsForm
+                  fieldDefinitions={section4Defs}
+                  values={customFieldValues}
+                  onChange={(key, value) =>
+                    setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
+                  }
+                  errors={{}}
+                />
+              </CollapsibleSection>
+            )}
 
             {/* ── Section 5: Contact & Matching ────────────────────────────── */}
             <CollapsibleSection title="Contact & Matching" defaultOpen={false}>
