@@ -83,6 +83,7 @@ export function OpportunityQuickCreate({
         accountId: accountId!,
         amount: amount || undefined,
         salesUnitId,
+        stage: "qualify",
       }
 
       await createAction(input)

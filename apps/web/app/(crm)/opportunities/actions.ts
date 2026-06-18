@@ -22,7 +22,8 @@ import {
   createActivity,
   activityCreateSchema,
 } from "@/lib/data/activities"
-import { searchAccountOptions } from "@/lib/data/contacts"
+import { searchAccountOptions, searchContactOptions, createContact, contactCreateSchema } from "@/lib/data/contacts"
+import type { ContactCallContext } from "@/lib/data/contacts"
 
 export async function createOpportunityAction(input: unknown) {
   const user = await requireUser()
@@ -106,4 +107,30 @@ export async function searchAccountsAction(query: string) {
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
   return searchAccountOptions(ctx, query)
+}
+
+export async function searchContactsAction(query: string, accountId?: string) {
+  const user = await requireUser()
+  const ctx = { user, source: "web" as const }
+  return searchContactOptions(ctx, { query: query || undefined, accountId })
+}
+
+export async function searchUsersAction(query: string) {
+  const user = await requireUser()
+  const ctx: ContactCallContext = { user, source: "web" as const }
+  const { searchUserOptions } = await import("@/lib/data/contacts")
+  return searchUserOptions(ctx, query)
+}
+
+export async function createContactQuickAction(input: { fullName: string; email?: string; accountId?: string }) {
+  const user = await requireUser()
+  const parsed = contactCreateSchema.parse({
+    fullName: input.fullName,
+    email: input.email || undefined,
+    primaryAccountId: input.accountId || undefined,
+  })
+  const ctx = { user, source: "web" as const }
+  const contact = await createContact(ctx, parsed)
+  revalidatePath("/opportunities")
+  return { id: contact.id, name: contact.fullName }
 }

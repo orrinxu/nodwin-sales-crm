@@ -251,6 +251,82 @@ export async function searchAccountOptions(
   }))
 }
 
+export interface ContactSearchParams {
+  query?: string
+  accountId?: string
+}
+
+export interface ContactOption {
+  id: string
+  name: string
+}
+
+export async function searchContactOptions(
+  ctx: ContactCallContext,
+  params?: ContactSearchParams,
+): Promise<ContactOption[]> {
+  const supabase = await createServerClient()
+
+  let builder = supabase
+    .from("contacts")
+    .select("id, full_name")
+    .order("full_name", { ascending: true })
+    .limit(20)
+
+  if (params?.query) {
+    builder = builder.ilike("full_name", `%${params.query}%`)
+  }
+
+  if (params?.accountId) {
+    builder = builder.eq("primary_account_id", params.accountId)
+  }
+
+  const { data, error } = await builder
+
+  if (error) {
+    throw new Error(`Failed to search contacts: ${error.message}`)
+  }
+
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    name: r.full_name as string,
+  }))
+}
+
+export interface UserOption {
+  id: string
+  name: string
+}
+
+export async function searchUserOptions(
+  ctx: ContactCallContext,
+  query: string,
+): Promise<UserOption[]> {
+  const supabase = await createServerClient()
+
+  let builder = supabase
+    .from("users")
+    .select("id, full_name")
+    .eq("active", true)
+    .order("full_name", { ascending: true })
+    .limit(20)
+
+  if (query) {
+    builder = builder.ilike("full_name", `%${query}%`)
+  }
+
+  const { data, error } = await builder
+
+  if (error) {
+    throw new Error(`Failed to search users: ${error.message}`)
+  }
+
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    name: r.full_name as string,
+  }))
+}
+
 function toDbContact(input: ContactCreateInput): Record<string, unknown> {
   const dbData: Record<string, unknown> = {
     full_name: input.fullName,
