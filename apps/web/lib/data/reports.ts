@@ -3,21 +3,7 @@ import { createServerClient } from "@/lib/supabase/server"
 import { DEAL_STAGES, isTerminalStage } from "@/lib/opportunity"
 import type { DealStage } from "@/lib/opportunity"
 import { getStageLabel } from "@/lib/data/opportunities.types"
-
-export interface PipelineStageSummary {
-  label: string
-  count: number
-  totalAmount: string
-  currency: string
-  stage: string
-}
-
-export interface PipelineSummary {
-  stages: PipelineStageSummary[]
-  totalAmount: string
-  currency: string
-  totalCount: number
-}
+import { getReportingCurrency, fetchAndConvert } from "@/lib/data/metrics"
 
 export interface PipelineByStage {
   stage: string
@@ -78,6 +64,7 @@ export async function getReportData(): Promise<ReportData> {
     throw new Error(`Failed to load report data: ${error.message}`)
   }
 
+  const reportingCurrency = getReportingCurrency()
   const raw = (opportunities ?? []) as Array<{
     id: string
     name: string
@@ -89,10 +76,19 @@ export async function getReportData(): Promise<ReportData> {
     account: Array<{ name: string }> | null
   }>
 
-  const records = raw.map((r) => ({
-    ...r,
-    account: Array.isArray(r.account) && r.account.length > 0 ? r.account[0] : null,
-  }))
+  const { converted: records } = await fetchAndConvert(
+    raw.map((r) => ({
+      id: r.id,
+      name: r.name,
+      stage: r.stage,
+      amount: Number(r.amount) || 0,
+      currency: r.currency,
+      close_date: r.close_date,
+      created_at: r.created_at,
+      account: Array.isArray(r.account) && r.account.length > 0 ? r.account[0] : null,
+    })),
+    reportingCurrency,
+  )
 
   /* eslint-disable security/detect-object-injection -- dynamic map keys originate from typed constants or DB strings */
   const stageBuckets: Record<string, { count: number; amount: number }> = {}
@@ -112,7 +108,7 @@ export async function getReportData(): Promise<ReportData> {
 
   for (const opp of records) {
     const stage = opp.stage as DealStage
-    const amount = Number(opp.amount) || 0
+    const amount = opp.amount
     const bucket = stageBuckets[stage]
     if (bucket) {
       bucket.count++

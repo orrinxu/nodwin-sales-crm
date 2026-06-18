@@ -103,18 +103,18 @@ async function convertAmount(
   return { convertedAmount }
 }
 
-type OpportunityRaw = {
+export type OpportunityRaw = {
   stage: string
   amount: number | null
   currency: string
   close_date?: string | null
 }
 
-async function fetchAndConvert(
-  data: unknown[] | null,
+export async function fetchAndConvert<T extends OpportunityRaw>(
+  data: T[] | null,
   reportingCurrency: string,
-): Promise<{ converted: Array<{ stage: string; amount: number; currency: string }>; unconvertibleCount: number }> {
-  const raw = (data ?? []) as OpportunityRaw[]
+): Promise<{ converted: Array<T & { amount: number; currency: string }>; unconvertibleCount: number }> {
+  const raw = (data ?? []) as T[]
 
   const allCurrencies = new Set<string>()
   for (const opp of raw) {
@@ -125,7 +125,7 @@ async function fetchAndConvert(
   const scaleMap = await getCurrencyScaleMap(allCurrencies)
   const rateCache = new Map<string, RawRate | null>()
 
-  const converted: Array<{ stage: string; amount: number; currency: string }> = []
+  const converted: Array<T & { amount: number; currency: string }> = []
   let unconvertibleCount = 0
 
   for (const opp of raw) {
@@ -147,7 +147,7 @@ async function fetchAndConvert(
     }
 
     converted.push({
-      stage: opp.stage,
+      ...opp,
       amount: result.convertedAmount,
       currency: reportingCurrency,
     })
