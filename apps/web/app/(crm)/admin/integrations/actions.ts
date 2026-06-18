@@ -3,13 +3,14 @@
 import { revalidatePath } from "next/cache"
 import { requireUser, requireRole } from "@/lib/security/auth"
 import {
-  getIntegrationSettings,
-  updateIntegrationSettings,
-  integrationSettingsUpdateSchema,
-  getDriveConfigWithGmail,
+  getSlackConnections,
+  getEmailSettings,
+  getSalesforceConnections,
+  getDriveConfig,
   updateDriveConfig,
   driveConfigUpdateSchema,
-  getConnectionHealth,
+  updateSlackConnection,
+  slackConnectionUpdateSchema,
 } from "@/lib/data/integrations"
 
 export async function getIntegrationsAction() {
@@ -17,23 +18,14 @@ export async function getIntegrationsAction() {
   requireRole(user, "admin")
   const ctx = { user, source: "web" as const }
 
-  const [settings, driveConfig, health] = await Promise.all([
-    getIntegrationSettings(ctx),
-    getDriveConfigWithGmail(ctx),
-    getConnectionHealth(ctx),
+  const [slackConnections, emailSettings, salesforceConnections, driveConfig] = await Promise.all([
+    getSlackConnections(ctx),
+    getEmailSettings(ctx),
+    getSalesforceConnections(ctx),
+    getDriveConfig(ctx),
   ])
 
-  return { settings, driveConfig, health }
-}
-
-export async function updateIntegrationSettingsAction(input: unknown) {
-  const user = await requireUser()
-  requireRole(user, "admin")
-  const parsed = integrationSettingsUpdateSchema.parse(input)
-  const ctx = { user, source: "web" as const }
-  const result = await updateIntegrationSettings(ctx, parsed)
-  revalidatePath("/admin/integrations")
-  return result
+  return { slackConnections, emailSettings, salesforceConnections, driveConfig }
 }
 
 export async function updateDriveConfigAction(input: unknown) {
@@ -42,6 +34,16 @@ export async function updateDriveConfigAction(input: unknown) {
   const parsed = driveConfigUpdateSchema.parse(input)
   const ctx = { user, source: "web" as const }
   const result = await updateDriveConfig(ctx, parsed)
+  revalidatePath("/admin/integrations")
+  return result
+}
+
+export async function updateSlackConnectionAction(input: unknown) {
+  const user = await requireUser()
+  requireRole(user, "admin")
+  const parsed = slackConnectionUpdateSchema.parse(input)
+  const ctx = { user, source: "web" as const }
+  const result = await updateSlackConnection(ctx, parsed)
   revalidatePath("/admin/integrations")
   return result
 }

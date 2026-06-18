@@ -10,14 +10,32 @@ export interface IntegrationCallContext {
   source: "web" | "mcp" | "webhook" | "system"
 }
 
-export interface IntegrationSettingRecord {
+export interface SlackConnectionRecord {
   id: string
-  entityId: string
-  provider: string
-  enabled: boolean
-  config: Record<string, unknown>
-  healthStatus: string
-  lastHealthCheckAt: string | null
+  workspaceId: string
+  workspaceName: string | null
+  eventRouting: Record<string, unknown>
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface EmailSettingsRecord {
+  id: string
+  resendDomain: string | null
+  inboundDomain: string | null
+  templateConfig: Record<string, unknown>
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SalesforceConnectionRecord {
+  id: string
+  instanceUrl: string | null
+  oauthState: Record<string, unknown>
+  importStatus: string
+  lastSyncAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -28,69 +46,63 @@ export interface DriveConfigRecord {
   accountsParentFolderId: string | null
   opportunitiesParentFolderId: string | null
   pnlParentFolderId: string | null
-  gmailParentFolderId: string | null
-  sheetsParentFolderId: string | null
-  docsParentFolderId: string | null
-  slidesParentFolderId: string | null
+  gmailSyncEnabled: boolean
+  sheetsAccessEnabled: boolean
+  docsAccessEnabled: boolean
+  slidesAccessEnabled: boolean
   createdAt: string
   updatedAt: string
 }
 
-export interface ConnectionHealthRecord {
-  provider: string
-  entityId: string
-  entityName: string | null
-  healthStatus: string
-  lastHealthCheckAt: string | null
-}
-
 // ── Zod schemas ───────────────────────────────────────────────────────────────
-
-export const INTEGRATION_PROVIDERS = [
-  "gmail",
-  "google_sheets",
-  "google_docs",
-  "google_slides",
-  "google_drive",
-  "slack",
-  "resend",
-  "salesforce",
-] as const
-
-export type IntegrationProvider = (typeof INTEGRATION_PROVIDERS)[number]
-
-export const integrationSettingsUpdateSchema = z.object({
-  id: z.string().uuid(),
-  enabled: z.boolean().optional(),
-  config: z.record(z.string(), z.unknown()).optional(),
-})
-
-export type IntegrationSettingsUpdateInput = z.infer<typeof integrationSettingsUpdateSchema>
 
 export const driveConfigUpdateSchema = z.object({
   id: z.string().uuid(),
+  entityId: z.string().uuid().optional(),
   accountsParentFolderId: z.string().max(500).nullable().optional().or(z.literal("")),
   opportunitiesParentFolderId: z.string().max(500).nullable().optional().or(z.literal("")),
   pnlParentFolderId: z.string().max(500).nullable().optional().or(z.literal("")),
-  gmailParentFolderId: z.string().max(500).nullable().optional().or(z.literal("")),
-  sheetsParentFolderId: z.string().max(500).nullable().optional().or(z.literal("")),
-  docsParentFolderId: z.string().max(500).nullable().optional().or(z.literal("")),
-  slidesParentFolderId: z.string().max(500).nullable().optional().or(z.literal("")),
+  gmailSyncEnabled: z.boolean().optional(),
+  sheetsAccessEnabled: z.boolean().optional(),
+  docsAccessEnabled: z.boolean().optional(),
+  slidesAccessEnabled: z.boolean().optional(),
 })
 
 export type DriveConfigUpdateInput = z.infer<typeof driveConfigUpdateSchema>
 
 // ── Domain mappers ────────────────────────────────────────────────────────────
 
-function toDomainSetting(data: Record<string, unknown>): IntegrationSettingRecord {
+function toDomainSlackConnection(data: Record<string, unknown>): SlackConnectionRecord {
   return {
     id: data.id as string,
-    entityId: data.entity_id as string,
-    provider: data.provider as string,
-    enabled: data.enabled as boolean,
-    config: (data.config ?? {}) as Record<string, unknown>,
-    healthStatus: data.health_status as string,
-    lastHealthCheckAt: (data.last_health_check_at as string) ?? null,
+    workspaceId: data.workspace_id as string,
+    workspaceName: (data.workspace_name as string) ?? null,
+    eventRouting: (data.event_routing as Record<string, unknown>) ?? {},
+    status: data.status as string,
+    createdAt: data.created_at as string,
+    updatedAt: data.updated_at as string,
+  }
+}
+
+function toDomainEmailSettings(data: Record<string, unknown>): EmailSettingsRecord {
+  return {
+    id: data.id as string,
+    resendDomain: (data.resend_domain as string) ?? null,
+    inboundDomain: (data.inbound_domain as string) ?? null,
+    templateConfig: (data.template_config as Record<string, unknown>) ?? {},
+    status: data.status as string,
+    createdAt: data.created_at as string,
+    updatedAt: data.updated_at as string,
+  }
+}
+
+function toDomainSalesforceConnection(data: Record<string, unknown>): SalesforceConnectionRecord {
+  return {
+    id: data.id as string,
+    instanceUrl: (data.instance_url as string) ?? null,
+    oauthState: (data.oauth_state as Record<string, unknown>) ?? {},
+    importStatus: data.import_status as string,
+    lastSyncAt: (data.last_sync_at as string) ?? null,
     createdAt: data.created_at as string,
     updatedAt: data.updated_at as string,
   }
@@ -103,98 +115,78 @@ function toDomainDriveConfig(data: Record<string, unknown>): DriveConfigRecord {
     accountsParentFolderId: (data.accounts_parent_folder_id as string) ?? null,
     opportunitiesParentFolderId: (data.opportunities_parent_folder_id as string) ?? null,
     pnlParentFolderId: (data.pnl_parent_folder_id as string) ?? null,
-    gmailParentFolderId: (data.gmail_parent_folder_id as string) ?? null,
-    sheetsParentFolderId: (data.sheets_parent_folder_id as string) ?? null,
-    docsParentFolderId: (data.docs_parent_folder_id as string) ?? null,
-    slidesParentFolderId: (data.slides_parent_folder_id as string) ?? null,
+    gmailSyncEnabled: (data.gmail_sync_enabled as boolean) ?? false,
+    sheetsAccessEnabled: (data.sheets_access_enabled as boolean) ?? false,
+    docsAccessEnabled: (data.docs_access_enabled as boolean) ?? false,
+    slidesAccessEnabled: (data.slides_access_enabled as boolean) ?? false,
     createdAt: data.created_at as string,
     updatedAt: data.updated_at as string,
   }
 }
 
-// ── Integration connections ───────────────────────────────────────────────────
+// ── Slack connections ─────────────────────────────────────────────────────────
 
-export async function getIntegrationSettings(
-  ctx: IntegrationCallContext,
-): Promise<IntegrationSettingRecord[]> {
+export async function getSlackConnections(
+  _ctx: IntegrationCallContext,
+): Promise<SlackConnectionRecord[]> {
   const supabase = await createServerClient()
 
   const { data, error } = await supabase
-    .from("integration_connections")
-    .select(
-      `
-      id,
-      entity_id,
-      provider,
-      enabled,
-      config,
-      health_status,
-      last_health_check_at,
-      created_at,
-      updated_at
-    `,
-    )
-    .order("provider", { ascending: true })
+    .from("slack_connections")
+    .select("id, workspace_id, workspace_name, event_routing, status, created_at, updated_at")
+    .order("created_at", { ascending: true })
 
   if (error) {
-    throw new Error(`Failed to load integration settings: ${error.message}`)
+    throw new Error(`Failed to load Slack connections: ${error.message}`)
   }
 
-  return (data ?? []).map((r) => toDomainSetting(r as Record<string, unknown>))
+  return (data ?? []).map((r) => toDomainSlackConnection(r as Record<string, unknown>))
 }
 
-export async function updateIntegrationSettings(
-  ctx: IntegrationCallContext,
-  input: IntegrationSettingsUpdateInput,
-): Promise<IntegrationSettingRecord> {
-  const parsed = integrationSettingsUpdateSchema.parse(input)
+// ── Email settings ────────────────────────────────────────────────────────────
+
+export async function getEmailSettings(
+  _ctx: IntegrationCallContext,
+): Promise<EmailSettingsRecord | null> {
   const supabase = await createServerClient()
 
-  const dbData: Record<string, unknown> = {}
-
-  if (parsed.enabled !== undefined) dbData.enabled = parsed.enabled
-  if (parsed.config !== undefined) dbData.config = parsed.config
-
-  if (Object.keys(dbData).length > 0) {
-    const { error } = await supabase
-      .from("integration_connections")
-      .update(dbData)
-      .eq("id", parsed.id)
-
-    if (error) {
-      throw new Error(`Failed to update integration settings: ${error.message}`)
-    }
-  }
-
-  const { data, error: fetchError } = await supabase
-    .from("integration_connections")
-    .select(
-      `
-      id,
-      entity_id,
-      provider,
-      enabled,
-      config,
-      health_status,
-      last_health_check_at,
-      created_at,
-      updated_at
-    `,
-    )
-    .eq("id", parsed.id)
+  const { data, error } = await supabase
+    .from("email_settings")
+    .select("id, resend_domain, inbound_domain, template_config, status, created_at, updated_at")
+    .limit(1)
     .single()
 
-  if (fetchError || !data) {
-    throw new Error(`Failed to load updated integration settings: ${fetchError?.message ?? "not found"}`)
+  if (error) {
+    if (error.code === "PGRST116") return null
+    throw new Error(`Failed to load email settings: ${error.message}`)
   }
 
-  return toDomainSetting(data as Record<string, unknown>)
+  return toDomainEmailSettings(data as Record<string, unknown>)
+}
+
+// ── Salesforce connections ────────────────────────────────────────────────────
+
+export async function getSalesforceConnections(
+  _ctx: IntegrationCallContext,
+): Promise<SalesforceConnectionRecord[]> {
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("salesforce_connections")
+    .select("id, instance_url, oauth_state, import_status, last_sync_at, created_at, updated_at")
+    .order("created_at", { ascending: true })
+
+  if (error) {
+    throw new Error(`Failed to load Salesforce connections: ${error.message}`)
+  }
+
+  return (data ?? []).map((r) => toDomainSalesforceConnection(r as Record<string, unknown>))
 }
 
 // ── Drive config ──────────────────────────────────────────────────────────────
 
-export async function getDriveConfigWithGmail(
-  ctx: IntegrationCallContext,
+export async function getDriveConfig(
+  _ctx: IntegrationCallContext,
 ): Promise<DriveConfigRecord[]> {
   const supabase = await createServerClient()
 
@@ -207,10 +199,10 @@ export async function getDriveConfigWithGmail(
       accounts_parent_folder_id,
       opportunities_parent_folder_id,
       pnl_parent_folder_id,
-      gmail_parent_folder_id,
-      sheets_parent_folder_id,
-      docs_parent_folder_id,
-      slides_parent_folder_id,
+      gmail_sync_enabled,
+      sheets_access_enabled,
+      docs_access_enabled,
+      slides_access_enabled,
       created_at,
       updated_at
     `,
@@ -225,7 +217,7 @@ export async function getDriveConfigWithGmail(
 }
 
 export async function updateDriveConfig(
-  ctx: IntegrationCallContext,
+  _ctx: IntegrationCallContext,
   input: DriveConfigUpdateInput,
 ): Promise<DriveConfigRecord> {
   const parsed = driveConfigUpdateSchema.parse(input)
@@ -242,17 +234,17 @@ export async function updateDriveConfig(
   if (parsed.pnlParentFolderId !== undefined) {
     dbData.pnl_parent_folder_id = parsed.pnlParentFolderId || null
   }
-  if (parsed.gmailParentFolderId !== undefined) {
-    dbData.gmail_parent_folder_id = parsed.gmailParentFolderId || null
+  if (parsed.gmailSyncEnabled !== undefined) {
+    dbData.gmail_sync_enabled = parsed.gmailSyncEnabled
   }
-  if (parsed.sheetsParentFolderId !== undefined) {
-    dbData.sheets_parent_folder_id = parsed.sheetsParentFolderId || null
+  if (parsed.sheetsAccessEnabled !== undefined) {
+    dbData.sheets_access_enabled = parsed.sheetsAccessEnabled
   }
-  if (parsed.docsParentFolderId !== undefined) {
-    dbData.docs_parent_folder_id = parsed.docsParentFolderId || null
+  if (parsed.docsAccessEnabled !== undefined) {
+    dbData.docs_access_enabled = parsed.docsAccessEnabled
   }
-  if (parsed.slidesParentFolderId !== undefined) {
-    dbData.slides_parent_folder_id = parsed.slidesParentFolderId || null
+  if (parsed.slidesAccessEnabled !== undefined) {
+    dbData.slides_access_enabled = parsed.slidesAccessEnabled
   }
 
   if (Object.keys(dbData).length > 0) {
@@ -275,10 +267,10 @@ export async function updateDriveConfig(
       accounts_parent_folder_id,
       opportunities_parent_folder_id,
       pnl_parent_folder_id,
-      gmail_parent_folder_id,
-      sheets_parent_folder_id,
-      docs_parent_folder_id,
-      slides_parent_folder_id,
+      gmail_sync_enabled,
+      sheets_access_enabled,
+      docs_access_enabled,
+      slides_access_enabled,
       created_at,
       updated_at
     `,
@@ -293,38 +285,96 @@ export async function updateDriveConfig(
   return toDomainDriveConfig(data as Record<string, unknown>)
 }
 
-// ── Connection health ─────────────────────────────────────────────────────────
+// ── Slack connection update ───────────────────────────────────────────────────
 
-export async function getConnectionHealth(
-  ctx: IntegrationCallContext,
-): Promise<ConnectionHealthRecord[]> {
+export const slackConnectionUpdateSchema = z.object({
+  id: z.string().uuid(),
+  workspaceName: z.string().max(200).optional(),
+  eventRouting: z.record(z.unknown()).optional(),
+  status: z.enum(["disconnected", "connecting", "connected", "error"]).optional(),
+})
+
+export type SlackConnectionUpdateInput = z.infer<typeof slackConnectionUpdateSchema>
+
+export async function updateSlackConnection(
+  _ctx: IntegrationCallContext,
+  input: SlackConnectionUpdateInput,
+): Promise<SlackConnectionRecord> {
+  const parsed = slackConnectionUpdateSchema.parse(input)
   const supabase = await createServerClient()
 
-  const { data, error } = await supabase
-    .from("integration_connections")
-    .select(
-      `
-      provider,
-      entity_id,
-      health_status,
-      last_health_check_at,
-      entity:entity_id ( name )
-    `,
-    )
-    .order("provider", { ascending: true })
+  const dbData: Record<string, unknown> = {}
 
-  if (error) {
-    throw new Error(`Failed to load connection health: ${error.message}`)
+  if (parsed.workspaceName !== undefined) dbData.workspace_name = parsed.workspaceName
+  if (parsed.eventRouting !== undefined) dbData.event_routing = parsed.eventRouting
+  if (parsed.status !== undefined) dbData.status = parsed.status
+
+  if (Object.keys(dbData).length > 0) {
+    const { error } = await supabase
+      .from("slack_connections")
+      .update(dbData)
+      .eq("id", parsed.id)
+
+    if (error) {
+      throw new Error(`Failed to update Slack connection: ${error.message}`)
+    }
   }
 
-  return (data ?? []).map((r) => {
-    const entity = (Array.isArray(r.entity) ? r.entity[0] : r.entity) as { name: string } | null
-    return {
-      provider: r.provider as string,
-      entityId: r.entity_id as string,
-      entityName: entity?.name ?? null,
-      healthStatus: r.health_status as string,
-      lastHealthCheckAt: (r.last_health_check_at as string) ?? null,
+  const { data, error: fetchError } = await supabase
+    .from("slack_connections")
+    .select("id, workspace_id, workspace_name, event_routing, status, created_at, updated_at")
+    .eq("id", parsed.id)
+    .single()
+
+  if (fetchError || !data) {
+    throw new Error(`Failed to load updated Slack connection: ${fetchError?.message ?? "not found"}`)
+  }
+
+  return toDomainSlackConnection(data as Record<string, unknown>)
+}
+
+// ── Salesforce connection update ──────────────────────────────────────────────
+
+export const salesforceConnectionUpdateSchema = z.object({
+  id: z.string().uuid(),
+  instanceUrl: z.string().max(500).optional(),
+  importStatus: z.enum(["disconnected", "connecting", "connected", "importing", "error"]).optional(),
+})
+
+export type SalesforceConnectionUpdateInput = z.infer<typeof salesforceConnectionUpdateSchema>
+
+export async function updateSalesforceConnection(
+  _ctx: IntegrationCallContext,
+  input: SalesforceConnectionUpdateInput,
+): Promise<SalesforceConnectionRecord> {
+  const parsed = salesforceConnectionUpdateSchema.parse(input)
+  const supabase = await createServerClient()
+
+  const dbData: Record<string, unknown> = {}
+
+  if (parsed.instanceUrl !== undefined) dbData.instance_url = parsed.instanceUrl
+  if (parsed.importStatus !== undefined) dbData.import_status = parsed.importStatus
+
+  if (Object.keys(dbData).length > 0) {
+    const { error } = await supabase
+      .from("salesforce_connections")
+      .update(dbData)
+      .eq("id", parsed.id)
+
+    if (error) {
+      throw new Error(`Failed to update Salesforce connection: ${error.message}`)
     }
-  })
+  }
+
+  const { data, error: fetchError } = await supabase
+    .from("salesforce_connections")
+    .select("id, instance_url, oauth_state, import_status, last_sync_at, created_at, updated_at")
+    .eq("id", parsed.id)
+    .single()
+
+  if (fetchError || !data) {
+    throw new Error(`Failed to load updated Salesforce connection: ${fetchError?.message ?? "not found"}`)
+  }
+
+  return toDomainSalesforceConnection(data as Record<string, unknown>)
 }

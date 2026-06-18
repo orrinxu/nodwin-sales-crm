@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, X, Loader2 } from "lucide-react"
+import { Loader2, AlertTriangle } from "lucide-react"
 import { Tabs, TabsList, TabsTab, TabsPanel } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -19,99 +19,97 @@ import {
 } from "@/components/ui/table"
 import type { EntityRecord } from "@/lib/data/entities"
 import type {
-  IntegrationSettingRecord,
+  SlackConnectionRecord,
+  EmailSettingsRecord,
+  SalesforceConnectionRecord,
   DriveConfigRecord,
-  ConnectionHealthRecord,
 } from "@/lib/data/integrations"
 
 interface IntegrationsPageProps {
-  settings: IntegrationSettingRecord[]
+  slackConnections: SlackConnectionRecord[]
+  emailSettings: EmailSettingsRecord | null
+  salesforceConnections: SalesforceConnectionRecord[]
   driveConfig: DriveConfigRecord[]
-  health: ConnectionHealthRecord[]
   entities: EntityRecord[]
-  updateSettingAction: (input: unknown) => Promise<IntegrationSettingRecord>
   updateDriveConfigAction: (input: unknown) => Promise<DriveConfigRecord>
 }
 
-function getHealthBadge(status: string) {
-  if (!status || status === "unknown") {
-    return <Badge variant="outline">Unknown</Badge>
+function statusBadge(status: string | null | undefined) {
+  if (!status || status === "disconnected" || status === "inactive") {
+    return <Badge variant="outline">Not Connected</Badge>
   }
-  if (status === "healthy") {
+  if (status === "connected" || status === "active") {
     return <Badge variant="default">Connected</Badge>
   }
-  if (status === "degraded") {
-    return <Badge variant="secondary">Degraded</Badge>
+  if (status === "connecting" || status === "importing") {
+    return <Badge variant="secondary">Connecting</Badge>
   }
-  return <Badge variant="destructive">Error</Badge>
-}
-
-function getSettingForProvider(
-  settings: IntegrationSettingRecord[],
-  provider: string,
-) {
-  return settings.find((s) => s.provider === provider) ?? null
-}
-
-function getHealthForProvider(
-  health: ConnectionHealthRecord[],
-  provider: string,
-) {
-  return health.find((h) => h.provider === provider) ?? null
+  if (status === "error") {
+    return <Badge variant="destructive">Error</Badge>
+  }
+  return <Badge variant="outline">Unknown</Badge>
 }
 
 function GoogleWorkspaceSection({
-  settings,
   driveConfig,
-  health,
   entities,
-  updateSettingAction,
   updateDriveConfigAction,
-}: IntegrationsPageProps) {
+}: Pick<IntegrationsPageProps, "driveConfig" | "entities" | "updateDriveConfigAction">) {
   const router = useRouter()
-  const [saving, setSaving] = useState<string | null>(null)
   const [driveSaving, setDriveSaving] = useState<string | null>(null)
   const [driveEditing, setDriveEditing] = useState<Record<string, Record<string, string>>>({})
+  const [driveError, setDriveError] = useState<string | null>(null)
+  const [toggleError, setToggleError] = useState<string | null>(null)
+  const [toggleSaving, setToggleSaving] = useState<string | null>(null)
 
-  const gmailSetting = getSettingForProvider(settings, "gmail")
-  const sheetsSetting = getSettingForProvider(settings, "google_sheets")
-  const docsSetting = getSettingForProvider(settings, "google_docs")
-  const slidesSetting = getSettingForProvider(settings, "google_slides")
-  const driveHealth = getHealthForProvider(health, "gmail")
+  function getEntityName(entityId: string) {
+    return entities.find((e) => e.id === entityId)?.name ?? entityId
+  }
 
-  async function handleToggle(setting: IntegrationSettingRecord, enabled: boolean) {
-    setSaving(setting.id)
+  async function handleToggle(
+    config: DriveConfigRecord,
+    field: "gmailSyncEnabled" | "sheetsAccessEnabled" | "docsAccessEnabled" | "slidesAccessEnabled",
+    enabled: boolean,
+  ) {
+    const savingKey = `${config.id}:${field}`
+    setToggleSaving(savingKey)
+    setToggleError(null)
     try {
-      await updateSettingAction({
-        id: setting.id,
-        enabled,
-      })
+      const payload: Record<string, unknown> = { id: config.id }
+      // eslint-disable-next-line security/detect-object-injection -- field is a typed union literal
+      payload[field] = enabled
+      await updateDriveConfigAction(payload)
       router.refresh()
+    } catch {
+      setToggleError("Failed to toggle. Please try again.")
     } finally {
-      setSaving(null)
+      setToggleSaving(null)
     }
   }
 
   async function handleDriveSave(config: DriveConfigRecord) {
     setDriveSaving(config.id)
+    setDriveError(null)
     try {
       const edits = driveEditing[config.id] ?? {}
       await updateDriveConfigAction({
         id: config.id,
         ...edits,
       })
+      setDriveEditing((prev) => {
+        const next = { ...prev }
+        delete next[config.id]
+        return next
+      })
       setDriveSaving(null)
       router.refresh()
     } catch {
       setDriveSaving(null)
+      setDriveError("Failed to save drive config. Please try again.")
     }
   }
 
-  function handleDriveFieldChange(
-    configId: string,
-    field: string,
-    value: string,
-  ) {
+  function handleDriveFieldChange(configId: string, field: string, value: string) {
     setDriveEditing((prev) => ({
       ...prev,
       // eslint-disable-next-line security/detect-object-injection -- configId is a UUID from DB
@@ -119,57 +117,40 @@ function GoogleWorkspaceSection({
     }))
   }
 
-  function getEntityName(entityId: string) {
-    return entities.find((e) => e.id === entityId)?.name ?? entityId
-  }
-
-  const providerToggles = [
-    { label: "Gmail sync", setting: gmailSetting, provider: "gmail" },
-    { label: "Google Sheets", setting: sheetsSetting, provider: "google_sheets" },
-    { label: "Google Docs", setting: docsSetting, provider: "google_docs" },
-    { label: "Google Slides", setting: slidesSetting, provider: "google_slides" },
-  ]
+  const toggleFields = [
+    { key: "gmailSyncEnabled", label: "Gmail Sync" },
+    { key: "sheetsAccessEnabled", label: "Sheets Access" },
+    { key: "docsAccessEnabled", label: "Docs Access" },
+    { key: "slidesAccessEnabled", label: "Slides Access" },
+  ] as const
 
   return (
     <div className="space-y-6">
+      {toggleError && (
+        <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <AlertTriangle className="size-4" />
+          {toggleError}
+        </div>
+      )}
+      {driveError && (
+        <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <AlertTriangle className="size-4" />
+          {driveError}
+        </div>
+      )}
+
       <Card className="p-6">
         <h2 className="text-lg font-medium">Connection Status</h2>
         <div className="mt-3 flex items-center gap-3">
           <span className="text-sm text-muted-foreground">Google Workspace:</span>
-          {getHealthBadge(driveHealth?.healthStatus ?? "unknown")}
+          {statusBadge(undefined)}
         </div>
       </Card>
 
       <Card className="p-6">
-        <h2 className="text-lg font-medium">Service Access</h2>
+        <h2 className="text-lg font-medium">Per-Entity Configuration</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Enable or disable Google Workspace service integrations per entity.
-        </p>
-        <div className="mt-4 space-y-3">
-          {providerToggles.map(({ label, setting, provider }) => (
-            <div key={provider} className="flex items-center justify-between rounded-lg border px-4 py-3">
-              <span className="text-sm font-medium">{label}</span>
-              <span className="flex items-center gap-2">
-                {saving === (setting?.id ?? null) && (
-                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
-                )}
-                <Checkbox
-                  checked={setting?.enabled ?? false}
-                  disabled={!setting || saving === setting.id}
-                  onCheckedChange={(checked) => {
-                    if (setting) handleToggle(setting, !!checked)
-                  }}
-                />
-              </span>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      <Card className="p-6">
-        <h2 className="text-lg font-medium">Drive Folder Configuration</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Configure Google Drive folder IDs for each entity.
+          Configure Google Drive folder IDs and service access per entity.
         </p>
         <div className="mt-4 overflow-x-auto">
           {driveConfig.length > 0 ? (
@@ -177,13 +158,12 @@ function GoogleWorkspaceSection({
               <TableHeader>
                 <TableRow>
                   <TableHead>Entity</TableHead>
-                  <TableHead>Accounts</TableHead>
-                  <TableHead>Opportunities</TableHead>
-                  <TableHead>P&L</TableHead>
-                  <TableHead>Gmail</TableHead>
-                  <TableHead>Sheets</TableHead>
-                  <TableHead>Docs</TableHead>
-                  <TableHead>Slides</TableHead>
+                  {toggleFields.map((f) => (
+                    <TableHead key={f.key}>{f.label}</TableHead>
+                  ))}
+                  <TableHead>Accounts Folder</TableHead>
+                  <TableHead>Opportunities Folder</TableHead>
+                  <TableHead>P&amp;L Folder</TableHead>
                   <TableHead className="w-[80px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -194,19 +174,55 @@ function GoogleWorkspaceSection({
                   return (
                     <TableRow key={dc.id}>
                       <TableCell className="font-medium">{getEntityName(dc.entityId)}</TableCell>
+                      {toggleFields.map((f) => {
+                        const savingKey = `${dc.id}:${f.key}`
+                        const key = f.key as keyof DriveConfigRecord
+                        // eslint-disable-next-line security/detect-object-injection -- key is a typed property
+                        const isEnabled = dc[key]
+                        return (
+                          <TableCell key={f.key}>
+                            <span className="flex items-center gap-2">
+                              {toggleSaving === savingKey && (
+                                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                              )}
+                              <Checkbox
+                                checked={isEnabled ?? false}
+                                disabled={toggleSaving === savingKey}
+                                onCheckedChange={(checked) =>
+                                  handleToggle(dc, f.key, !!checked)
+                                }
+                              />
+                            </span>
+                          </TableCell>
+                        )
+                      })}
                       <TableCell>
                         <Input
                           className="w-36"
-                          value={edits.accountsParentFolderId ?? dc.accountsParentFolderId ?? ""}
-                          onChange={(e) => handleDriveFieldChange(dc.id, "accountsParentFolderId", e.target.value)}
+                          value={
+                            edits.accountsParentFolderId ?? dc.accountsParentFolderId ?? ""
+                          }
+                          onChange={(e) =>
+                            handleDriveFieldChange(dc.id, "accountsParentFolderId", e.target.value)
+                          }
                           placeholder="Folder ID"
                         />
                       </TableCell>
                       <TableCell>
                         <Input
                           className="w-36"
-                          value={edits.opportunitiesParentFolderId ?? dc.opportunitiesParentFolderId ?? ""}
-                          onChange={(e) => handleDriveFieldChange(dc.id, "opportunitiesParentFolderId", e.target.value)}
+                          value={
+                            edits.opportunitiesParentFolderId ??
+                            dc.opportunitiesParentFolderId ??
+                            ""
+                          }
+                          onChange={(e) =>
+                            handleDriveFieldChange(
+                              dc.id,
+                              "opportunitiesParentFolderId",
+                              e.target.value,
+                            )
+                          }
                           placeholder="Folder ID"
                         />
                       </TableCell>
@@ -214,39 +230,9 @@ function GoogleWorkspaceSection({
                         <Input
                           className="w-36"
                           value={edits.pnlParentFolderId ?? dc.pnlParentFolderId ?? ""}
-                          onChange={(e) => handleDriveFieldChange(dc.id, "pnlParentFolderId", e.target.value)}
-                          placeholder="Folder ID"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          className="w-36"
-                          value={edits.gmailParentFolderId ?? dc.gmailParentFolderId ?? ""}
-                          onChange={(e) => handleDriveFieldChange(dc.id, "gmailParentFolderId", e.target.value)}
-                          placeholder="Folder ID"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          className="w-36"
-                          value={edits.sheetsParentFolderId ?? dc.sheetsParentFolderId ?? ""}
-                          onChange={(e) => handleDriveFieldChange(dc.id, "sheetsParentFolderId", e.target.value)}
-                          placeholder="Folder ID"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          className="w-36"
-                          value={edits.docsParentFolderId ?? dc.docsParentFolderId ?? ""}
-                          onChange={(e) => handleDriveFieldChange(dc.id, "docsParentFolderId", e.target.value)}
-                          placeholder="Folder ID"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          className="w-36"
-                          value={edits.slidesParentFolderId ?? dc.slidesParentFolderId ?? ""}
-                          onChange={(e) => handleDriveFieldChange(dc.id, "slidesParentFolderId", e.target.value)}
+                          onChange={(e) =>
+                            handleDriveFieldChange(dc.id, "pnlParentFolderId", e.target.value)
+                          }
                           placeholder="Folder ID"
                         />
                       </TableCell>
@@ -282,20 +268,10 @@ function GoogleWorkspaceSection({
   )
 }
 
-function SlackSection({ settings, health }: IntegrationsPageProps) {
-  const slackSetting = getSettingForProvider(settings, "slack")
-  const slackHealth = getHealthForProvider(health, "slack")
-  const workspace = (slackSetting?.config?.workspace as string) ?? "—"
-  const channels = (slackSetting?.config?.channels as string[]) ?? []
-  const events = [
-    "deal_created",
-    "deal_stage_changed",
-    "deal_won",
-    "deal_lost",
-    "contact_added",
-    "account_updated",
-    "task_assigned",
-  ] as const
+function SlackSection({
+  slackConnections,
+}: Pick<IntegrationsPageProps, "slackConnections">) {
+  const connection = slackConnections[0] ?? null
 
   return (
     <div className="space-y-6">
@@ -304,11 +280,13 @@ function SlackSection({ settings, health }: IntegrationsPageProps) {
         <div className="mt-3 space-y-2">
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">Status:</span>
-            {getHealthBadge(slackHealth?.healthStatus ?? "unknown")}
+            {connection ? statusBadge(connection.status) : statusBadge(null)}
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">Workspace:</span>
-            <span className="text-sm font-medium">{workspace}</span>
+            <span className="text-sm font-medium">
+              {connection?.workspaceName ?? "\u2014"}
+            </span>
           </div>
         </div>
       </Card>
@@ -316,46 +294,16 @@ function SlackSection({ settings, health }: IntegrationsPageProps) {
       <Card className="p-6">
         <h2 className="text-lg font-medium">Event Routing</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Configure which events are sent to which Slack channels.
+          Event routing configuration from the Slack connection.
         </p>
-        <div className="mt-4 overflow-x-auto">
-          {channels.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Event</TableHead>
-                  {channels.map((ch) => (
-                    <TableHead key={ch}>#{ch}</TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {events.map((event) => {
-                  const routing = (slackSetting?.config?.event_routing as Record<string, string[]>) ?? {}
-                  // eslint-disable-next-line security/detect-object-injection -- event keys are typed const
-                  const eventChannels = routing[event] ?? []
-                  return (
-                    <TableRow key={event}>
-                      <TableCell className="font-medium">
-                        {event.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                      </TableCell>
-                      {channels.map((ch) => (
-                        <TableCell key={ch}>
-                          {eventChannels.includes(ch) ? (
-                            <Check className="size-4 text-green-600" />
-                          ) : (
-                            <X className="size-4 text-muted-foreground" />
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+        <div className="mt-4">
+          {connection?.eventRouting && Object.keys(connection.eventRouting).length > 0 ? (
+            <pre className="overflow-auto rounded-lg border bg-muted/50 p-4 text-sm font-mono">
+              {JSON.stringify(connection.eventRouting, null, 2)}
+            </pre>
           ) : (
             <p className="text-sm text-muted-foreground">
-              No Slack channels configured. Channels are managed via config.
+              No event routing configured.
             </p>
           )}
         </div>
@@ -364,12 +312,11 @@ function SlackSection({ settings, health }: IntegrationsPageProps) {
   )
 }
 
-function EmailSection({ settings, health }: IntegrationsPageProps) {
-  const resendSetting = getSettingForProvider(settings, "resend")
-  const resendHealth = getHealthForProvider(health, "resend")
-  const domain = (resendSetting?.config?.domain as string) ?? "—"
-  const inboundDomain = (resendSetting?.config?.inbound_domain as string) ?? "—"
-  const templates = (resendSetting?.config?.templates as Array<{ name: string; id: string }>) ?? []
+function EmailSection({
+  emailSettings,
+}: Pick<IntegrationsPageProps, "emailSettings">) {
+  const settings = emailSettings
+  const templates = (settings?.templateConfig as Record<string, unknown>) ?? {}
 
   return (
     <div className="space-y-6">
@@ -378,11 +325,11 @@ function EmailSection({ settings, health }: IntegrationsPageProps) {
         <div className="mt-3 space-y-2">
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">Status:</span>
-            {getHealthBadge(resendHealth?.healthStatus ?? "unknown")}
+            {settings ? statusBadge(settings.status) : statusBadge(null)}
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">Domain:</span>
-            <span className="text-sm font-medium">{domain}</span>
+            <span className="text-sm font-medium">{settings?.resendDomain ?? "\u2014"}</span>
           </div>
         </div>
       </Card>
@@ -391,36 +338,40 @@ function EmailSection({ settings, health }: IntegrationsPageProps) {
         <h2 className="text-lg font-medium">Inbound Email</h2>
         <div className="mt-3 flex items-center gap-3">
           <span className="text-sm text-muted-foreground">Inbound Domain:</span>
-          <span className="text-sm font-medium font-mono">{inboundDomain}</span>
+          <span className="text-sm font-medium font-mono">
+            {settings?.inboundDomain ?? "\u2014"}
+          </span>
         </div>
       </Card>
 
       <Card className="p-6">
         <h2 className="text-lg font-medium">Transactional Templates</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Email templates configured in Resend.
+          Per-template configuration stored in email settings.
         </p>
         <div className="mt-4">
-          {templates.length > 0 ? (
+          {Object.keys(templates).length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Template Name</TableHead>
-                  <TableHead>Template ID</TableHead>
+                  <TableHead>Configuration</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {templates.map((t) => (
-                  <TableRow key={t.id}>
-                    <TableCell className="font-medium">{t.name}</TableCell>
-                    <TableCell className="font-mono text-sm">{t.id}</TableCell>
+                {Object.entries(templates).map(([name, config]) => (
+                  <TableRow key={name}>
+                    <TableCell className="font-medium">{name}</TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {typeof config === "object" ? JSON.stringify(config) : String(config)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           ) : (
             <p className="text-sm text-muted-foreground">
-              No transactional templates configured.
+              No transactional template configuration found.
             </p>
           )}
         </div>
@@ -429,24 +380,26 @@ function EmailSection({ settings, health }: IntegrationsPageProps) {
   )
 }
 
-function SalesforceSection({ settings, health }: IntegrationsPageProps) {
-  const sfSetting = getSettingForProvider(settings, "salesforce")
-  const sfHealth = getHealthForProvider(health, "salesforce")
-  const fieldMap = (sfSetting?.config?.field_map as string) ?? ""
-  const importHistory = (sfSetting?.config?.import_history as Array<{
-    id: string
-    status: string
-    progress: number
-    timestamp: string
-  }>) ?? []
+function SalesforceSection({
+  salesforceConnections,
+}: Pick<IntegrationsPageProps, "salesforceConnections">) {
+  const connection = salesforceConnections[0] ?? null
 
   return (
     <div className="space-y-6">
       <Card className="p-6">
         <h2 className="text-lg font-medium">Connection Status</h2>
-        <div className="mt-3 flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">Salesforce:</span>
-          {getHealthBadge(sfHealth?.healthStatus ?? "unknown")}
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">Salesforce:</span>
+            {connection ? statusBadge(connection.importStatus) : statusBadge(null)}
+          </div>
+          {connection?.instanceUrl && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">Instance URL:</span>
+              <span className="text-sm font-medium font-mono">{connection.instanceUrl}</span>
+            </div>
+          )}
         </div>
       </Card>
 
@@ -456,13 +409,13 @@ function SalesforceSection({ settings, health }: IntegrationsPageProps) {
           Read-only Salesforce field mapping configuration.
         </p>
         <div className="mt-4">
-          {fieldMap ? (
+          {connection?.oauthState && Object.keys(connection.oauthState).length > 0 ? (
             <pre className="overflow-auto rounded-lg border bg-muted/50 p-4 text-sm font-mono">
-              {fieldMap}
+              {JSON.stringify(connection.oauthState, null, 2)}
             </pre>
           ) : (
             <p className="text-sm text-muted-foreground">
-              No field mapping configuration available.
+              No field mapping configuration available. Configure the sf_field_map.yaml to enable field mapping.
             </p>
           )}
         </div>
@@ -474,31 +427,21 @@ function SalesforceSection({ settings, health }: IntegrationsPageProps) {
           Recent Salesforce import runs.
         </p>
         <div className="mt-4">
-          {importHistory.length > 0 ? (
+          {connection?.lastSyncAt ? (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Timestamp</TableHead>
+                  <TableHead>Last Sync</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Progress</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {importHistory.map((run) => (
-                  <TableRow key={run.id}>
-                    <TableCell>{run.timestamp}</TableCell>
-                    <TableCell>
-                      {run.status === "completed" ? (
-                        <Badge variant="default">Completed</Badge>
-                      ) : run.status === "failed" ? (
-                        <Badge variant="destructive">Failed</Badge>
-                      ) : (
-                        <Badge variant="secondary">{run.status}</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>{run.progress}%</TableCell>
-                  </TableRow>
-                ))}
+                <TableRow>
+                  <TableCell>{new Date(connection.lastSyncAt).toLocaleString()}</TableCell>
+                  <TableCell>
+                    <Badge variant="default">Completed</Badge>
+                  </TableCell>
+                </TableRow>
               </TableBody>
             </Table>
           ) : (
@@ -533,16 +476,20 @@ export function IntegrationsPage(props: IntegrationsPageProps) {
         </TabsList>
 
         <TabsPanel value="google">
-          <GoogleWorkspaceSection {...props} />
+          <GoogleWorkspaceSection
+            driveConfig={props.driveConfig}
+            entities={props.entities}
+            updateDriveConfigAction={props.updateDriveConfigAction}
+          />
         </TabsPanel>
         <TabsPanel value="slack">
-          <SlackSection {...props} />
+          <SlackSection slackConnections={props.slackConnections} />
         </TabsPanel>
         <TabsPanel value="email">
-          <EmailSection {...props} />
+          <EmailSection emailSettings={props.emailSettings} />
         </TabsPanel>
         <TabsPanel value="salesforce">
-          <SalesforceSection {...props} />
+          <SalesforceSection salesforceConnections={props.salesforceConnections} />
         </TabsPanel>
       </Tabs>
     </div>

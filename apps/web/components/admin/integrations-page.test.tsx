@@ -5,9 +5,10 @@ import userEvent from "@testing-library/user-event"
 import { IntegrationsPage } from "./integrations-page"
 import type { EntityRecord } from "@/lib/data/entities"
 import type {
-  IntegrationSettingRecord,
+  SlackConnectionRecord,
+  EmailSettingsRecord,
+  SalesforceConnectionRecord,
   DriveConfigRecord,
-  ConnectionHealthRecord,
 } from "@/lib/data/integrations"
 
 const mockRefresh = vi.fn()
@@ -16,7 +17,6 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mockRefresh }),
 }))
 
-const mockUpdateSetting = vi.fn()
 const mockUpdateDrive = vi.fn()
 
 const sampleEntities: EntityRecord[] = [
@@ -56,95 +56,6 @@ const sampleEntities: EntityRecord[] = [
   },
 ]
 
-const sampleSettings: IntegrationSettingRecord[] = [
-  {
-    id: "set-gmail",
-    entityId: "ent-1",
-    provider: "gmail",
-    enabled: true,
-    config: {},
-    healthStatus: "healthy",
-    lastHealthCheckAt: "2026-06-18T00:00:00Z",
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-06-01T00:00:00Z",
-  },
-  {
-    id: "set-sheets",
-    entityId: "ent-1",
-    provider: "google_sheets",
-    enabled: false,
-    config: {},
-    healthStatus: "degraded",
-    lastHealthCheckAt: null,
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-06-01T00:00:00Z",
-  },
-  {
-    id: "set-docs",
-    entityId: "ent-1",
-    provider: "google_docs",
-    enabled: true,
-    config: {},
-    healthStatus: "healthy",
-    lastHealthCheckAt: null,
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-06-01T00:00:00Z",
-  },
-  {
-    id: "set-slides",
-    entityId: "ent-1",
-    provider: "google_slides",
-    enabled: false,
-    config: {},
-    healthStatus: "unknown",
-    lastHealthCheckAt: null,
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-06-01T00:00:00Z",
-  },
-  {
-    id: "set-slack",
-    entityId: "ent-1",
-    provider: "slack",
-    enabled: true,
-    config: { workspace: "acme.slack.com", channels: ["sales", "ops"], event_routing: {} },
-    healthStatus: "healthy",
-    lastHealthCheckAt: "2026-06-18T00:00:00Z",
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-06-01T00:00:00Z",
-  },
-  {
-    id: "set-resend",
-    entityId: "ent-1",
-    provider: "resend",
-    enabled: true,
-    config: {
-      domain: "mail.acme.com",
-      inbound_domain: "inbound.acme.com",
-      templates: [{ name: "Welcome", id: "tmpl-1" }, { name: "Invoice", id: "tmpl-2" }],
-    },
-    healthStatus: "healthy",
-    lastHealthCheckAt: null,
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-06-01T00:00:00Z",
-  },
-  {
-    id: "set-sf",
-    entityId: "ent-1",
-    provider: "salesforce",
-    enabled: true,
-    config: {
-      field_map: "---\ndeal_name: Opportunity.Name\namount: Opportunity.Amount",
-      import_history: [
-        { id: "imp-1", status: "completed", progress: 100, timestamp: "2026-06-17T10:00:00Z" },
-      ],
-    },
-    healthStatus: "healthy",
-    lastHealthCheckAt: null,
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-06-01T00:00:00Z",
-  },
-]
-
 const sampleDriveConfig: DriveConfigRecord[] = [
   {
     id: "dc-1",
@@ -152,10 +63,10 @@ const sampleDriveConfig: DriveConfigRecord[] = [
     accountsParentFolderId: "folder-accts-1",
     opportunitiesParentFolderId: "folder-opps-1",
     pnlParentFolderId: null,
-    gmailParentFolderId: null,
-    sheetsParentFolderId: "folder-sheets-1",
-    docsParentFolderId: null,
-    slidesParentFolderId: null,
+    gmailSyncEnabled: true,
+    sheetsAccessEnabled: false,
+    docsAccessEnabled: true,
+    slidesAccessEnabled: false,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
   },
@@ -165,55 +76,67 @@ const sampleDriveConfig: DriveConfigRecord[] = [
     accountsParentFolderId: null,
     opportunitiesParentFolderId: "folder-opps-2",
     pnlParentFolderId: "folder-pnl-2",
-    gmailParentFolderId: null,
-    sheetsParentFolderId: null,
-    docsParentFolderId: null,
-    slidesParentFolderId: null,
+    gmailSyncEnabled: false,
+    sheetsAccessEnabled: true,
+    docsAccessEnabled: false,
+    slidesAccessEnabled: true,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
   },
 ]
 
-const sampleHealth: ConnectionHealthRecord[] = [
+const sampleSlack: SlackConnectionRecord[] = [
   {
-    provider: "gmail",
-    entityId: "ent-1",
-    entityName: "Acme India",
-    healthStatus: "healthy",
-    lastHealthCheckAt: "2026-06-18T00:00:00Z",
-  },
-  {
-    provider: "slack",
-    entityId: "ent-1",
-    entityName: "Acme India",
-    healthStatus: "healthy",
-    lastHealthCheckAt: "2026-06-18T00:00:00Z",
-  },
-  {
-    provider: "resend",
-    entityId: "ent-1",
-    entityName: "Acme India",
-    healthStatus: "healthy",
-    lastHealthCheckAt: null,
-  },
-  {
-    provider: "salesforce",
-    entityId: "ent-1",
-    entityName: "Acme India",
-    healthStatus: "healthy",
-    lastHealthCheckAt: null,
+    id: "slack-1",
+    workspaceId: "T123456",
+    workspaceName: "acme.slack.com",
+    eventRouting: { deal_created: ["#sales"], deal_won: ["#sales", "#exec"] },
+    status: "connected",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-06-01T00:00:00Z",
   },
 ]
 
-function renderPage() {
+const sampleEmail: EmailSettingsRecord = {
+  id: "email-1",
+  resendDomain: "mail.acme.com",
+  inboundDomain: "inbound.acme.com",
+  templateConfig: { welcome: { fromName: "Acme" }, invoice: { replyTo: "billing@acme.com" } },
+  status: "active",
+  createdAt: "2026-01-01T00:00:00Z",
+  updatedAt: "2026-06-01T00:00:00Z",
+}
+
+const sampleSalesforce: SalesforceConnectionRecord[] = [
+  {
+    id: "sf-1",
+    instanceUrl: "https://acme.my.salesforce.com",
+    oauthState: { redirectUri: "https://app.acme.com/oauth/callback" },
+    importStatus: "connected",
+    lastSyncAt: "2026-06-17T10:00:00Z",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-06-01T00:00:00Z",
+  },
+]
+
+interface PageProps {
+  slackConnections?: SlackConnectionRecord[]
+  emailSettings?: EmailSettingsRecord | null
+  salesforceConnections?: SalesforceConnectionRecord[]
+  driveConfig?: DriveConfigRecord[]
+  entities?: EntityRecord[]
+  updateDriveConfigAction?: (input: unknown) => Promise<DriveConfigRecord>
+}
+
+function renderPage(overrides?: PageProps) {
   return render(
     <IntegrationsPage
-      settings={sampleSettings}
-      driveConfig={sampleDriveConfig}
-      health={sampleHealth}
-      entities={sampleEntities}
-      updateSettingAction={mockUpdateSetting}
-      updateDriveConfigAction={mockUpdateDrive}
+      slackConnections={overrides?.slackConnections ?? sampleSlack}
+      emailSettings={overrides?.emailSettings ?? sampleEmail}
+      salesforceConnections={overrides?.salesforceConnections ?? sampleSalesforce}
+      driveConfig={overrides?.driveConfig ?? sampleDriveConfig}
+      entities={overrides?.entities ?? sampleEntities}
+      updateDriveConfigAction={overrides?.updateDriveConfigAction ?? mockUpdateDrive}
     />,
   )
 }
@@ -241,7 +164,7 @@ describe("IntegrationsPage", () => {
 
   it("shows Google Workspace panel by default", () => {
     renderPage()
-    expect(screen.getByText("Service Access")).toBeInTheDocument()
+    expect(screen.getByText("Per-Entity Configuration")).toBeInTheDocument()
   })
 
   it("switches to Slack panel when Slack tab is clicked", async () => {
@@ -267,39 +190,63 @@ describe("IntegrationsPage", () => {
 })
 
 describe("Google Workspace section", () => {
-  it("shows connection status badge", () => {
+  it("shows connection status card with Not Connected badge", () => {
     renderPage()
-    expect(screen.getByText("Connected")).toBeInTheDocument()
+    expect(screen.getByText("Connection Status")).toBeInTheDocument()
+    expect(screen.getByText("Not Connected")).toBeInTheDocument()
   })
 
-  it("displays service access toggles with correct states", () => {
-    renderPage()
-    const gmailCheckbox = screen.getAllByRole("checkbox", { name: "" })
-    expect(gmailCheckbox).toHaveLength(4)
-  })
-
-  it("calls updateSettingAction when a toggle is clicked", async () => {
-    const user = userEvent.setup()
-    mockUpdateSetting.mockResolvedValueOnce({})
-    renderPage()
-    const checkboxes = screen.getAllByRole("checkbox", { name: "" })
-    await user.click(checkboxes[1])
-    expect(mockUpdateSetting).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "set-sheets", enabled: true }),
-    )
-    expect(mockRefresh).toHaveBeenCalled()
-  })
-
-  it("renders drive config table with entity names", () => {
+  it("renders entity names in the drive config table", () => {
     renderPage()
     expect(screen.getByText("Acme India")).toBeInTheDocument()
     expect(screen.getByText("Acme US")).toBeInTheDocument()
   })
 
-  it("shows folder ID inputs in drive config table", () => {
+  it("shows service access toggle columns", () => {
+    renderPage()
+    expect(screen.getByText("Gmail Sync")).toBeInTheDocument()
+    expect(screen.getByText("Sheets Access")).toBeInTheDocument()
+    expect(screen.getByText("Docs Access")).toBeInTheDocument()
+    expect(screen.getByText("Slides Access")).toBeInTheDocument()
+  })
+
+  it("shows folder ID inputs", () => {
     renderPage()
     const inputs = screen.getAllByPlaceholderText("Folder ID")
-    expect(inputs.length).toBeGreaterThan(0)
+    expect(inputs.length).toBe(6)
+  })
+
+  it("calls updateDriveConfigAction when a toggle is clicked", async () => {
+    const user = userEvent.setup()
+    mockUpdateDrive.mockResolvedValueOnce({})
+    renderPage()
+    const checkboxes = screen.getAllByRole("checkbox")
+    await user.click(checkboxes[1])
+    expect(mockUpdateDrive).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "dc-1", sheetsAccessEnabled: true }),
+    )
+    expect(mockRefresh).toHaveBeenCalled()
+  })
+
+  it("shows error when toggle fails", async () => {
+    const user = userEvent.setup()
+    mockUpdateDrive.mockRejectedValueOnce(new Error("Network error"))
+    renderPage()
+    const checkboxes = screen.getAllByRole("checkbox")
+    await user.click(checkboxes[1])
+    expect(screen.getByText("Failed to toggle. Please try again.")).toBeInTheDocument()
+  })
+
+  it("shows error when drive save fails", async () => {
+    const user = userEvent.setup()
+    mockUpdateDrive.mockRejectedValueOnce(new Error("Network error"))
+    renderPage()
+    const folderInputs = screen.getAllByPlaceholderText("Folder ID")
+    await user.clear(folderInputs[0])
+    await user.type(folderInputs[0], "new-folder-id")
+    const saveButton = screen.getByText("Save")
+    await user.click(saveButton)
+    expect(screen.getByText("Failed to save drive config. Please try again.")).toBeInTheDocument()
   })
 })
 
@@ -309,14 +256,22 @@ describe("Slack section", () => {
     renderPage()
     await user.click(screen.getByText("Slack"))
     expect(screen.getByText("acme.slack.com")).toBeInTheDocument()
+    expect(screen.getByText("Connected")).toBeInTheDocument()
   })
 
-  it("renders event routing matrix with channels", async () => {
+  it("shows event routing configuration", async () => {
     const user = userEvent.setup()
     renderPage()
     await user.click(screen.getByText("Slack"))
-    expect(screen.getByText("#sales")).toBeInTheDocument()
-    expect(screen.getByText("#ops")).toBeInTheDocument()
+    expect(screen.getByText(/"deal_created"/)).toBeInTheDocument()
+  })
+
+  it("shows placeholder when no Slack connection exists", async () => {
+    const user = userEvent.setup()
+    renderPage({ slackConnections: [] })
+    await user.click(screen.getByText("Slack"))
+    expect(screen.getByText("Event Routing")).toBeInTheDocument()
+    expect(screen.getByText("No event routing configured.")).toBeInTheDocument()
   })
 })
 
@@ -329,34 +284,56 @@ describe("Email section", () => {
     expect(screen.getByText("inbound.acme.com")).toBeInTheDocument()
   })
 
-  it("shows transactional templates table", async () => {
+  it("shows template configuration table", async () => {
     const user = userEvent.setup()
     renderPage()
     await user.click(screen.getByText("Email"))
-    expect(screen.getByText("Welcome")).toBeInTheDocument()
-    expect(screen.getByText("Invoice")).toBeInTheDocument()
+    expect(screen.getByText("welcome")).toBeInTheDocument()
+    expect(screen.getByText("invoice")).toBeInTheDocument()
+  })
+
+  it("shows placeholder when email settings is null", async () => {
+    const user = userEvent.setup()
+    renderPage({ emailSettings: null })
+    await user.click(screen.getByText("Email"))
+    // Verify the Email panel loaded
+    expect(screen.getByText("Resend Configuration")).toBeInTheDocument()
+    // Status row should exist
+    expect(screen.getByText("Status:")).toBeInTheDocument()
+    // Inbound Email card should show em-dash
+    expect(screen.getByText("Inbound Domain:")).toBeInTheDocument()
   })
 })
 
 describe("Salesforce section", () => {
-  it("shows connection status", async () => {
+  it("shows connection status and instance URL", async () => {
     const user = userEvent.setup()
     renderPage()
     await user.click(screen.getByText("Salesforce"))
-    expect(screen.getByText("Connection Status")).toBeInTheDocument()
+    expect(screen.getByText("Connected")).toBeInTheDocument()
+    expect(screen.getByText("https://acme.my.salesforce.com")).toBeInTheDocument()
   })
 
-  it("renders field map as pre-formatted text", async () => {
+  it("shows OAuth state as field mapping placeholder", async () => {
     const user = userEvent.setup()
     renderPage()
     await user.click(screen.getByText("Salesforce"))
-    expect(screen.getByText(/deal_name/)).toBeInTheDocument()
+    expect(screen.getByText(/redirectUri/)).toBeInTheDocument()
   })
 
-  it("shows import history table", async () => {
+  it("shows import history with last sync time", async () => {
     const user = userEvent.setup()
     renderPage()
     await user.click(screen.getByText("Salesforce"))
     expect(screen.getByText("Import History")).toBeInTheDocument()
+    expect(screen.getByText("Completed")).toBeInTheDocument()
+  })
+
+  it("shows placeholder when no Salesforce connection exists", async () => {
+    const user = userEvent.setup()
+    renderPage({ salesforceConnections: [] })
+    await user.click(screen.getByText("Salesforce"))
+    expect(screen.getByText("Not Connected")).toBeInTheDocument()
+    expect(screen.getByText("No import runs yet.")).toBeInTheDocument()
   })
 })
