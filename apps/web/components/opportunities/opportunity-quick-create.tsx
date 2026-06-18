@@ -23,9 +23,9 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select"
+import { EntityCombobox, type EntityOption } from "@/components/entity-combobox"
 
 import type { OpportunityRecord, OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/opportunities.types"
-import type { AccountOption } from "@/lib/data/contacts"
 
 interface FormErrors {
   name?: string
@@ -34,12 +34,13 @@ interface FormErrors {
 }
 
 interface OpportunityQuickCreateProps {
-  accounts: AccountOption[]
+  accounts: EntityOption[]
   businessUnits: BusinessUnitOption[]
   createAction: (input: OpportunityCreateInput) => Promise<OpportunityRecord>
   onSuccess: () => void
   defaultAccountId?: string
   trigger?: React.ReactNode
+  searchAccountsAction?: (query: string) => Promise<EntityOption[]>
 }
 
 export function OpportunityQuickCreate({
@@ -49,12 +50,13 @@ export function OpportunityQuickCreate({
   onSuccess,
   defaultAccountId,
   trigger,
+  searchAccountsAction,
 }: OpportunityQuickCreateProps) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [name, setName] = useState("")
-  const [accountId, setAccountId] = useState(defaultAccountId ?? "")
+  const [accountId, setAccountId] = useState<string | null>(defaultAccountId ?? null)
   const [salesUnitId, setSalesUnitId] = useState("")
   const [amount, setAmount] = useState("")
   const [errors, setErrors] = useState<FormErrors>({})
@@ -62,7 +64,7 @@ export function OpportunityQuickCreate({
   const validate = useCallback((): FormErrors => {
     const errs: FormErrors = {}
     if (!name.trim()) errs.name = "Name is required"
-    if (!accountId.trim()) errs.accountId = "Account is required"
+    if (!accountId) errs.accountId = "Account is required"
     if (!salesUnitId.trim()) errs.salesUnitId = "Sales unit is required"
     return errs
   }, [name, accountId, salesUnitId])
@@ -78,16 +80,17 @@ export function OpportunityQuickCreate({
     try {
       const input: OpportunityCreateInput = {
         name: name.trim(),
-        accountId,
+        accountId: accountId!,
         amount: amount || undefined,
         salesUnitId,
+        stage: "qualify",
       }
 
       await createAction(input)
 
       setOpen(false)
       setName("")
-      setAccountId(defaultAccountId ?? "")
+      setAccountId(defaultAccountId ?? null)
       setSalesUnitId("")
       setAmount("")
       setErrors({})
@@ -154,18 +157,15 @@ export function OpportunityQuickCreate({
             <Label htmlFor="qc-accountId">
               Account <span className="text-destructive">*</span>
             </Label>
-            <Select value={accountId} onValueChange={(v) => setAccountId(v ?? "")}>
-              <SelectTrigger id="qc-accountId">
-                <SelectValue placeholder="Select account" />
-              </SelectTrigger>
-              <SelectContent>
-                {accounts.map((acct) => (
-                  <SelectItem key={acct.id} value={acct.id}>
-                    {acct.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <EntityCombobox
+              items={accounts}
+              value={accountId}
+              onChange={setAccountId}
+              searchAction={searchAccountsAction}
+              placeholder="Select account"
+              searchPlaceholder="Search accounts..."
+              emptyMessage="No accounts found."
+            />
             {errors.accountId && (
               <p className="text-xs text-destructive">{errors.accountId}</p>
             )}

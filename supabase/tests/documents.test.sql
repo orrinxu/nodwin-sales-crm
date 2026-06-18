@@ -49,9 +49,9 @@ VALUES
 
 -- Opportunities.
 INSERT INTO public.opportunities (
-  id, name, account_id, stage, owner_user_id, sales_initiator_user_id, sales_unit_id, amount, currency, visibility_tier
+  id, name, account_id, stage, owner_user_id, sales_unit_id, amount, currency, visibility_tier
 ) VALUES
-  ('00000000-0000-0000-0000-000000000001', 'Rep Opp',   'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'qualify', '11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 100000, 'USD', 'standard');
+  ('00000000-0000-0000-0000-000000000001', 'Rep Opp',   'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'qualify', '11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 100000, 'USD', 'standard');
 
 -- Seed opportunity_visibility so rep can see their opp.
 INSERT INTO public.opportunity_visibility (opportunity_id, user_id, reason)

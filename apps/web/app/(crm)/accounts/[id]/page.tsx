@@ -2,13 +2,15 @@ import { notFound } from "next/navigation"
 import { requireUser } from "@/lib/security/auth"
 import {
   getAccountById,
-  getAccountRelationshipGraph,
+  getAccountRelationships,
   getContactsForAccount,
   getOpportunitiesForAccount,
   getOwnerOptions,
+  getAccountLinkedDocuments,
+  getAccounts,
 } from "@/lib/data/accounts"
 import { getFieldDefinitions } from "@/lib/data/field-definitions"
-import { updateAccountAction } from "../actions"
+import { updateAccountAction, upsertAccountRelationshipAction } from "../actions"
 import { AccountDetailWrapper } from "@/components/accounts/account-detail-wrapper"
 
 export default async function AccountDetailPage({
@@ -20,13 +22,15 @@ export default async function AccountDetailPage({
   const { id } = await params
 
   const ctx = { user, source: "web" as const }
-  const [account, fieldDefinitions, relationshipGraph, contacts, opportunities, owners] = await Promise.all([
+  const [account, fieldDefinitions, relationships, contacts, opportunities, owners, documents, { accounts: allAccounts }] = await Promise.all([
     getAccountById(ctx, id),
     getFieldDefinitions(ctx, "account"),
-    getAccountRelationshipGraph(ctx, id).catch(() => null),
-    getContactsForAccount(ctx, id).catch(() => []),
-    getOpportunitiesForAccount(ctx, id).catch(() => []),
-    getOwnerOptions(ctx).catch(() => []),
+    getAccountRelationships(ctx, id),
+    getContactsForAccount(ctx, id),
+    getOpportunitiesForAccount(ctx, id),
+    getOwnerOptions(ctx),
+    getAccountLinkedDocuments(ctx, id),
+    getAccounts(ctx),
   ])
 
   if (!account) {
@@ -35,15 +39,39 @@ export default async function AccountDetailPage({
 
   const owner = owners.find((o) => o.id === account.accountOwnerUserId) ?? null
 
+  const ownerOptions = owners.map((o) => ({ id: o.id, name: o.name }))
+  const accountOptions = allAccounts
+    .filter((a) => a.id !== id)
+    .map((a) => ({ id: a.id, name: a.name }))
+
+  const firstRelationship = relationships[0] ?? null
+  const parentRelationship = firstRelationship
+    ? {
+        toAccountId: firstRelationship.toAccountId,
+        kind: firstRelationship.kind,
+      }
+    : null
+
+  const saveRelationship = async (data: { parentAccountId: string; kind: string }) => {
+    "use server"
+    await upsertAccountRelationshipAction(id, data.parentAccountId, data.kind as "subsidiary_of" | "procurement_via" | "partner_with" | "parent_of" | "sister_company")
+  }
+
   return (
     <AccountDetailWrapper
       account={account}
       fieldDefinitions={fieldDefinitions}
-      relationshipGraph={relationshipGraph}
+      relationships={relationships}
       contacts={contacts}
       opportunities={opportunities}
+      documents={documents}
       ownerName={owner?.name ?? null}
+      ownerOptions={ownerOptions}
+      accountOptions={accountOptions}
+      currentUserId={user.id}
+      parentRelationship={parentRelationship}
       updateAction={updateAccountAction}
+      saveRelationshipAction={saveRelationship}
     />
   )
 }

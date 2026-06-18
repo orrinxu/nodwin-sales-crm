@@ -2,36 +2,57 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Pencil, Globe, MapPin, Briefcase, Mail } from "lucide-react"
+import { Pencil, Globe, MapPin, Briefcase, Mail, FileText } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { AccountForm } from "@/components/accounts/account-form"
 import { CustomFieldsDisplay } from "@/components/contacts/custom-fields-display"
-import { RelationshipTree } from "@/components/accounts/relationship-tree"
 import { getStageLabel } from "@/lib/data/opportunities.types"
-import type { AccountRecord, AccountUpdateInput, AccountRelationshipGraph, AccountOpportunity } from "@/lib/data/accounts"
+import { Money } from "@/lib/money"
+import type { AccountRecord, AccountUpdateInput, AccountRelationship, AccountOpportunity, AccountDocument, AccountRelationshipKind } from "@/lib/data/accounts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
+import type { EntityOption } from "@/components/entity-combobox"
 
 interface AccountDetailWrapperProps {
   account: AccountRecord
   fieldDefinitions: FieldDefinition[]
-  relationshipGraph: AccountRelationshipGraph | null
+  relationships: AccountRelationship[]
   contacts: { id: string; fullName: string; title: string | null; email: string | null }[]
   opportunities: AccountOpportunity[]
+  documents: AccountDocument[]
   ownerName: string | null
+  ownerOptions: EntityOption[]
+  accountOptions: EntityOption[]
+  currentUserId?: string
+  parentRelationship?: { toAccountId: string; kind: AccountRelationshipKind } | null
   updateAction: (id: string, input: AccountUpdateInput) => Promise<AccountRecord>
+  saveRelationshipAction?: (data: { parentAccountId: string; kind: AccountRelationshipKind }) => Promise<void>
+}
+
+const RELATIONSHIP_LABELS: Record<string, string> = {
+  subsidiary_of: "Subsidiary of",
+  procurement_via: "Procurement via",
+  partner_with: "Partner with",
+  parent_of: "Parent of",
+  sister_company: "Sister company",
 }
 
 export function AccountDetailWrapper({
   account,
   fieldDefinitions,
-  relationshipGraph,
+  relationships,
   contacts,
   opportunities,
+  documents,
   ownerName,
+  ownerOptions,
+  accountOptions,
+  currentUserId,
+  parentRelationship,
   updateAction,
+  saveRelationshipAction,
 }: AccountDetailWrapperProps) {
   const router = useRouter()
 
@@ -53,10 +74,15 @@ export function AccountDetailWrapper({
         <AccountForm
           account={account}
           fieldDefinitions={fieldDefinitions}
+          ownerOptions={ownerOptions}
+          accountOptions={accountOptions}
+          currentUserId={currentUserId}
+          parentRelationship={parentRelationship}
           createAction={async () => {
             throw new Error("Not available")
           }}
           updateAction={updateAction}
+          onSaveRelationship={saveRelationshipAction}
           onSuccess={() => {
             router.refresh()
           }}
@@ -70,24 +96,26 @@ export function AccountDetailWrapper({
       </div>
 
       <div className="flex flex-1 flex-col gap-6 p-6">
-        <div className="flex items-start gap-4">
-          <div className="flex-1">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {account.name}
-            </h1>
-            <div className="mt-2 flex items-center gap-3">
-              {account.industry && (
-                <Badge variant="secondary">{account.industry}</Badge>
-              )}
-              {ownerName && (
-                <span className="text-sm text-muted-foreground">{ownerName}</span>
-              )}
-              {!ownerName && (
-                <span className="text-sm text-muted-foreground">Unassigned</span>
-              )}
+            <div className="flex items-start gap-4">
+              <div className="flex-1">
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  {account.name}
+                </h1>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {account.industry && (
+                    <Badge variant="secondary">
+                      {account.industry}
+                    </Badge>
+                  )}
+                  {ownerName && (
+                    <span className="text-sm text-muted-foreground ml-1">{ownerName}</span>
+                  )}
+                  {!ownerName && (
+                    <span className="text-sm text-muted-foreground ml-1">Unassigned</span>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
         <div className="grid gap-6 sm:grid-cols-2">
           <Card>
@@ -154,31 +182,31 @@ export function AccountDetailWrapper({
             <CardHeader>
               <CardTitle>Details</CardTitle>
             </CardHeader>
-            <CardContent>
-              <dl className="grid gap-4">
-                <div className="grid gap-1">
-                  <dt className="text-xs text-muted-foreground">Owner</dt>
-                  <dd className="text-sm font-medium">
-                    {ownerName ?? "\u2014"}
-                  </dd>
-                </div>
-                {account.emailDomains && account.emailDomains.length > 0 && (
+              <CardContent>
+                <dl className="grid gap-4">
                   <div className="grid gap-1">
-                    <dt className="text-xs text-muted-foreground">Email Domains</dt>
-                    <dd>
-                      <div className="flex flex-wrap gap-1">
-                        {account.emailDomains.map((domain) => (
-                          <Badge key={domain} variant="outline" className="gap-1">
-                            <Mail className="size-3" />
-                            {domain}
-                          </Badge>
-                        ))}
-                      </div>
+                    <dt className="text-xs text-muted-foreground">Owner</dt>
+                    <dd className="text-sm font-medium">
+                      {ownerName ?? "\u2014"}
                     </dd>
                   </div>
-                )}
-              </dl>
-            </CardContent>
+                  {account.emailDomains && account.emailDomains.length > 0 && (
+                    <div className="grid gap-1">
+                      <dt className="text-xs text-muted-foreground">Email Domains</dt>
+                      <dd>
+                        <div className="flex flex-wrap gap-1">
+                          {account.emailDomains.map((domain) => (
+                            <Badge key={domain} variant="outline" className="gap-1">
+                              <Mail className="size-3" />
+                              {domain}
+                            </Badge>
+                          ))}
+                        </div>
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </CardContent>
           </Card>
         </div>
 
@@ -270,10 +298,7 @@ export function AccountDetailWrapper({
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-medium">
-                        {new Intl.NumberFormat("en-US", {
-                          style: "currency",
-                          currency: opp.currency,
-                        }).format(opp.amount)}
+                        {Money.fromAmount(opp.amount, opp.currency).toDisplay()}
                       </p>
                       {opp.closeDate && (
                         <p className="text-xs text-muted-foreground">
@@ -292,13 +317,74 @@ export function AccountDetailWrapper({
           </Card>
         )}
 
-        {relationshipGraph && <RelationshipTree graph={relationshipGraph} />}
+        {documents.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Documents ({documents.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="divide-y divide-border">
+                {documents.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between py-2 first:pt-0 last:pb-0"
+                  >
+                    <div className="flex items-center gap-2">
+                      <FileText className="size-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">{doc.name}</p>
+                        <p className="text-xs text-muted-foreground">{doc.category}</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(doc.uploadedAt).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-        {!relationshipGraph && contacts.length === 0 && opportunities.length === 0 && (
+        {relationships.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Related Accounts ({relationships.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="divide-y divide-border">
+                {relationships.map((rel) => (
+                  <div
+                    key={rel.id}
+                    className="flex items-center justify-between py-2 first:pt-0 last:pb-0"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {RELATIONSHIP_LABELS[rel.kind] ?? rel.kind}
+                      </Badge>
+                      <span className="text-sm">{rel.toAccountName}</span>
+                    </div>
+                    {rel.notes && (
+                      <span className="text-xs text-muted-foreground max-w-[40%] truncate">
+                        {rel.notes}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {contacts.length === 0 && opportunities.length === 0 && documents.length === 0 && relationships.length === 0 && (
           <Card>
             <CardContent className="py-6">
               <p className="text-center text-sm text-muted-foreground">
-                No related contacts, opportunities, or linked accounts yet.
+                No related contacts, opportunities, documents, or linked accounts yet.
               </p>
             </CardContent>
           </Card>

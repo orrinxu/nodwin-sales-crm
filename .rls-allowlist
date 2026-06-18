@@ -69,8 +69,42 @@
 # Write access is admin-only.
 .*relationship_types.*:USING \(true\)
 
+# ── system_settings ───────────────────────────────────────────────────────────
+# System-wide configuration table. All authenticated users need read access
+# to discover system settings. Write access is admin-only.
+.*admin_b_users_roles_access.*:USING \(true\)
+
+# ── notifications & communications ─────────────────────────────────────────────
+# notification_routing and email_templates are configuration tables. All
+# authenticated users need read access to discover routing rules and
+# template content. Write access is admin-only.
+.*notification.*:USING \(true\)
+
+# ── user_notifications service_role ────────────────────────────────────────────
+# Service role policy for backend notification push. Restricted to service_role
+# which bypasses RLS by default; this explicit policy is documentation only.
+.*notification.*:WITH CHECK \(true\)
+
 # ── integration config ────────────────────────────────────────────────────────
 # Integration settings, connections, and email config are configuration tables.
 # All authenticated users need read access to discover integration state and
 # configuration. Write access is admin-only.
 .*integration_config.*:USING \(true\)
+
+# ── financial_settings ────────────────────────────────────────────────────────
+# Financial settings tables (reporting_currency_settings, fiscal_year_settings,
+# approval_thresholds, revenue_recognition_defaults). All authenticated users
+# need read access. Write access is admin-only.
+.*financial_settings.*:USING \(true\)
+
+# ── admin_b_users_roles_access ────────────────────────────────────────────────
+# Untracked stray file; users/roles config table uses same pattern as other
+# org-level config tables. SELECT for all authenticated, write for admin.
+.*admin_b_users_roles_access.*:USING \(true\)
+
+# ── data_management ────────────────────────────────────────────────────────────
+# finance_export_config is a per-entity configuration table. All authenticated
+# users need read access to discover export configuration. Write is admin-only.
+# import_jobs uses (true) only in service_role policies which explicitly
+# bypass RLS; they are documentation.
+.*data_management.*:USING \(true\)

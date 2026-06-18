@@ -25,6 +25,17 @@ export interface AccountRecord {
   updatedAt: string
   createdBy: string | null
   updatedBy: string | null
+  deletedAt: string | null
+}
+
+export interface AccountDocument {
+  id: string
+  name: string
+  mimeType: string
+  category: string
+  uploadedAt: string
+  linkUrl: string | null
+  driveFileId: string
 }
 
 export interface AccountListRecord extends AccountRecord {
@@ -57,10 +68,70 @@ export interface AccountOpportunity {
   id: string
   name: string
   stage: DealStage
-  amount: number
+  amount: string
   currency: string
   closeDate: string | null
   probabilityPct: number
+}
+
+export const accountCreateSchema = z.object({
+  name: z.string().min(1, "Account name is required").max(200),
+  legalName: z.string().max(200).nullable().optional().or(z.literal("")),
+  website: z.string().url("Must be a valid URL").max(500).nullable().optional().or(z.literal("")),
+  country: z.string().max(100).nullable().optional().or(z.literal("")),
+  industry: z.string().max(100).nullable().optional().or(z.literal("")),
+  description: z.string().max(5000).nullable().optional().or(z.literal("")),
+  accountOwnerUserId: z.string().uuid().nullable().optional(),
+  emailDomains: z.array(z.string().min(1)).optional(),
+  customData: z.record(z.string(), z.unknown()).optional(),
+})
+
+export const accountUpdateSchema = accountCreateSchema.partial()
+
+export type AccountCreateInput = z.infer<typeof accountCreateSchema>
+export type AccountUpdateInput = z.infer<typeof accountUpdateSchema>
+
+function toDomainAccount(data: Record<string, unknown>): AccountRecord {
+  return {
+    id: data.id as string,
+    name: data.name as string,
+    legalName: (data.legal_name as string) ?? null,
+    website: (data.website as string) ?? null,
+    country: (data.country as string) ?? null,
+    industry: (data.industry as string) ?? null,
+    description: (data.description as string) ?? null,
+    accountOwnerUserId: (data.account_owner_user_id as string) ?? null,
+    emailDomains: (data.email_domains as string[]) ?? null,
+    customData: (data.custom_data ?? {}) as Record<string, unknown>,
+    createdAt: data.created_at as string,
+    updatedAt: data.updated_at as string,
+    createdBy: (data.created_by as string) ?? null,
+    updatedBy: (data.updated_by as string) ?? null,
+    deletedAt: (data.deleted_at as string) ?? null,
+  }
+}
+
+export async function getAccountById(
+  ctx: AccountCallContext,
+  id: string,
+): Promise<AccountRecord | null> {
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("*")
+    .eq("id", id)
+    .is("deleted_at", null)
+    .single()
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      return null
+    }
+    throw new Error(`Failed to load account: ${error.message}`)
+  }
+
+  return toDomainAccount(data as Record<string, unknown>)
 }
 
 export type AccountRelationshipKind =
@@ -94,6 +165,7 @@ export async function getAccountRelationshipGraph(
     .from("accounts")
     .select("id, name")
     .eq("id", accountId)
+    .is("deleted_at", null)
     .single()
 
   if (accountError) {
@@ -154,64 +226,6 @@ export async function getAccountRelationshipGraph(
   }
 }
 
-export const accountCreateSchema = z.object({
-  name: z.string().min(1, "Account name is required").max(200),
-  legalName: z.string().max(200).nullable().optional().or(z.literal("")),
-  website: z.string().url("Must be a valid URL").max(500).nullable().optional().or(z.literal("")),
-  country: z.string().max(100).nullable().optional().or(z.literal("")),
-  industry: z.string().max(100).nullable().optional().or(z.literal("")),
-  description: z.string().max(5000).nullable().optional().or(z.literal("")),
-  accountOwnerUserId: z.string().uuid().nullable().optional(),
-  emailDomains: z.array(z.string().email("Must be a valid email")).optional(),
-  customData: z.record(z.string(), z.unknown()).optional(),
-})
-
-export const accountUpdateSchema = accountCreateSchema.partial()
-
-export type AccountCreateInput = z.infer<typeof accountCreateSchema>
-export type AccountUpdateInput = z.infer<typeof accountUpdateSchema>
-
-function toDomainAccount(data: Record<string, unknown>): AccountRecord {
-  return {
-    id: data.id as string,
-    name: data.name as string,
-    legalName: (data.legal_name as string) ?? null,
-    website: (data.website as string) ?? null,
-    country: (data.country as string) ?? null,
-    industry: (data.industry as string) ?? null,
-    description: (data.description as string) ?? null,
-    accountOwnerUserId: (data.account_owner_user_id as string) ?? null,
-    emailDomains: (data.email_domains as string[]) ?? null,
-    customData: (data.custom_data ?? {}) as Record<string, unknown>,
-    createdAt: data.created_at as string,
-    updatedAt: data.updated_at as string,
-    createdBy: (data.created_by as string) ?? null,
-    updatedBy: (data.updated_by as string) ?? null,
-  }
-}
-
-export async function getAccountById(
-  ctx: AccountCallContext,
-  id: string,
-): Promise<AccountRecord | null> {
-  const supabase = await createServerClient()
-
-  const { data, error } = await supabase
-    .from("accounts")
-    .select("*")
-    .eq("id", id)
-    .single()
-
-  if (error) {
-    if (error.code === "PGRST116") {
-      return null
-    }
-    throw new Error(`Failed to load account: ${error.message}`)
-  }
-
-  return toDomainAccount(data as Record<string, unknown>)
-}
-
 function toDomainAccountListRecord(data: Record<string, unknown>): AccountListRecord {
   const owner = data.owner as { full_name: string } | null
   return {
@@ -239,6 +253,7 @@ export async function getAccounts(
       `,
       { count: "exact" },
     )
+    .is("deleted_at", null)
 
   if (params?.query) {
     const q = `%${params.query}%`
@@ -366,7 +381,7 @@ export async function getOpportunitiesForAccount(
     id: r.id as string,
     name: r.name as string,
     stage: r.stage as DealStage,
-    amount: Number(r.amount ?? 0),
+    amount: String(r.amount ?? "0"),
     currency: (r.currency as string) ?? "USD",
     closeDate: (r.close_date as string) ?? null,
     probabilityPct: Number(r.probability_pct ?? 0),
@@ -488,6 +503,28 @@ export async function bulkDeleteAccounts(
   }
 }
 
+export async function softDeleteAccount(
+  ctx: AccountCallContext,
+  id: string,
+): Promise<AccountRecord> {
+  void ctx
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("accounts")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("deleted_at", null)
+    .select("*")
+    .single()
+
+  if (error) {
+    throw new Error(`Failed to soft-delete account: ${error.message}`)
+  }
+
+  return toDomainAccount(data as Record<string, unknown>)
+}
+
 export async function getIndustryOptions(
   ctx: AccountCallContext,
 ): Promise<string[]> {
@@ -497,6 +534,7 @@ export async function getIndustryOptions(
   const { data, error } = await supabase
     .from("accounts")
     .select("industry")
+    .is("deleted_at", null)
     .not("industry", "is", null)
     .order("industry")
 
@@ -531,4 +569,94 @@ export async function getOwnerOptions(
     id: r.id as string,
     name: (r.full_name as string) || (r.email as string) || "\u2014",
   }))
+}
+
+export async function getAccountLinkedOpportunities(
+  ctx: AccountCallContext,
+  accountId: string,
+): Promise<AccountOpportunity[]> {
+  return getOpportunitiesForAccount(ctx, accountId)
+}
+
+export async function getAccountLinkedContacts(
+  ctx: AccountCallContext,
+  accountId: string,
+): Promise<Pick<ContactRecord, "id" | "fullName" | "title" | "email">[]> {
+  return getContactsForAccount(ctx, accountId)
+}
+
+export async function getAccountLinkedDocuments(
+  ctx: AccountCallContext,
+  accountId: string,
+): Promise<AccountDocument[]> {
+  void ctx
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("documents")
+    .select("id, name, mime_type, category, uploaded_at, link_url, drive_file_id")
+    .eq("account_id", accountId)
+    .order("uploaded_at", { ascending: false })
+
+  if (error) {
+    throw new Error(`Failed to load linked documents: ${error.message}`)
+  }
+
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    id: r.id as string,
+    name: r.name as string,
+    mimeType: r.mime_type as string,
+    category: r.category as string,
+    uploadedAt: r.uploaded_at as string,
+    linkUrl: (r.link_url as string) ?? null,
+    driveFileId: r.drive_file_id as string,
+  }))
+}
+
+export async function getAccountOwnerOptions(
+  ctx: AccountCallContext,
+): Promise<{ id: string; name: string }[]> {
+  return getOwnerOptions(ctx)
+}
+
+export async function createAccountRelationship(
+  ctx: AccountCallContext,
+  input: { fromAccountId: string; toAccountId: string; kind: AccountRelationshipKind; notes?: string | null },
+): Promise<void> {
+  void ctx.user
+  const supabase = await createServerClient()
+
+  const { error } = await supabase
+    .from("account_relationships")
+    .insert({
+      from_account_id: input.fromAccountId,
+      to_account_id: input.toAccountId,
+      kind: input.kind,
+      notes: input.notes ?? null,
+    })
+
+  if (error) {
+    throw new Error(`Failed to create account relationship: ${error.message}`)
+  }
+}
+
+export async function upsertAccountRelationship(
+  ctx: AccountCallContext,
+  input: { fromAccountId: string; toAccountId: string; kind: AccountRelationshipKind; notes?: string | null },
+): Promise<void> {
+  void ctx.user
+  const supabase = await createServerClient()
+
+  const { error } = await supabase
+    .from("account_relationships")
+    .upsert({
+      from_account_id: input.fromAccountId,
+      to_account_id: input.toAccountId,
+      kind: input.kind,
+      notes: input.notes ?? null,
+    }, { onConflict: "from_account_id, to_account_id, kind" })
+
+  if (error) {
+    throw new Error(`Failed to upsert account relationship: ${error.message}`)
+  }
 }

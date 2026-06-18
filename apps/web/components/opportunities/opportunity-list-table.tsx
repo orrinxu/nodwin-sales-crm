@@ -237,7 +237,7 @@ export function OpportunityListTable({
         </div>
       )}
 
-      <div className="rounded-lg border">
+      <div className="overflow-x-auto rounded-lg border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (

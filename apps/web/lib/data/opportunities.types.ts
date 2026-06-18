@@ -1,5 +1,33 @@
 import type { DealStage } from "@/lib/opportunity"
 
+export const PROJECT_TYPES = [
+  "ip",
+  "white_label",
+  "media_rights",
+  "d2c_retail",
+  "d2c_pins",
+  "d2c_touring",
+  "consulting_tech",
+  "consulting_ideas",
+  "talent_management",
+  "pr_services",
+  "other",
+] as const
+
+export type ProjectType = (typeof PROJECT_TYPES)[number]
+
+export const REVENUE_CATEGORIES = ["live", "content"] as const
+
+export type RevenueCategory = (typeof REVENUE_CATEGORIES)[number]
+
+export const RECURRING_SPLIT_KINDS = ["flat", "custom"] as const
+
+export type RecurringSplitKind = (typeof RECURRING_SPLIT_KINDS)[number]
+
+export const VISIBILITY_TIERS = ["standard", "restricted", "confidential"] as const
+
+export type VisibilityTier = (typeof VISIBILITY_TIERS)[number]
+
 export interface OpportunityRecord {
   id: string
   name: string
@@ -13,10 +41,23 @@ export interface OpportunityRecord {
   currency: string
   ownerUserId: string
   ownerName: string | null
+  salesInitiatorUserId: string
   salesUnitId: string
+  revenueRecognitionUnitId: string | null
+  billingEntityId: string | null
+  servicePeriodStart: string | null
+  servicePeriodEnd: string | null
+  executionDate: string | null
+  estimatedGrossMarginPct: number | null
+  countryExecution: string | null
+  projectType: string | null
+  revenueCategory: string | null
+  recurring: boolean
+  recurringSplitKind: string | null
   description: string | null
   closeDate: string | null
   lossReason: string | null
+  visibilityTier: string
   customData: Record<string, unknown>
   createdAt: string
   updatedAt: string
@@ -38,7 +79,6 @@ const stageLabels: Record<DealStage, string> = {
 }
 
 export function getStageLabel(stage: DealStage): string {
-  // eslint-disable-next-line security/detect-object-injection -- stage is typed DealStage
   return stageLabels[stage]
 }
 
@@ -50,13 +90,29 @@ export interface BusinessUnitOption {
 export interface OpportunityCreateInput {
   name: string
   accountId: string
+  primaryContactId?: string
+  stage: DealStage
   amount?: string
   currency?: string
   closeDate?: string
   description?: string
   ownerUserId?: string
+  salesInitiatorUserId?: string
   salesUnitId: string
+  revenueRecognitionUnitId?: string
+  billingEntityId?: string
+  servicePeriodStart?: string
+  servicePeriodEnd?: string
+  executionDate?: string
+  estimatedGrossMarginPct?: number
+  countryExecution?: string
+  projectType?: ProjectType
+  revenueCategory?: RevenueCategory
+  recurring?: boolean
+  recurringSplitKind?: RecurringSplitKind
   probabilityPct?: number
+  visibilityTier?: VisibilityTier
+  lossReason?: string
   customData?: Record<string, unknown>
 }
 

@@ -14,6 +14,7 @@ import {
   TabsTab,
   TabsPanel,
 } from "@/components/ui/tabs"
+import type { EntityOption } from "@/components/entity-combobox"
 import type { OpportunityRecord, BusinessUnitOption } from "@/lib/data/opportunities.types"
 import type { ActivityRecord } from "@/lib/data/activities"
 import { getStageLabel } from "@/lib/data/opportunities.types"
@@ -23,17 +24,21 @@ import { Money } from "@/lib/money"
 interface OpportunityDetailWrapperProps {
   opportunity: OpportunityRecord
   businessUnits: BusinessUnitOption[]
+  users?: EntityOption[]
   updateAction: (id: string, input: unknown) => Promise<OpportunityRecord>
   activities: ActivityRecord[]
   createActivityAction: (opportunityId: string, input: unknown) => Promise<ActivityRecord>
+  searchUsersAction?: (query: string) => Promise<EntityOption[]>
 }
 
 export function OpportunityDetailWrapper({
   opportunity,
   businessUnits,
+  users,
   updateAction,
   activities,
   createActivityAction,
+  searchUsersAction,
 }: OpportunityDetailWrapperProps) {
   const router = useRouter()
 
@@ -50,11 +55,13 @@ export function OpportunityDetailWrapper({
         <OpportunityForm
           opportunity={opportunity}
           businessUnits={businessUnits}
+          users={users}
           createAction={async () => { throw new Error("Not available") }}
           updateAction={updateAction}
           onSuccess={() => {
             router.refresh()
           }}
+          searchUsersAction={searchUsersAction}
           trigger={
             <Button variant="outline" size="sm">
               <Pencil className="size-4" />

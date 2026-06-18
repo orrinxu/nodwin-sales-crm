@@ -42,6 +42,8 @@ import {
 import { Card } from "@/components/ui/card"
 import { AccountForm } from "@/components/accounts/account-form"
 import type { AccountListRecord, AccountCreateInput, AccountRecord } from "@/lib/data/accounts"
+import type { FieldDefinition } from "@/lib/data/field-definitions.types"
+import type { EntityOption } from "@/components/entity-combobox"
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "—"
@@ -59,7 +61,10 @@ function formatDate(dateStr: string | null): string {
 interface AccountsListProps {
   accounts: AccountListRecord[]
   industryOptions: string[]
-  ownerOptions: { id: string; name: string }[]
+  ownerOptions: EntityOption[]
+  accountOptions: EntityOption[]
+  fieldDefinitions?: FieldDefinition[]
+  currentUserId?: string
   createAction: (input: AccountCreateInput) => Promise<AccountRecord>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
 }
@@ -68,6 +73,9 @@ export function AccountsList({
   accounts,
   industryOptions,
   ownerOptions,
+  accountOptions,
+  fieldDefinitions = [],
+  currentUserId,
   createAction,
   bulkDeleteAction,
 }: AccountsListProps) {
@@ -287,6 +295,10 @@ export function AccountsList({
         </div>
         <AccountForm
           createAction={createAction}
+          ownerOptions={ownerOptions}
+          accountOptions={accountOptions}
+          fieldDefinitions={fieldDefinitions}
+          currentUserId={currentUserId}
           onSuccess={() => router.refresh()}
         />
       </div>

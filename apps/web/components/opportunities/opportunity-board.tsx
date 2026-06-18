@@ -23,6 +23,7 @@ import {
 } from "@/lib/data/opportunities.types"
 import type { OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/opportunities.types"
 import type { AccountOption } from "@/lib/data/contacts"
+import type { EntityOption } from "@/components/entity-combobox"
 import { OpportunityCard } from "@/components/opportunities/opportunity-card"
 import { OpportunityColumn } from "@/components/opportunities/opportunity-column"
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
@@ -32,19 +33,29 @@ interface OpportunityBoardProps {
   opportunities: OpportunityRecord[]
   accounts: AccountOption[]
   businessUnits: BusinessUnitOption[]
+  users?: EntityOption[]
   createAction: (input: OpportunityCreateInput) => Promise<OpportunityRecord>
   updateStageAction: (
     id: string,
     input: { stage: string },
   ) => Promise<OpportunityRecord>
+  searchAccountsAction?: (query: string) => Promise<EntityOption[]>
+  searchContactsAction?: (query: string, accountId?: string) => Promise<EntityOption[]>
+  searchUsersAction?: (query: string) => Promise<EntityOption[]>
+  createContactQuickAction?: (input: { fullName: string; email?: string; accountId?: string }) => Promise<EntityOption>
 }
 
 export function OpportunityBoard({
   opportunities,
   accounts,
   businessUnits,
+  users,
   createAction,
   updateStageAction,
+  searchAccountsAction,
+  searchContactsAction,
+  searchUsersAction,
+  createContactQuickAction,
 }: OpportunityBoardProps) {
   const router = useRouter()
   const [activeOpportunity, setActiveOpportunity] =
@@ -113,19 +124,25 @@ export function OpportunityBoard({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex flex-1 flex-col gap-4 p-6 pt-0">
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-0 lg:p-6 lg:pt-0">
         <div className="flex items-center justify-end gap-2">
           <OpportunityQuickCreate
-            accounts={accounts}
+            accounts={accounts.map((a) => ({ id: a.id, label: a.name }))}
             businessUnits={businessUnits}
             createAction={createAction}
             onSuccess={() => router.refresh()}
+            searchAccountsAction={searchAccountsAction}
           />
           <OpportunityForm
             accounts={accounts}
             businessUnits={businessUnits}
+            users={users}
             createAction={createAction}
             onSuccess={() => router.refresh()}
+            searchAccountsAction={searchAccountsAction}
+            searchContactsAction={searchContactsAction}
+            searchUsersAction={searchUsersAction}
+            createContactQuickAction={createContactQuickAction}
           />
         </div>
 

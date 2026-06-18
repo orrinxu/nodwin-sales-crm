@@ -57,13 +57,12 @@ VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Test Account', ARRAY['test.com'
 
 -- Insert test opportunity (standard tier).
 INSERT INTO public.opportunities (
-  id, name, account_id, stage, owner_user_id, sales_initiator_user_id, sales_unit_id, amount, currency, visibility_tier
+  id, name, account_id, stage, owner_user_id, sales_unit_id, amount, currency, visibility_tier
 ) VALUES (
   '00000000-0000-0000-0000-000000000001',
   'Standard Opp',
   'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
   'qualify',
-  '10000000-0000-0000-0000-000000000001',
   '10000000-0000-0000-0000-000000000001',
   'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
   100000, 'USD',
@@ -97,13 +96,12 @@ UPDATE public.users
 
 -- NG India deal — owned by other@nodwin.com.
 INSERT INTO public.opportunities (
-  id, name, account_id, stage, owner_user_id, sales_initiator_user_id, sales_unit_id, amount, currency, visibility_tier
+  id, name, account_id, stage, owner_user_id, sales_unit_id, amount, currency, visibility_tier
 ) VALUES (
   'd0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0',
   'NG India Opp',
   'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
   'propose',
-  '10000000-0000-0000-0000-000000000007',
   '10000000-0000-0000-0000-000000000007',
   'b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0',
   50000, 'INR',
@@ -396,7 +394,7 @@ SELECT is(
 SELECT tests.as_user('other@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT throws_ok(
-  $$INSERT INTO public.opportunities (id, name, account_id, stage, owner_user_id, sales_initiator_user_id, sales_unit_id, amount, currency, visibility_tier) VALUES ('00000000-0000-0000-0000-000000000002', 'Bad Opp', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'qualify', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 100000, 'USD', 'standard')$$,
+  $$INSERT INTO public.opportunities (id, name, account_id, stage, owner_user_id, sales_unit_id, amount, currency, visibility_tier) VALUES ('00000000-0000-0000-0000-000000000002', 'Bad Opp', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'qualify', '10000000-0000-0000-0000-000000000001', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 100000, 'USD', 'standard')$$,
   '42501',
   NULL,
   'non-owner cannot insert opportunity'
@@ -406,13 +404,13 @@ SELECT throws_ok(
 SELECT tests.as_user('owner@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT lives_ok(
-  $$INSERT INTO public.opportunities (id, name, account_id, stage, owner_user_id, sales_initiator_user_id, sales_unit_id, amount, currency, visibility_tier) VALUES ('00000000-0000-0000-0000-000000000003', 'New Opp', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'qualify', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 100000, 'USD', 'standard')$$,
+  $$INSERT INTO public.opportunities (id, name, account_id, stage, owner_user_id, sales_unit_id, amount, currency, visibility_tier) VALUES ('00000000-0000-0000-0000-000000000003', 'New Opp', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'qualify', '10000000-0000-0000-0000-000000000001', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 100000, 'USD', 'standard')$$,
   'owner can insert opportunity'
 );
 
 -- ── 31. Owner cannot spoof another user's opportunity ─────────────────────────
 SELECT throws_ok(
-  $$INSERT INTO public.opportunities (id, name, account_id, stage, owner_user_id, sales_initiator_user_id, sales_unit_id, amount, currency, visibility_tier) VALUES ('00000000-0000-0000-0000-000000000004', 'Spoofed Opp', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'qualify', '10000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 100000, 'USD', 'standard')$$,
+  $$INSERT INTO public.opportunities (id, name, account_id, stage, owner_user_id, sales_unit_id, amount, currency, visibility_tier) VALUES ('00000000-0000-0000-0000-000000000004', 'Spoofed Opp', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'qualify', '10000000-0000-0000-0000-000000000002', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 100000, 'USD', 'standard')$$,
   '42501',
   NULL,
   'owner cannot insert opportunity for another user'

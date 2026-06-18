@@ -12,28 +12,36 @@ import type {
   OpportunityRecord,
   OpportunityListResult,
   BusinessUnitOption,
-  OpportunityCreateInput,
   OpportunitySplit,
-  OpportunitySplitsUpdateInput,
+  OpportunitySplitInput,
   OpportunityTeamMember,
+  OpportunityTeamMemberInput,
   UserOption,
+  OpportunityCreateInput as OCI_Interface,
+  OpportunitySplitsUpdateInput as OSUI_Interface,
 } from "./opportunities.types"
-import { getStageLabel } from "./opportunities.types"
+import {
+  getStageLabel,
+  PROJECT_TYPES,
+  REVENUE_CATEGORIES,
+  RECURRING_SPLIT_KINDS,
+  VISIBILITY_TIERS,
+} from "./opportunities.types"
 
 export type {
   OpportunityRecord,
   OpportunityListResult,
   BusinessUnitOption,
-  OpportunityCreateInput,
   OpportunitySplit,
   OpportunitySplitInput,
-  OpportunitySplitsUpdateInput,
   OpportunityTeamMember,
   OpportunityTeamMemberInput,
   UserOption,
 } from "./opportunities.types"
 
 export { getStageLabel } from "./opportunities.types"
+
+export { PROJECT_TYPES, REVENUE_CATEGORIES, RECURRING_SPLIT_KINDS, VISIBILITY_TIERS }
 
 export interface OpportunityCallContext {
   user: AuthenticatedUser
@@ -63,10 +71,25 @@ function toDomainOpportunity(data: Record<string, unknown>): OpportunityRecord {
     currency,
     ownerUserId: data.owner_user_id as string,
     ownerName: owner?.full_name ?? null,
+    salesInitiatorUserId: data.sales_initiator_user_id as string,
     salesUnitId: data.sales_unit_id as string,
+    revenueRecognitionUnitId: (data.revenue_recognition_unit_id as string) ?? null,
+    billingEntityId: (data.billing_entity_id as string) ?? null,
+    servicePeriodStart: (data.service_period_start as string) ?? null,
+    servicePeriodEnd: (data.service_period_end as string) ?? null,
+    executionDate: (data.execution_date as string) ?? null,
+    estimatedGrossMarginPct: data.estimated_gross_margin_pct != null
+      ? Number(data.estimated_gross_margin_pct)
+      : null,
+    countryExecution: (data.country_execution as string) ?? null,
+    projectType: (data.project_type as string) ?? null,
+    revenueCategory: (data.revenue_category as string) ?? null,
+    recurring: Boolean(data.recurring),
+    recurringSplitKind: (data.recurring_split_kind as string) ?? null,
     description: (data.description as string) ?? null,
     closeDate: (data.close_date as string) ?? null,
     lossReason: (data.loss_reason as string) ?? null,
+    visibilityTier: (data.visibility_tier as string) ?? "standard",
     customData: (data.custom_data ?? {}) as Record<string, unknown>,
     createdAt: data.created_at as string,
     updatedAt: data.updated_at as string,
@@ -91,10 +114,23 @@ export async function getOpportunities(
       amount,
       currency,
       owner_user_id,
+      sales_initiator_user_id,
       sales_unit_id,
+      revenue_recognition_unit_id,
+      billing_entity_id,
+      service_period_start,
+      service_period_end,
+      execution_date,
+      estimated_gross_margin_pct,
+      country_execution,
+      project_type,
+      revenue_category,
+      recurring,
+      recurring_split_kind,
       description,
       close_date,
       loss_reason,
+      visibility_tier,
       custom_data,
       created_at,
       updated_at,
@@ -134,10 +170,23 @@ export async function getOpportunityById(
       amount,
       currency,
       owner_user_id,
+      sales_initiator_user_id,
       sales_unit_id,
+      revenue_recognition_unit_id,
+      billing_entity_id,
+      service_period_start,
+      service_period_end,
+      execution_date,
+      estimated_gross_margin_pct,
+      country_execution,
+      project_type,
+      revenue_category,
+      recurring,
+      recurring_split_kind,
       description,
       close_date,
       loss_reason,
+      visibility_tier,
       custom_data,
       created_at,
       updated_at,
@@ -178,9 +227,15 @@ export async function getBusinessUnitOptions(
   }))
 }
 
-export const opportunityCreateSchema = z.object({
+const opportunityCreateObject = z.object({
   name: z.string().min(1, "Name is required").max(200),
   accountId: z.string().min(1, "Account is required"),
+  primaryContactId: z.string().optional(),
+  stage: z.enum(DEAL_STAGES),
+  salesInitiatorUserId: z.string().optional(),
+  salesUnitId: z.string().min(1, "Sales unit is required"),
+  revenueRecognitionUnitId: z.string().optional(),
+  billingEntityId: z.string().optional(),
   amount: z.preprocess(
     (val) => {
       if (val === undefined || val === "" || val === 0) return undefined
@@ -189,15 +244,66 @@ export const opportunityCreateSchema = z.object({
     z.string().optional(),
   ),
   currency: z.string().max(10).optional(),
+  servicePeriodStart: z.string().optional().or(z.literal("")),
+  servicePeriodEnd: z.string().optional().or(z.literal("")),
   closeDate: z.string().optional().or(z.literal("")),
+  executionDate: z.string().optional().or(z.literal("")),
+  estimatedGrossMarginPct: z.coerce.number().optional(),
+  countryExecution: z.string().max(100).optional().or(z.literal("")),
+  projectType: z.enum(PROJECT_TYPES).optional(),
+  revenueCategory: z.enum(REVENUE_CATEGORIES).optional(),
+  recurring: z.coerce.boolean().optional(),
+  recurringSplitKind: z.enum(RECURRING_SPLIT_KINDS).optional(),
   description: z.string().max(2000).optional().or(z.literal("")),
+  lossReason: z.string().max(2000).optional().or(z.literal("")),
   ownerUserId: z.string().optional(),
-  salesUnitId: z.string().min(1, "Sales unit is required"),
   probabilityPct: z.coerce.number().min(0).max(100).optional(),
+  visibilityTier: z.enum(VISIBILITY_TIERS).optional(),
   customData: z.record(z.string(), z.unknown()).optional(),
 })
 
-export const opportunityUpdateSchema = opportunityCreateSchema.partial()
+export const opportunityCreateSchema = opportunityCreateObject
+  .superRefine((data, ctx) => {
+    if (data.recurring && !data.recurringSplitKind) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Recurring split kind is required when recurring is enabled",
+        path: ["recurringSplitKind"],
+      })
+    }
+  })
+  .superRefine((data, ctx) => {
+    if (data.stage === "closed_lost" && !data.lossReason) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Loss reason is required when stage is Closed Lost",
+        path: ["lossReason"],
+      })
+    }
+  })
+
+export type OpportunityCreateInput = z.infer<typeof opportunityCreateSchema>
+
+export const opportunityUpdateSchema = opportunityCreateObject
+  .partial()
+  .superRefine((data, ctx) => {
+    if (data.recurring && !data.recurringSplitKind) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Recurring split kind is required when recurring is enabled",
+        path: ["recurringSplitKind"],
+      })
+    }
+  })
+  .superRefine((data, ctx) => {
+    if (data.stage === "closed_lost" && !data.lossReason) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Loss reason is required when stage is Closed Lost",
+        path: ["lossReason"],
+      })
+    }
+  })
 
 export type OpportunityUpdateInput = z.infer<typeof opportunityUpdateSchema>
 
@@ -215,21 +321,62 @@ export async function createOpportunity(
     name: parsed.name,
     account_id: parsed.accountId,
     owner_user_id: parsed.ownerUserId ?? ctx.user.id,
-    sales_initiator_user_id: ctx.user.id,
+    sales_initiator_user_id: parsed.salesInitiatorUserId ?? ctx.user.id,
     sales_unit_id: parsed.salesUnitId,
+    stage: parsed.stage,
     amount: amountMoney.toAmount(),
     currency,
     probability_pct: parsed.probabilityPct ?? 0,
   }
 
+  if (parsed.primaryContactId) {
+    dbData.primary_contact_id = parsed.primaryContactId
+  }
+  if (parsed.revenueRecognitionUnitId) {
+    dbData.revenue_recognition_unit_id = parsed.revenueRecognitionUnitId
+  }
+  if (parsed.billingEntityId) {
+    dbData.billing_entity_id = parsed.billingEntityId
+  }
+  if (parsed.servicePeriodStart) {
+    dbData.service_period_start = parsed.servicePeriodStart
+  }
+  if (parsed.servicePeriodEnd) {
+    dbData.service_period_end = parsed.servicePeriodEnd
+  }
   if (parsed.closeDate) {
     dbData.close_date = parsed.closeDate
   }
-
+  if (parsed.executionDate) {
+    dbData.execution_date = parsed.executionDate
+  }
+  if (parsed.estimatedGrossMarginPct != null) {
+    dbData.estimated_gross_margin_pct = parsed.estimatedGrossMarginPct
+  }
+  if (parsed.countryExecution) {
+    dbData.country_execution = parsed.countryExecution
+  }
+  if (parsed.projectType) {
+    dbData.project_type = parsed.projectType
+  }
+  if (parsed.revenueCategory) {
+    dbData.revenue_category = parsed.revenueCategory
+  }
+  if (parsed.recurring !== undefined) {
+    dbData.recurring = parsed.recurring
+  }
+  if (parsed.recurringSplitKind) {
+    dbData.recurring_split_kind = parsed.recurringSplitKind
+  }
   if (parsed.description) {
     dbData.description = parsed.description
   }
-
+  if (parsed.lossReason) {
+    dbData.loss_reason = parsed.lossReason
+  }
+  if (parsed.visibilityTier) {
+    dbData.visibility_tier = parsed.visibilityTier
+  }
   if (parsed.customData) {
     dbData.custom_data = parsed.customData
   }
@@ -248,10 +395,23 @@ export async function createOpportunity(
       amount,
       currency,
       owner_user_id,
+      sales_initiator_user_id,
       sales_unit_id,
+      revenue_recognition_unit_id,
+      billing_entity_id,
+      service_period_start,
+      service_period_end,
+      execution_date,
+      estimated_gross_margin_pct,
+      country_execution,
+      project_type,
+      revenue_category,
+      recurring,
+      recurring_split_kind,
       description,
       close_date,
       loss_reason,
+      visibility_tier,
       custom_data,
       created_at,
       updated_at,
@@ -265,7 +425,19 @@ export async function createOpportunity(
     throw new Error(`Failed to create opportunity: ${error.message}`)
   }
 
-  return toDomainOpportunity(data as Record<string, unknown>)
+  const opportunity = toDomainOpportunity(data as Record<string, unknown>)
+
+  if (opportunity.ownerUserId && opportunity.ownerUserId !== ctx.user.id) {
+    import("../notifications/triggers").then(({ notifyDealAssigned }) =>
+      notifyDealAssigned({
+        opportunityId: opportunity.id,
+        opportunityName: opportunity.name,
+        newOwnerUserId: opportunity.ownerUserId!,
+      }),
+    )
+  }
+
+  return opportunity
 }
 
 export async function updateOpportunity(
@@ -283,16 +455,32 @@ export async function updateOpportunity(
 
   if (parsed.name !== undefined) dbData.name = parsed.name
   if (parsed.accountId !== undefined) dbData.account_id = parsed.accountId
+  if (parsed.primaryContactId !== undefined) dbData.primary_contact_id = parsed.primaryContactId || null
+  if (parsed.stage !== undefined) dbData.stage = parsed.stage
   if (parsed.amount !== undefined) {
     const updateCurrency = parsed.currency ?? existing.currency
     dbData.amount = Money.fromAmount(parsed.amount, updateCurrency).toAmount()
   }
   if (parsed.currency !== undefined) dbData.currency = parsed.currency
+  if (parsed.servicePeriodStart !== undefined) dbData.service_period_start = parsed.servicePeriodStart || null
+  if (parsed.servicePeriodEnd !== undefined) dbData.service_period_end = parsed.servicePeriodEnd || null
   if (parsed.closeDate !== undefined) dbData.close_date = parsed.closeDate || null
+  if (parsed.executionDate !== undefined) dbData.execution_date = parsed.executionDate || null
+  if (parsed.estimatedGrossMarginPct !== undefined) dbData.estimated_gross_margin_pct = parsed.estimatedGrossMarginPct ?? null
+  if (parsed.countryExecution !== undefined) dbData.country_execution = parsed.countryExecution || null
+  if (parsed.projectType !== undefined) dbData.project_type = parsed.projectType || null
+  if (parsed.revenueCategory !== undefined) dbData.revenue_category = parsed.revenueCategory || null
+  if (parsed.recurring !== undefined) dbData.recurring = parsed.recurring
+  if (parsed.recurringSplitKind !== undefined) dbData.recurring_split_kind = parsed.recurringSplitKind || null
   if (parsed.description !== undefined) dbData.description = parsed.description || null
+  if (parsed.lossReason !== undefined) dbData.loss_reason = parsed.lossReason || null
   if (parsed.ownerUserId !== undefined) dbData.owner_user_id = parsed.ownerUserId
+  if (parsed.salesInitiatorUserId !== undefined) dbData.sales_initiator_user_id = parsed.salesInitiatorUserId
   if (parsed.salesUnitId !== undefined) dbData.sales_unit_id = parsed.salesUnitId
+  if (parsed.revenueRecognitionUnitId !== undefined) dbData.revenue_recognition_unit_id = parsed.revenueRecognitionUnitId || null
+  if (parsed.billingEntityId !== undefined) dbData.billing_entity_id = parsed.billingEntityId || null
   if (parsed.probabilityPct !== undefined) dbData.probability_pct = parsed.probabilityPct
+  if (parsed.visibilityTier !== undefined) dbData.visibility_tier = parsed.visibilityTier || null
   if (parsed.customData !== undefined) dbData.custom_data = parsed.customData
 
   if (Object.keys(dbData).length > 0) {
@@ -308,6 +496,21 @@ export async function updateOpportunity(
 
   const updated = await getOpportunityById(ctx, id)
   if (!updated) throw new Error("Opportunity not found after update")
+
+  if (
+    parsed.ownerUserId !== undefined &&
+    parsed.ownerUserId !== existing.ownerUserId
+  ) {
+    const newOwnerUserId = parsed.ownerUserId
+    import("../notifications/triggers").then(({ notifyDealAssigned }) =>
+      notifyDealAssigned({
+        opportunityId: updated.id,
+        opportunityName: updated.name,
+        newOwnerUserId,
+      }),
+    )
+  }
+
   return updated
 }
 
@@ -348,6 +551,17 @@ export async function updateOpportunityStage(
         historyError instanceof Error ? historyError.message : historyError,
       )
     }
+
+    import("../notifications/triggers").then(({ notifyStageChange }) =>
+      notifyStageChange({
+        opportunityId: id,
+        opportunityName: existing.name,
+        fromStage: existing.stage,
+        toStage: parsed.stage,
+        event,
+        ownerUserId: existing.ownerUserId ?? ctx.user.id,
+      }),
+    )
   }
 
   const updated = await getOpportunityById(ctx, id)
@@ -404,7 +618,7 @@ export async function bulkDeleteOpportunities(
 
 // ── Opportunity Splits ──────────────────────────────────────────────────────────
 
-export const opportunitySplitSchema = z.object({
+const opportunitySplitSchema = z.object({
   salesUnitId: z.string().min(1, "Sales unit is required"),
   userId: z.string().nullable().optional(),
   pct: z.coerce.number().min(0).max(100),
@@ -414,6 +628,8 @@ export const opportunitySplitSchema = z.object({
 export const opportunitySplitsUpdateSchema = z.object({
   splits: z.array(opportunitySplitSchema),
 })
+
+export type OpportunitySplitsUpdateInput = z.infer<typeof opportunitySplitsUpdateSchema>
 
 export async function getOpportunitySplits(
   ctx: OpportunityCallContext,
@@ -490,7 +706,7 @@ export async function updateOpportunitySplits(
 
 // ── Opportunity Team Members ────────────────────────────────────────────────────
 
-export const opportunityTeamMemberSchema = z.object({
+const opportunityTeamMemberSchema = z.object({
   userId: z.string().min(1, "User is required"),
   role: z.enum(["owner", "contributor", "viewer", "approver"]),
 })
@@ -599,12 +815,11 @@ export async function getUserOptions(
   }))
 }
 
-// ── Type equivalence assertions (z.infer must match canonical interfaces) ───────
+// ── Type-equivalence assertions ─────────────────────────────────────────────────
 
-/* eslint-disable @typescript-eslint/no-unused-vars */
-type _Assert<T extends true> = T
-type _A1 = _Assert<z.infer<typeof opportunityCreateSchema> extends import("./opportunities.types").OpportunityCreateInput ? true : false>
-type _A2 = _Assert<import("./opportunities.types").OpportunityCreateInput extends z.infer<typeof opportunityCreateSchema> ? true : false>
-type _A3 = _Assert<z.infer<typeof opportunitySplitsUpdateSchema> extends import("./opportunities.types").OpportunitySplitsUpdateInput ? true : false>
-type _A4 = _Assert<import("./opportunities.types").OpportunitySplitsUpdateInput extends z.infer<typeof opportunitySplitsUpdateSchema> ? true : false>
-/* eslint-enable @typescript-eslint/no-unused-vars */
+const _A1: OCI_Interface = null! as z.infer<typeof opportunityCreateSchema>
+const _A2: z.infer<typeof opportunityCreateSchema> = null! as OCI_Interface
+const _A3: OSUI_Interface = null! as z.infer<typeof opportunitySplitsUpdateSchema>
+const _A4: z.infer<typeof opportunitySplitsUpdateSchema> = null! as OSUI_Interface
+
+void _A1; void _A2; void _A3; void _A4
