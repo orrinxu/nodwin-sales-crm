@@ -49,6 +49,10 @@ const mockOpportunity = {
   description: null,
   closeDate: null,
   lossReason: null,
+  serviceType: null,
+  propertyType: null,
+  barterValue: null,
+  entitySalesId: null,
   visibilityTier: "standard" as const,
   customData: {},
   createdAt: "2026-01-01T00:00:00Z",
@@ -306,7 +310,7 @@ describe("OpportunityForm", () => {
       render(<OpportunityForm {...defaultProps} />)
       await expandSectionB(user)
 
-      const recurringCheckbox = screen.getByRole("checkbox")
+      const recurringCheckbox = screen.getByRole("checkbox", { name: "Recurring" })
       await user.click(recurringCheckbox)
 
       expect(screen.getByText("Recurring Split Kind")).toBeInTheDocument()
@@ -317,7 +321,7 @@ describe("OpportunityForm", () => {
       render(<OpportunityForm {...defaultProps} />)
       await expandSectionB(user)
 
-      const checkbox = screen.getByRole("checkbox")
+      const checkbox = screen.getByRole("checkbox", { name: "Recurring" })
       await user.click(checkbox)
       expect(screen.getByText("Recurring Split Kind")).toBeInTheDocument()
 
@@ -334,7 +338,7 @@ describe("OpportunityForm", () => {
       render(<OpportunityForm {...defaultProps} />)
       await expandSectionB(user)
 
-      const checkbox = screen.getByRole("checkbox")
+      const checkbox = screen.getByRole("checkbox", { name: "Recurring" })
       await user.click(checkbox)
 
       expect(screen.getByText("Recurring Split Kind")).toBeInTheDocument()
@@ -462,13 +466,13 @@ describe("OpportunityForm", () => {
       await fillRequiredFields(user)
       await user.click(screen.getByText("More details"))
 
-      const checkbox = screen.getByRole("checkbox")
+      const checkbox = screen.getByRole("checkbox", { name: "Recurring" })
       await user.click(checkbox)
 
       // Recurring Split Kind Select appears — combobox indices shift
       const allCombos = screen.getAllByRole("combobox")
-      // [5]=Project Type, [6]=Revenue Category, [7]=Recurring Split Kind, [8]=Visibility Tier
-      await user.click(allCombos[7])
+      // [5]=Project Type, [6]=Revenue Category, [7]=Property Type, [8]=Sales Entity, [9]=Recurring Split Kind, [10]=Visibility Tier
+      await user.click(allCombos[9])
       await user.click(await screen.findByRole("option", { name: "Flat" }))
 
       await user.click(screen.getByRole("button", { name: /create opportunity/i }))

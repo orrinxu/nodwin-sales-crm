@@ -42,10 +42,14 @@ import {
   REVENUE_CATEGORIES,
   RECURRING_SPLIT_KINDS,
   VISIBILITY_TIERS,
+  PROPERTY_TYPES,
+  SERVICE_TYPES,
   type ProjectType,
   type RevenueCategory,
   type RecurringSplitKind,
   type VisibilityTier,
+  type PropertyType,
+  type ServiceType,
 } from "@/lib/data/opportunities.types"
 
 const formSchema = z.object({
@@ -68,8 +72,12 @@ const formSchema = z.object({
   projectType: z.enum(PROJECT_TYPES).optional().or(z.literal("")),
   revenueCategory: z.enum(REVENUE_CATEGORIES).optional().or(z.literal("")),
   recurring: z.coerce.boolean().optional(),
-  recurringSplitKind: z.enum(RECURRING_SPLIT_KINDS).optional().or(z.literal("")),
-  visibilityTier: z.enum(VISIBILITY_TIERS).optional(),
+    recurringSplitKind: z.enum(RECURRING_SPLIT_KINDS).optional().or(z.literal("")),
+    serviceType: z.array(z.enum(SERVICE_TYPES)).optional(),
+    propertyType: z.enum(PROPERTY_TYPES).optional().or(z.literal("")),
+    barterValue: z.string().optional(),
+    entitySalesId: z.string().optional().or(z.literal("")),
+    visibilityTier: z.enum(VISIBILITY_TIERS).optional(),
 }).superRefine((data, ctx) => {
   if (data.recurring && !data.recurringSplitKind) {
     ctx.addIssue({
@@ -108,7 +116,12 @@ interface OpportunityFormProps {
   searchAccountsAction?: (query: string) => Promise<EntityOption[]>
   searchContactsAction?: (query: string, accountId?: string) => Promise<EntityOption[]>
   searchUsersAction?: (query: string) => Promise<EntityOption[]>
-  createContactQuickAction?: (input: { fullName: string; email?: string; accountId?: string }) => Promise<EntityOption>
+  searchEntitiesAction?: (query: string) => Promise<EntityOption[]>
+  createContactQuickAction?: (input: {
+    fullName: string
+    email?: string
+    accountId?: string
+  }) => Promise<EntityOption>
   currentUserId?: string
 }
 
@@ -125,6 +138,7 @@ export function OpportunityForm({
   searchAccountsAction,
   searchContactsAction,
   searchUsersAction,
+  searchEntitiesAction,
   createContactQuickAction,
   currentUserId,
 }: OpportunityFormProps) {
@@ -161,6 +175,10 @@ export function OpportunityForm({
       revenueCategory: (opportunity?.revenueCategory as RevenueCategory) ?? undefined,
       recurring: opportunity?.recurring ?? false,
       recurringSplitKind: (opportunity?.recurringSplitKind as RecurringSplitKind) ?? undefined,
+      serviceType: (opportunity?.serviceType as ServiceType[]) ?? [],
+      propertyType: (opportunity?.propertyType as PropertyType) ?? undefined,
+      barterValue: opportunity?.barterValue ?? undefined,
+      entitySalesId: opportunity?.entitySalesId ?? "",
       visibilityTier: (opportunity?.visibilityTier as VisibilityTier) ?? "standard",
     },
   })
@@ -168,6 +186,10 @@ export function OpportunityForm({
   const watchRecurring = form.watch("recurring")
   const watchStage = form.watch("stage")
   const watchAccountId = form.watch("accountId")
+  const watchServiceType = form.watch("serviceType")
+  const watchPropertyType = form.watch("propertyType")
+  const watchBarterValue = form.watch("barterValue")
+  const watchEntitySalesId = form.watch("entitySalesId")
 
   const handleStageChange = useCallback((stage: DealStage) => {
     form.setValue("stage", stage)
@@ -200,6 +222,10 @@ export function OpportunityForm({
         recurring: data.recurring ?? false,
         recurringSplitKind: (data.recurringSplitKind as RecurringSplitKind) || undefined,
         visibilityTier: (data.visibilityTier as VisibilityTier) || undefined,
+        serviceType: (data.serviceType as ServiceType[]) || undefined,
+        propertyType: (data.propertyType as PropertyType) || undefined,
+        barterValue: data.barterValue || undefined,
+        entitySalesId: data.entitySalesId || undefined,
         customData: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
       }
 
@@ -246,6 +272,10 @@ export function OpportunityForm({
         revenueCategory: (opportunity.revenueCategory as RevenueCategory) ?? undefined,
         recurring: opportunity.recurring ?? false,
         recurringSplitKind: (opportunity.recurringSplitKind as RecurringSplitKind) ?? undefined,
+        serviceType: (opportunity.serviceType as ServiceType[]) ?? [],
+        propertyType: (opportunity.propertyType as PropertyType) ?? undefined,
+        barterValue: opportunity.barterValue ?? undefined,
+        entitySalesId: opportunity.entitySalesId ?? "",
         visibilityTier: (opportunity.visibilityTier as VisibilityTier) ?? "standard",
       })
       setCustomFieldValues(opportunity.customData ?? {})
@@ -271,6 +301,10 @@ export function OpportunityForm({
         revenueCategory: undefined,
         recurring: false,
         recurringSplitKind: undefined,
+        serviceType: [],
+        propertyType: undefined,
+        barterValue: undefined,
+        entitySalesId: "",
         visibilityTier: "standard",
       })
       setCustomFieldValues({})
@@ -613,6 +647,78 @@ export function OpportunityForm({
                   </Select>
                 </div>
 
+                {/* Service Type */}
+                <div className="grid gap-1.5">
+                  <Label>Service Type</Label>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                    {SERVICE_TYPES.map((st) => (
+                      <label key={st} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          className="size-4 rounded border-input accent-primary"
+                          checked={(watchServiceType ?? []).includes(st)}
+                          onChange={(e) => {
+                            const current = watchServiceType ?? []
+                            if (e.target.checked) {
+                              form.setValue("serviceType", [...current, st] as ServiceType[])
+                            } else {
+                              form.setValue("serviceType", current.filter((v) => v !== st) as ServiceType[])
+                            }
+                          }}
+                        />
+                        {st.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Property Type */}
+                <div className="grid gap-1.5">
+                  <Label>Property Type</Label>
+                  <Select
+                    value={form.getValues("propertyType") || ""}
+                    onValueChange={(v) => form.setValue("propertyType", (v ? String(v) : "") as PropertyType, { shouldValidate: true })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROPERTY_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Barter Value */}
+                <div className="grid gap-1.5">
+                  <Label htmlFor="barterValue">Barter Value</Label>
+                  <Input
+                    id="barterValue"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    {...form.register("barterValue")}
+                    placeholder="0.00"
+                  />
+                </div>
+
+                {/* Sales Entity */}
+                <div className="grid gap-1.5">
+                  <Label>Sales Entity</Label>
+                  <EntityCombobox
+                    items={[]}
+                    value={form.getValues("entitySalesId") || null}
+                    onChange={(v) => form.setValue("entitySalesId", v ?? "", { shouldValidate: true })}
+                    searchAction={searchEntitiesAction}
+                    placeholder="Select entity"
+                    searchPlaceholder="Search entities..."
+                    emptyMessage="No entities found."
+                  />
+                </div>
+
                 {/* Recurring Toggle */}
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div className="grid gap-0.5">
@@ -624,6 +730,7 @@ export function OpportunityForm({
                   <label className="inline-flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
+                      aria-label="Recurring"
                       className="size-4 rounded border-input accent-primary"
                       checked={watchRecurring ?? false}
                       onChange={(e) => {

@@ -29,6 +29,7 @@ interface OpportunityDetailWrapperProps {
   activities: ActivityRecord[]
   createActivityAction: (opportunityId: string, input: unknown) => Promise<ActivityRecord>
   searchUsersAction?: (query: string) => Promise<EntityOption[]>
+  searchEntitiesAction?: (query: string) => Promise<EntityOption[]>
 }
 
 export function OpportunityDetailWrapper({
@@ -39,6 +40,7 @@ export function OpportunityDetailWrapper({
   activities,
   createActivityAction,
   searchUsersAction,
+  searchEntitiesAction,
 }: OpportunityDetailWrapperProps) {
   const router = useRouter()
 
@@ -62,6 +64,7 @@ export function OpportunityDetailWrapper({
             router.refresh()
           }}
           searchUsersAction={searchUsersAction}
+          searchEntitiesAction={searchEntitiesAction}
           trigger={
             <Button variant="outline" size="sm">
               <Pencil className="size-4" />
@@ -182,6 +185,38 @@ export function OpportunityDetailWrapper({
                     {businessUnits.find((b) => b.id === opportunity.salesUnitId)?.name ?? "\u2014"}
                   </dd>
                 </div>
+                {opportunity.propertyType && (
+                  <div className="grid gap-1">
+                    <dt className="text-xs text-muted-foreground">Property Type</dt>
+                    <dd className="text-sm font-medium">
+                      {opportunity.propertyType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                    </dd>
+                  </div>
+                )}
+                {opportunity.serviceType && opportunity.serviceType.length > 0 && (
+                  <div className="grid gap-1">
+                    <dt className="text-xs text-muted-foreground">Service Type</dt>
+                    <dd className="text-sm font-medium">
+                      {opportunity.serviceType
+                        .map((s) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()))
+                        .join(", ")}
+                    </dd>
+                  </div>
+                )}
+                {opportunity.barterValue && (
+                  <div className="grid gap-1">
+                    <dt className="text-xs text-muted-foreground">Barter Value</dt>
+                    <dd className="text-sm font-medium">
+                      {Money.fromAmount(opportunity.barterValue, opportunity.currency).toDisplay()}
+                    </dd>
+                  </div>
+                )}
+                {opportunity.entitySalesId && (
+                  <div className="grid gap-1">
+                    <dt className="text-xs text-muted-foreground">Sales Entity</dt>
+                    <dd className="text-sm font-medium">{opportunity.entitySalesId}</dd>
+                  </div>
+                )}
               </dl>
             </CardContent>
           </Card>

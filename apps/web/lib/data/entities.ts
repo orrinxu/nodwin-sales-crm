@@ -198,3 +198,28 @@ export async function deactivateEntity(
     throw new Error(`Failed to deactivate entity: ${error.message}`)
   }
 }
+
+export async function searchEntityOptions(
+  ctx: EntityCallContext,
+  query: string,
+): Promise<{ id: string; name: string }[]> {
+  void ctx
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("entities")
+    .select("id, name")
+    .ilike("name", `%${query}%`)
+    .eq("active", true)
+    .order("name", { ascending: true })
+    .limit(20)
+
+  if (error) {
+    throw new Error(`Failed to search entities: ${error.message}`)
+  }
+
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    name: r.name as string,
+  }))
+}

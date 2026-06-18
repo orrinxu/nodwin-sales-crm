@@ -5,7 +5,7 @@ import {
   getBusinessUnitOptions,
 } from "@/lib/data/opportunities"
 import { getActivitiesForOpportunity } from "@/lib/data/activities"
-import { updateOpportunityAction, createActivityAction } from "../actions"
+import { updateOpportunityAction, createActivityAction, searchEntitiesAction } from "../actions"
 import { OpportunityDetailWrapper } from "@/components/opportunities/opportunity-detail-wrapper"
 
 export default async function OpportunityDetailPage({
@@ -34,6 +34,7 @@ export default async function OpportunityDetailPage({
       updateAction={updateOpportunityAction}
       activities={activities}
       createActivityAction={createActivityAction}
+      searchEntitiesAction={searchEntitiesAction}
     />
   )
 }

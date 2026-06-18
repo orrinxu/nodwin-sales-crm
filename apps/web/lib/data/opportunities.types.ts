@@ -28,6 +28,38 @@ export const VISIBILITY_TIERS = ["standard", "restricted", "confidential"] as co
 
 export type VisibilityTier = (typeof VISIBILITY_TIERS)[number]
 
+export const PROPERTY_TYPES = [
+  "conference",
+  "expo",
+  "festival",
+  "food_festival",
+  "scripted_reality_show",
+  "talk_show",
+  "tournament",
+  "consultancy_services",
+] as const
+
+export type PropertyType = (typeof PROPERTY_TYPES)[number]
+
+export const SERVICE_TYPES = [
+  "brand_strategy",
+  "creative_design",
+  "production",
+  "post_production",
+  "marketing",
+  "talent_booking",
+  "sponsorship_sales",
+  "licensing",
+  "merchandising",
+  "distribution",
+  "consulting",
+  "event_production",
+  "public_relations",
+  "other",
+] as const
+
+export type ServiceType = (typeof SERVICE_TYPES)[number]
+
 export interface OpportunityRecord {
   id: string
   name: string
@@ -57,6 +89,10 @@ export interface OpportunityRecord {
   closeDate: string | null
   lossReason: string | null
   visibilityTier: string
+  serviceType: string[] | null
+  propertyType: string | null
+  barterValue: string | null
+  entitySalesId: string | null
   customData: Record<string, unknown>
   createdAt: string
   updatedAt: string
@@ -110,6 +146,10 @@ export interface OpportunityCreateInput {
   recurringSplitKind?: RecurringSplitKind
   probabilityPct?: number
   visibilityTier?: VisibilityTier
+  serviceType?: string[]
+  propertyType?: PropertyType
+  barterValue?: string
+  entitySalesId?: string
   lossReason?: string
   customData?: Record<string, unknown>
 }

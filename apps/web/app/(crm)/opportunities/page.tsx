@@ -15,6 +15,7 @@ import {
   searchAccountsAction,
   searchContactsAction,
   searchUsersAction,
+  searchEntitiesAction,
   createContactQuickAction,
 } from "./actions"
 
@@ -47,6 +48,7 @@ export default async function OpportunitiesPage() {
         searchAccountsAction={searchAccountsAction}
         searchContactsAction={searchContactsAction}
         searchUsersAction={searchUsersAction}
+        searchEntitiesAction={searchEntitiesAction}
         createContactQuickAction={createContactQuickAction}
       />
   )

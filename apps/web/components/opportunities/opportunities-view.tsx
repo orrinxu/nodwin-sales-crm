@@ -23,6 +23,7 @@ interface OpportunitiesViewProps {
   searchAccountsAction?: (query: string) => Promise<EntityOption[]>
   searchContactsAction?: (query: string, accountId?: string) => Promise<EntityOption[]>
   searchUsersAction?: (query: string) => Promise<EntityOption[]>
+  searchEntitiesAction?: (query: string) => Promise<EntityOption[]>
   createContactQuickAction?: (input: { fullName: string; email?: string; accountId?: string }) => Promise<EntityOption>
 }
 
@@ -40,6 +41,7 @@ export function OpportunitiesView({
   searchAccountsAction,
   searchContactsAction,
   searchUsersAction,
+  searchEntitiesAction,
   createContactQuickAction,
 }: OpportunitiesViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("kanban")
@@ -98,6 +100,7 @@ export function OpportunitiesView({
           searchAccountsAction={searchAccountsAction}
           searchContactsAction={searchContactsAction}
           searchUsersAction={searchUsersAction}
+          searchEntitiesAction={searchEntitiesAction}
           createContactQuickAction={createContactQuickAction}
         />
       ) : (

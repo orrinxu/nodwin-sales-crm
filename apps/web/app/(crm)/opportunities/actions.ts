@@ -122,6 +122,13 @@ export async function searchUsersAction(query: string) {
   return searchUserOptions(ctx, query)
 }
 
+export async function searchEntitiesAction(query: string) {
+  const user = await requireUser()
+  const ctx = { user, source: "web" as const }
+  const { searchEntityOptions } = await import("@/lib/data/entities")
+  return searchEntityOptions(ctx, query)
+}
+
 export async function createContactQuickAction(input: { fullName: string; email?: string; accountId?: string }) {
   const user = await requireUser()
   const parsed = contactCreateSchema.parse({

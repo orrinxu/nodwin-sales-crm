@@ -26,6 +26,8 @@ import {
   REVENUE_CATEGORIES,
   RECURRING_SPLIT_KINDS,
   VISIBILITY_TIERS,
+  PROPERTY_TYPES,
+  SERVICE_TYPES,
 } from "./opportunities.types"
 
 export type {
@@ -41,7 +43,7 @@ export type {
 
 export { getStageLabel } from "./opportunities.types"
 
-export { PROJECT_TYPES, REVENUE_CATEGORIES, RECURRING_SPLIT_KINDS, VISIBILITY_TIERS }
+export { PROJECT_TYPES, REVENUE_CATEGORIES, RECURRING_SPLIT_KINDS, VISIBILITY_TIERS, PROPERTY_TYPES, SERVICE_TYPES }
 
 export interface OpportunityCallContext {
   user: AuthenticatedUser
@@ -89,6 +91,10 @@ function toDomainOpportunity(data: Record<string, unknown>): OpportunityRecord {
     closeDate: (data.close_date as string) ?? null,
     lossReason: (data.loss_reason as string) ?? null,
     visibilityTier: (data.visibility_tier as string) ?? "standard",
+    serviceType: (data.service_type as string[]) ?? null,
+    propertyType: (data.property_type as string) ?? null,
+    barterValue: data.barter_value != null ? String(data.barter_value) : null,
+    entitySalesId: (data.entity_sales_id as string) ?? null,
     customData: (data.custom_data ?? {}) as Record<string, unknown>,
     createdAt: data.created_at as string,
     updatedAt: data.updated_at as string,
@@ -129,6 +135,10 @@ export async function getOpportunities(
       close_date,
       loss_reason,
       visibility_tier,
+      service_type,
+      property_type,
+      barter_value,
+      entity_sales_id,
       custom_data,
       created_at,
       updated_at,
@@ -184,6 +194,10 @@ export async function getOpportunityById(
       close_date,
       loss_reason,
       visibility_tier,
+      service_type,
+      property_type,
+      barter_value,
+      entity_sales_id,
       custom_data,
       created_at,
       updated_at,
@@ -255,6 +269,16 @@ const opportunityCreateObject = z.object({
   ownerUserId: z.string().optional(),
   probabilityPct: z.coerce.number().min(0).max(100).optional(),
   visibilityTier: z.enum(VISIBILITY_TIERS).optional(),
+  serviceType: z.array(z.string()).optional(),
+  propertyType: z.enum(PROPERTY_TYPES).optional(),
+  barterValue: z.preprocess(
+    (val) => {
+      if (val === undefined || val === "" || val === 0) return undefined
+      return String(val)
+    },
+    z.string().optional(),
+  ),
+  entitySalesId: z.string().optional(),
   customData: z.record(z.string(), z.unknown()).optional(),
 })
 
@@ -373,6 +397,18 @@ export async function createOpportunity(
   if (parsed.visibilityTier) {
     dbData.visibility_tier = parsed.visibilityTier
   }
+  if (parsed.serviceType && parsed.serviceType.length > 0) {
+    dbData.service_type = parsed.serviceType
+  }
+  if (parsed.propertyType) {
+    dbData.property_type = parsed.propertyType
+  }
+  if (parsed.barterValue) {
+    dbData.barter_value = parsed.barterValue
+  }
+  if (parsed.entitySalesId) {
+    dbData.entity_sales_id = parsed.entitySalesId
+  }
   if (parsed.customData) {
     dbData.custom_data = parsed.customData
   }
@@ -407,6 +443,10 @@ export async function createOpportunity(
       close_date,
       loss_reason,
       visibility_tier,
+      service_type,
+      property_type,
+      barter_value,
+      entity_sales_id,
       custom_data,
       created_at,
       updated_at,
@@ -475,6 +515,10 @@ export async function updateOpportunity(
   if (parsed.billingEntityId !== undefined) dbData.billing_entity_id = parsed.billingEntityId || null
   if (parsed.probabilityPct !== undefined) dbData.probability_pct = parsed.probabilityPct
   if (parsed.visibilityTier !== undefined) dbData.visibility_tier = parsed.visibilityTier || null
+  if (parsed.serviceType !== undefined) dbData.service_type = parsed.serviceType
+  if (parsed.propertyType !== undefined) dbData.property_type = parsed.propertyType || null
+  if (parsed.barterValue !== undefined) dbData.barter_value = parsed.barterValue || null
+  if (parsed.entitySalesId !== undefined) dbData.entity_sales_id = parsed.entitySalesId || null
   if (parsed.customData !== undefined) dbData.custom_data = parsed.customData
 
   if (Object.keys(dbData).length > 0) {
