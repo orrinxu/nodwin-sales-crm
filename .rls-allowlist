@@ -62,3 +62,9 @@
 # FX rates is a lookup table for currency conversion. All authenticated users
 # need read access to reference exchange rates. Write access is finance/admin only.
 .*fx_rates.*:USING \(true\)
+
+# ── relationship_types ─────────────────────────────────────────────────────────
+# Relationship types is a lookup table for account relationship vocabulary.
+# All authenticated users need read access to discover relationship types.
+# Write access is admin-only.
+.*relationship_types.*:USING \(true\)

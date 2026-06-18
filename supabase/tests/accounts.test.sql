@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(20);
+SELECT plan(22);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -222,6 +222,33 @@ SELECT lives_ok(
   $$DELETE FROM public.accounts WHERE id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'$$,
   'admin can delete account'
 );
+
+-- ── 19. Soft-deleted account not visible to owner (non-admin) ─────────────────
+-- Soft-delete Tencent (id=aaaaaaaa-...) by setting deleted_at as service_role.
+-- Note: test 11 renamed this account to 'Updated Tencent', so we filter by id.
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+UPDATE public.accounts SET deleted_at = now() WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+
+SELECT tests.as_user('rep@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.accounts WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'$$,
+  'rep cannot see soft-deleted owned account'
+);
+
+-- ── 20. Soft-deleted account visible to admin ──────────────────────────────────
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.accounts WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'$$,
+  'admin can see soft-deleted account'
+);
+
+-- Restore Tencent.
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+UPDATE public.accounts SET deleted_at = NULL WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 
 SELECT * FROM finish();
 
