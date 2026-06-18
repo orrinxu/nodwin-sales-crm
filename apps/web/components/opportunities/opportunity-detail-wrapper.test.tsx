@@ -67,7 +67,6 @@ function makeOpportunity(overrides: Partial<OpportunityRecord> = {}): Opportunit
     currency: "USD",
     ownerUserId: "user-1",
     ownerName: "Alice",
-    salesInitiatorUserId: "user-1",
     salesUnitId: "bu-1",
     revenueRecognitionUnitId: null,
     billingEntityId: null,
