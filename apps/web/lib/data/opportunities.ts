@@ -68,6 +68,10 @@ function toDomainOpportunity(data: Record<string, unknown>): OpportunityRecord {
     closeDate: (data.close_date as string) ?? null,
     lossReason: (data.loss_reason as string) ?? null,
     customData: (data.custom_data ?? {}) as Record<string, unknown>,
+    recurring: (data.recurring as boolean) ?? false,
+    recurringSplitKind: (data.recurring_split_kind as "flat" | "custom") ?? null,
+    servicePeriodStart: (data.service_period_start as string) ?? null,
+    servicePeriodEnd: (data.service_period_end as string) ?? null,
     createdAt: data.created_at as string,
     updatedAt: data.updated_at as string,
   }
@@ -96,6 +100,10 @@ export async function getOpportunities(
       close_date,
       loss_reason,
       custom_data,
+      recurring,
+      recurring_split_kind,
+      service_period_start,
+      service_period_end,
       created_at,
       updated_at,
       account:account_id ( name ),
@@ -139,6 +147,10 @@ export async function getOpportunityById(
       close_date,
       loss_reason,
       custom_data,
+      recurring,
+      recurring_split_kind,
+      service_period_start,
+      service_period_end,
       created_at,
       updated_at,
       account:account_id ( name ),
@@ -195,6 +207,10 @@ export const opportunityCreateSchema = z.object({
   salesUnitId: z.string().min(1, "Sales unit is required"),
   probabilityPct: z.coerce.number().min(0).max(100).optional(),
   customData: z.record(z.string(), z.unknown()).optional(),
+  recurring: z.boolean().optional(),
+  recurringSplitKind: z.enum(["flat", "custom"]).nullable().optional(),
+  servicePeriodStart: z.string().optional().or(z.literal("")),
+  servicePeriodEnd: z.string().optional().or(z.literal("")),
 })
 
 export const opportunityUpdateSchema = opportunityCreateSchema.partial()
@@ -234,6 +250,19 @@ export async function createOpportunity(
     dbData.custom_data = parsed.customData
   }
 
+  if (parsed.recurring) {
+    dbData.recurring = parsed.recurring
+    if (parsed.recurringSplitKind) {
+      dbData.recurring_split_kind = parsed.recurringSplitKind
+    }
+    if (parsed.servicePeriodStart) {
+      dbData.service_period_start = parsed.servicePeriodStart
+    }
+    if (parsed.servicePeriodEnd) {
+      dbData.service_period_end = parsed.servicePeriodEnd
+    }
+  }
+
   const { data, error } = await supabase
     .from("opportunities")
     .insert(dbData)
@@ -253,6 +282,10 @@ export async function createOpportunity(
       close_date,
       loss_reason,
       custom_data,
+      recurring,
+      recurring_split_kind,
+      service_period_start,
+      service_period_end,
       created_at,
       updated_at,
       account:account_id ( name ),
@@ -294,6 +327,10 @@ export async function updateOpportunity(
   if (parsed.salesUnitId !== undefined) dbData.sales_unit_id = parsed.salesUnitId
   if (parsed.probabilityPct !== undefined) dbData.probability_pct = parsed.probabilityPct
   if (parsed.customData !== undefined) dbData.custom_data = parsed.customData
+  if (parsed.recurring !== undefined) dbData.recurring = parsed.recurring
+  if (parsed.recurringSplitKind !== undefined) dbData.recurring_split_kind = parsed.recurringSplitKind
+  if (parsed.servicePeriodStart !== undefined) dbData.service_period_start = parsed.servicePeriodStart || null
+  if (parsed.servicePeriodEnd !== undefined) dbData.service_period_end = parsed.servicePeriodEnd || null
 
   if (Object.keys(dbData).length > 0) {
     const { error } = await supabase

@@ -37,6 +37,7 @@ interface OpportunityBoardProps {
     id: string,
     input: { stage: string },
   ) => Promise<OpportunityRecord>
+  saveRevenueScheduleAction?: (opportunityId: string, input: unknown) => Promise<void>
 }
 
 export function OpportunityBoard({
@@ -45,6 +46,7 @@ export function OpportunityBoard({
   businessUnits,
   createAction,
   updateStageAction,
+  saveRevenueScheduleAction,
 }: OpportunityBoardProps) {
   const router = useRouter()
   const [activeOpportunity, setActiveOpportunity] =
@@ -125,6 +127,7 @@ export function OpportunityBoard({
             accounts={accounts}
             businessUnits={businessUnits}
             createAction={createAction}
+            saveRevenueScheduleAction={saveRevenueScheduleAction}
             onSuccess={() => router.refresh()}
           />
         </div>

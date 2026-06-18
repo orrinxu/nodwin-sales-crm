@@ -22,6 +22,10 @@ import {
   createActivity,
   activityCreateSchema,
 } from "@/lib/data/activities"
+import {
+  saveRevenueSchedule,
+  revenueScheduleInputSchema,
+} from "@/lib/data/revenue-schedule"
 
 export async function createOpportunityAction(input: unknown) {
   const user = await requireUser()
@@ -99,4 +103,15 @@ export async function createActivityAction(opportunityId: string, input: unknown
   const activity = await createActivity(ctx, parsed)
   revalidatePath(`/opportunities/${opportunityId}`)
   return activity
+}
+
+export async function saveRevenueScheduleAction(
+  opportunityId: string,
+  input: unknown,
+) {
+  const user = await requireUser()
+  const parsed = revenueScheduleInputSchema.parse(input)
+  const ctx = { user, source: "web" as const }
+  await saveRevenueSchedule(ctx, opportunityId, parsed)
+  revalidatePath(`/opportunities/${opportunityId}`)
 }

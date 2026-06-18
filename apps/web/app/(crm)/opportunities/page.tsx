@@ -10,6 +10,7 @@ import {
   updateOpportunityStageAction,
   bulkDeleteOpportunitiesAction,
   bulkUpdateOpportunityStageAction,
+  saveRevenueScheduleAction,
 } from "./actions"
 
 export default async function OpportunitiesPage() {
@@ -31,6 +32,7 @@ export default async function OpportunitiesPage() {
       updateStageAction={updateOpportunityStageAction}
       bulkDeleteAction={bulkDeleteOpportunitiesAction}
       bulkUpdateStageAction={bulkUpdateOpportunityStageAction}
+      saveRevenueScheduleAction={saveRevenueScheduleAction}
     />
   )
 }

@@ -5,7 +5,8 @@ import {
   getBusinessUnitOptions,
 } from "@/lib/data/opportunities"
 import { getActivitiesForOpportunity } from "@/lib/data/activities"
-import { updateOpportunityAction, createActivityAction } from "../actions"
+import { getRevenueSchedule } from "@/lib/data/revenue-schedule"
+import { updateOpportunityAction, createActivityAction, saveRevenueScheduleAction } from "../actions"
 import { OpportunityDetailWrapper } from "@/components/opportunities/opportunity-detail-wrapper"
 
 export default async function OpportunityDetailPage({
@@ -17,10 +18,11 @@ export default async function OpportunityDetailPage({
   const { id } = await params
 
   const ctx = { user, source: "web" as const }
-  const [opportunity, businessUnits, activities] = await Promise.all([
+  const [opportunity, businessUnits, activities, revenueSchedule] = await Promise.all([
     getOpportunityById(ctx, id),
     getBusinessUnitOptions(ctx),
     getActivitiesForOpportunity(ctx, id),
+    getRevenueSchedule(ctx, id),
   ])
 
   if (!opportunity) {
@@ -34,6 +36,8 @@ export default async function OpportunityDetailPage({
       updateAction={updateOpportunityAction}
       activities={activities}
       createActivityAction={createActivityAction}
+      saveRevenueScheduleAction={saveRevenueScheduleAction}
+      revenueSchedule={revenueSchedule}
     />
   )
 }

@@ -1,5 +1,7 @@
 import type { DealStage } from "@/lib/opportunity"
 
+export type RecurringSplitKind = "flat" | "custom"
+
 export interface OpportunityRecord {
   id: string
   name: string
@@ -18,6 +20,10 @@ export interface OpportunityRecord {
   closeDate: string | null
   lossReason: string | null
   customData: Record<string, unknown>
+  recurring: boolean
+  recurringSplitKind: RecurringSplitKind | null
+  servicePeriodStart: string | null
+  servicePeriodEnd: string | null
   createdAt: string
   updatedAt: string
 }
@@ -58,6 +64,10 @@ export interface OpportunityCreateInput {
   salesUnitId: string
   probabilityPct?: number
   customData?: Record<string, unknown>
+  recurring?: boolean
+  recurringSplitKind?: RecurringSplitKind | null
+  servicePeriodStart?: string
+  servicePeriodEnd?: string
 }
 
 export interface OpportunitySplit {

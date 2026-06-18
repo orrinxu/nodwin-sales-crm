@@ -18,6 +18,7 @@ interface OpportunitiesViewProps {
   updateStageAction: (id: string, input: { stage: string }) => Promise<OpportunityRecord>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
   bulkUpdateStageAction: (input: { ids: string[]; stage: string }) => Promise<void>
+  saveRevenueScheduleAction?: (opportunityId: string, input: unknown) => Promise<void>
 }
 
 type ViewMode = "kanban" | "table"
@@ -30,6 +31,7 @@ export function OpportunitiesView({
   updateStageAction,
   bulkDeleteAction,
   bulkUpdateStageAction,
+  saveRevenueScheduleAction,
 }: OpportunitiesViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("kanban")
 
@@ -83,6 +85,7 @@ export function OpportunitiesView({
           businessUnits={businessUnits}
           createAction={createAction}
           updateStageAction={updateStageAction}
+          saveRevenueScheduleAction={saveRevenueScheduleAction}
         />
       ) : (
         <div className="flex-1 p-6">

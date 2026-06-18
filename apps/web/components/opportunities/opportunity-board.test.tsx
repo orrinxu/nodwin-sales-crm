@@ -23,6 +23,10 @@ const mockOpportunity: OpportunityRecord = {
   closeDate: "2026-06-01",
   lossReason: null,
   customData: {},
+  recurring: false,
+  recurringSplitKind: null,
+  servicePeriodStart: null,
+  servicePeriodEnd: null,
   createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-04-01T00:00:00Z",
 }

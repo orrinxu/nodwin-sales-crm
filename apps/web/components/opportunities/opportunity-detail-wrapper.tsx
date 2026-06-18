@@ -1,10 +1,11 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { Pencil } from "lucide-react"
+import { Pencil, Repeat } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
 import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
 import { ActivityComposer } from "@/components/opportunities/activity-composer"
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/tabs"
 import type { OpportunityRecord, BusinessUnitOption } from "@/lib/data/opportunities.types"
 import type { ActivityRecord } from "@/lib/data/activities"
+import type { RevenueScheduleRow } from "@/lib/data/revenue-schedule"
 import { getStageLabel } from "@/lib/data/opportunities.types"
 import { DEAL_STAGES } from "@/lib/opportunity"
 import { Money } from "@/lib/money"
@@ -26,6 +28,8 @@ interface OpportunityDetailWrapperProps {
   updateAction: (id: string, input: unknown) => Promise<OpportunityRecord>
   activities: ActivityRecord[]
   createActivityAction: (opportunityId: string, input: unknown) => Promise<ActivityRecord>
+  saveRevenueScheduleAction?: (opportunityId: string, input: unknown) => Promise<void>
+  revenueSchedule?: RevenueScheduleRow[]
 }
 
 export function OpportunityDetailWrapper({
@@ -34,6 +38,8 @@ export function OpportunityDetailWrapper({
   updateAction,
   activities,
   createActivityAction,
+  saveRevenueScheduleAction,
+  revenueSchedule = [],
 }: OpportunityDetailWrapperProps) {
   const router = useRouter()
 
@@ -52,6 +58,7 @@ export function OpportunityDetailWrapper({
           businessUnits={businessUnits}
           createAction={async () => { throw new Error("Not available") }}
           updateAction={updateAction}
+          saveRevenueScheduleAction={saveRevenueScheduleAction}
           onSuccess={() => {
             router.refresh()
           }}
@@ -73,6 +80,12 @@ export function OpportunityDetailWrapper({
               <span className="inline-flex items-center rounded-md border bg-muted px-2.5 py-0.5 text-sm font-medium">
                 {getStageLabel(opportunity.stage)}
               </span>
+              {opportunity.recurring && (
+                <span className="inline-flex items-center gap-1 rounded-md border bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 px-2.5 py-0.5 text-sm font-medium">
+                  <Repeat className="size-3" />
+                  Recurring
+                </span>
+              )}
               <span className="text-sm text-muted-foreground">
                 {opportunity.ownerName ?? "Unassigned"}
               </span>
@@ -179,6 +192,68 @@ export function OpportunityDetailWrapper({
             </CardContent>
           </Card>
         </div>
+
+        {opportunity.recurring && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Repeat className="size-4 text-muted-foreground" />
+                <CardTitle>Recurring Revenue</CardTitle>
+                <Badge variant="secondary" className="ml-auto">
+                  {opportunity.recurringSplitKind === "custom" ? "Custom Split" : "Flat Split"}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <dl className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid gap-1">
+                  <dt className="text-xs text-muted-foreground">Service Start</dt>
+                  <dd className="text-sm font-medium">
+                    {opportunity.servicePeriodStart
+                      ? new Date(opportunity.servicePeriodStart).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+                      : "\u2014"}
+                  </dd>
+                </div>
+                <div className="grid gap-1">
+                  <dt className="text-xs text-muted-foreground">Service End</dt>
+                  <dd className="text-sm font-medium">
+                    {opportunity.servicePeriodEnd
+                      ? new Date(opportunity.servicePeriodEnd).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+                      : "\u2014"}
+                  </dd>
+                </div>
+              </dl>
+              {revenueSchedule.length > 0 ? (
+                <div className="rounded-lg border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="px-3 py-1.5 text-left text-xs font-medium text-muted-foreground">Month</th>
+                        <th className="px-3 py-1.5 text-right text-xs font-medium text-muted-foreground">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {revenueSchedule.map((row) => (
+                        <tr key={row.id} className="border-b last:border-0">
+                          <td className="px-3 py-1.5 text-xs">
+                            {new Date(row.month).toLocaleDateString("en-US", { year: "numeric", month: "short" })}
+                          </td>
+                          <td className="px-3 py-1.5 text-right text-xs tabular-nums">
+                            {row.amount}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  No schedule data available.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {opportunity.description && (
           <Card>
