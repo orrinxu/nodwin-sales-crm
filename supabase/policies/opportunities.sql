@@ -30,7 +30,6 @@ CREATE POLICY "opportunities_insert_authenticated"
   TO authenticated
   WITH CHECK (
     owner_user_id = auth.uid()
-    OR sales_initiator_user_id = auth.uid()
     OR public.current_user_role() IN ('admin', 'group_sales_lead')
   );
 

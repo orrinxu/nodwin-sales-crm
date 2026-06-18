@@ -46,13 +46,12 @@ VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Test Account', ARRAY['test.com'
 
 -- Insert test opportunity.
 INSERT INTO public.opportunities (
-  id, name, account_id, stage, owner_user_id, sales_initiator_user_id, sales_unit_id, amount, currency, visibility_tier
+  id, name, account_id, stage, owner_user_id, sales_unit_id, amount, currency, visibility_tier
 ) VALUES (
   '00000000-0000-0000-0000-000000000001',
   'Test Opp',
   'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
   'qualify',
-  '11111111-1111-1111-1111-111111111111',
   '11111111-1111-1111-1111-111111111111',
   'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
   100000, 'USD',
