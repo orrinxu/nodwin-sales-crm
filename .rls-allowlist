@@ -74,3 +74,9 @@
 # All authenticated users need read access to discover integration state and
 # configuration. Write access is admin-only.
 .*integration_config.*:USING \(true\)
+
+# ── financial_settings ────────────────────────────────────────────────────────
+# Financial settings tables (reporting_currency_settings, fiscal_year_settings,
+# approval_thresholds, revenue_recognition_defaults). All authenticated users
+# need read access. Write access is admin-only.
+.*financial_settings.*:USING \(true\)
