@@ -22,7 +22,7 @@ export interface EntityOption {
 
 export interface EntityComboboxProps {
   items: EntityOption[]
-  value: string
+  value: string | null
   onChange: (value: string) => void
   placeholder?: string
   searchPlaceholder?: string
@@ -115,7 +115,7 @@ export function EntityCombobox({
       onOpenChange={(newOpen) => {
         if (!inputValueRef.current) setOpen(!!newOpen)
       }}
-      value={value || undefined}
+      value={value ?? ""}
       onValueChange={handleValueChange}
       onInputValueChange={(v) => setInputValue(v ?? "")}
       className={className}
@@ -124,9 +124,15 @@ export function EntityCombobox({
         className={cn(value && "[&>span]:truncate", "max-w-full")}
         disabled={disabled}
       >
-        <ComboboxValue placeholder={placeholder}>
-          {selectedItem?.name}
-        </ComboboxValue>
+        {selectedItem ? (
+          <ComboboxValue>{selectedItem.name}</ComboboxValue>
+        ) : value ? (
+          <ComboboxValue>{value}</ComboboxValue>
+        ) : (
+          <span className="flex flex-1 text-left truncate text-muted-foreground">
+            {placeholder}
+          </span>
+        )}
       </ComboboxTrigger>
       <ComboboxContent align="start">
         <ComboboxInput

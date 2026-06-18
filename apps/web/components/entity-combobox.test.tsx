@@ -16,7 +16,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           placeholder="Choose account..."
         />,
@@ -52,7 +52,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           disabled
         />,
@@ -66,7 +66,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={[]}
-          value=""
+          value={null}
           onChange={vi.fn()}
           emptyMessage="No accounts available"
         />,
@@ -85,7 +85,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           searchPlaceholder="Search accounts..."
         />,
@@ -103,7 +103,7 @@ describe("EntityCombobox", () => {
     it("shows all items when input is empty", async () => {
       const user = userEvent.setup({ pointerEventsCheck: 0 })
       render(
-        <EntityCombobox items={mockItems} value="" onChange={vi.fn()} />,
+        <EntityCombobox items={mockItems} value={null} onChange={vi.fn()} />,
       )
 
       await user.click(screen.getByRole("combobox"))
@@ -118,7 +118,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           emptyMessage="Nothing here"
         />,
@@ -141,7 +141,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={onChange}
         />,
       )
@@ -158,7 +158,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={onChange}
         />,
       )
@@ -178,7 +178,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           onCreate={vi.fn()}
         />,
@@ -196,7 +196,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           onCreate={vi.fn()}
         />,
@@ -217,7 +217,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
         />,
       )
@@ -237,7 +237,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           onCreate={vi.fn()}
         />,
@@ -257,7 +257,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={onChange}
           onCreate={onCreate}
         />,
@@ -280,7 +280,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           onCreate={onCreate}
         />,
@@ -300,7 +300,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           onCreate={onCreate}
         />,
@@ -319,7 +319,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           onCreate={vi.fn()}
           createLabel={(q) => `Add ${q} as new`}
@@ -343,7 +343,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           onCreate={onCreate}
         />,
@@ -362,7 +362,7 @@ describe("EntityCombobox", () => {
     it("filters items case-insensitively", async () => {
       const user = userEvent.setup({ pointerEventsCheck: 0 })
       render(
-        <EntityCombobox items={mockItems} value="" onChange={vi.fn()} />,
+        <EntityCombobox items={mockItems} value={null} onChange={vi.fn()} />,
       )
 
       await user.click(screen.getByRole("combobox"))
@@ -377,7 +377,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           onCreate={vi.fn()}
         />,
@@ -401,7 +401,7 @@ describe("EntityCombobox", () => {
       const { rerender } = render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={onChange}
           onCreate={onCreate}
         />,
