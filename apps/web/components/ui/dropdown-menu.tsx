@@ -24,17 +24,19 @@ function DropdownMenuContent({
   sideOffset?: number
 }) {
   return (
-    <Menu.Positioner align={align} sideOffset={sideOffset}>
-      <Menu.Popup
-        data-slot="dropdown-content"
-        className={cn(
-          "z-50 min-w-48 overflow-hidden rounded-lg border bg-popover p-1 text-sm text-popover-foreground shadow-md",
-          className,
-        )}
-      >
-        {children}
-      </Menu.Popup>
-    </Menu.Positioner>
+    <Menu.Portal>
+      <Menu.Positioner align={align} sideOffset={sideOffset}>
+        <Menu.Popup
+          data-slot="dropdown-content"
+          className={cn(
+            "z-50 min-w-48 overflow-hidden rounded-lg border bg-popover p-1 text-sm text-popover-foreground shadow-md",
+            className,
+          )}
+        >
+          {children}
+        </Menu.Popup>
+      </Menu.Positioner>
+    </Menu.Portal>
   )
 }
 
