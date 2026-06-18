@@ -1,4 +1,5 @@
-CREATE TYPE deal_stage AS ENUM (
+DO $$ BEGIN
+  CREATE TYPE deal_stage AS ENUM (
   'qualify',
   'meet_and_present',
   'propose',
@@ -6,7 +7,9 @@ CREATE TYPE deal_stage AS ENUM (
   'verbal_agreement',
   'closed_won',
   'closed_lost'
-);
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE opportunity_stage_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

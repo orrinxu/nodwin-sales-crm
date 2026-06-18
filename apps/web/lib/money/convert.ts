@@ -19,7 +19,7 @@ export interface ConvertFailure {
 
 export type ConvertResult = ConvertSuccess | ConvertFailure
 
-interface RawRate {
+export interface RawRate {
   rate: number
   from_currency: string
   to_currency: string

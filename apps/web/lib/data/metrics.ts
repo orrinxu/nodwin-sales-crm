@@ -5,6 +5,8 @@ import { DEAL_STAGES } from "@/lib/opportunity"
 import type { DealStage } from "@/lib/opportunity"
 import { getStageLabel } from "@/lib/data/opportunities.types"
 import type { ActivityRecord, ActivityType } from "./activities"
+import { lookupRate, convertWithRate } from "@/lib/money/convert"
+import type { RawRate } from "@/lib/money/convert"
 
 export interface DashboardContext {
   user: AuthenticatedUser
@@ -40,7 +42,118 @@ export interface RecentDealRecord {
 }
 
 export function getReportingCurrency(): string {
-  return "INR"
+  return "USD"
+}
+
+async function getCurrencyScaleMap(currencies: Iterable<string>): Promise<Map<string, number>> {
+  const supabase = await createServerClient()
+  const { data } = await supabase
+    .from("currencies")
+    .select("code, scale")
+    .in("code", Array.from(new Set(currencies)))
+
+  const map = new Map<string, number>()
+  for (const c of (data ?? [])) {
+    map.set(c.code, c.scale)
+  }
+  return map
+}
+
+async function convertAmount(
+  amount: number,
+  fromCurrency: string,
+  reportingCurrency: string,
+  asOfDate: string,
+  scaleMap: Map<string, number>,
+  rateCache: Map<string, RawRate | null>,
+): Promise<{ convertedAmount: number | null }> {
+  if (fromCurrency === reportingCurrency) {
+    return { convertedAmount: amount }
+  }
+
+  const cacheKey = `${fromCurrency}:${reportingCurrency}:${asOfDate}`
+  let rate = rateCache.get(cacheKey)
+  if (rate === undefined) {
+    rate = await lookupRate(fromCurrency, reportingCurrency, asOfDate)
+    rateCache.set(cacheKey, rate)
+  }
+
+  if (!rate) {
+    return { convertedAmount: null }
+  }
+
+  const fromScale = scaleMap.get(fromCurrency) ?? 2
+  const toScale = scaleMap.get(reportingCurrency) ?? 2
+
+  // Convert from decimal amount to smallest currency unit (cents)
+  const amountInCents = BigInt(Math.round(amount * Math.pow(10, fromScale)))
+
+  const resultInCents = convertWithRate(
+    amountInCents,
+    fromCurrency,
+    reportingCurrency,
+    fromScale,
+    toScale,
+    rate,
+  )
+
+  // Convert back from cents to decimal amount
+  const convertedAmount = Number(resultInCents) / Math.pow(10, toScale)
+
+  return { convertedAmount }
+}
+
+export type OpportunityRaw = {
+  stage: string
+  amount: number | null
+  currency: string
+  close_date?: string | null
+}
+
+export async function fetchAndConvert<T extends OpportunityRaw>(
+  data: T[] | null,
+  reportingCurrency: string,
+): Promise<{ converted: Array<T & { amount: number; currency: string }>; unconvertibleCount: number }> {
+  const raw = (data ?? []) as T[]
+
+  const allCurrencies = new Set<string>()
+  for (const opp of raw) {
+    allCurrencies.add(opp.currency)
+  }
+  allCurrencies.add(reportingCurrency)
+
+  const scaleMap = await getCurrencyScaleMap(allCurrencies)
+  const rateCache = new Map<string, RawRate | null>()
+
+  const converted: Array<T & { amount: number; currency: string }> = []
+  let unconvertibleCount = 0
+
+  for (const opp of raw) {
+    // Rate-as-of rule: use close_date for closed deals, latest rate for open deals
+    const asOfDate = opp.close_date ?? new Date().toISOString().slice(0, 10)
+
+    const result = await convertAmount(
+      opp.amount ?? 0,
+      opp.currency,
+      reportingCurrency,
+      asOfDate,
+      scaleMap,
+      rateCache,
+    )
+
+    if (result.convertedAmount === null) {
+      unconvertibleCount++
+      continue
+    }
+
+    converted.push({
+      ...opp,
+      amount: result.convertedAmount,
+      currency: reportingCurrency,
+    })
+  }
+
+  return { converted, unconvertibleCount }
 }
 
 export async function getPipelineMetrics(ctx: DashboardContext): Promise<PipelineMetrics> {
@@ -48,42 +161,33 @@ export async function getPipelineMetrics(ctx: DashboardContext): Promise<Pipelin
 
   const { data: opportunities, error } = await supabase
     .from("opportunities")
-    .select("stage, amount, currency")
+    .select("stage, amount, currency, close_date")
 
   if (error) {
     throw new Error(`Failed to load pipeline metrics: ${error.message}`)
   }
 
-  const raw = (opportunities ?? []) as Array<{
-    stage: string
-    amount: number | null
-    currency: string
-  }>
-
   const reportingCurrency = getReportingCurrency()
+  const { converted: deals, unconvertibleCount } = await fetchAndConvert(
+    opportunities,
+    reportingCurrency,
+  )
+
   let pipelineValue = 0
   let dealsWon = 0
   let dealsLost = 0
   let totalAmount = 0
   let activeCount = 0
-  let unconvertibleCount = 0
 
-  for (const opp of raw) {
-    const amount = opp.amount ?? 0
-
-    if (opp.currency !== reportingCurrency) {
-      unconvertibleCount++
-      continue
-    }
-
-    totalAmount += amount
+  for (const opp of deals) {
+    totalAmount += opp.amount
 
     if (opp.stage === "closed_won") {
       dealsWon++
     } else if (opp.stage === "closed_lost") {
       dealsLost++
     } else {
-      pipelineValue += amount
+      pipelineValue += opp.amount
       activeCount++
     }
   }
@@ -118,19 +222,18 @@ export async function getPipelineSummary(ctx: DashboardContext): Promise<{
 
   const { data: opportunities, error } = await supabase
     .from("opportunities")
-    .select("stage, amount, currency")
+    .select("stage, amount, currency, close_date")
 
   if (error) {
     throw new Error(`Failed to load pipeline summary: ${error.message}`)
   }
 
-  const raw = (opportunities ?? []) as Array<{
-    stage: string
-    amount: number | null
-    currency: string
-  }>
-
   const reportingCurrency = getReportingCurrency()
+  const { converted: deals, unconvertibleCount } = await fetchAndConvert(
+    opportunities,
+    reportingCurrency,
+  )
+
   const stageBuckets = new Map<string, { count: number; amount: number }>()
 
   for (const stage of DEAL_STAGES) {
@@ -140,10 +243,9 @@ export async function getPipelineSummary(ctx: DashboardContext): Promise<{
   let totalAmount = 0
   let totalCount = 0
 
-  for (const opp of raw) {
+  for (const opp of deals) {
     const stage = opp.stage as DealStage
     const countInStage = stageBuckets.has(stage)
-    const amount = opp.amount ?? 0
 
     totalCount++
 
@@ -151,11 +253,10 @@ export async function getPipelineSummary(ctx: DashboardContext): Promise<{
       stageBuckets.get(stage)!.count++
     }
 
-    if (opp.currency === reportingCurrency) {
-      totalAmount += amount
-      if (countInStage) {
-        stageBuckets.get(stage)!.amount += amount
-      }
+    totalAmount += opp.amount
+
+    if (countInStage) {
+      stageBuckets.get(stage)!.amount += opp.amount
     }
   }
 
@@ -192,8 +293,6 @@ export async function getRecentDeals(
   if (error) {
     throw new Error(`Failed to load recent deals: ${error.message}`)
   }
-
-  const reportingCurrency = getReportingCurrency()
 
   return ((rawDeals ?? []) as Array<Record<string, unknown>>).map((d) => {
     const account = d.account as { name: string } | null
