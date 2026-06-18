@@ -202,7 +202,7 @@ function ConfigDialog({
             <DialogDescription>
               {isEdit
                 ? "Update the export configuration for this entity."
-                : "Add a new finance export configuration for an entity."}
+                : "Saves (or updates, if one already exists) the export configuration for the selected entity. Only entities without an existing config are shown."}
             </DialogDescription>
           </DialogHeader>
 
@@ -224,13 +224,19 @@ function ConfigDialog({
                       <SelectValue placeholder="Select entity..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {entities
-                        .filter((e) => e.active)
-                        .map((e) => (
-                          <SelectItem key={e.id} value={e.id}>
-                            {e.name}
-                          </SelectItem>
-                        ))}
+                      {entities.length > 0 ? (
+                        entities
+                          .filter((e) => e.active)
+                          .map((e) => (
+                            <SelectItem key={e.id} value={e.id}>
+                              {e.name}
+                            </SelectItem>
+                          ))
+                      ) : (
+                        <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                          All active entities already have configs.
+                        </div>
+                      )}
                     </SelectContent>
                   </Select>
                 )}
@@ -336,15 +342,22 @@ function DeleteConfigDialog({
 }) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleDelete() {
     if (!config) return
     setPending(true)
+    setError(null)
     try {
       await deleteAction(config.id)
       onOpenChange(false)
       router.refresh()
-    } catch {
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to delete config.",
+      )
     } finally {
       setPending(false)
     }
@@ -361,6 +374,9 @@ function DeleteConfigDialog({
             cannot be undone.
           </DialogDescription>
         </DialogHeader>
+        {error && (
+          <p className="text-sm text-destructive">{error}</p>
+        )}
         <DialogFooter>
           <Button
             variant="outline"
@@ -403,16 +419,33 @@ export function DataManagementList({
   const [exportPending, setExportPending] = useState<string | null>(
     null,
   )
+  const [exportError, setExportError] = useState<string | null>(null)
+
+  const existingEntityIds = useMemo(
+    () => new Set(configs.map((c) => c.entityId)),
+    [configs],
+  )
+
+  const entitiesForAdd = useMemo(
+    () => entities.filter((e) => !existingEntityIds.has(e.id)),
+    [entities, existingEntityIds],
+  )
 
   async function handleExport(targetEntityType: string) {
     setExportPending(targetEntityType)
+    setExportError(null)
     try {
       await createExportJobAction({
         kind: "export",
         targetEntityType,
       })
       router.refresh()
-    } catch {
+    } catch (err) {
+      setExportError(
+        err instanceof Error
+          ? err.message
+          : "Export failed. Please try again.",
+      )
     } finally {
       setExportPending(null)
     }
@@ -691,6 +724,7 @@ export function DataManagementList({
             variant="default"
             size="sm"
             onClick={() => setCreatingConfig(true)}
+            disabled={entitiesForAdd.length === 0}
           >
             <PlusIcon className="h-4 w-4" />
             Add Config
@@ -783,6 +817,9 @@ export function DataManagementList({
             ))}
           </div>
         </div>
+        {exportError && (
+          <p className="mb-3 text-sm text-destructive">{exportError}</p>
+        )}
 
         {jobs.length > 0 ? (
           <div className="rounded-lg border">
@@ -849,7 +886,7 @@ export function DataManagementList({
 
       {creatingConfig && (
         <ConfigDialog
-          entities={entities}
+          entities={entitiesForAdd}
           open={creatingConfig}
           onOpenChange={(open) => {
             if (!open) setCreatingConfig(false)

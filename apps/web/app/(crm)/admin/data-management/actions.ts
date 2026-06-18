@@ -16,6 +16,7 @@ import {
 
 export async function getFinanceExportConfigsAction() {
   const user = await requireUser()
+  requireRole(user, "admin")
   const ctx = { user, source: "web" as const }
   return getAllFinanceExportConfigs(ctx)
 }
@@ -53,6 +54,7 @@ export async function deleteFinanceExportConfigAction(id: string) {
 
 export async function getImportJobsAction() {
   const user = await requireUser()
+  requireRole(user, "admin")
   const ctx = { user, source: "web" as const }
   return getImportJobs(ctx)
 }
