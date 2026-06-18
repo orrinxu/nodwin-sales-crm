@@ -12,13 +12,14 @@ export const envSchema = z.object({
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   POSTMARK_WEBHOOK_SECRET: z.string().min(1),
+  RESEND_API_KEY: z.string().optional(),
+  RESEND_DOMAIN: z.string().optional(),
+  SLACK_BOT_TOKEN: z.string().optional(),
   APP_URL: z.string().url().default("http://localhost:3000"),
   NEXT_PUBLIC_APP_NAME: z.string().min(1).default("Nodwin CRM"),
   NEXT_PUBLIC_API_URL: z.string().url(),
   NEXT_PUBLIC_DEBUG: booleanFromString.default(false),
   NEXT_PUBLIC_LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
-  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-  NEXT_PUBLIC_ENV: z.string().optional(),
 })
 
 export type Env = z.infer<typeof envSchema>

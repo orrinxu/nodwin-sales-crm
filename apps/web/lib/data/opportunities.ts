@@ -11,26 +11,12 @@ import { Money } from "@/lib/money"
 import type {
   OpportunityRecord,
   OpportunityListResult,
-  BusinessUnitOption,
-  OpportunityCreateInput,
-  OpportunitySplit,
-  OpportunitySplitsUpdateInput,
-  OpportunityTeamMember,
-  UserOption,
 } from "./opportunities.types"
 import { getStageLabel } from "./opportunities.types"
 
 export type {
   OpportunityRecord,
   OpportunityListResult,
-  BusinessUnitOption,
-  OpportunityCreateInput,
-  OpportunitySplit,
-  OpportunitySplitInput,
-  OpportunitySplitsUpdateInput,
-  OpportunityTeamMember,
-  OpportunityTeamMemberInput,
-  UserOption,
 } from "./opportunities.types"
 
 export { getStageLabel } from "./opportunities.types"
@@ -158,6 +144,11 @@ export async function getOpportunityById(
   return toDomainOpportunity(data as Record<string, unknown>)
 }
 
+export interface BusinessUnitOption {
+  id: string
+  name: string
+}
+
 export async function getBusinessUnitOptions(
   ctx: OpportunityCallContext,
 ): Promise<BusinessUnitOption[]> {
@@ -196,6 +187,8 @@ export const opportunityCreateSchema = z.object({
   probabilityPct: z.coerce.number().min(0).max(100).optional(),
   customData: z.record(z.string(), z.unknown()).optional(),
 })
+
+export type OpportunityCreateInput = z.infer<typeof opportunityCreateSchema>
 
 export const opportunityUpdateSchema = opportunityCreateSchema.partial()
 
@@ -265,7 +258,19 @@ export async function createOpportunity(
     throw new Error(`Failed to create opportunity: ${error.message}`)
   }
 
-  return toDomainOpportunity(data as Record<string, unknown>)
+  const opportunity = toDomainOpportunity(data as Record<string, unknown>)
+
+  if (opportunity.ownerUserId && opportunity.ownerUserId !== ctx.user.id) {
+    import("../notifications/triggers").then(({ notifyDealAssigned }) =>
+      notifyDealAssigned({
+        opportunityId: opportunity.id,
+        opportunityName: opportunity.name,
+        newOwnerUserId: opportunity.ownerUserId!,
+      }),
+    )
+  }
+
+  return opportunity
 }
 
 export async function updateOpportunity(
@@ -308,6 +313,21 @@ export async function updateOpportunity(
 
   const updated = await getOpportunityById(ctx, id)
   if (!updated) throw new Error("Opportunity not found after update")
+
+  if (
+    parsed.ownerUserId !== undefined &&
+    parsed.ownerUserId !== existing.ownerUserId
+  ) {
+    const newOwnerUserId = parsed.ownerUserId
+    import("../notifications/triggers").then(({ notifyDealAssigned }) =>
+      notifyDealAssigned({
+        opportunityId: updated.id,
+        opportunityName: updated.name,
+        newOwnerUserId,
+      }),
+    )
+  }
+
   return updated
 }
 
@@ -348,6 +368,17 @@ export async function updateOpportunityStage(
         historyError instanceof Error ? historyError.message : historyError,
       )
     }
+
+    import("../notifications/triggers").then(({ notifyStageChange }) =>
+      notifyStageChange({
+        opportunityId: id,
+        opportunityName: existing.name,
+        fromStage: existing.stage,
+        toStage: parsed.stage,
+        event,
+        ownerUserId: existing.ownerUserId ?? ctx.user.id,
+      }),
+    )
   }
 
   const updated = await getOpportunityById(ctx, id)
@@ -404,6 +435,23 @@ export async function bulkDeleteOpportunities(
 
 // ── Opportunity Splits ──────────────────────────────────────────────────────────
 
+export interface OpportunitySplit {
+  id: string
+  opportunityId: string
+  salesUnitId: string
+  userId: string | null
+  pct: number
+  notes: string | null
+  createdAt: string
+}
+
+export interface OpportunitySplitInput {
+  salesUnitId: string
+  userId: string | null
+  pct: number
+  notes: string | null
+}
+
 export const opportunitySplitSchema = z.object({
   salesUnitId: z.string().min(1, "Sales unit is required"),
   userId: z.string().nullable().optional(),
@@ -414,6 +462,8 @@ export const opportunitySplitSchema = z.object({
 export const opportunitySplitsUpdateSchema = z.object({
   splits: z.array(opportunitySplitSchema),
 })
+
+export type OpportunitySplitsUpdateInput = z.infer<typeof opportunitySplitsUpdateSchema>
 
 export async function getOpportunitySplits(
   ctx: OpportunityCallContext,
@@ -489,6 +539,21 @@ export async function updateOpportunitySplits(
 }
 
 // ── Opportunity Team Members ────────────────────────────────────────────────────
+
+export interface OpportunityTeamMember {
+  id: string
+  opportunityId: string
+  userId: string
+  userName: string | null
+  role: string
+  addedBy: string | null
+  addedAt: string
+}
+
+export interface OpportunityTeamMemberInput {
+  userId: string
+  role: string
+}
 
 export const opportunityTeamMemberSchema = z.object({
   userId: z.string().min(1, "User is required"),
@@ -578,6 +643,11 @@ export async function updateOpportunityTeamMembers(
 
 // ── User Options ────────────────────────────────────────────────────────────────
 
+export interface UserOption {
+  id: string
+  fullName: string
+}
+
 export async function getUserOptions(
   ctx: OpportunityCallContext,
 ): Promise<UserOption[]> {
@@ -598,13 +668,3 @@ export async function getUserOptions(
     fullName: (r.full_name as string) ?? r.id as string,
   }))
 }
-
-// ── Type equivalence assertions (z.infer must match canonical interfaces) ───────
-
-/* eslint-disable @typescript-eslint/no-unused-vars */
-type _Assert<T extends true> = T
-type _A1 = _Assert<z.infer<typeof opportunityCreateSchema> extends import("./opportunities.types").OpportunityCreateInput ? true : false>
-type _A2 = _Assert<import("./opportunities.types").OpportunityCreateInput extends z.infer<typeof opportunityCreateSchema> ? true : false>
-type _A3 = _Assert<z.infer<typeof opportunitySplitsUpdateSchema> extends import("./opportunities.types").OpportunitySplitsUpdateInput ? true : false>
-type _A4 = _Assert<import("./opportunities.types").OpportunitySplitsUpdateInput extends z.infer<typeof opportunitySplitsUpdateSchema> ? true : false>
-/* eslint-enable @typescript-eslint/no-unused-vars */

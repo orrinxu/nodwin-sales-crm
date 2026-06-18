@@ -1,0 +1,157 @@
+import "server-only"
+import { sendNotification } from "./delivery"
+import type { NotificationEventType } from "../data/notifications"
+
+export interface StageChangeContext {
+  opportunityId: string
+  opportunityName: string
+  fromStage: string
+  toStage: string
+  event: string
+  ownerUserId: string
+  entityId?: string
+}
+
+export async function notifyStageChange(
+  ctx: StageChangeContext,
+): Promise<void> {
+  let eventType: NotificationEventType = "stage_change"
+  let title: string
+  let message: string
+  const linkUrl = `/opportunities/${ctx.opportunityId}`
+
+  switch (ctx.event) {
+    case "CLOSE_WON":
+      eventType = "deal_won"
+      title = `Deal won: ${ctx.opportunityName}`
+      message = `Opportunity "${ctx.opportunityName}" has been won (${ctx.fromStage} → ${ctx.toStage}).`
+      break
+    case "CLOSE_LOST":
+      eventType = "deal_lost"
+      title = `Deal lost: ${ctx.opportunityName}`
+      message = `Opportunity "${ctx.opportunityName}" has been marked as lost (${ctx.fromStage} → ${ctx.toStage}).`
+      break
+    case "REOPEN":
+      title = `Opportunity reopened: ${ctx.opportunityName}`
+      message = `Opportunity "${ctx.opportunityName}" has been reopened at ${ctx.toStage}.`
+      break
+    default:
+      title = `Stage change: ${ctx.opportunityName}`
+      message = `Opportunity "${ctx.opportunityName}" moved from ${ctx.fromStage} to ${ctx.toStage}.`
+  }
+
+  try {
+    await sendNotification(ctx.ownerUserId, eventType, {
+      title,
+      message,
+      linkUrl,
+      entityId: ctx.entityId,
+      metadata: {
+        event_type: eventType,
+        event: ctx.event,
+        opportunity_id: ctx.opportunityId,
+        from_stage: ctx.fromStage,
+        to_stage: ctx.toStage,
+      },
+    })
+  } catch (err) {
+    console.error(
+      `[notifications] Failed to send stage change notification: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
+}
+
+export interface DealAssignedContext {
+  opportunityId: string
+  opportunityName: string
+  newOwnerUserId: string
+  entityId?: string
+}
+
+export async function notifyDealAssigned(
+  ctx: DealAssignedContext,
+): Promise<void> {
+  try {
+    await sendNotification(ctx.newOwnerUserId, "deal_assigned", {
+      title: `Assigned: ${ctx.opportunityName}`,
+      message: `You have been assigned to opportunity "${ctx.opportunityName}".`,
+      linkUrl: `/opportunities/${ctx.opportunityId}`,
+      entityId: ctx.entityId,
+      metadata: {
+        event_type: "deal_assigned",
+        opportunity_id: ctx.opportunityId,
+      },
+    })
+  } catch (err) {
+    console.error(
+      `[notifications] Failed to send deal assigned notification: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
+}
+
+export interface ApprovalRequestedContext {
+  approverUserId: string
+  opportunityName: string
+  opportunityId: string
+  stepNumber: number
+  totalSteps: number
+  entityId?: string
+}
+
+export async function notifyApprovalRequested(
+  ctx: ApprovalRequestedContext,
+): Promise<void> {
+  try {
+    await sendNotification(ctx.approverUserId, "approval_requested", {
+      title: `Approval requested: ${ctx.opportunityName}`,
+      message: `Your approval is needed for "${ctx.opportunityName}" (step ${ctx.stepNumber} of ${ctx.totalSteps}).`,
+      linkUrl: `/opportunities/${ctx.opportunityId}`,
+      entityId: ctx.entityId,
+      metadata: {
+        event_type: "approval_requested",
+        opportunity_id: ctx.opportunityId,
+        step_number: ctx.stepNumber,
+        total_steps: ctx.totalSteps,
+      },
+    })
+  } catch (err) {
+    console.error(
+      `[notifications] Failed to send approval requested notification: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
+}
+
+export interface MentionContext {
+  mentionedUserId: string
+  mentionedByName: string
+  opportunityName?: string
+  opportunityId?: string
+  commentPreview: string
+  entityId?: string
+}
+
+export async function notifyMention(ctx: MentionContext): Promise<void> {
+  try {
+    const contextStr = ctx.opportunityName
+      ? ` on "${ctx.opportunityName}"`
+      : ""
+
+    await sendNotification(ctx.mentionedUserId, "mention", {
+      title: `${ctx.mentionedByName} mentioned you`,
+      message: `${ctx.mentionedByName} mentioned you${contextStr}: "${ctx.commentPreview}"`,
+      linkUrl: ctx.opportunityId
+        ? `/opportunities/${ctx.opportunityId}`
+        : undefined,
+      entityId: ctx.entityId,
+      metadata: {
+        event_type: "mention",
+        mentioned_by_name: ctx.mentionedByName,
+        opportunity_id: ctx.opportunityId ?? null,
+      },
+    })
+  } catch (err) {
+    console.error(
+      `[notifications] Failed to send mention notification: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
+}
