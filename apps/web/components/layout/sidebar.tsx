@@ -12,6 +12,7 @@ import {
   Sliders,
   ChevronDown,
   Gamepad2,
+  Plug,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -38,6 +39,7 @@ const navigation = [
   { name: "Contacts", href: "/contacts", icon: Users },
   { name: "Activities", href: "/activities", icon: History },
   { name: "Reports", href: "/reports", icon: BarChart3 },
+  { name: "Integrations", href: "/admin/integrations", icon: Plug },
   { name: "Admin", href: "/admin/field-definitions", icon: Sliders },
 ]
 
