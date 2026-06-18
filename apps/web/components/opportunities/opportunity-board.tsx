@@ -113,7 +113,7 @@ export function OpportunityBoard({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex flex-1 flex-col gap-4 p-6 pt-0">
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-0 lg:p-6 lg:pt-0">
         <div className="flex items-center justify-end gap-2">
           <OpportunityQuickCreate
             accounts={accounts}

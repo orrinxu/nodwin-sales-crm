@@ -35,7 +35,7 @@ export function OpportunitiesView({
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="flex items-center justify-between border-b px-6 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 lg:px-6">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
             Opportunities
@@ -58,7 +58,7 @@ export function OpportunitiesView({
               )}
             >
               <LayoutGridIcon className="size-4" />
-              Kanban
+              <span className="hidden sm:inline">Kanban</span>
             </button>
             <button
               onClick={() => setViewMode("table")}
@@ -70,7 +70,7 @@ export function OpportunitiesView({
               )}
             >
               <ListIcon className="size-4" />
-              Table
+              <span className="hidden sm:inline">Table</span>
             </button>
           </div>
         </div>
@@ -85,7 +85,7 @@ export function OpportunitiesView({
           updateStageAction={updateStageAction}
         />
       ) : (
-        <div className="flex-1 p-6">
+        <div className="flex-1 p-4 lg:p-6">
           <OpportunityListTable
             opportunities={opportunities}
             bulkDeleteAction={bulkDeleteAction}
