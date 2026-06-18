@@ -87,7 +87,7 @@ CREATE POLICY "opportunity_revenue_schedule_select_via_visibility"
     OR public.current_user_role() = 'admin'
   );
 
--- INSERT: user can insert schedule rows iff they can see the parent opportunity.
+-- INSERT: user can insert schedule rows iff they own or initiated the parent opportunity.
 DROP POLICY IF EXISTS "opportunity_revenue_schedule_insert_via_visibility" ON public.opportunity_revenue_schedule;
 CREATE POLICY "opportunity_revenue_schedule_insert_via_visibility"
   ON public.opportunity_revenue_schedule
@@ -95,14 +95,18 @@ CREATE POLICY "opportunity_revenue_schedule_insert_via_visibility"
   TO authenticated
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM public.opportunity_visibility
-      WHERE opportunity_id = public.opportunity_revenue_schedule.opportunity_id
-        AND user_id = auth.uid()
+      SELECT 1 FROM public.opportunities
+      WHERE id = public.opportunity_revenue_schedule.opportunity_id
+        AND (
+          owner_user_id = auth.uid()
+          OR sales_initiator_user_id = auth.uid()
+        )
     )
-    OR public.current_user_role() = 'admin'
+    OR public.current_user_role() IN ('admin', 'group_sales_lead')
   );
 
--- UPDATE: user can update schedule rows iff they can see the parent opportunity.
+-- UPDATE: user can update schedule rows iff they own the parent opportunity or
+-- are a team member (owner|contributor) on it.
 DROP POLICY IF EXISTS "opportunity_revenue_schedule_update_via_visibility" ON public.opportunity_revenue_schedule;
 CREATE POLICY "opportunity_revenue_schedule_update_via_visibility"
   ON public.opportunity_revenue_schedule
@@ -110,35 +114,40 @@ CREATE POLICY "opportunity_revenue_schedule_update_via_visibility"
   TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM public.opportunity_visibility
+      SELECT 1 FROM public.opportunities
+      WHERE id = public.opportunity_revenue_schedule.opportunity_id
+        AND owner_user_id = auth.uid()
+    )
+    OR public.current_user_role() IN ('admin', 'group_sales_lead')
+    OR EXISTS (
+      SELECT 1 FROM public.opportunity_team_members
       WHERE opportunity_id = public.opportunity_revenue_schedule.opportunity_id
         AND user_id = auth.uid()
+        AND role IN ('owner', 'contributor')
     )
-    OR public.current_user_role() = 'admin'
   )
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM public.opportunity_visibility
+      SELECT 1 FROM public.opportunities
+      WHERE id = public.opportunity_revenue_schedule.opportunity_id
+        AND owner_user_id = auth.uid()
+    )
+    OR public.current_user_role() IN ('admin', 'group_sales_lead')
+    OR EXISTS (
+      SELECT 1 FROM public.opportunity_team_members
       WHERE opportunity_id = public.opportunity_revenue_schedule.opportunity_id
         AND user_id = auth.uid()
+        AND role IN ('owner', 'contributor')
     )
-    OR public.current_user_role() = 'admin'
   );
 
--- DELETE: user can delete schedule rows iff they can see the parent opportunity.
+-- DELETE: admin-only (consistent with opportunities and opportunity_splits).
 DROP POLICY IF EXISTS "opportunity_revenue_schedule_delete_via_visibility" ON public.opportunity_revenue_schedule;
 CREATE POLICY "opportunity_revenue_schedule_delete_via_visibility"
   ON public.opportunity_revenue_schedule
   FOR DELETE
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.opportunity_visibility
-      WHERE opportunity_id = public.opportunity_revenue_schedule.opportunity_id
-        AND user_id = auth.uid()
-    )
-    OR public.current_user_role() = 'admin'
-  );
+  USING (public.current_user_role() = 'admin');
 
 -- Service role has full access.
 DROP POLICY IF EXISTS "service_role_all_opportunity_revenue_schedule" ON public.opportunity_revenue_schedule;
