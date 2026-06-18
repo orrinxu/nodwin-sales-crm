@@ -44,6 +44,7 @@ import { useState } from "react"
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Pipeline", href: "/opportunities", icon: Kanban },
+
   { name: "Accounts", href: "/accounts", icon: Building2 },
   { name: "Contacts", href: "/contacts", icon: Users },
   { name: "Activities", href: "/activities", icon: History },

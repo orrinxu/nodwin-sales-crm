@@ -2,10 +2,11 @@ import { notFound } from "next/navigation"
 import { requireUser } from "@/lib/security/auth"
 import {
   getAccountById,
-  getAccountRelationshipGraph,
+  getAccountRelationships,
   getContactsForAccount,
   getOpportunitiesForAccount,
   getOwnerOptions,
+  getAccountLinkedDocuments,
 } from "@/lib/data/accounts"
 import { getFieldDefinitions } from "@/lib/data/field-definitions"
 import { updateAccountAction } from "../actions"
@@ -20,13 +21,14 @@ export default async function AccountDetailPage({
   const { id } = await params
 
   const ctx = { user, source: "web" as const }
-  const [account, fieldDefinitions, relationshipGraph, contacts, opportunities, owners] = await Promise.all([
+  const [account, fieldDefinitions, relationships, contacts, opportunities, owners, documents] = await Promise.all([
     getAccountById(ctx, id),
     getFieldDefinitions(ctx, "account"),
-    getAccountRelationshipGraph(ctx, id).catch(() => null),
-    getContactsForAccount(ctx, id).catch(() => []),
-    getOpportunitiesForAccount(ctx, id).catch(() => []),
-    getOwnerOptions(ctx).catch(() => []),
+    getAccountRelationships(ctx, id),
+    getContactsForAccount(ctx, id),
+    getOpportunitiesForAccount(ctx, id),
+    getOwnerOptions(ctx),
+    getAccountLinkedDocuments(ctx, id),
   ])
 
   if (!account) {
@@ -39,9 +41,10 @@ export default async function AccountDetailPage({
     <AccountDetailWrapper
       account={account}
       fieldDefinitions={fieldDefinitions}
-      relationshipGraph={relationshipGraph}
+      relationships={relationships}
       contacts={contacts}
       opportunities={opportunities}
+      documents={documents}
       ownerName={owner?.name ?? null}
       updateAction={updateAccountAction}
     />

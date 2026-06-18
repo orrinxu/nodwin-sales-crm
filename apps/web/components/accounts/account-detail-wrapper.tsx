@@ -2,34 +2,44 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Pencil, Globe, MapPin, Briefcase, Mail } from "lucide-react"
+import { Pencil, Globe, MapPin, Briefcase, Mail, FileText } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { AccountForm } from "@/components/accounts/account-form"
 import { CustomFieldsDisplay } from "@/components/contacts/custom-fields-display"
-import { RelationshipTree } from "@/components/accounts/relationship-tree"
 import { getStageLabel } from "@/lib/data/opportunities.types"
-import type { AccountRecord, AccountUpdateInput, AccountRelationshipGraph, AccountOpportunity } from "@/lib/data/accounts"
+import { Money } from "@/lib/money"
+import type { AccountRecord, AccountUpdateInput, AccountRelationship, AccountOpportunity, AccountDocument } from "@/lib/data/accounts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 
 interface AccountDetailWrapperProps {
   account: AccountRecord
   fieldDefinitions: FieldDefinition[]
-  relationshipGraph: AccountRelationshipGraph | null
+  relationships: AccountRelationship[]
   contacts: { id: string; fullName: string; title: string | null; email: string | null }[]
   opportunities: AccountOpportunity[]
+  documents: AccountDocument[]
   ownerName: string | null
   updateAction: (id: string, input: AccountUpdateInput) => Promise<AccountRecord>
+}
+
+const RELATIONSHIP_LABELS: Record<string, string> = {
+  subsidiary_of: "Subsidiary of",
+  procurement_via: "Procurement via",
+  partner_with: "Partner with",
+  parent_of: "Parent of",
+  sister_company: "Sister company",
 }
 
 export function AccountDetailWrapper({
   account,
   fieldDefinitions,
-  relationshipGraph,
+  relationships,
   contacts,
   opportunities,
+  documents,
   ownerName,
   updateAction,
 }: AccountDetailWrapperProps) {
@@ -270,10 +280,7 @@ export function AccountDetailWrapper({
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-medium">
-                        {new Intl.NumberFormat("en-US", {
-                          style: "currency",
-                          currency: opp.currency,
-                        }).format(opp.amount)}
+                        {Money.fromAmount(opp.amount, opp.currency).toDisplay()}
                       </p>
                       {opp.closeDate && (
                         <p className="text-xs text-muted-foreground">
@@ -292,13 +299,74 @@ export function AccountDetailWrapper({
           </Card>
         )}
 
-        {relationshipGraph && <RelationshipTree graph={relationshipGraph} />}
+        {documents.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Documents ({documents.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="divide-y divide-border">
+                {documents.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between py-2 first:pt-0 last:pb-0"
+                  >
+                    <div className="flex items-center gap-2">
+                      <FileText className="size-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">{doc.name}</p>
+                        <p className="text-xs text-muted-foreground">{doc.category}</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(doc.uploadedAt).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-        {!relationshipGraph && contacts.length === 0 && opportunities.length === 0 && (
+        {relationships.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Related Accounts ({relationships.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="divide-y divide-border">
+                {relationships.map((rel) => (
+                  <div
+                    key={rel.id}
+                    className="flex items-center justify-between py-2 first:pt-0 last:pb-0"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {RELATIONSHIP_LABELS[rel.kind] ?? rel.kind}
+                      </Badge>
+                      <span className="text-sm">{rel.toAccountName}</span>
+                    </div>
+                    {rel.notes && (
+                      <span className="text-xs text-muted-foreground max-w-[40%] truncate">
+                        {rel.notes}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {contacts.length === 0 && opportunities.length === 0 && documents.length === 0 && relationships.length === 0 && (
           <Card>
             <CardContent className="py-6">
               <p className="text-center text-sm text-muted-foreground">
-                No related contacts, opportunities, or linked accounts yet.
+                No related contacts, opportunities, documents, or linked accounts yet.
               </p>
             </CardContent>
           </Card>
