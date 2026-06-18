@@ -59,9 +59,9 @@ import type {
   BusinessUnitWithEntity,
   BusinessUnitCreateInput,
   BusinessUnitUpdateInput,
-  BusinessUnitKind,
 } from "@/lib/data/business-units"
-import { businessUnitKinds } from "@/lib/data/business-units"
+import { businessUnitKinds } from "@/lib/shared/business-unit-kinds"
+import type { BusinessUnitKind } from "@/lib/shared/business-unit-kinds"
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "—"

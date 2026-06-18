@@ -2,20 +2,15 @@ import "server-only"
 import { z } from "zod"
 import { createServerClient } from "@/lib/supabase/server"
 import type { AuthenticatedUser } from "@/lib/security/auth"
+import { businessUnitKinds } from "@/lib/shared/business-unit-kinds"
+import type { BusinessUnitKind } from "@/lib/shared/business-unit-kinds"
+
+export { businessUnitKinds, type BusinessUnitKind }
 
 export interface BusinessUnitCallContext {
   user: AuthenticatedUser
   source: "web" | "mcp" | "webhook" | "system"
 }
-
-export const businessUnitKinds = [
-  "sales",
-  "revenue_recognition",
-  "ops",
-  "shared",
-] as const
-
-export type BusinessUnitKind = (typeof businessUnitKinds)[number]
 
 export interface BusinessUnitRecord {
   id: string

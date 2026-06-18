@@ -521,7 +521,6 @@ export function EntitiesList({
   updateAction,
   deactivateAction,
 }: EntitiesListProps) {
-  const router = useRouter()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [sorting, setSorting] = useState<SortingState>([])
   const [searchQuery, setSearchQuery] = useState("")

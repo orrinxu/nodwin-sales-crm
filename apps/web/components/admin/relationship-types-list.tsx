@@ -53,19 +53,6 @@ import type {
   RelationshipTypeUpdateInput,
 } from "@/lib/data/relationship-types"
 
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "—"
-  try {
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }).format(new Date(dateStr))
-  } catch {
-    return dateStr
-  }
-}
-
 const createFormSchema = z.object({
   code: z
     .string()
