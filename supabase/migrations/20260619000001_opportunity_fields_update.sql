@@ -40,7 +40,14 @@ END;
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 2. DROP sales_initiator_user_id COLUMN AND CONSTRAINT
+-- 2. UPDATE RLS INSERT POLICY — remove sales_initiator_user_id check
+--    (Must happen BEFORE dropping the column, because the policy depends on it.)
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+DROP POLICY IF EXISTS "opportunities_insert_authenticated" ON public.opportunities;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 3. DROP sales_initiator_user_id COLUMN AND CONSTRAINT
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 -- Drop the FK constraint first.
@@ -96,10 +103,9 @@ CREATE TRIGGER opportunity_owner_default_trigger
   EXECUTE FUNCTION public.set_opportunity_owner_default();
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 5. UPDATE RLS INSERT POLICY — remove sales_initiator_user_id check
+-- 5. RECREATE RLS INSERT POLICY (without sales_initiator_user_id dependency)
 -- ═══════════════════════════════════════════════════════════════════════════════
 
-DROP POLICY IF EXISTS "opportunities_insert_authenticated" ON public.opportunities;
 CREATE POLICY "opportunities_insert_authenticated"
   ON public.opportunities
   FOR INSERT
