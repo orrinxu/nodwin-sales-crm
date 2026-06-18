@@ -228,7 +228,7 @@ export async function getNotificationRouting(
 }
 
 export async function upsertNotificationRouting(
-  _ctx: NotificationCallContext,
+  ctx: NotificationCallContext,
   input: NotificationRoutingUpsertInput,
 ): Promise<NotificationRoutingRecord> {
   const supabase = await createServerClient()
@@ -238,6 +238,7 @@ export async function upsertNotificationRouting(
     channel: input.channel,
     enabled: input.enabled,
     entity_id: input.entityId ?? null,
+    updated_by: ctx.user.id,
   }
 
   const { data, error } = await supabase
@@ -278,22 +279,21 @@ export async function getUserNotificationOverrides(
 }
 
 export async function upsertUserNotificationOverride(
-  _ctx: NotificationCallContext,
+  ctx: NotificationCallContext,
   input: UserNotificationOverrideUpsertInput,
 ): Promise<UserNotificationOverrideRecord> {
   const supabase = await createServerClient()
 
-  const payload: Record<string, unknown> = {
-    user_id: input.userId,
-    event_type: input.eventType,
-    channel: input.channel,
-    enabled: input.enabled,
-  }
-
   if (input.id) {
     const { data, error } = await supabase
       .from("user_notification_overrides")
-      .update(payload)
+      .update({
+        user_id: input.userId,
+        event_type: input.eventType,
+        channel: input.channel,
+        enabled: input.enabled,
+        updated_by: ctx.user.id,
+      })
       .eq("id", input.id)
       .select()
       .single()
@@ -309,7 +309,17 @@ export async function upsertUserNotificationOverride(
 
   const { data, error } = await supabase
     .from("user_notification_overrides")
-    .upsert(payload, { onConflict: "user_id, event_type, channel" })
+    .upsert(
+      {
+        user_id: input.userId,
+        event_type: input.eventType,
+        channel: input.channel,
+        enabled: input.enabled,
+        created_by: ctx.user.id,
+        updated_by: ctx.user.id,
+      },
+      { onConflict: "user_id, event_type, channel" },
+    )
     .select()
     .single()
 
@@ -349,7 +359,7 @@ export async function getEmailTemplates(
 }
 
 export async function upsertEmailTemplate(
-  _ctx: NotificationCallContext,
+  ctx: NotificationCallContext,
   input: EmailTemplateUpsertInput,
 ): Promise<EmailTemplateRecord> {
   const supabase = await createServerClient()
@@ -367,7 +377,7 @@ export async function upsertEmailTemplate(
   if (input.id) {
     const { data, error } = await supabase
       .from("email_templates")
-      .update(payload)
+      .update({ ...payload, updated_by: ctx.user.id })
       .eq("id", input.id)
       .select()
       .single()
@@ -383,7 +393,7 @@ export async function upsertEmailTemplate(
 
   const { data, error } = await supabase
     .from("email_templates")
-    .insert(payload)
+    .insert({ ...payload, created_by: ctx.user.id, updated_by: ctx.user.id })
     .select()
     .single()
 
@@ -430,14 +440,17 @@ export async function getUserNotifications(
 }
 
 export async function markNotificationRead(
-  _ctx: NotificationCallContext,
+  ctx: NotificationCallContext,
   notificationId: string,
 ): Promise<void> {
   const supabase = await createServerClient()
 
   const { error } = await supabase
     .from("user_notifications")
-    .update({ read_at: new Date().toISOString() })
+    .update({
+      read_at: new Date().toISOString(),
+      updated_by: ctx.user.id,
+    })
     .eq("id", notificationId)
 
   if (error) {
@@ -448,14 +461,17 @@ export async function markNotificationRead(
 }
 
 export async function markAllNotificationsRead(
-  _ctx: NotificationCallContext,
+  ctx: NotificationCallContext,
   userId: string,
 ): Promise<void> {
   const supabase = await createServerClient()
 
   const { error } = await supabase
     .from("user_notifications")
-    .update({ read_at: new Date().toISOString() })
+    .update({
+      read_at: new Date().toISOString(),
+      updated_by: ctx.user.id,
+    })
     .eq("user_id", userId)
     .is("read_at", null)
 

@@ -164,8 +164,8 @@ export function renderEmailTemplate(
   }
 
   const renderedText = bodyText.replaceAll(
-    /{{\w+}}/g,
-    (match) => variables[match.slice(2, -2)] ?? match,
+    /{{([\w-]+)}}/g,
+    (match, varName) => variables[varName] ?? match,
   )
 
   return { subject, bodyHtml, bodyText: renderedText }
