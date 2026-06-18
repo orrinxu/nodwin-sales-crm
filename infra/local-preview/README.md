@@ -7,6 +7,16 @@
 
 ---
 
+## Prerequisites (read before deploying)
+
+Before hosting, confirm these three things — **every time**:
+
+1. **Branch** — You MUST be on `main`. Run `git branch --show-current`. If not, `git switch main`.
+2. **Database** — The Supabase instance must have the latest schema. Run `supabase db push` or `pnpm db:migrate` before starting.
+3. **Port** — The app binds to **`:3030`** (PM2 ecosystem default). Docs referencing `:3002` are stale — the canonical port is `3030`.
+
+---
+
 ## First-time setup (one-time steps)
 
 Run these steps once on the AMD GPU server to get the preview running:
@@ -50,32 +60,53 @@ Example:
 cwd: "/home/ubuntu/nodwin-sales-crm",
 ```
 
-### 5. Install dependencies and build
+### 5. Apply database schema
+
+```bash
+supabase db push
+```
+
+This creates the tables the app needs (contacts, deals, accounts, etc.). Without this step, every `(crm)/` route will return HTTP 500.
+
+### 6. Install dependencies and build
 
 ```bash
 pnpm install
 pnpm build
 ```
 
-### 6. Start the app with PM2
+### 7. Start the app with PM2
 
 ```bash
 pm2 start infra/local-preview/ecosystem.config.js
 ```
 
-### 7. (Optional) Enable auto-restart on server reboot
+### 8. (Optional) Enable auto-restart on server reboot
 
 ```bash
 sudo pm2 startup systemd
 pm2 save
 ```
 
-### 8. Verify
+### 9. Verify with the 3-check smoke
 
-Open a browser and visit **http://192.168.88.51:3030**.
+After starting, confirm the app actually renders:
 
-- The login page should load.
-- After logging in, the dashboard should appear (may be empty).
+```bash
+# Check 1: API health
+curl -s http://localhost:3030/api/health | jq .status
+# Expected: "ok"
+
+# Check 2: A (crm)/ route renders (no 500)
+curl -s -o /dev/null -w '%{http_code}' http://localhost:3030/contacts
+# Expected: 200 or 307 (login redirect) — NOT 500
+
+# Check 3: A second (crm)/ route
+curl -s -o /dev/null -w '%{http_code}' http://localhost:3030/pipeline
+# Expected: 200 or 307 — NOT 500
+```
+
+If any check returns 500 or the health check fails, do NOT report "hosted on :3030" as done. Investigate and fix.
 
 ---
 
@@ -87,7 +118,7 @@ After merging changes to `main`, SSH into the server and run:
 ./infra/local-preview/deploy.sh
 ```
 
-This pulls the latest code, installs dependencies, builds, and restarts the app.
+This verifies the branch, pulls latest, installs, builds, applies migrations, and restarts PM2. Run the 3-check smoke afterwards.
 
 ---
 
