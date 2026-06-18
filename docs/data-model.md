@@ -74,6 +74,7 @@ A client company. Supports a hierarchy: a single Account can have multiple paren
 | account_owner_user_id | uuid (FK User) | Primary owner; team membership separate |
 | email_domains | text[] | For inbound email matching, e.g., `["tencent.com", "tencentmusic.com"]` |
 | custom_data | jsonb | |
+| deleted_at | timestamptz (nullable) | Soft-delete timestamp. Non-admin queries filter out soft-deleted rows. |
 | created_at, updated_at, created_by, updated_by | audit | |
 
 #### 4.4.1 Account Relationships
@@ -177,6 +178,20 @@ A separate `opportunity_team_members` table models the cross-functional team on 
 
 Every stage transition is recorded in `opportunity_stage_history` with `from_stage`, `to_stage`, `changed_by`, `changed_at`, `time_in_previous_stage`, and a reason note. This drives the visual stage history (Pipedrive-style timeline) on the deal detail page and the conversion analytics on management dashboards.
 
+#### 4.6.4 Revenue Schedule
+
+Custom monthly revenue amounts for recurring-revenue deals. Schema created by migration `20260618000000_opportunity_revenue_schedule.sql` (ORR-491). Used when `recurring_split_kind = 'custom'` to store per-month allocations.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | uuid (PK) | |
+| opportunity_id | uuid (FK Opportunity) | Parent deal |
+| month | date | First day of the month this revenue entry applies to |
+| amount | numeric(20,4) | Revenue amount in the opportunity's currency |
+| created_at, updated_at | timestamptz | |
+
+Unique constraint on `(opportunity_id, month)` — at most one entry per month per deal. RLS inherits from the parent opportunity's visibility.
+
 ### 4.7 Activities (Communications)
 
 Calls, notes, emails, meetings, and tasks logged against an Account, Contact, or Opportunity (or any combination).
@@ -243,7 +258,7 @@ Approvals are modelled as instances of an admin-defined `approval_workflow`. The
 
 ### 4.10 Custom Fields
 
-Custom fields are stored in a `custom_data jsonb` column on Account, Contact, Opportunity, and (optionally) Activity. A separate `field_definitions` table tracks the schema of custom fields per entity type.
+Custom fields are stored in a `custom_data jsonb` column on Account, Contact, Opportunity, and (optionally) Activity. A separate `field_definitions` table tracks the schema of custom fields per entity type. v1 ships with eight Gold Standard account fields seeded by migration (ORR-549): Payment Terms, GST Number (India), PAN (India), VAT Number (EU), TRN (MENA), Main Phone, HQ / Registered Address, Credit Risk Flag.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -265,7 +280,7 @@ Renaming or deleting a field with production data behind it requires a confirmat
 
 ### 4.11 Audit Log
 
-Full audit log on opportunities, accounts, contacts, opportunity_splits, opportunity_team_members, approval_instances, and document deletions. Each row records: `table_name`, `row_id`, `operation` (insert / update / delete), `changed_fields` (JSON diff), `actor_user_id`, `actor_source` (web / mcp / webhook / system), `actor_ip`, `actor_user_agent`, `occurred_at`.
+Full audit log on opportunities, accounts, contacts, opportunity_splits, opportunity_team_members, opportunity_revenue_schedule, approval_instances, document deletions, admin_alerts, currencies, fx_rates, and integration config tables. Each row records: `table_name`, `row_id`, `operation` (insert / update / delete), `changed_fields` (JSON diff), `actor_user_id`, `actor_source` (web / mcp / webhook / system), `actor_ip`, `actor_user_agent`, `occurred_at`.
 
 Implemented via Postgres triggers writing to a single `audit_log` table (one table for all entities, indexed on `table_name + row_id + occurred_at`). Retention: indefinite for v1; configurable in v2 if storage becomes a concern.
 
@@ -282,5 +297,118 @@ When the MCP server is built in v1.5, it adds two tables:
 `mcp_calls` records every MCP tool invocation: `id`, `session_id`, `tool_name` (e.g., "search_opportunities", "create_activity"), `arguments` (jsonb, redacted of any secret-like fields), `result_status` (success / error / rate_limited / unauthorised), `latency_ms`, `occurred_at`. Used for the AI agent dashboard and per-user / per-tool rate limiting.
 
 Both tables have RLS: users see only their own sessions / calls; admin sees all.
+
+### 4.14 Notification and Communication
+
+Notification infrastructure for in-app, email, and Slack delivery. Schema created by migration `20260619000000_notifications_communications.sql` (ORR-524).
+
+| Table | Purpose |
+|---|---|
+| `notification_routing` | Org-level event × channel routing matrix. Enables/disables event types (`stage_change`, `deal_assigned`, `approval_requested`, `mention`, `deal_won`, `deal_lost`) on channels (`in_app`, `email`, `slack`). Null `entity_id` = org-wide default. |
+| `user_notification_overrides` | Per-user opt-in/opt-out overrides. Takes precedence over routing matrix. |
+| `email_templates` | Editable transactional email templates with `subject`, `bodyHtml`, `bodyText`, and `variables` array. |
+| `user_notifications` | In-app notification inbox with `title`, `message`, `linkUrl`, `readAt`, and JSONB `metadata`. |
+
+`comms_tracking_enabled` boolean column added to `public.entities` — per-entity communication tracking toggle.
+
+### 4.15 Data Management
+
+Export configuration and job history. Schema created by migration `20260620000000_data_management.sql` (ORR-527).
+
+| Table | Purpose |
+|---|---|
+| `finance_export_config` | Per-entity daily finance export config: `destination_drive_folder_id`, `format` (JSONB), `schedule`, `enabled`. |
+| `import_jobs` | Import/export job history: `kind` (export\|import), `status`, `file_url`, `drive_file_id`, `record_count`, `error_log` (JSONB). |
+
+### 4.16 Integration Configuration
+
+Org-level integration settings. Schema created by migration `20260618000003_integration_config.sql` (ORR-518).
+
+| Table | Purpose |
+|---|---|
+| `integration_settings` | Key-value store for integration feature toggles. `key` (text, unique), `value` (JSONB). |
+| `slack_connections` | Slack workspace connections: `workspace_id`, `event_routing` (JSONB), `status` (disconnected\|connecting\|connected\|error). |
+| `email_settings` | Email infrastructure: `resend_domain`, `inbound_domain`, `template_config` (JSONB), `status`. |
+| `salesforce_connections` | Salesforce migration connections: `instance_url`, `api_version`, `status`, `last_sync_at`. |
+
+### 4.17 Financial Settings
+
+Financial admin configuration per entity. Schema created by migration `20260618000002_financial_settings.sql` (ORR-515).
+
+| Table | Purpose |
+|---|---|
+| `reporting_currency_settings` | Reporting currency overrides. Null `entity_id` = global default. |
+| `fiscal_year_settings` | Per-entity FY start month override (`fy_start_month` 1–12). Overrides `entities.fiscal_year_start_month`. |
+| `approval_thresholds` | Per-entity deal approval rules: `min_deal_value`, `max_deal_value`, `requires_role`, `approval_workflow_id`. |
+| `revenue_recognition_defaults` | Default revenue split config: `default_split_kind`, `default_margin_percent`, `auto_create_splits`. |
+
+### 4.18 Entity Branding
+
+Branding columns on `public.entities` added by migration `20260618000001_entity_branding_relationship_types.sql` (ORR-512):
+
+| Column | Type | Notes |
+|---|---|---|
+| `logo_url` | text | Entity logo URL |
+| `brand_color` | text | Primary brand color (hex) |
+| `brand_accent_color` | text | Accent brand color (hex) |
+
+### 4.19 Account Relationship Types
+
+`account_relationships.kind` migrated from enum to text FK referencing `public.relationship_types` (ORR-512). Admins manage relationship types without schema changes. Default seeded: `subsidiary_of`, `procurement_via`, `partner_with`, `parent_of`, `sister_company`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `relationship_types.id` | uuid (PK) | |
+| `relationship_types.name` | text | e.g., "Subsidiary of" |
+| `relationship_types.kind` | text | Machine key, e.g., "subsidiary_of" |
+| `relationship_types.reverse_kind` | text (nullable) | Inverse, e.g., "parent_of" |
+| `relationship_types.active` | boolean | Soft-delete |
+
+### 4.20 Currencies Registry
+
+Admin-managed currency registry powering the `currency` field on Opportunities. Schema created by migration `20260505000002_currencies.sql` (ORR-142).
+
+| Field | Type | Notes |
+|---|---|---|
+| code | text (PK) | ISO 4217 code or custom code (e.g., "USDT"). Constrained to `^[A-Z0-9]{1,8}$`. |
+| name | text | Display name, e.g., "US Dollar", "Tether (USD-pegged stablecoin)" |
+| scale | int | Decimal places for this currency (0 for JPY/KRW/VND, 2 for most, 4 for USDT) |
+| active | boolean | Soft-delete flag. Most queries filter on `active = true`. |
+
+Seeded with 39 currencies covering all Nodwin Group markets (AED through ZAR) plus USDT for crypto-denominated deals. Admin manages via the admin panel.
+
+### 4.21 FX Rates
+
+Exchange rates for converting deal amounts between currencies, managed by Finance and Admin. Schema created by migration `20260617000000_fx_rates.sql` (ORR-458).
+
+| Field | Type | Notes |
+|---|---|---|
+| id | uuid (PK) | |
+| from_currency | text (FK currencies) | Source currency code |
+| to_currency | text (FK currencies) | Target currency code |
+| rate | numeric(20,8) | How many units of `to_currency` equal 1 unit of `from_currency`. Must be > 0. |
+| source | enum | `manual` (entered by finance/admin) or `external_api` (fetched from provider) |
+| source_reference | text (nullable) | Provider name, URL, or audit note |
+| effective_date | date | Date the rate applies (defaults to today) |
+| entity_id | uuid (FK Entity, nullable) | Entity-specific rate. NULL = group-wide default for the currency pair. |
+| created_by | uuid (FK User) | Who entered the rate |
+
+Unique constraint on `(from_currency, to_currency, effective_date, entity_id)` with `NULLS NOT DISTINCT` — one rate per pair per date per entity scope. RLS: all authenticated read; finance/admin write.
+
+### 4.22 Admin Alerts
+
+In-app notifications surfaced on the admin dashboard. Written by backend services via `service_role`, read/acknowledged by admin users. Schema created by migration `20260506000003_admin_alerts.sql` (ORR-289).
+
+| Field | Type | Notes |
+|---|---|---|
+| id | uuid (PK) | |
+| title | text | Alert headline |
+| message | text | Alert body |
+| type | text | Categorisation: `info`, `warning`, `error`, `deadletter`, etc. |
+| metadata | jsonb | Arbitrary payload, e.g., `{deadletterId, reason, fromAddress}` |
+| acknowledged_at | timestamptz (nullable) | Set when an admin dismisses/reads the alert. NULL = unread. |
+| created_by | uuid (FK User) | System user or admin who created the alert |
+
+Indexed on `acknowledged_at` (partial, non-null only) for efficient unread-alert queries. RLS: admin-only select/update; backend writes via `service_role`.
 
 ---

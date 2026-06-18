@@ -154,6 +154,8 @@ nodwin-crm/
 │   ├── integrations.md        # integration architecture details
 │   ├── security.md            # threat model and pre-launch checklist
 │   ├── runbook-incident.md    # incident response procedures
+│   ├── smoke-test.md          # pre-deploy smoke test (3-check)
+│   ├── supabase-environments.md  # local vs production Supabase management
 │   └── _sources/              # source documents (SOW originals)
 ├── apps/
 │   └── web/                   # Next.js web application (main app)
@@ -161,6 +163,13 @@ nodwin-crm/
 │       │   ├── page.tsx       # root page
 │       │   ├── layout.tsx     # root layout
 │       │   ├── globals.css    # Tailwind CSS v4 entry
+│       │   ├── (crm)/         # authenticated CRM pages
+│       │   │   ├── accounts/  # accounts list + detail
+│       │   │   ├── admin/     # admin panel (entities, business-units,
+│       │   │   │              #   field-definitions, relationship-types,
+│       │   │   │              #   data-management, notifications, alerts)
+│       │   │   ├── opportunities/  # pipeline board + detail
+│       │   │   └── ...
 │       │   └── api/           # server-side API routes
 │       │       └── auth/
 │       │           └── callback/  # Google OAuth callback
@@ -181,17 +190,38 @@ nodwin-crm/
 │       │   │   ├── audit.ts
 │       │   │   └── env.ts
 │       │   ├── data/          # typed Supabase queries (one file per entity)
+│       │   │   ├── accounts.ts
+│       │   │   ├── contacts.ts
+│       │   │   ├── opportunities.ts
+│       │   │   ├── notifications.ts
+│       │   │   ├── data-management.ts
+│       │   │   ├── field-definitions.ts
+│       │   │   ├── business-units.ts
+│       │   │   ├── entities.ts
+│       │   │   ├── relationship-types.ts
+│       │   │   ├── admin-alerts.ts
 │       │   │   └── opportunity-stage-history.ts
+│       │   ├── notifications/ # notification delivery engine + triggers
+│       │   │   ├── delivery.ts
+│       │   │   └── triggers.ts
 │       │   ├── workflows/     # XState state machines
 │       │   │   ├── deal-stage.ts
 │       │   │   ├── approval.ts
 │       │   │   └── *.test.ts
 │       │   └── utils.ts
+│       ├── components/
+│       │   ├── accounts/         # account list, detail, form components
+│       │   ├── admin/            # admin panel components
+│       │   ├── layout/           # sidebar, header, shell
+│       │   ├── notifications/    # admin alerts, notification UI
+│       │   ├── opportunities/    # pipeline board, form, detail
+│       │   ├── ui/               # shared primitives (combobox, dialog, etc.)
+│       │   └── entity-combobox.tsx  # reusable search-or-create picker
 │       ├── __tests__/         # Vitest test files
 │       ├── next.config.ts
 │       └── vitest.config.ts
 ├── supabase/
-│   ├── migrations/            # HIGH-RISK — SQL migrations, ordered (12 files)
+│   ├── migrations/            # HIGH-RISK — SQL migrations, ordered (15 files)
 │   ├── policies/              # HIGH-RISK — RLS policies, one file per table
 │   ├── tests/                 # pgTAP RLS tests (9 files)
 │   ├── functions/             # Edge functions (empty — planned)

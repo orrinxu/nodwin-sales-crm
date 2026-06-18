@@ -11,12 +11,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Setup guide: `docs/setup-guide.md` — Google OAuth, Supabase Cloud project creation, and magic link email configuration
-- `.env.example` with all auth, SMTP, and integration environment variables
-- **Startup guide (ORR-408):** `docs/startup-guide.md` — step-by-step local dev setup with environment config, Supabase local stack, seed data, verification checklist, and troubleshooting
-- **Setup guide OAuth fix (ORR-408):** Quick start corrected in `docs/setup-guide.md` — OAuth redirect URI now points to `https://<project-ref>.supabase.co/auth/v1/callback` (Supabase is the broker, not the app); free-tier noted as sufficient for dev sandbox; local Supabase listed as alternative to Cloud project. GCP redirect URI documentation fixed in §2.1 and troubleshooting table
-- **README:** Quick start corrected to point at `apps/web/.env.example`; `setup-guide.md` and `startup-guide.md` added to project structure listing
-- **Smoke test procedure (ORR-452):** `docs/smoke-test.md` — codified 3-check pre-deploy smoke test (branch guard, schema check, route health check + process restart). `docs/runbook-incident.md` updated to reference the smoke procedure in the P-1 response and as a pre-deploy gate.
+- **Accounts — list and detail pages (ORR-466/467):** Companies list page with sidebar nav, bulk delete, and account detail page showing relationships, contacts, opportunities, and linked documents.
+- **EntityCombobox component (ORR-542):** Reusable search-or-create picker with server-side search, debounced input, sublabel, and create-on-the-fly support.
+- **Opportunity create/edit form (ORR-544/545):** Progressive-disclosure form with EntityCombobox picker, all §4.6 fields, custom fields display, and stage-qualify default.
+- **Account Gold Standard fields (ORR-548/549/550):** v1 custom fields seeded (Payment Terms, GST/PAN/VAT/TRN, Main Phone, HQ Address, Credit Risk Flag); progressive-disclosure sections; Gold Standard filter params.
+- **Notification engine (ORR-525):** Data access layer, delivery engine (in_app/email/Slack), routing matrix with user overrides, stage_change/deal_won/deal_lost triggers, server action admin UI.
+- **Admin — Notifications & Communication UI (ORR-526):** Manage routing (event×channel), email templates with variable interpolation, user overrides, entity comms tracking toggle.
+- **Admin — Data Management UI (ORR-529):** Per-entity finance export config (Drive folder, format, schedule) and import/export job history.
+- **Admin — Entities, Business Units, Custom Fields, Relationship Types (ORR-507/512):** CRUD admin pages for each, all gated by `requireRole(user, "admin")`. Collapsible Admin sidebar.
+- **Admin — Alerts page (ORR-510):** Alert inbox with acknowledge and acknowledge-all actions.
+- **Integration config schema (ORR-518):** New DB tables (`integration_settings`, `slack_connections`, `email_settings`, `salesforce_connections`) + admin UI tabs.
+- **Financial settings schema (ORR-515):** New DB tables (`reporting_currency_settings`, `fiscal_year_settings`, `approval_thresholds`, `revenue_recognition_defaults`).
+- **Entity branding and relationship types (ORR-512):** `entities` branding columns added; `account_relationships.kind` migrated from enum to text FK referencing `relationship_types`.
+- **Security compliance — session management (ORR-510):** `admin_sessions` table + `revoke_user_sessions` RPC.
+- **Mobile responsive layout (ORR-470):** Mobile sidebar via Sheet; responsive opportunity layout.
+- **Setup guide (ORR-408):** `docs/setup-guide.md` — Google OAuth, Supabase Cloud, magic link. Startup guide and OAuth fix. README quick start corrected.
+- **Smoke test (ORR-452):** `docs/smoke-test.md` — 3-check pre-deploy procedure (branch guard, schema check, route health). `docs/supabase-environments.md` — local vs production env management.
+- **Data model documentation gap-fill (ORR-552):** Account soft-delete `deleted_at` column (§4.4), Opportunity Revenue Schedule (§4.6.4), Currencies Registry (§4.20), FX Rates (§4.21), Admin Alerts (§4.22), and audit log coverage updated. All documented from actual migration SQL — no guessing.
+
+### Changed
+
+- **Opportunity quick-create (ORR-545):** Default stage changed to `qualify`; picker upgraded to EntityCombobox.
+
+### Fixed
+
+- **Mobile rendering (ORR-470):** App shell and opportunities layout fixed for mobile.
+- **Security — XSS (ORR-525):** HTML escaping in notification delivery; `NODE_ENV` env schema restored.
 
 ## 2026-05-08
 
