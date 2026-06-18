@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -87,6 +87,8 @@ export function AccountForm({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const createdAccountRef = useRef<AccountRecord | null>(null)
+
   const [parentAccountId, setParentAccountId] = useState("")
   const [relationshipKind, setRelationshipKind] = useState<AccountRelationshipKind | "">("")
 
@@ -150,8 +152,13 @@ export function AccountForm({
 
       if (isEditing && account && updateAction) {
         savedAccount = await updateAction(account.id, input)
+      } else if (!isEditing && createdAccountRef.current) {
+        savedAccount = createdAccountRef.current
       } else {
         savedAccount = await createAction(input)
+        if (!isEditing) {
+          createdAccountRef.current = savedAccount
+        }
       }
 
       if (onSaveRelationship && parentAccountId && relationshipKind) {
@@ -161,6 +168,7 @@ export function AccountForm({
         })
       }
 
+      createdAccountRef.current = null
       setOpen(false)
       form.reset()
       setParentAccountId("")
@@ -168,7 +176,13 @@ export function AccountForm({
       setCustomFieldValues(account?.customData ?? {})
       onSuccess()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "An unexpected error occurred")
+      const msg = e instanceof Error ? e.message : "An unexpected error occurred"
+      if (!isEditing && createdAccountRef.current) {
+        setError(`Account created but the relationship could not be saved: ${msg}. The form will retry the relationship without creating a duplicate account.`)
+      } else {
+        createdAccountRef.current = null
+        setError(msg)
+      }
     } finally {
       setPending(false)
     }
@@ -177,6 +191,7 @@ export function AccountForm({
   function handleOpenChange(newOpen: boolean) {
     setOpen(newOpen)
     if (newOpen) {
+      createdAccountRef.current = null
       setCustomFieldValues(account?.customData ?? {})
       setParentAccountId(parentRelationship?.toAccountId ?? "")
       setRelationshipKind(parentRelationship?.kind ?? "")

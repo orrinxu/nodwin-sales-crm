@@ -1,6 +1,6 @@
 /// <reference types="@testing-library/jest-dom/vitest" />
 import { describe, it, expect, vi } from "vitest"
-import { render, screen, fireEvent, waitFor } from "@testing-library/react"
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react"
 import { AccountForm } from "./account-form"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 
@@ -419,6 +419,289 @@ describe("AccountForm", () => {
       await waitFor(() => {
         expect(screen.getByText("Subsidiary of")).toBeInTheDocument()
       })
+    })
+  })
+
+  describe("partial failure on relationship save (ORR-563)", () => {
+    it("shows partial-failure error when account creates but relationship fails", async () => {
+      const createAction = vi.fn().mockResolvedValueOnce({
+        id: "new-acct",
+        name: "Test Co",
+        legalName: null,
+        website: null,
+        country: null,
+        industry: null,
+        description: null,
+        accountOwnerUserId: null,
+        emailDomains: null,
+        customData: {},
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+        createdBy: null,
+        updatedBy: null,
+        deletedAt: null,
+      })
+
+      const onSaveRelationship = vi.fn().mockRejectedValueOnce(new Error("DB constraint violation"))
+      const onSuccess = vi.fn()
+
+      render(
+        <AccountForm
+          {...defaultProps}
+          createAction={createAction}
+          onSaveRelationship={onSaveRelationship}
+          onSuccess={onSuccess}
+          parentRelationship={{
+            toAccountId: "acct-2",
+            kind: "subsidiary_of",
+          }}
+        />,
+      )
+
+      fireEvent.click(screen.getByText("Create Account"))
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText("Company or organization name")).toBeInTheDocument()
+      })
+
+      fireEvent.change(screen.getByPlaceholderText("Company or organization name"), {
+        target: { value: "Test Co" },
+      })
+
+      const form = document.querySelector("form")!
+      fireEvent.click(within(form).getByRole("button", { name: "Create Account" }))
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Account created but the relationship could not be saved/),
+        ).toBeInTheDocument()
+      })
+
+      expect(createAction).toHaveBeenCalledTimes(1)
+      expect(onSaveRelationship).toHaveBeenCalledTimes(1)
+      expect(onSuccess).not.toHaveBeenCalled()
+      expect(screen.getByRole("heading", { name: "Create Account" })).toBeInTheDocument()
+    })
+
+    it("does not call createAction again on retry after partial failure", async () => {
+      const createAction = vi.fn().mockResolvedValue({
+        id: "new-acct",
+        name: "Test Co",
+        legalName: null,
+        website: null,
+        country: null,
+        industry: null,
+        description: null,
+        accountOwnerUserId: null,
+        emailDomains: null,
+        customData: {},
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+        createdBy: null,
+        updatedBy: null,
+        deletedAt: null,
+      })
+
+      const onSaveRelationship = vi.fn()
+        .mockRejectedValueOnce(new Error("DB constraint violation"))
+        .mockResolvedValueOnce(undefined)
+      const onSuccess = vi.fn()
+
+      render(
+        <AccountForm
+          {...defaultProps}
+          createAction={createAction}
+          onSaveRelationship={onSaveRelationship}
+          onSuccess={onSuccess}
+          parentRelationship={{
+            toAccountId: "acct-2",
+            kind: "subsidiary_of",
+          }}
+        />,
+      )
+
+      fireEvent.click(screen.getByText("Create Account"))
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText("Company or organization name")).toBeInTheDocument()
+      })
+
+      fireEvent.change(screen.getByPlaceholderText("Company or organization name"), {
+        target: { value: "Test Co" },
+      })
+
+      const form1 = document.querySelector("form")!
+      fireEvent.click(within(form1).getByRole("button", { name: "Create Account" }))
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Account created but the relationship could not be saved/),
+        ).toBeInTheDocument()
+      })
+
+      expect(createAction).toHaveBeenCalledTimes(1)
+
+      fireEvent.click(within(form1).getByRole("button", { name: "Create Account" }))
+
+      await waitFor(() => {
+        expect(onSuccess).toHaveBeenCalledTimes(1)
+      })
+
+      expect(createAction).toHaveBeenCalledTimes(1)
+      expect(onSaveRelationship).toHaveBeenCalledTimes(2)
+    })
+
+    it("clears createdAccountRef on full success", async () => {
+      const createAction = vi.fn()
+        .mockResolvedValueOnce({
+          id: "new-acct-1",
+          name: "First Co",
+          legalName: null,
+          website: null,
+          country: null,
+          industry: null,
+          description: null,
+          accountOwnerUserId: null,
+          emailDomains: null,
+          customData: {},
+          createdAt: "2026-01-01T00:00:00Z",
+          updatedAt: "2026-01-01T00:00:00Z",
+          createdBy: null,
+          updatedBy: null,
+          deletedAt: null,
+        })
+        .mockResolvedValueOnce({
+          id: "new-acct-2",
+          name: "Second Co",
+          legalName: null,
+          website: null,
+          country: null,
+          industry: null,
+          description: null,
+          accountOwnerUserId: null,
+          emailDomains: null,
+          customData: {},
+          createdAt: "2026-02-01T00:00:00Z",
+          updatedAt: "2026-02-01T00:00:00Z",
+          createdBy: null,
+          updatedBy: null,
+          deletedAt: null,
+        })
+
+      const onSuccess = vi.fn()
+
+      render(
+        <AccountForm
+          {...defaultProps}
+          createAction={createAction}
+          onSaveRelationship={vi.fn().mockResolvedValue(undefined)}
+          onSuccess={onSuccess}
+          parentRelationship={{
+            toAccountId: "acct-2",
+            kind: "subsidiary_of",
+          }}
+        />,
+      )
+
+      fireEvent.click(screen.getByText("Create Account"))
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText("Company or organization name")).toBeInTheDocument()
+      })
+
+      fireEvent.change(screen.getByPlaceholderText("Company or organization name"), {
+        target: { value: "First Co" },
+      })
+
+      const form1 = document.querySelector("form")!
+      fireEvent.click(within(form1).getByRole("button", { name: "Create Account" }))
+
+      await waitFor(() => {
+        expect(onSuccess).toHaveBeenCalledTimes(1)
+      })
+
+      fireEvent.click(screen.getByRole("button", { name: "Create Account" }))
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText("Company or organization name")).toBeInTheDocument()
+      })
+
+      fireEvent.change(screen.getByPlaceholderText("Company or organization name"), {
+        target: { value: "Second Co" },
+      })
+
+      const form2 = document.querySelector("form")!
+      fireEvent.click(within(form2).getByRole("button", { name: "Create Account" }))
+
+      await waitFor(() => {
+        expect(onSuccess).toHaveBeenCalledTimes(2)
+        expect(createAction).toHaveBeenCalledTimes(2)
+      })
+    })
+
+    it("does not interfere with edit mode relationship save failure", async () => {
+      const updateAction = vi.fn().mockResolvedValue({
+        id: "acct-1",
+        name: "Acme Corp",
+        legalName: null,
+        website: null,
+        country: null,
+        industry: null,
+        description: null,
+        accountOwnerUserId: null,
+        emailDomains: null,
+        customData: {},
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-06-01T00:00:00Z",
+        createdBy: null,
+        updatedBy: null,
+        deletedAt: null,
+      })
+
+      const onSaveRelationship = vi.fn().mockRejectedValue(new Error("Network error"))
+      const onSuccess = vi.fn()
+
+      render(
+        <AccountForm
+          {...defaultProps}
+          account={{
+            id: "acct-1",
+            name: "Acme Corp",
+            legalName: null,
+            website: null,
+            country: null,
+            industry: null,
+            description: null,
+            accountOwnerUserId: null,
+            emailDomains: null,
+            customData: {},
+            createdAt: "2026-01-01T00:00:00Z",
+            updatedAt: "2026-06-01T00:00:00Z",
+            createdBy: null,
+            updatedBy: null,
+            deletedAt: null,
+          }}
+          updateAction={updateAction}
+          onSaveRelationship={onSaveRelationship}
+          onSuccess={onSuccess}
+          parentRelationship={{
+            toAccountId: "acct-2",
+            kind: "subsidiary_of",
+          }}
+          trigger={<button type="button">Edit</button>}
+        />,
+      )
+
+      fireEvent.click(screen.getByText("Edit"))
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText("Company or organization name")).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByText("Save Changes"))
+
+      await waitFor(() => {
+        expect(updateAction).toHaveBeenCalledTimes(1)
+        expect(onSaveRelationship).toHaveBeenCalledTimes(1)
+      })
+
+      const errorDivs = screen.getAllByText(/error/, { exact: false })
+      expect(errorDivs.length).toBeGreaterThan(0)
     })
   })
 })
