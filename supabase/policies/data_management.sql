@@ -2,7 +2,7 @@
 -- HIGH-RISK FILE — see AGENTS.md §6.
 --
 -- RLS policies for Data Management tables (ORR-527 / ORR-509-db).
--- These are also embedded in 20260620000000_data_management.sql so the
+-- These are also embedded in 20260619000002_data_management.sql so the
 -- migration is self-contained. This file exists for security-review readability.
 --
 -- Rules:

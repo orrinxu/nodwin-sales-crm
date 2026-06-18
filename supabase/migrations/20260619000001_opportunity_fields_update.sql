@@ -1,4 +1,4 @@
--- supabase/migrations/20260719000000_opportunity_fields_update.sql
+-- supabase/migrations/20260619000001_opportunity_fields_update.sql
 -- HIGH-RISK FILE — see AGENTS.md §6.
 --
 -- ORR-553 / ORR-551.1: Remove sales_initiator_user_id and add new opportunity fields.
