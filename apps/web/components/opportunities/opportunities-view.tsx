@@ -6,6 +6,7 @@ import { LayoutGridIcon, ListIcon } from "lucide-react"
 import { type OpportunityRecord } from "@/lib/data/opportunities.types"
 import type { OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/opportunities.types"
 import type { AccountOption } from "@/lib/data/contacts"
+import type { EntityOption } from "@/components/entity-combobox"
 import { cn } from "@/lib/utils"
 import { OpportunityBoard } from "@/components/opportunities/opportunity-board"
 import { OpportunityListTable } from "@/components/opportunities/opportunity-list-table"
@@ -18,6 +19,7 @@ interface OpportunitiesViewProps {
   updateStageAction: (id: string, input: { stage: string }) => Promise<OpportunityRecord>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
   bulkUpdateStageAction: (input: { ids: string[]; stage: string }) => Promise<void>
+  searchAccountsAction?: (query: string) => Promise<EntityOption[]>
 }
 
 type ViewMode = "kanban" | "table"
@@ -30,6 +32,7 @@ export function OpportunitiesView({
   updateStageAction,
   bulkDeleteAction,
   bulkUpdateStageAction,
+  searchAccountsAction,
 }: OpportunitiesViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("kanban")
 
@@ -83,6 +86,7 @@ export function OpportunitiesView({
           businessUnits={businessUnits}
           createAction={createAction}
           updateStageAction={updateStageAction}
+          searchAccountsAction={searchAccountsAction}
         />
       ) : (
         <div className="flex-1 p-4 lg:p-6">
