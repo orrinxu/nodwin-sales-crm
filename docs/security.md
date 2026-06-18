@@ -28,7 +28,7 @@ The project lead is building solo with AI assistance. Hand-writing every load-be
 
 | Risk area | Managed primitive | What the project lead writes |
 |---|---|---|
-| RLS policies | Supabase RLS + a published multi-tenant CRM RLS template + materialised `opportunity_visibility` table for performance at scale | Policy bodies (using the template). Test cases. NOT the RLS engine. |
+| RLS policies | Supabase RLS + a published multi-tenant CRM RLS template + `opportunity_visibility` trigger-maintained cache table for performance at scale | Policy bodies (using the template). Test cases. NOT the RLS engine. |
 | Authentication | Supabase Auth with Google OAuth | Domain allow-list hook. NOT password hashing, session management, or token issuance. |
 | Webhook signature verification | Official SDK from each provider (`@slack/bolt`, `postmark`, `googleapis`) | Configuration. Tests proving signatures fail when tampered with. NOT signature verification logic. |
 | Inbound email parsing | Postmark Inbound (parses + DKIM-verifies + signs the webhook payload) | The matching logic (which Account, which Opportunity). NOT the email parser, NOT the DKIM check. |
@@ -43,7 +43,7 @@ The project lead is building solo with AI assistance. Hand-writing every load-be
 
 Every table with user-visible data has RLS enabled. Policies follow this pattern (simplified):
 
-`opportunities` SELECT policy: a user can read an opportunity if their user id appears in the materialised `opportunity_visibility` table for that opportunity. The materialised table is updated by Postgres triggers on (`opportunity_team_members`, `opportunity_splits`, `users.manager_user_id`, `opportunities.visibility_tier`) — so the SELECT policy is a single-row index lookup at query time, not a recursive CTE.
+`opportunities` SELECT policy: a user can read an opportunity if their user id appears in the `opportunity_visibility` table for that opportunity. This trigger-maintained cache table is updated by Postgres triggers on (`opportunity_team_members`, `opportunity_splits`, `users.manager_user_id`, `opportunities.visibility_tier`) — so the SELECT policy is a single-row index lookup at query time, not a recursive CTE.
 
 `opportunities` UPDATE policy: a user can update an opportunity if they are the owner, on the opportunity team with role = owner | contributor, or have role admin / group_sales_lead.
 

@@ -609,6 +609,10 @@ DECLARE
 BEGIN
   _opp_id := COALESCE(NEW.opportunity_id, OLD.opportunity_id);
 
+  IF NOT EXISTS (SELECT 1 FROM public.opportunities WHERE id = _opp_id) THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
   SELECT COALESCE(SUM(pct), 0) INTO _total
     FROM public.opportunity_splits
    WHERE opportunity_id = _opp_id;
