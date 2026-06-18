@@ -59,6 +59,39 @@ const mockOpportunity = {
   updatedAt: "2026-04-01T00:00:00Z",
 }
 
+const mockOpportunity2 = {
+  id: "opp-2",
+  name: "Small Deal",
+  accountId: "acct-2",
+  accountName: "Globex Inc",
+  primaryContactId: null,
+  stage: "propose" as const,
+  probabilityPct: 50,
+  amount: "1000.00",
+  currency: "EUR",
+  ownerUserId: "user-2",
+  ownerName: "Bob",
+  salesUnitId: "bu-2",
+  revenueRecognitionUnitId: null,
+  billingEntityId: null,
+  servicePeriodStart: null,
+  servicePeriodEnd: null,
+  executionDate: null,
+  estimatedGrossMarginPct: null,
+  countryExecution: null,
+  projectType: "fixed_price" as const,
+  revenueCategory: "services" as const,
+  recurring: true,
+  recurringSplitKind: "flat" as const,
+  description: null,
+  closeDate: null,
+  lossReason: null,
+  visibilityTier: "confidential" as const,
+  customData: {},
+  createdAt: "2026-02-01T00:00:00Z",
+  updatedAt: "2026-04-01T00:00:00Z",
+}
+
 const defaultProps = {
   accounts: mockAccounts,
   businessUnits: mockBusinessUnits,
@@ -619,6 +652,108 @@ describe("OpportunityForm", () => {
         expect(createAction).toHaveBeenCalledWith(
           expect.objectContaining({ currency: "USD" }),
         )
+      })
+    })
+  })
+
+  describe("reactivity — form.watch after form.reset across re-renders", () => {
+    it("re-opens with a different fixture and reflects all new values", async () => {
+      const user = setupUser()
+      const { rerender } = render(
+        <OpportunityForm
+          {...defaultProps}
+          opportunity={mockOpportunity}
+          updateAction={vi.fn()}
+          users={mockUsers}
+        />,
+      )
+
+      // Open sheet with first fixture
+      await user.click(screen.getByRole("button", { name: /create opportunity/i }))
+
+      // Verify fixture A values (wait for form.reset to settle)
+      await waitFor(() => {
+        const nameInput = screen.getByLabelText(/name/i) as HTMLInputElement
+        expect(nameInput.value).toBe("Big Deal")
+      })
+
+      // Section A: Account=Acme Corp, Sales Unit=bu-1, Owner=Alice, Stage=Negotiate
+      expect(screen.getByText("Acme Corp")).toBeInTheDocument()
+
+      // Section A combos: check raw values (Select shows raw value when popover closed)
+      const sectionACombos = screen.getAllByRole("combobox")
+      // [0]=Account, [1]=Contact, [2]=Sales Unit, [3]=Owner, [4]=Stage
+      expect(sectionACombos[2].textContent).toContain("bu-1")
+      expect(sectionACombos[3].textContent).toContain("Alice")
+      expect(sectionACombos[4].textContent).toContain("negotiate")
+
+      const probInput = screen.getByLabelText(/probability/i) as HTMLInputElement
+      expect(probInput.value).toBe("75")
+
+      // Expand section B
+      await user.click(screen.getByText("More details"))
+
+      // Visibility Tier=standard (only Select in section B for fixture A, since recurring=false)
+      await waitFor(() => {
+        const sectionBCombos = screen.getAllByRole("combobox")
+        // [5..?] depend on rendering — Visibility Tier is last before the textarea
+        // No Project Type / Revenue Category / Recurring Split Kind shown since null
+        // Visibility Tier should show "standard"
+        const visTier = sectionBCombos[sectionBCombos.length - 1]
+        expect(visTier.textContent).toContain("standard")
+      })
+
+      // Close the sheet
+      await user.click(screen.getByRole("button", { name: /cancel/i }))
+
+      // Wait for sheet to close
+      await waitFor(() => {
+        expect(screen.queryByText("Acme Corp")).not.toBeInTheDocument()
+      })
+
+      // Re-render with fixture B
+      rerender(
+        <OpportunityForm
+          {...defaultProps}
+          opportunity={mockOpportunity2}
+          updateAction={vi.fn()}
+          users={mockUsers}
+        />,
+      )
+
+      // Re-open — form.reset should fire with fixture B values
+      await user.click(screen.getByRole("button", { name: /create opportunity/i }))
+
+      // Verify all values reflect fixture B
+      await waitFor(() => {
+        const nameInputB = screen.getByLabelText(/name/i) as HTMLInputElement
+        expect(nameInputB.value).toBe("Small Deal")
+      })
+
+      // Account=Globex Inc
+      expect(screen.getByText("Globex Inc")).toBeInTheDocument()
+
+      // Section A combos: Sales Unit=bu-2, Owner=Bob, Stage=propose
+      let allCombosB = screen.getAllByRole("combobox")
+      expect(allCombosB[2].textContent).toContain("bu-2")
+      expect(allCombosB[3].textContent).toContain("Bob")
+      expect(allCombosB[4].textContent).toContain("propose")
+
+      const probInputB = screen.getByLabelText(/probability/i) as HTMLInputElement
+      expect(probInputB.value).toBe("50")
+
+      // Expand section B
+      await user.click(screen.getByText("More details"))
+
+      // Section B: raw select values (SelectValue shows raw value when popover closed)
+      await waitFor(() => {
+        allCombosB = screen.getAllByRole("combobox")
+        // After More details: [0]=Account, [1]=Contact, [2]=Sales Unit, [3]=Owner, [4]=Stage,
+        // [5]=Project Type, [6]=Revenue Category, [7]=Recurring Split Kind, [8]=Visibility Tier
+        expect(allCombosB[5].textContent).toContain("fixed_price")
+        expect(allCombosB[6].textContent).toContain("services")
+        expect(allCombosB[7].textContent).toContain("flat")
+        expect(allCombosB[8].textContent).toContain("confidential")
       })
     })
   })

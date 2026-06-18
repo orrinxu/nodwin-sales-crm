@@ -168,6 +168,13 @@ export function OpportunityForm({
   const watchRecurring = form.watch("recurring")
   const watchStage = form.watch("stage")
   const watchAccountId = form.watch("accountId")
+  const watchPrimaryContactId = form.watch("primaryContactId")
+  const watchSalesUnitId = form.watch("salesUnitId")
+  const watchOwnerUserId = form.watch("ownerUserId")
+  const watchProjectType = form.watch("projectType")
+  const watchRevenueCategory = form.watch("revenueCategory")
+  const watchRecurringSplitKind = form.watch("recurringSplitKind")
+  const watchVisibilityTier = form.watch("visibilityTier")
 
   const handleStageChange = useCallback((stage: DealStage) => {
     form.setValue("stage", stage)
@@ -284,7 +291,7 @@ export function OpportunityForm({
 
   const handleCreateContact = createContactQuickAction
     ? async (name: string): Promise<EntityOption> => {
-        const accountId = form.getValues("accountId") || undefined
+        const accountId = watchAccountId || undefined
         return createContactQuickAction({ fullName: name, accountId })
       }
     : undefined
@@ -346,7 +353,7 @@ export function OpportunityForm({
               </Label>
               <EntityCombobox
                 items={accountsForCombobox}
-                value={form.getValues("accountId")}
+                value={watchAccountId}
                 onChange={(v) => {
                   form.setValue("accountId", v ?? "", { shouldValidate: true })
                   form.setValue("primaryContactId", "")
@@ -368,11 +375,11 @@ export function OpportunityForm({
               <Label>Primary Contact</Label>
               <EntityCombobox
                 items={[]}
-                value={form.getValues("primaryContactId") || null}
+                value={watchPrimaryContactId || null}
                 onChange={(v) => form.setValue("primaryContactId", v ?? "", { shouldValidate: true })}
                 searchAction={
                   searchContactsAction
-                    ? (query) => searchContactsAction(query, form.getValues("accountId") || undefined)
+                    ? (query) => searchContactsAction(query, watchAccountId || undefined)
                     : undefined
                 }
                 placeholder="Select contact"
@@ -396,7 +403,7 @@ export function OpportunityForm({
                   Sales Unit <span className="text-destructive">*</span>
                 </Label>
                 <Select
-                  value={form.getValues("salesUnitId")}
+                  value={watchSalesUnitId}
                   onValueChange={(v) => form.setValue("salesUnitId", String(v ?? ""), { shouldValidate: true })}
                 >
                   <SelectTrigger>
@@ -421,7 +428,7 @@ export function OpportunityForm({
                 <Label>Owner</Label>
                 <EntityCombobox
                   items={usersProp}
-                  value={form.getValues("ownerUserId") || null}
+                  value={watchOwnerUserId || null}
                   onChange={(v) => form.setValue("ownerUserId", v ?? "", { shouldValidate: true })}
                   searchAction={searchUsersAction}
                   placeholder="Select owner"
@@ -577,7 +584,7 @@ export function OpportunityForm({
                 <div className="grid gap-1.5">
                   <Label>Project Type</Label>
                   <Select
-                    value={form.getValues("projectType") || ""}
+                    value={watchProjectType || ""}
                     onValueChange={(v) => form.setValue("projectType", (v ? String(v) : "") as ProjectType, { shouldValidate: true })}
                   >
                     <SelectTrigger>
@@ -597,7 +604,7 @@ export function OpportunityForm({
                 <div className="grid gap-1.5">
                   <Label>Revenue Category</Label>
                   <Select
-                    value={form.getValues("revenueCategory") || ""}
+                    value={watchRevenueCategory || ""}
                     onValueChange={(v) => form.setValue("revenueCategory", (v ? String(v) : "") as RevenueCategory, { shouldValidate: true })}
                   >
                     <SelectTrigger>
@@ -642,7 +649,7 @@ export function OpportunityForm({
                       Recurring Split Kind <span className="text-destructive">*</span>
                     </Label>
                     <Select
-                      value={form.getValues("recurringSplitKind") || ""}
+                      value={watchRecurringSplitKind || ""}
                       onValueChange={(v) => form.setValue("recurringSplitKind", (v ? String(v) : "") as RecurringSplitKind, { shouldValidate: true })}
                     >
                       <SelectTrigger>
@@ -668,7 +675,7 @@ export function OpportunityForm({
                 <div className="grid gap-1.5">
                   <Label>Visibility Tier</Label>
                   <Select
-                    value={form.getValues("visibilityTier") ?? "standard"}
+                    value={watchVisibilityTier ?? "standard"}
                     onValueChange={(v) => form.setValue("visibilityTier", (v ? String(v) : "standard") as VisibilityTier, { shouldValidate: true })}
                   >
                     <SelectTrigger>
