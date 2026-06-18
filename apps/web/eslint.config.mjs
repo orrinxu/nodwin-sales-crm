@@ -82,6 +82,20 @@ const eslintConfig = defineConfig([
       "node/no-process-env": "off",
     },
   },
+  // Client-side files that need NEXT_PUBLIC_ env vars (Next.js inlines these at build time).
+  {
+    files: ["lib/supabase/client.ts", "app/(auth)/login/page.tsx"],
+    rules: {
+      "node/no-process-env": "off",
+    },
+  },
+  // Test files that manipulate process.env for test scenarios.
+  {
+    files: ["**/*.test.ts", "**/*.test.tsx"],
+    rules: {
+      "node/no-process-env": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

@@ -1,4 +1,3 @@
-/* eslint-disable node/no-process-env */
 import { describe, it, expect, vi } from "vitest"
 
 const { mockServerModule } = vi.hoisted(() => {

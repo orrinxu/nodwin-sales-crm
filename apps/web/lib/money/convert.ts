@@ -94,7 +94,7 @@ function roundHalfUp(numerator: bigint, denominator: bigint): bigint {
 }
 
 function applyConversion(
-  amount: bigint,
+  value: bigint,
   fromScale: number,
   toScale: number,
   rateRaw: RawRate,
@@ -104,13 +104,13 @@ function applyConversion(
 
   if (isReciprocal) {
     // Reciprocal: targetCents = (sourceCents * 10^rateDecimals * 10^toScale) / (rateScaled * 10^fromScale)
-    const numerator = amount * pow10(rateDecimals) * pow10(toScale)
+    const numerator = value * pow10(rateDecimals) * pow10(toScale)
     const denominator = rateScaled * pow10(fromScale)
     return roundHalfUp(numerator, denominator)
   }
 
   // Direct: targetCents = (sourceCents * rateScaled * 10^toScale) / (10^fromScale * 10^rateDecimals)
-  const numerator = amount * rateScaled * pow10(toScale)
+  const numerator = value * rateScaled * pow10(toScale)
   const denominator = pow10(fromScale) * pow10(rateDecimals)
   return roundHalfUp(numerator, denominator)
 }

@@ -4,6 +4,21 @@ import { DEAL_STAGES, isTerminalStage } from "@/lib/opportunity"
 import type { DealStage } from "@/lib/opportunity"
 import { getStageLabel } from "@/lib/data/opportunities.types"
 
+export interface PipelineStageSummary {
+  label: string
+  count: number
+  totalAmount: string
+  currency: string
+  stage: string
+}
+
+export interface PipelineSummary {
+  stages: PipelineStageSummary[]
+  totalAmount: string
+  currency: string
+  totalCount: number
+}
+
 export interface PipelineByStage {
   stage: string
   label: string
@@ -167,7 +182,7 @@ export async function getReportData(): Promise<ReportData> {
   const totalPipeline = pipelineByStage.reduce((sum, s) => sum + s.amount, 0)
   const totalDeals = wonCount + lostCount
   const winRate = totalDeals > 0 ? Math.round((wonCount / totalDeals) * 100) : 0
-  const avgDealSize = wonCount > 0 ? Math.round(totalWonAmount / wonCount) : 0
+  const avgDealSize = computeAverage(totalWonAmount, wonCount)
 
   return {
     pipelineByStage,
@@ -179,4 +194,8 @@ export async function getReportData(): Promise<ReportData> {
     avgDealSize,
     winRate,
   }
+}
+
+function computeAverage(sum: number, count: number): number {
+  return count > 0 ? Math.round(sum / count) : 0
 }

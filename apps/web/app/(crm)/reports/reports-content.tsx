@@ -12,6 +12,14 @@ import {
 } from "recharts"
 import type { PipelineSummary, PipelineStageSummary } from "@/lib/data/reports"
 
+interface ChartDataEntry {
+  label: string
+  count: number
+  amount: number
+  stage: string
+  totalAmount: string
+}
+
 const CHART_COLORS = {
   active: "var(--chart-2)",
   won: "#22c55e",
@@ -57,7 +65,7 @@ interface ReportsContentProps {
 }
 
 export function ReportsContent({ pipeline }: ReportsContentProps) {
-  const chartData = pipeline.stages.map((s) => ({
+  const chartData: ChartDataEntry[] = pipeline.stages.map((s: PipelineStageSummary) => ({
     label: s.label,
     count: s.count,
     amount: parseFloat(s.totalAmount),
@@ -88,7 +96,7 @@ export function ReportsContent({ pipeline }: ReportsContentProps) {
         <div className="rounded-lg border bg-card p-4 text-card-foreground">
           <p className="text-sm text-muted-foreground">Active Stages</p>
           <p className="text-2xl font-bold">
-            {pipeline.stages.filter((s) => s.count > 0).length}
+            {pipeline.stages.filter((s: PipelineStageSummary) => s.count > 0).length}
           </p>
         </div>
       </div>
@@ -116,7 +124,7 @@ export function ReportsContent({ pipeline }: ReportsContentProps) {
                   content={<CustomTooltip currency={pipeline.currency} />}
                 />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {chartData.map((entry) => (
+                  {chartData.map((entry: ChartDataEntry) => (
                     <Cell key={entry.stage} fill={getStageColor(entry.stage)} />
                   ))}
                 </Bar>
@@ -144,7 +152,7 @@ export function ReportsContent({ pipeline }: ReportsContentProps) {
                   content={<CustomTooltip currency={pipeline.currency} />}
                 />
                 <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
-                  {chartData.map((entry) => (
+                  {chartData.map((entry: ChartDataEntry) => (
                     <Cell key={entry.stage} fill={getStageColor(entry.stage)} />
                   ))}
                 </Bar>
@@ -166,7 +174,7 @@ export function ReportsContent({ pipeline }: ReportsContentProps) {
               </tr>
             </thead>
             <tbody>
-              {pipeline.stages.map((s) => (
+              {pipeline.stages.map((s: PipelineStageSummary) => (
                 <tr key={s.stage} className="border-b last:border-0">
                   <td className="py-2">
                     <span

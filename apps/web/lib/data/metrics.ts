@@ -91,7 +91,7 @@ export async function getPipelineMetrics(ctx: DashboardContext): Promise<Pipelin
   const totalDeals = dealsWon + dealsLost
   const winRate = totalDeals > 0 ? Math.round((dealsWon / totalDeals) * 100) : 0
 
-  const avgDealSize = dealsWon > 0 ? Math.round(totalAmount / (dealsWon + activeCount)) : 0
+  const avgDealSize = computeAverage(totalAmount, dealsWon + activeCount)
 
   return {
     pipelineValue,
@@ -102,6 +102,10 @@ export async function getPipelineMetrics(ctx: DashboardContext): Promise<Pipelin
     unconvertibleCount,
     currency: reportingCurrency,
   }
+}
+
+function computeAverage(sum: number, count: number): number {
+  return count > 0 ? Math.round(sum / count) : 0
 }
 
 export async function getPipelineSummary(ctx: DashboardContext): Promise<{

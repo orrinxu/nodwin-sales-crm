@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterAll } from "vitest"
+import { describe, it, expect, vi, beforeEach } from "vitest"
 import { UnauthorisedError, ForbiddenError } from "./errors"
 
 const mockGetUser = vi.fn()
@@ -20,42 +20,31 @@ vi.mock("@supabase/ssr", () => ({
   createServerClient: vi.fn(() => mockClient),
 }))
 
-vi.mock("./env", () => ({
-  env: {
+vi.mock("./env", () => {
+  const defaults: Record<string, string | undefined> = {
     SUPABASE_URL: "https://project.supabase.co",
     SUPABASE_ANON_KEY: "eyjanon.abcdef123",
     SUPABASE_SERVICE_ROLE_KEY: "eyjrole.abcdef456",
     APP_URL: "http://localhost:3000",
     POSTMARK_WEBHOOK_SECRET: "test-secret",
     NEXT_PUBLIC_API_URL: "http://localhost:3001/api",
-  },
-}))
-
-const ORIGINAL_ENV = process.env.NEXT_PUBLIC_ENV
-const ORIGINAL_NODE_ENV = process.env.NODE_ENV
+  }
+  /* eslint-disable security/detect-object-injection */
+  return {
+    env: new Proxy({} as Record<string, string | undefined>, {
+      get(_, prop) {
+        const key = String(prop)
+        return process.env[key] ?? defaults[key]
+      },
+    }),
+  }
+  /* eslint-enable security/detect-object-injection */
+})
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.unstubAllEnvs()
   mockGetUser.mockReset()
-  delete process.env.NEXT_PUBLIC_ENV
-  if (ORIGINAL_NODE_ENV !== undefined) {
-    process.env.NODE_ENV = ORIGINAL_NODE_ENV
-  } else {
-    delete process.env.NODE_ENV
-  }
-})
-
-afterAll(() => {
-  if (ORIGINAL_ENV !== undefined) {
-    process.env.NEXT_PUBLIC_ENV = ORIGINAL_ENV
-  } else {
-    delete process.env.NEXT_PUBLIC_ENV
-  }
-  if (ORIGINAL_NODE_ENV !== undefined) {
-    process.env.NODE_ENV = ORIGINAL_NODE_ENV
-  } else {
-    delete process.env.NODE_ENV
-  }
 })
 
 describe("requireUser", () => {
@@ -172,7 +161,7 @@ describe("requireUser", () => {
   })
 
   it("returns local-preview admin when NEXT_PUBLIC_ENV is local-preview", async () => {
-    process.env.NEXT_PUBLIC_ENV = "local-preview"
+    vi.stubEnv("NEXT_PUBLIC_ENV", "local-preview")
 
     const { requireUser } = await import("./auth")
     const result = await requireUser()
@@ -186,8 +175,8 @@ describe("requireUser", () => {
   })
 
   it("bypasses local-preview when NODE_ENV is not production", async () => {
-    process.env.NODE_ENV = "development"
-    process.env.NEXT_PUBLIC_ENV = "local-preview"
+    vi.stubEnv("NODE_ENV", "development")
+    vi.stubEnv("NEXT_PUBLIC_ENV", "local-preview")
 
     const { requireUser } = await import("./auth")
     const result = await requireUser()
@@ -201,8 +190,8 @@ describe("requireUser", () => {
   })
 
   it("does not bypass in production even with local-preview env", async () => {
-    process.env.NODE_ENV = "production"
-    process.env.NEXT_PUBLIC_ENV = "local-preview"
+    vi.stubEnv("NODE_ENV", "production")
+    vi.stubEnv("NEXT_PUBLIC_ENV", "local-preview")
 
     mockGetUser.mockResolvedValue({
       data: {

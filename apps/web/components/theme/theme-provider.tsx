@@ -48,28 +48,20 @@ export function ThemeProvider({
     return (localStorage.getItem(storageKey) as Theme) || defaultTheme
   })
 
-  const [resolvedTheme, setResolvedTheme] = useState<"dark" | "light">(() => {
-    if (typeof window === "undefined") return "light"
-    const stored = localStorage.getItem(storageKey) as Theme
-    const effective = stored || defaultTheme
-    return effective === "system" ? getSystemTheme() : effective
-  })
+  const [systemTheme, setSystemTheme] = useState<"dark" | "light">(() =>
+    getSystemTheme(),
+  )
+
+  const resolvedTheme = theme === "system" ? systemTheme : theme
 
   useEffect(() => {
-    const resolved =
-      theme === "system" ? getSystemTheme() : theme
-    setResolvedTheme(resolved)
-    applyTheme(resolved)
-  }, [theme])
+    applyTheme(resolvedTheme)
+  }, [resolvedTheme])
 
   useEffect(() => {
     if (theme !== "system") return
     const mq = window.matchMedia("(prefers-color-scheme: dark)")
-    const handler = () => {
-      const sys = getSystemTheme()
-      setResolvedTheme(sys)
-      applyTheme(sys)
-    }
+    const handler = () => setSystemTheme(getSystemTheme())
     mq.addEventListener("change", handler)
     return () => mq.removeEventListener("change", handler)
   }, [theme])
