@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react"
-import { PlusIcon, Loader2Icon } from "lucide-react"
+import { PlusIcon, Loader2Icon, AlertCircleIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
@@ -71,6 +71,7 @@ export function EntityCombobox({
   const [createError, setCreateError] = useState<string | null>(null)
   const [searchResults, setSearchResults] = useState<EntityOption[] | null>(null)
   const [isSearching, setIsSearching] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
   const inputValueRef = useRef(inputValue)
   inputValueRef.current = inputValue
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -87,13 +88,15 @@ export function EntityCombobox({
       return
     }
     setIsSearching(true)
+    setSearchError(null)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       try {
         const results = await searchAction(query)
         setSearchResults(results)
-      } catch {
+      } catch (e) {
         setSearchResults([])
+        setSearchError(e instanceof Error ? e.message : "Search failed")
       } finally {
         setIsSearching(false)
       }
@@ -129,8 +132,10 @@ export function EntityCombobox({
     [allItems, value],
   )
 
-  const displayValue = value && !selectedItem
-    ? value
+  const coldMiss = value !== null && !selectedItem
+
+  const displayValue = coldMiss
+    ? "Not found"
     : selectedItem
       ? getItemLabel(selectedItem)
       : ""
@@ -174,9 +179,13 @@ export function EntityCombobox({
       className={className}
     >
       <ComboboxTrigger
-        className={cn(value && "[&>span]:truncate", "max-w-full")}
+        className={cn(value && "[&>span]:truncate", coldMiss && "border-destructive ring-3 ring-destructive/20", "max-w-full")}
         disabled={disabled}
+        aria-invalid={coldMiss || undefined}
       >
+        {coldMiss && (
+          <AlertCircleIcon className="size-4 shrink-0 text-destructive" />
+        )}
         <ComboboxValue placeholder={placeholder}>
           {displayValue || undefined}
         </ComboboxValue>
@@ -193,7 +202,13 @@ export function EntityCombobox({
               Searching...
             </div>
           )}
-          {!isSearching && filteredItems.length === 0 && !showCreate && (
+          {!isSearching && searchError && (
+            <div className="flex items-start gap-1.5 px-1.5 py-2 text-sm text-destructive">
+              <AlertCircleIcon className="size-4 shrink-0 mt-0.5" />
+              <span>{searchError}</span>
+            </div>
+          )}
+          {!isSearching && !searchError && filteredItems.length === 0 && !showCreate && (
             <ComboboxEmpty>{emptyMessage}</ComboboxEmpty>
           )}
           {!isSearching && filteredItems.map((item) => {

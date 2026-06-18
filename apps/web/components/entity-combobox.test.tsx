@@ -37,7 +37,7 @@ describe("EntityCombobox", () => {
       expect(screen.queryByText("Choose account...")).not.toBeInTheDocument()
     })
 
-    it("shows value when selected item not in items list", () => {
+    it("shows 'Not found' when selected item not in items list", () => {
       render(
         <EntityCombobox
           items={mockItems}
@@ -45,7 +45,21 @@ describe("EntityCombobox", () => {
           onChange={vi.fn()}
         />,
       )
-      expect(screen.getByText("nonexistent")).toBeInTheDocument()
+      expect(screen.getByText("Not found")).toBeInTheDocument()
+      expect(screen.queryByText("nonexistent")).not.toBeInTheDocument()
+    })
+
+    it("sets aria-invalid and shows error icon on cold miss", () => {
+      render(
+        <EntityCombobox
+          items={mockItems}
+          value="nonexistent"
+          onChange={vi.fn()}
+        />,
+      )
+      const trigger = screen.getByRole("combobox")
+      expect(trigger).toHaveAttribute("aria-invalid", "true")
+      expect(document.querySelector(".text-destructive")).toBeInTheDocument()
     })
 
     it("renders disabled state", () => {
@@ -361,7 +375,7 @@ describe("EntityCombobox", () => {
       })
     })
 
-    it("handles searchAction errors gracefully", async () => {
+    it("shows error message when searchAction fails", async () => {
       const searchAction = vi.fn().mockRejectedValue(new Error("Network error"))
       const user = userEvent.setup({ pointerEventsCheck: 0 })
       render(
@@ -378,10 +392,58 @@ describe("EntityCombobox", () => {
       await user.type(screen.getByPlaceholderText("Search..."), "Acme")
 
       await waitFor(() => {
-        expect(
-          screen.getByText((content) => content.includes("No results")),
-        ).toBeInTheDocument()
+        expect(screen.getByText("Network error")).toBeInTheDocument()
       })
+    })
+
+    it("shows generic error when searchAction rejects with non-Error", async () => {
+      const searchAction = vi.fn().mockRejectedValue("oops")
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      render(
+        <EntityCombobox
+          items={mockItems}
+          value={null}
+          onChange={vi.fn()}
+          searchAction={searchAction}
+        />,
+      )
+
+      await user.click(screen.getByRole("combobox"))
+      await user.type(screen.getByPlaceholderText("Search..."), "Acme")
+
+      await waitFor(() => {
+        expect(screen.getByText("Search failed")).toBeInTheDocument()
+      })
+    })
+
+    it("clears search error when new search succeeds", async () => {
+      const searchAction = vi.fn()
+        .mockRejectedValueOnce(new Error("First fail"))
+        .mockResolvedValueOnce([{ id: "sr-1", name: "Result 1" }])
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      render(
+        <EntityCombobox
+          items={mockItems}
+          value={null}
+          onChange={vi.fn()}
+          searchAction={searchAction}
+        />,
+      )
+
+      await user.click(screen.getByRole("combobox"))
+      await user.type(screen.getByPlaceholderText("Search..."), "A")
+
+      await waitFor(() => {
+        expect(screen.getByText("First fail")).toBeInTheDocument()
+      })
+
+      await user.clear(screen.getByPlaceholderText("Search..."))
+      await user.type(screen.getByPlaceholderText("Search..."), "B")
+
+      await waitFor(() => {
+        expect(screen.getByText("Result 1")).toBeInTheDocument()
+      })
+      expect(screen.queryByText("First fail")).not.toBeInTheDocument()
     })
 
     it("shows all items initially when no search input", async () => {
