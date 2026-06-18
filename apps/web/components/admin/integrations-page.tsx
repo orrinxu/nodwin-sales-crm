@@ -176,9 +176,9 @@ function GoogleWorkspaceSection({
                       <TableCell className="font-medium">{getEntityName(dc.entityId)}</TableCell>
                       {toggleFields.map((f) => {
                         const savingKey = `${dc.id}:${f.key}`
-                        const key = f.key as keyof DriveConfigRecord
+                        const key = f.key
                         // eslint-disable-next-line security/detect-object-injection -- key is a typed property
-                        const isEnabled = dc[key]
+                        const isEnabled = dc[key] as boolean
                         return (
                           <TableCell key={f.key}>
                             <span className="flex items-center gap-2">
