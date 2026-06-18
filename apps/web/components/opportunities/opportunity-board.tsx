@@ -33,21 +33,29 @@ interface OpportunityBoardProps {
   opportunities: OpportunityRecord[]
   accounts: AccountOption[]
   businessUnits: BusinessUnitOption[]
+  users?: EntityOption[]
   createAction: (input: OpportunityCreateInput) => Promise<OpportunityRecord>
   updateStageAction: (
     id: string,
     input: { stage: string },
   ) => Promise<OpportunityRecord>
   searchAccountsAction?: (query: string) => Promise<EntityOption[]>
+  searchContactsAction?: (query: string, accountId?: string) => Promise<EntityOption[]>
+  searchUsersAction?: (query: string) => Promise<EntityOption[]>
+  createContactQuickAction?: (input: { fullName: string; email?: string; accountId?: string }) => Promise<EntityOption>
 }
 
 export function OpportunityBoard({
   opportunities,
   accounts,
   businessUnits,
+  users,
   createAction,
   updateStageAction,
   searchAccountsAction,
+  searchContactsAction,
+  searchUsersAction,
+  createContactQuickAction,
 }: OpportunityBoardProps) {
   const router = useRouter()
   const [activeOpportunity, setActiveOpportunity] =
@@ -128,8 +136,13 @@ export function OpportunityBoard({
           <OpportunityForm
             accounts={accounts}
             businessUnits={businessUnits}
+            users={users}
             createAction={createAction}
             onSuccess={() => router.refresh()}
+            searchAccountsAction={searchAccountsAction}
+            searchContactsAction={searchContactsAction}
+            searchUsersAction={searchUsersAction}
+            createContactQuickAction={createContactQuickAction}
           />
         </div>
 
