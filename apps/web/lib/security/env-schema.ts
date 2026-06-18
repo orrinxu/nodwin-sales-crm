@@ -20,6 +20,8 @@ export const envSchema = z.object({
   NEXT_PUBLIC_API_URL: z.string().url(),
   NEXT_PUBLIC_DEBUG: booleanFromString.default(false),
   NEXT_PUBLIC_LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  NEXT_PUBLIC_ENV: z.string().optional(),
 })
 
 export type Env = z.infer<typeof envSchema>

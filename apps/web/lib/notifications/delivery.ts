@@ -24,6 +24,22 @@ export interface NotificationPayload {
   metadata?: Record<string, unknown>
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;")
+}
+
+function escapeSlackMrkdwn(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+}
+
 function toDomainRouting(data: Record<string, unknown>): NotificationRoutingRecord {
   return {
     id: data.id as string,
@@ -319,14 +335,14 @@ export async function sendNotification(
         case "email":
           return sendEmailNotification(
             userId,
-            payload.title,
-            `<p>${payload.message}</p>${payload.linkUrl ? `<p><a href="${payload.linkUrl}">View in Nodwin CRM</a></p>` : ""}`,
+            escapeHtml(payload.title),
+            `<p>${escapeHtml(payload.message)}</p>${payload.linkUrl ? `<p><a href="${escapeHtml(payload.linkUrl)}">View in Nodwin CRM</a></p>` : ""}`,
             payload.message,
           )
         case "slack":
           return sendSlackNotification(
             userId,
-            `*${payload.title}*\n${payload.message}${payload.linkUrl ? `\n<${payload.linkUrl}|View in Nodwin CRM>` : ""}`,
+            `*${escapeSlackMrkdwn(payload.title)}*\n${escapeSlackMrkdwn(payload.message)}${payload.linkUrl ? `\n<${escapeSlackMrkdwn(payload.linkUrl)}|View in Nodwin CRM>` : ""}`,
           )
       }
     }),
