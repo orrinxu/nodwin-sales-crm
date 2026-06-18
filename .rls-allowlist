@@ -69,6 +69,22 @@
 # Write access is admin-only.
 .*relationship_types.*:USING \(true\)
 
+# ── system_settings ───────────────────────────────────────────────────────────
+# System-wide configuration table. All authenticated users need read access
+# to discover system settings. Write access is admin-only.
+.*admin_b_users_roles_access.*:USING \(true\)
+
+# ── notifications & communications ─────────────────────────────────────────────
+# notification_routing and email_templates are configuration tables. All
+# authenticated users need read access to discover routing rules and
+# template content. Write access is admin-only.
+.*notification.*:USING \(true\)
+
+# ── user_notifications service_role ────────────────────────────────────────────
+# Service role policy for backend notification push. Restricted to service_role
+# which bypasses RLS by default; this explicit policy is documentation only.
+.*notification.*:WITH CHECK \(true\)
+
 # ── integration config ────────────────────────────────────────────────────────
 # Integration settings, connections, and email config are configuration tables.
 # All authenticated users need read access to discover integration state and
