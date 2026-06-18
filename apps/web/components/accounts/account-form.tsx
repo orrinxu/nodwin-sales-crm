@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Save, Plus } from "lucide-react"
+import { Save, Plus, ChevronDown } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,13 +19,31 @@ import {
   SheetFooter,
   SheetClose,
 } from "@/components/ui/sheet"
-import type { AccountRecord, AccountCreateInput, AccountUpdateInput } from "@/lib/data/accounts"
+import {
+  Collapsible,
+  CollapsibleContent,
+} from "@/components/ui/collapsible"
+import { EntityCombobox } from "@/components/entity-combobox"
+import type { EntityOption } from "@/components/entity-combobox"
+import type { AccountRecord, AccountCreateInput, AccountUpdateInput, AccountRelationshipKind } from "@/lib/data/accounts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import { CustomFieldsForm } from "@/components/contacts/custom-fields-form"
+
+const RELATIONSHIP_KIND_OPTIONS: { value: AccountRelationshipKind; label: string }[] = [
+  { value: "subsidiary_of", label: "Subsidiary of" },
+  { value: "parent_of", label: "Parent of" },
+  { value: "partner_with", label: "Partner with" },
+  { value: "procurement_via", label: "Procurement via" },
+  { value: "sister_company", label: "Sister company" },
+]
+
+const SECTION_3_CF_KEYS = ["payment_terms", "credit_risk_flag", "tax_gst_in", "tax_pan_in", "tax_vat_eu", "tax_trn_mena"]
+const SECTION_5_CF_KEYS = ["phone_main", "hq_address"]
 
 const formSchema = z.object({
   name: z.string().min(1, "Account name is required").max(200),
   legalName: z.string().max(200).optional().or(z.literal("")),
+  accountOwnerUserId: z.string().optional().or(z.literal("")),
   website: z.string().max(500).optional().or(z.literal("")),
   country: z.string().max(100).optional().or(z.literal("")),
   industry: z.string().max(100).optional().or(z.literal("")),
@@ -38,8 +56,16 @@ type FormData = z.infer<typeof formSchema>
 interface AccountFormProps {
   account?: AccountRecord
   fieldDefinitions?: FieldDefinition[]
+  ownerOptions: EntityOption[]
+  accountOptions: EntityOption[]
+  currentUserId?: string
+  parentRelationship?: {
+    toAccountId: string
+    kind: AccountRelationshipKind
+  } | null
   createAction: (input: AccountCreateInput) => Promise<AccountRecord>
   updateAction?: (id: string, input: AccountUpdateInput) => Promise<AccountRecord>
+  onSaveRelationship?: (data: { parentAccountId: string; kind: AccountRelationshipKind }) => Promise<void>
   onSuccess: () => void
   trigger?: React.ReactNode
 }
@@ -47,14 +73,22 @@ interface AccountFormProps {
 export function AccountForm({
   account,
   fieldDefinitions = [],
+  ownerOptions,
+  accountOptions,
+  currentUserId,
+  parentRelationship,
   createAction,
   updateAction,
+  onSaveRelationship,
   onSuccess,
   trigger,
 }: AccountFormProps) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [parentAccountId, setParentAccountId] = useState("")
+  const [relationshipKind, setRelationshipKind] = useState<AccountRelationshipKind | "">("")
 
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>(
     () => account?.customData ?? {},
@@ -64,11 +98,16 @@ export function AccountForm({
 
   const initialDomains = account?.emailDomains?.join(", ") ?? ""
 
+  const defaultOwnerId = currentUserId && ownerOptions.some((o) => o.id === currentUserId)
+    ? currentUserId
+    : ""
+
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: account?.name ?? "",
       legalName: account?.legalName ?? "",
+      accountOwnerUserId: account?.accountOwnerUserId ?? defaultOwnerId,
       website: account?.website ?? "",
       country: account?.country ?? "",
       industry: account?.industry ?? "",
@@ -76,6 +115,16 @@ export function AccountForm({
       emailDomainsInput: initialDomains,
     },
   })
+
+  const ownerValue = form.watch("accountOwnerUserId")
+
+  const { section3Defs, section5Defs, section7Defs } = useMemo(() => {
+    const s3 = fieldDefinitions.filter((d) => SECTION_3_CF_KEYS.includes(d.key))
+    const s5 = fieldDefinitions.filter((d) => SECTION_5_CF_KEYS.includes(d.key))
+    const used = new Set([...SECTION_3_CF_KEYS, ...SECTION_5_CF_KEYS])
+    const s7 = fieldDefinitions.filter((d) => !used.has(d.key))
+    return { section3Defs: s3, section5Defs: s5, section7Defs: s7 }
+  }, [fieldDefinitions])
 
   async function onSubmit(data: FormData) {
     setPending(true)
@@ -88,6 +137,7 @@ export function AccountForm({
       const input: AccountCreateInput = {
         name: data.name,
         legalName: data.legalName || null,
+        accountOwnerUserId: data.accountOwnerUserId || null,
         website: data.website || null,
         country: data.country || null,
         industry: data.industry || null,
@@ -96,14 +146,25 @@ export function AccountForm({
         customData: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
       }
 
+      let savedAccount: AccountRecord
+
       if (isEditing && account && updateAction) {
-        await updateAction(account.id, input)
-      } else if (!isEditing) {
-        await createAction(input)
+        savedAccount = await updateAction(account.id, input)
+      } else {
+        savedAccount = await createAction(input)
+      }
+
+      if (onSaveRelationship && parentAccountId && relationshipKind) {
+        await onSaveRelationship({
+          parentAccountId,
+          kind: relationshipKind as AccountRelationshipKind,
+        })
       }
 
       setOpen(false)
       form.reset()
+      setParentAccountId("")
+      setRelationshipKind("")
       setCustomFieldValues(account?.customData ?? {})
       onSuccess()
     } catch (e) {
@@ -117,6 +178,18 @@ export function AccountForm({
     setOpen(newOpen)
     if (newOpen) {
       setCustomFieldValues(account?.customData ?? {})
+      setParentAccountId(parentRelationship?.toAccountId ?? "")
+      setRelationshipKind(parentRelationship?.kind ?? "")
+      form.reset({
+        name: account?.name ?? "",
+        legalName: account?.legalName ?? "",
+        accountOwnerUserId: account?.accountOwnerUserId ?? defaultOwnerId,
+        website: account?.website ?? "",
+        country: account?.country ?? "",
+        industry: account?.industry ?? "",
+        description: account?.description ?? "",
+        emailDomainsInput: initialDomains,
+      })
     }
   }
 
@@ -153,6 +226,12 @@ export function AccountForm({
               </div>
             )}
 
+            {/* hidden input for accountOwnerUserId so the form field is registered */}
+            <input type="hidden" {...form.register("accountOwnerUserId")} />
+
+            {/* ── Section 1: Essentials ────────────────────────────── */}
+            <SectionHeader title="Essentials" />
+
             <div className="grid gap-1.5">
               <Label htmlFor="name">
                 Account Name <span className="text-destructive">*</span>
@@ -167,6 +246,18 @@ export function AccountForm({
                   {form.formState.errors.name.message}
                 </p>
               )}
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label>Account Owner</Label>
+              <EntityCombobox
+                items={ownerOptions}
+                value={ownerValue ?? ""}
+                onChange={(v) => form.setValue("accountOwnerUserId", v)}
+                placeholder="Select owner..."
+                searchPlaceholder="Search users..."
+                emptyMessage="No users found."
+              />
             </div>
 
             <div className="grid gap-1.5">
@@ -208,31 +299,101 @@ export function AccountForm({
               </div>
             </div>
 
-            <div className="grid gap-1.5">
-              <Label htmlFor="emailDomainsInput">Email Domains</Label>
-              <Input
-                id="emailDomainsInput"
-                {...form.register("emailDomainsInput")}
-                placeholder="example.com, other.com (comma separated)"
-              />
-              <p className="text-xs text-muted-foreground">
-                Comma-separated list of company email domains. Used for automatic contact association.
-              </p>
-            </div>
+            {/* ── Section 2: Hierarchy ────────────────────────────── */}
+            <CollapsibleSection title="Hierarchy" defaultOpen>
+              <div className="grid gap-1.5">
+                <Label>Parent / Related Account</Label>
+                <EntityCombobox
+                  items={accountOptions}
+                  value={parentAccountId}
+                  onChange={setParentAccountId}
+                  placeholder="Select account..."
+                  searchPlaceholder="Search accounts..."
+                  emptyMessage="No accounts found."
+                />
+              </div>
 
+              {parentAccountId && (
+                <div className="grid gap-1.5">
+                  <Label>Relationship</Label>
+                  <select
+                    className="h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    value={relationshipKind}
+                    onChange={(e) => setRelationshipKind(e.target.value as AccountRelationshipKind)}
+                  >
+                    <option value="">Select relationship kind...</option>
+                    {RELATIONSHIP_KIND_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </CollapsibleSection>
+
+            {/* ── Section 3: Commercial ────────────────────────────── */}
+            {section3Defs.length > 0 && (
+              <CollapsibleSection title="Commercial" defaultOpen={false}>
+                <CustomFieldsForm
+                  fieldDefinitions={section3Defs}
+                  values={customFieldValues}
+                  onChange={(key, value) =>
+                    setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
+                  }
+                  errors={{}}
+                />
+              </CollapsibleSection>
+            )}
+
+            {/* ── Section 4: Classification & Territory ────────────────────────────── */}
+            <CollapsibleSection title="Classification & Territory" defaultOpen={false}>
+              <p className="text-sm text-muted-foreground">
+                Classification fields (tier, lifecycle status, region, sales unit, source, tags) are being added in a future release.
+              </p>
+            </CollapsibleSection>
+
+            {/* ── Section 5: Contact & Matching ────────────────────────────── */}
+            <CollapsibleSection title="Contact & Matching" defaultOpen={false}>
+              <div className="grid gap-1.5">
+                <Label htmlFor="emailDomainsInput">Email Domains</Label>
+                <Input
+                  id="emailDomainsInput"
+                  {...form.register("emailDomainsInput")}
+                  placeholder="example.com, other.com (comma separated)"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Comma-separated list of company email domains. Used for automatic contact association.
+                </p>
+              </div>
+
+              {section5Defs.length > 0 && (
+                <CustomFieldsForm
+                  fieldDefinitions={section5Defs}
+                  values={customFieldValues}
+                  onChange={(key, value) =>
+                    setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
+                  }
+                  errors={{}}
+                />
+              )}
+            </CollapsibleSection>
+
+            {/* ── Section 6: Description ────────────────────────────── */}
+            <SectionHeader title="Description" />
             <div className="grid gap-1.5">
-              <Label htmlFor="description">Description</Label>
               <textarea
                 id="description"
                 className="min-h-[100px] w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 resize-y placeholder:text-muted-foreground"
-                placeholder="Company description"
+                placeholder="Company description or notes"
                 {...form.register("description")}
               />
             </div>
 
-            {fieldDefinitions.length > 0 && (
+            {/* ── Section 7: Custom Fields ────────────────────────────── */}
+            {section7Defs.length > 0 && (
               <CustomFieldsForm
-                fieldDefinitions={fieldDefinitions}
+                fieldDefinitions={section7Defs}
                 values={customFieldValues}
                 onChange={(key, value) =>
                   setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
@@ -262,5 +423,50 @@ export function AccountForm({
         </form>
       </SheetContent>
     </Sheet>
+  )
+}
+
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <div className="border-b pb-1.5 pt-1">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </h3>
+    </div>
+  )
+}
+
+function CollapsibleSection({
+  title,
+  defaultOpen,
+  children,
+}: {
+  title: string
+  defaultOpen: boolean
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <button
+        type="button"
+        className="group flex w-full items-center gap-2 py-1 cursor-pointer select-none rounded-md transition-colors hover:bg-muted/50"
+        onClick={() => setOpen(!open)}
+      >
+        <ChevronDown
+          className="size-3.5 shrink-0 transition-transform duration-200"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+        />
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {title}
+        </h3>
+      </button>
+      <CollapsibleContent>
+        <div className="space-y-3 pt-2 pb-0.5">
+          {children}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
