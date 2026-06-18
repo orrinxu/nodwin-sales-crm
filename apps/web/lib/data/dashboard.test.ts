@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest"
+import { describe, it, expect, vi, beforeEach } from "vitest"
 
 vi.mock("server-only", () => ({}))
 
@@ -6,6 +6,10 @@ const mockOrder = vi.fn()
 const mockLimit = vi.fn()
 const mockSelect = vi.fn()
 const mockFrom = vi.fn()
+const mockCurrenciesIn = vi.fn()
+const mockCurrenciesSelect = vi.fn()
+const mockLookupRate = vi.fn()
+const mockConvertWithRate = vi.fn()
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(() => ({
@@ -13,18 +17,50 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }))
 
+vi.mock("@/lib/money/convert", () => ({
+  lookupRate: mockLookupRate,
+  convertWithRate: mockConvertWithRate,
+}))
+
 const defaultCtx = {
   user: { id: "user-1", email: "alice@nodwin.com", role: "admin" },
   source: "web" as const,
 }
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  // Default: currencies table returns USD scale 2
+  mockCurrenciesIn.mockResolvedValue({
+    data: [{ code: "USD", scale: 2 }],
+    error: null,
+  })
+  mockCurrenciesSelect.mockReturnValue({ in: mockCurrenciesIn })
+  // Default: return currency rate (1 INR → 0.01 USD)
+  mockLookupRate.mockResolvedValue({
+    rate: 0.01,
+    from_currency: "INR",
+    to_currency: "USD",
+    source: "test",
+    effective_date: "2026-06-18",
+  })
+  // Mock returns amount proportional to input for realistic conversion
+  mockConvertWithRate.mockImplementation((amount: bigint) => {
+    // Simulate: 10000 INR → 100 USD (10000 * 0.01 = 100)
+    // Input is in cents: 1000000n INR cents → 10000n USD cents = $100.00
+    return amount / 100n
+  })
+})
 
 function buildQuery(returnData: unknown[] | null, error?: { message: string }) {
   mockSelect.mockResolvedValue({
     data: returnData,
     error: error ?? null,
   })
-  mockFrom.mockReturnValue({
-    select: mockSelect,
+  mockFrom.mockImplementation((table: string) => {
+    if (table === "currencies") {
+      return { select: mockCurrenciesSelect }
+    }
+    return { select: mockSelect }
   })
 }
 
@@ -35,8 +71,11 @@ function buildOrderLimitQuery(returnData: unknown[] | null, error?: { message: s
   })
   mockOrder.mockReturnValue({ limit: mockLimit })
   mockSelect.mockReturnValue({ order: mockOrder })
-  mockFrom.mockReturnValue({
-    select: mockSelect,
+  mockFrom.mockImplementation((table: string) => {
+    if (table === "currencies") {
+      return { select: mockCurrenciesSelect }
+    }
+    return { select: mockSelect }
   })
 }
 
@@ -52,7 +91,7 @@ describe("getPipelineMetrics", () => {
     expect(result.winRate).toBe(0)
     expect(result.avgDealSize).toBe(0)
     expect(result.unconvertibleCount).toBe(0)
-    expect(result.currency).toBe("INR")
+    expect(result.currency).toBe("USD")
   })
 
   it("handles null data gracefully", async () => {
@@ -67,10 +106,10 @@ describe("getPipelineMetrics", () => {
 
   it("computes pipeline value from non-terminal stages", async () => {
     buildQuery([
-      { stage: "qualify", amount: 10000, currency: "INR" },
-      { stage: "propose", amount: 5000, currency: "INR" },
-      { stage: "closed_won", amount: 25000, currency: "INR" },
-      { stage: "closed_lost", amount: 10000, currency: "INR" },
+      { stage: "qualify", amount: 10000, currency: "USD" },
+      { stage: "propose", amount: 5000, currency: "USD" },
+      { stage: "closed_won", amount: 25000, currency: "USD" },
+      { stage: "closed_lost", amount: 10000, currency: "USD" },
     ])
     const { getPipelineMetrics } = await import("./metrics")
     const result = await getPipelineMetrics(defaultCtx)
@@ -82,9 +121,9 @@ describe("getPipelineMetrics", () => {
 
   it("calculates win rate correctly", async () => {
     buildQuery([
-      { stage: "closed_won", amount: 50000, currency: "INR" },
-      { stage: "closed_won", amount: 25000, currency: "INR" },
-      { stage: "closed_lost", amount: 15000, currency: "INR" },
+      { stage: "closed_won", amount: 50000, currency: "USD" },
+      { stage: "closed_won", amount: 25000, currency: "USD" },
+      { stage: "closed_lost", amount: 15000, currency: "USD" },
     ])
     const { getPipelineMetrics } = await import("./metrics")
     const result = await getPipelineMetrics(defaultCtx)
@@ -96,8 +135,8 @@ describe("getPipelineMetrics", () => {
 
   it("returns zero win rate when there are no won or lost deals", async () => {
     buildQuery([
-      { stage: "qualify", amount: 10000, currency: "INR" },
-      { stage: "propose", amount: 5000, currency: "INR" },
+      { stage: "qualify", amount: 10000, currency: "USD" },
+      { stage: "propose", amount: 5000, currency: "USD" },
     ])
     const { getPipelineMetrics } = await import("./metrics")
     const result = await getPipelineMetrics(defaultCtx)
@@ -107,8 +146,8 @@ describe("getPipelineMetrics", () => {
 
   it("returns 100% win rate when all closed deals are won", async () => {
     buildQuery([
-      { stage: "closed_won", amount: 50000, currency: "INR" },
-      { stage: "closed_won", amount: 25000, currency: "INR" },
+      { stage: "closed_won", amount: 50000, currency: "USD" },
+      { stage: "closed_won", amount: 25000, currency: "USD" },
     ])
     const { getPipelineMetrics } = await import("./metrics")
     const result = await getPipelineMetrics(defaultCtx)
@@ -117,10 +156,25 @@ describe("getPipelineMetrics", () => {
     expect(result.dealsLost).toBe(0)
   })
 
-  it("counts non-INR deals as unconvertible", async () => {
+  it("converts non-USD deals to USD using available rates", async () => {
+    // INR deal, lookupRate returns rate, convertWithRate returns 100 (USD cents)
     buildQuery([
-      { stage: "qualify", amount: 10000, currency: "USD" },
-      { stage: "qualify", amount: 5000, currency: "INR" },
+      { stage: "qualify", amount: 10000, currency: "INR" },
+      { stage: "qualify", amount: 5000, currency: "USD" },
+    ])
+    const { getPipelineMetrics } = await import("./metrics")
+    const result = await getPipelineMetrics(defaultCtx)
+
+    expect(result.unconvertibleCount).toBe(0)
+    // 5000 USD + 100 converted INR = 5100
+    expect(result.pipelineValue).toBe(5100)
+  })
+
+  it("counts deals with no available rate as unconvertible and excludes them", async () => {
+    mockLookupRate.mockResolvedValue(null)
+    buildQuery([
+      { stage: "qualify", amount: 10000, currency: "XYZ" },
+      { stage: "qualify", amount: 5000, currency: "USD" },
     ])
     const { getPipelineMetrics } = await import("./metrics")
     const result = await getPipelineMetrics(defaultCtx)
@@ -129,9 +183,20 @@ describe("getPipelineMetrics", () => {
     expect(result.pipelineValue).toBe(5000)
   })
 
+  it("skips deals without amount (amount=0)", async () => {
+    buildQuery([
+      { stage: "qualify", amount: 0, currency: "USD" },
+      { stage: "qualify", amount: 5000, currency: "USD" },
+    ])
+    const { getPipelineMetrics } = await import("./metrics")
+    const result = await getPipelineMetrics(defaultCtx)
+
+    expect(result.pipelineValue).toBe(5000)
+  })
+
   it("handles null amount gracefully", async () => {
     buildQuery([
-      { stage: "qualify", amount: null, currency: "INR" },
+      { stage: "qualify", amount: null, currency: "USD" },
     ])
     const { getPipelineMetrics } = await import("./metrics")
     const result = await getPipelineMetrics(defaultCtx)
@@ -141,7 +206,7 @@ describe("getPipelineMetrics", () => {
 
   it("treats missing stage as non-terminal", async () => {
     buildQuery([
-      { stage: null, amount: 10000, currency: "INR" },
+      { stage: null, amount: 10000, currency: "USD" },
     ])
     const { getPipelineMetrics } = await import("./metrics")
     const result = await getPipelineMetrics(defaultCtx)
@@ -168,7 +233,7 @@ describe("getPipelineSummary", () => {
     expect(result.stages).toHaveLength(7)
     expect(result.totalCount).toBe(0)
     expect(result.totalAmount).toBe(0)
-    expect(result.currency).toBe("INR")
+    expect(result.currency).toBe("USD")
     for (const stage of result.stages) {
       expect(stage.count).toBe(0)
       expect(stage.amount).toBe(0)
@@ -185,9 +250,9 @@ describe("getPipelineSummary", () => {
 
   it("aggregates opportunities by stage", async () => {
     buildQuery([
-      { stage: "qualify", amount: 10000, currency: "INR" },
-      { stage: "qualify", amount: 5000, currency: "INR" },
-      { stage: "closed_won", amount: 25000, currency: "INR" },
+      { stage: "qualify", amount: 10000, currency: "USD" },
+      { stage: "qualify", amount: 5000, currency: "USD" },
+      { stage: "closed_won", amount: 25000, currency: "USD" },
     ])
     const { getPipelineSummary } = await import("./metrics")
     const result = await getPipelineSummary(defaultCtx)
@@ -225,22 +290,40 @@ describe("getPipelineSummary", () => {
     expect(result.stages.map((s) => s.stage)).toEqual(stageOrder)
   })
 
-  it("ignores non-INR amounts but still counts them", async () => {
+  it("converts non-USD amounts and includes them in totals", async () => {
     buildQuery([
-      { stage: "qualify", amount: 10000, currency: "USD" },
-      { stage: "qualify", amount: 5000, currency: "INR" },
+      { stage: "qualify", amount: 10000, currency: "INR" },
+      { stage: "qualify", amount: 5000, currency: "USD" },
     ])
     const { getPipelineSummary } = await import("./metrics")
     const result = await getPipelineSummary(defaultCtx)
 
     const qualify = result.stages.find((s) => s.stage === "qualify")
     expect(qualify?.count).toBe(2)
+    // 5000 USD + 100 converted INR = 5100
+    expect(qualify?.amount).toBe(5100)
+    expect(result.totalAmount).toBe(5100)
+  })
+
+  it("excludes unconvertible amounts but still counts them", async () => {
+    mockLookupRate.mockResolvedValue(null)
+    buildQuery([
+      { stage: "qualify", amount: 10000, currency: "XYZ" },
+      { stage: "qualify", amount: 5000, currency: "USD" },
+    ])
+    const { getPipelineSummary } = await import("./metrics")
+    const result = await getPipelineSummary(defaultCtx)
+
+    const qualify = result.stages.find((s) => s.stage === "qualify")
+    expect(qualify?.count).toBe(1)
+    expect(result.totalCount).toBe(1)
     expect(qualify?.amount).toBe(5000)
+    expect(result.totalAmount).toBe(5000)
   })
 
   it("handles null amount gracefully", async () => {
     buildQuery([
-      { stage: "propose", amount: null, currency: "INR" },
+      { stage: "propose", amount: null, currency: "USD" },
     ])
     const { getPipelineSummary } = await import("./metrics")
     const result = await getPipelineSummary(defaultCtx)
