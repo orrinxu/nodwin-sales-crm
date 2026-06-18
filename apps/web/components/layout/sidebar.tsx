@@ -15,6 +15,7 @@ import {
   Globe,
   Briefcase,
   LinkIcon,
+  Database,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -54,6 +55,7 @@ const adminItems = [
   { name: "Entities", href: "/admin/entities", icon: Globe },
   { name: "Business Units", href: "/admin/business-units", icon: Briefcase },
   { name: "Relationship Types", href: "/admin/relationship-types", icon: LinkIcon },
+  { name: "Data Management", href: "/admin/data-management", icon: Database },
 ]
 
 interface SidebarProps {
