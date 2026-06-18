@@ -11,8 +11,9 @@ import { AccountForm } from "@/components/accounts/account-form"
 import { CustomFieldsDisplay } from "@/components/contacts/custom-fields-display"
 import { getStageLabel } from "@/lib/data/opportunities.types"
 import { Money } from "@/lib/money"
-import type { AccountRecord, AccountUpdateInput, AccountRelationship, AccountOpportunity, AccountDocument } from "@/lib/data/accounts"
+import type { AccountRecord, AccountUpdateInput, AccountRelationship, AccountOpportunity, AccountDocument, AccountRelationshipKind } from "@/lib/data/accounts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
+import type { EntityOption } from "@/components/entity-combobox"
 
 interface AccountDetailWrapperProps {
   account: AccountRecord
@@ -22,7 +23,12 @@ interface AccountDetailWrapperProps {
   opportunities: AccountOpportunity[]
   documents: AccountDocument[]
   ownerName: string | null
+  ownerOptions: EntityOption[]
+  accountOptions: EntityOption[]
+  currentUserId?: string
+  parentRelationship?: { toAccountId: string; kind: AccountRelationshipKind } | null
   updateAction: (id: string, input: AccountUpdateInput) => Promise<AccountRecord>
+  saveRelationshipAction?: (data: { parentAccountId: string; kind: AccountRelationshipKind }) => Promise<void>
 }
 
 const RELATIONSHIP_LABELS: Record<string, string> = {
@@ -41,7 +47,12 @@ export function AccountDetailWrapper({
   opportunities,
   documents,
   ownerName,
+  ownerOptions,
+  accountOptions,
+  currentUserId,
+  parentRelationship,
   updateAction,
+  saveRelationshipAction,
 }: AccountDetailWrapperProps) {
   const router = useRouter()
 
@@ -63,10 +74,15 @@ export function AccountDetailWrapper({
         <AccountForm
           account={account}
           fieldDefinitions={fieldDefinitions}
+          ownerOptions={ownerOptions}
+          accountOptions={accountOptions}
+          currentUserId={currentUserId}
+          parentRelationship={parentRelationship}
           createAction={async () => {
             throw new Error("Not available")
           }}
           updateAction={updateAction}
+          onSaveRelationship={saveRelationshipAction}
           onSuccess={() => {
             router.refresh()
           }}
@@ -88,21 +104,8 @@ export function AccountDetailWrapper({
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   {account.industry && (
                     <Badge variant="secondary">
-                      {account.industry.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                      {account.industry}
                     </Badge>
-                  )}
-                  {account.accountType && (
-                    <Badge variant="outline">
-                      {account.accountType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                    </Badge>
-                  )}
-                  {account.lifecycleStatus && (
-                    <Badge variant="secondary">
-                      {account.lifecycleStatus.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                    </Badge>
-                  )}
-                  {!account.active && (
-                    <Badge variant="destructive">Inactive</Badge>
                   )}
                   {ownerName && (
                     <span className="text-sm text-muted-foreground ml-1">{ownerName}</span>
@@ -111,15 +114,6 @@ export function AccountDetailWrapper({
                     <span className="text-sm text-muted-foreground ml-1">Unassigned</span>
                   )}
                 </div>
-                {account.tags && account.tags.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {account.tags.map((tag) => (
-                      <Badge key={tag} variant="outline" className="text-xs">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
 
@@ -196,40 +190,6 @@ export function AccountDetailWrapper({
                       {ownerName ?? "\u2014"}
                     </dd>
                   </div>
-                  {account.tier && (
-                    <div className="grid gap-1">
-                      <dt className="text-xs text-muted-foreground">Tier</dt>
-                      <dd className="text-sm font-medium">
-                        {account.tier.charAt(0).toUpperCase() + account.tier.slice(1)}
-                      </dd>
-                    </div>
-                  )}
-                  {account.region && (
-                    <div className="grid gap-1">
-                      <dt className="text-xs text-muted-foreground">Region</dt>
-                      <dd className="text-sm font-medium">{account.region.toUpperCase()}</dd>
-                    </div>
-                  )}
-                  {account.source && (
-                    <div className="grid gap-1">
-                      <dt className="text-xs text-muted-foreground">Source</dt>
-                      <dd className="text-sm font-medium">
-                        {account.source.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                      </dd>
-                    </div>
-                  )}
-                  {account.defaultCurrency && (
-                    <div className="grid gap-1">
-                      <dt className="text-xs text-muted-foreground">Default Currency</dt>
-                      <dd className="text-sm font-medium">{account.defaultCurrency}</dd>
-                    </div>
-                  )}
-                  {account.legacySalesforceId && (
-                    <div className="grid gap-1">
-                      <dt className="text-xs text-muted-foreground">Salesforce ID</dt>
-                      <dd className="text-sm font-medium font-mono text-xs">{account.legacySalesforceId}</dd>
-                    </div>
-                  )}
                   {account.emailDomains && account.emailDomains.length > 0 && (
                     <div className="grid gap-1">
                       <dt className="text-xs text-muted-foreground">Email Domains</dt>

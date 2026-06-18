@@ -1,22 +1,14 @@
 "use client"
 
-import { useState } from "react"
-import { useForm, Controller } from "react-hook-form"
+import { useState, useMemo } from "react"
+import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Save, Plus } from "lucide-react"
+import { Save, Plus, ChevronDown } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select"
 import {
   Sheet,
   SheetTrigger,
@@ -27,42 +19,36 @@ import {
   SheetFooter,
   SheetClose,
 } from "@/components/ui/sheet"
-import type { AccountRecord, AccountCreateInput, AccountUpdateInput } from "@/lib/data/accounts"
 import {
-  ACCOUNT_TYPES,
-  LIFECYCLE_STATUSES,
-  ACCOUNT_TIERS,
-  ACCOUNT_REGIONS,
-  ACCOUNT_SOURCES,
-  ACCOUNT_INDUSTRIES,
-} from "@/lib/data/accounts"
+  Collapsible,
+  CollapsibleContent,
+} from "@/components/ui/collapsible"
+import { EntityCombobox } from "@/components/entity-combobox"
+import type { EntityOption } from "@/components/entity-combobox"
+import type { AccountRecord, AccountCreateInput, AccountUpdateInput, AccountRelationshipKind } from "@/lib/data/accounts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import { CustomFieldsForm } from "@/components/contacts/custom-fields-form"
 
-function enumLabel(value: string): string {
-  return value
-    .split("_")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ")
-}
+const RELATIONSHIP_KIND_OPTIONS: { value: AccountRelationshipKind; label: string }[] = [
+  { value: "subsidiary_of", label: "Subsidiary of" },
+  { value: "parent_of", label: "Parent of" },
+  { value: "partner_with", label: "Partner with" },
+  { value: "procurement_via", label: "Procurement via" },
+  { value: "sister_company", label: "Sister company" },
+]
+
+const SECTION_3_CF_KEYS = ["payment_terms", "credit_risk_flag", "tax_gst_in", "tax_pan_in", "tax_vat_eu", "tax_trn_mena"]
+const SECTION_5_CF_KEYS = ["phone_main", "hq_address"]
 
 const formSchema = z.object({
   name: z.string().min(1, "Account name is required").max(200),
   legalName: z.string().max(200).optional().or(z.literal("")),
+  accountOwnerUserId: z.string().optional().or(z.literal("")),
   website: z.string().max(500).optional().or(z.literal("")),
   country: z.string().max(100).optional().or(z.literal("")),
-  industry: z.enum(ACCOUNT_INDUSTRIES).optional().or(z.literal("")),
+  industry: z.string().max(100).optional().or(z.literal("")),
   description: z.string().max(5000).optional().or(z.literal("")),
   emailDomainsInput: z.string().max(1000).optional().or(z.literal("")),
-  accountType: z.enum(ACCOUNT_TYPES).optional().or(z.literal("")),
-  lifecycleStatus: z.enum(LIFECYCLE_STATUSES).optional().or(z.literal("")),
-  tier: z.enum(ACCOUNT_TIERS).optional().or(z.literal("")),
-  region: z.enum(ACCOUNT_REGIONS).optional().or(z.literal("")),
-  defaultCurrency: z.string().max(3).optional().or(z.literal("")),
-  tagsInput: z.string().max(1000).optional().or(z.literal("")),
-  source: z.enum(ACCOUNT_SOURCES).optional().or(z.literal("")),
-  legacySalesforceId: z.string().max(100).optional().or(z.literal("")),
-  active: z.boolean(),
 })
 
 type FormData = z.infer<typeof formSchema>
@@ -70,8 +56,16 @@ type FormData = z.infer<typeof formSchema>
 interface AccountFormProps {
   account?: AccountRecord
   fieldDefinitions?: FieldDefinition[]
+  ownerOptions: EntityOption[]
+  accountOptions: EntityOption[]
+  currentUserId?: string
+  parentRelationship?: {
+    toAccountId: string
+    kind: AccountRelationshipKind
+  } | null
   createAction: (input: AccountCreateInput) => Promise<AccountRecord>
   updateAction?: (id: string, input: AccountUpdateInput) => Promise<AccountRecord>
+  onSaveRelationship?: (data: { parentAccountId: string; kind: AccountRelationshipKind }) => Promise<void>
   onSuccess: () => void
   trigger?: React.ReactNode
 }
@@ -79,14 +73,22 @@ interface AccountFormProps {
 export function AccountForm({
   account,
   fieldDefinitions = [],
+  ownerOptions,
+  accountOptions,
+  currentUserId,
+  parentRelationship,
   createAction,
   updateAction,
+  onSaveRelationship,
   onSuccess,
   trigger,
 }: AccountFormProps) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [parentAccountId, setParentAccountId] = useState("")
+  const [relationshipKind, setRelationshipKind] = useState<AccountRelationshipKind | "">("")
 
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>(
     () => account?.customData ?? {},
@@ -95,29 +97,34 @@ export function AccountForm({
   const isEditing = !!account
 
   const initialDomains = account?.emailDomains?.join(", ") ?? ""
-  const initialTags = account?.tags?.join(", ") ?? ""
+
+  const defaultOwnerId = currentUserId && ownerOptions.some((o) => o.id === currentUserId)
+    ? currentUserId
+    : ""
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: account?.name ?? "",
       legalName: account?.legalName ?? "",
+      accountOwnerUserId: account?.accountOwnerUserId ?? defaultOwnerId,
       website: account?.website ?? "",
       country: account?.country ?? "",
       industry: account?.industry ?? "",
       description: account?.description ?? "",
       emailDomainsInput: initialDomains,
-      accountType: account?.accountType ?? "",
-      lifecycleStatus: account?.lifecycleStatus ?? "",
-      tier: account?.tier ?? "",
-      region: account?.region ?? "",
-      defaultCurrency: account?.defaultCurrency ?? "",
-      tagsInput: initialTags,
-      source: account?.source ?? "",
-      legacySalesforceId: account?.legacySalesforceId ?? "",
-      active: account?.active ?? true,
     },
   })
+
+  const ownerValue = form.watch("accountOwnerUserId")
+
+  const { section3Defs, section5Defs, section7Defs } = useMemo(() => {
+    const s3 = fieldDefinitions.filter((d) => SECTION_3_CF_KEYS.includes(d.key))
+    const s5 = fieldDefinitions.filter((d) => SECTION_5_CF_KEYS.includes(d.key))
+    const used = new Set([...SECTION_3_CF_KEYS, ...SECTION_5_CF_KEYS])
+    const s7 = fieldDefinitions.filter((d) => !used.has(d.key))
+    return { section3Defs: s3, section5Defs: s5, section7Defs: s7 }
+  }, [fieldDefinitions])
 
   async function onSubmit(data: FormData) {
     setPending(true)
@@ -127,38 +134,37 @@ export function AccountForm({
         ? data.emailDomainsInput.split(",").map((d) => d.trim()).filter(Boolean)
         : undefined
 
-      const tags = data.tagsInput
-        ? data.tagsInput.split(",").map((t) => t.trim()).filter(Boolean)
-        : undefined
-
       const input: AccountCreateInput = {
         name: data.name,
         legalName: data.legalName || null,
+        accountOwnerUserId: data.accountOwnerUserId || null,
         website: data.website || null,
         country: data.country || null,
-        industry: (data.industry as AccountCreateInput["industry"]) || null,
+        industry: data.industry || null,
         description: data.description || null,
         emailDomains,
-        accountType: (data.accountType as AccountCreateInput["accountType"]) || null,
-        lifecycleStatus: (data.lifecycleStatus as AccountCreateInput["lifecycleStatus"]) || null,
-        tier: (data.tier as AccountCreateInput["tier"]) || null,
-        region: (data.region as AccountCreateInput["region"]) || null,
-        defaultCurrency: data.defaultCurrency || null,
-        tags,
-        source: (data.source as AccountCreateInput["source"]) || null,
-        legacySalesforceId: data.legacySalesforceId || null,
-        active: data.active,
         customData: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
       }
 
+      let savedAccount: AccountRecord
+
       if (isEditing && account && updateAction) {
-        await updateAction(account.id, input)
-      } else if (!isEditing) {
-        await createAction(input)
+        savedAccount = await updateAction(account.id, input)
+      } else {
+        savedAccount = await createAction(input)
+      }
+
+      if (onSaveRelationship && parentAccountId && relationshipKind) {
+        await onSaveRelationship({
+          parentAccountId,
+          kind: relationshipKind as AccountRelationshipKind,
+        })
       }
 
       setOpen(false)
       form.reset()
+      setParentAccountId("")
+      setRelationshipKind("")
       setCustomFieldValues(account?.customData ?? {})
       onSuccess()
     } catch (e) {
@@ -172,6 +178,18 @@ export function AccountForm({
     setOpen(newOpen)
     if (newOpen) {
       setCustomFieldValues(account?.customData ?? {})
+      setParentAccountId(parentRelationship?.toAccountId ?? "")
+      setRelationshipKind(parentRelationship?.kind ?? "")
+      form.reset({
+        name: account?.name ?? "",
+        legalName: account?.legalName ?? "",
+        accountOwnerUserId: account?.accountOwnerUserId ?? defaultOwnerId,
+        website: account?.website ?? "",
+        country: account?.country ?? "",
+        industry: account?.industry ?? "",
+        description: account?.description ?? "",
+        emailDomainsInput: initialDomains,
+      })
     }
   }
 
@@ -208,6 +226,12 @@ export function AccountForm({
               </div>
             )}
 
+            {/* hidden input for accountOwnerUserId so the form field is registered */}
+            <input type="hidden" {...form.register("accountOwnerUserId")} />
+
+            {/* ── Section 1: Essentials ────────────────────────────── */}
+            <SectionHeader title="Essentials" />
+
             <div className="grid gap-1.5">
               <Label htmlFor="name">
                 Account Name <span className="text-destructive">*</span>
@@ -222,6 +246,18 @@ export function AccountForm({
                   {form.formState.errors.name.message}
                 </p>
               )}
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label>Account Owner</Label>
+              <EntityCombobox
+                items={ownerOptions}
+                value={ownerValue ?? ""}
+                onChange={(v) => form.setValue("accountOwnerUserId", v)}
+                placeholder="Select owner..."
+                searchPlaceholder="Search users..."
+                emptyMessage="No users found."
+              />
             </div>
 
             <div className="grid gap-1.5">
@@ -255,211 +291,109 @@ export function AccountForm({
 
               <div className="grid gap-1.5">
                 <Label htmlFor="industry">Industry</Label>
-                <Controller
-                  name="industry"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select value={field.value ?? ""} onValueChange={(v) => field.onChange(v || "")}>
-                      <SelectTrigger id="industry">
-                        <SelectValue placeholder="Select industry" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ACCOUNT_INDUSTRIES.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {enumLabel(t)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-1.5">
-              <Label htmlFor="accountType">Account Type</Label>
-              <Controller
-                name="accountType"
-                control={form.control}
-                render={({ field }) => (
-                  <Select value={field.value ?? ""} onValueChange={(v) => field.onChange(v || "")}>
-                    <SelectTrigger id="accountType">
-                      <SelectValue placeholder="Select account type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ACCOUNT_TYPES.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {enumLabel(t)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-1.5">
-                <Label htmlFor="lifecycleStatus">Lifecycle Status</Label>
-                <Controller
-                  name="lifecycleStatus"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select value={field.value ?? ""} onValueChange={(v) => field.onChange(v || "")}>
-                      <SelectTrigger id="lifecycleStatus">
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {LIFECYCLE_STATUSES.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {enumLabel(t)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-
-              <div className="grid gap-1.5">
-                <Label htmlFor="tier">Tier</Label>
-                <Controller
-                  name="tier"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select value={field.value ?? ""} onValueChange={(v) => field.onChange(v || "")}>
-                      <SelectTrigger id="tier">
-                        <SelectValue placeholder="Select tier" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ACCOUNT_TIERS.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {enumLabel(t)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-1.5">
-                <Label htmlFor="region">Region</Label>
-                <Controller
-                  name="region"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select value={field.value ?? ""} onValueChange={(v) => field.onChange(v || "")}>
-                      <SelectTrigger id="region">
-                        <SelectValue placeholder="Select region" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ACCOUNT_REGIONS.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {t.toUpperCase()}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-
-              <div className="grid gap-1.5">
-                <Label htmlFor="source">Source</Label>
-                <Controller
-                  name="source"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select value={field.value ?? ""} onValueChange={(v) => field.onChange(v || "")}>
-                      <SelectTrigger id="source">
-                        <SelectValue placeholder="Select source" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ACCOUNT_SOURCES.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {enumLabel(t)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-1.5">
-                <Label htmlFor="defaultCurrency">Default Currency</Label>
                 <Input
-                  id="defaultCurrency"
-                  {...form.register("defaultCurrency")}
-                  placeholder="USD"
-                  maxLength={3}
+                  id="industry"
+                  {...form.register("industry")}
+                  placeholder="Industry"
                 />
               </div>
+            </div>
 
+            {/* ── Section 2: Hierarchy ────────────────────────────── */}
+            <CollapsibleSection title="Hierarchy" defaultOpen>
               <div className="grid gap-1.5">
-                <Label htmlFor="legacySalesforceId">Salesforce ID</Label>
-                <Input
-                  id="legacySalesforceId"
-                  {...form.register("legacySalesforceId")}
-                  placeholder="Legacy Salesforce ID"
+                <Label>Parent / Related Account</Label>
+                <EntityCombobox
+                  items={accountOptions}
+                  value={parentAccountId}
+                  onChange={setParentAccountId}
+                  placeholder="Select account..."
+                  searchPlaceholder="Search accounts..."
+                  emptyMessage="No accounts found."
                 />
               </div>
-            </div>
 
-            <div className="grid gap-1.5">
-              <Label htmlFor="tagsInput">Tags</Label>
-              <Input
-                id="tagsInput"
-                {...form.register("tagsInput")}
-                placeholder="esports, gaming, premium (comma separated)"
-              />
-            </div>
+              {parentAccountId && (
+                <div className="grid gap-1.5">
+                  <Label>Relationship</Label>
+                  <select
+                    className="h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    value={relationshipKind}
+                    onChange={(e) => setRelationshipKind(e.target.value as AccountRelationshipKind)}
+                  >
+                    <option value="">Select relationship kind...</option>
+                    {RELATIONSHIP_KIND_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </CollapsibleSection>
 
-            <div className="flex items-center gap-2">
-              <Controller
-                name="active"
-                control={form.control}
-                render={({ field }) => (
-                  <Checkbox
-                    id="active"
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                )}
-              />
-              <Label htmlFor="active">Active</Label>
-            </div>
+            {/* ── Section 3: Commercial ────────────────────────────── */}
+            {section3Defs.length > 0 && (
+              <CollapsibleSection title="Commercial" defaultOpen={false}>
+                <CustomFieldsForm
+                  fieldDefinitions={section3Defs}
+                  values={customFieldValues}
+                  onChange={(key, value) =>
+                    setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
+                  }
+                  errors={{}}
+                />
+              </CollapsibleSection>
+            )}
 
-            <div className="grid gap-1.5">
-              <Label htmlFor="emailDomainsInput">Email Domains</Label>
-              <Input
-                id="emailDomainsInput"
-                {...form.register("emailDomainsInput")}
-                placeholder="example.com, other.com (comma separated)"
-              />
-              <p className="text-xs text-muted-foreground">
-                Comma-separated list of company email domains. Used for automatic contact association.
+            {/* ── Section 4: Classification & Territory ────────────────────────────── */}
+            <CollapsibleSection title="Classification & Territory" defaultOpen={false}>
+              <p className="text-sm text-muted-foreground">
+                Classification fields (tier, lifecycle status, region, sales unit, source, tags) are being added in a future release.
               </p>
-            </div>
+            </CollapsibleSection>
 
+            {/* ── Section 5: Contact & Matching ────────────────────────────── */}
+            <CollapsibleSection title="Contact & Matching" defaultOpen={false}>
+              <div className="grid gap-1.5">
+                <Label htmlFor="emailDomainsInput">Email Domains</Label>
+                <Input
+                  id="emailDomainsInput"
+                  {...form.register("emailDomainsInput")}
+                  placeholder="example.com, other.com (comma separated)"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Comma-separated list of company email domains. Used for automatic contact association.
+                </p>
+              </div>
+
+              {section5Defs.length > 0 && (
+                <CustomFieldsForm
+                  fieldDefinitions={section5Defs}
+                  values={customFieldValues}
+                  onChange={(key, value) =>
+                    setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
+                  }
+                  errors={{}}
+                />
+              )}
+            </CollapsibleSection>
+
+            {/* ── Section 6: Description ────────────────────────────── */}
+            <SectionHeader title="Description" />
             <div className="grid gap-1.5">
-              <Label htmlFor="description">Description</Label>
               <textarea
                 id="description"
                 className="min-h-[100px] w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 resize-y placeholder:text-muted-foreground"
-                placeholder="Company description"
+                placeholder="Company description or notes"
                 {...form.register("description")}
               />
             </div>
 
-            {fieldDefinitions.length > 0 && (
+            {/* ── Section 7: Custom Fields ────────────────────────────── */}
+            {section7Defs.length > 0 && (
               <CustomFieldsForm
-                fieldDefinitions={fieldDefinitions}
+                fieldDefinitions={section7Defs}
                 values={customFieldValues}
                 onChange={(key, value) =>
                   setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
@@ -489,5 +423,50 @@ export function AccountForm({
         </form>
       </SheetContent>
     </Sheet>
+  )
+}
+
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <div className="border-b pb-1.5 pt-1">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </h3>
+    </div>
+  )
+}
+
+function CollapsibleSection({
+  title,
+  defaultOpen,
+  children,
+}: {
+  title: string
+  defaultOpen: boolean
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <button
+        type="button"
+        className="group flex w-full items-center gap-2 py-1 cursor-pointer select-none rounded-md transition-colors hover:bg-muted/50"
+        onClick={() => setOpen(!open)}
+      >
+        <ChevronDown
+          className="size-3.5 shrink-0 transition-transform duration-200"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+        />
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {title}
+        </h3>
+      </button>
+      <CollapsibleContent>
+        <div className="space-y-3 pt-2 pb-0.5">
+          {children}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
