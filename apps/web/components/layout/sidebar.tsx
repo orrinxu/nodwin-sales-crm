@@ -217,7 +217,7 @@ function SidebarDesktop({ user }: SidebarProps) {
   )
 }
 
-function SidebarMobile({ user }: SidebarProps) {
+export function SidebarMobile({ user }: SidebarProps) {
   return (
     <Sheet>
       <SheetTrigger
@@ -252,13 +252,5 @@ function SidebarMobile({ user }: SidebarProps) {
 }
 
 export function Sidebar({ user }: SidebarProps) {
-  return (
-    <>
-      <SidebarDesktop user={user} />
-      <header className="sticky top-0 z-40 flex h-12 items-center gap-2 border-b bg-background px-4 lg:hidden">
-        <SidebarMobile user={user} />
-        <span className="text-sm font-semibold">Nodwin CRM</span>
-      </header>
-    </>
-  )
+  return <SidebarDesktop user={user} />
 }
