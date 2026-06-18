@@ -68,3 +68,9 @@
 # All authenticated users need read access to discover relationship types.
 # Write access is admin-only.
 .*relationship_types.*:USING \(true\)
+
+# ── integration config ────────────────────────────────────────────────────────
+# Integration settings, connections, and email config are configuration tables.
+# All authenticated users need read access to discover integration state and
+# configuration. Write access is admin-only.
+.*integration_config.*:USING \(true\)
