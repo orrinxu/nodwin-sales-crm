@@ -15,7 +15,6 @@ import {
   Globe,
   Briefcase,
   LinkIcon,
-  Bell,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -51,7 +50,6 @@ const navigation = [
 ]
 
 const adminItems = [
-  { name: "Alerts", href: "/admin/alerts", icon: Bell },
   { name: "Custom Fields", href: "/admin/field-definitions", icon: Sliders },
   { name: "Entities", href: "/admin/entities", icon: Globe },
   { name: "Business Units", href: "/admin/business-units", icon: Briefcase },
