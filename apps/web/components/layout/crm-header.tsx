@@ -1,9 +1,9 @@
 "use client"
 
-import { Bell, Search } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { ModeToggle } from "@/components/theme/mode-toggle"
+import { NotificationsDrawer } from "@/components/notifications/notifications-drawer"
 
 export function CrmHeader() {
   return (
@@ -14,10 +14,7 @@ export function CrmHeader() {
       </div>
       <div className="flex items-center gap-1">
         <ModeToggle />
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="size-5" />
-          <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-primary" />
-        </Button>
+        <NotificationsDrawer />
       </div>
     </header>
   )
