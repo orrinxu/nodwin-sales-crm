@@ -62,3 +62,9 @@
 # FX rates is a lookup table for currency conversion. All authenticated users
 # need read access to reference exchange rates. Write access is finance/admin only.
 .*fx_rates.*:USING \(true\)
+
+# ── integration config ────────────────────────────────────────────────────────
+# Integration settings, connections, and email config are configuration tables.
+# All authenticated users need read access to discover integration state and
+# configuration. Write access is admin-only.
+.*integration_config.*:USING \(true\)
