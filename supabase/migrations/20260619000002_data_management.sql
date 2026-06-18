@@ -1,4 +1,4 @@
--- supabase/migrations/20260620000000_data_management.sql
+-- supabase/migrations/20260619000002_data_management.sql
 -- HIGH-RISK FILE — see AGENTS.md §6.
 --
 -- ORR-527 / ORR-509-db: Data Management schema migration.
