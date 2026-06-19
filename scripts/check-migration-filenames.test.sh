@@ -235,6 +235,56 @@ SELECT 1;
 EOF
 assert_passes "Long multi-segment snake_case name passes"
 
+# ── Test 21: Future-dated migration fails ──
+setup
+cat > "$TEMP_DIR/supabase/migrations/20260505000000_valid.sql" <<'EOF'
+SELECT 1;
+EOF
+cat > "$TEMP_DIR/supabase/migrations/20990101000000_future_migration.sql" <<'EOF'
+SELECT 1;
+EOF
+assert_fails "Rejects future-dated migration (20990101 > today)"
+
+# ── Test 22: .bak file in migrations/ fails ──
+setup
+cat > "$TEMP_DIR/supabase/migrations/20260505000000_valid.sql" <<'EOF'
+SELECT 1;
+EOF
+touch "$TEMP_DIR/supabase/migrations/reverted_change.sql.bak"
+assert_fails "Rejects .bak file in supabase/migrations/"
+
+# ── Test 23: .bak file in seed/ fails ──
+setup
+cat > "$TEMP_DIR/supabase/migrations/20260505000000_valid.sql" <<'EOF'
+SELECT 1;
+EOF
+mkdir -p "$TEMP_DIR/supabase/seed"
+touch "$TEMP_DIR/supabase/seed/test_data.sql.bak"
+assert_fails "Rejects .bak file in supabase/seed/"
+
+# ── Test 24: .bak file in policies/ fails ──
+setup
+cat > "$TEMP_DIR/supabase/migrations/20260505000000_valid.sql" <<'EOF'
+SELECT 1;
+EOF
+mkdir -p "$TEMP_DIR/supabase/policies"
+touch "$TEMP_DIR/supabase/policies/old_rls.sql.bak"
+assert_fails "Rejects .bak file in supabase/policies/"
+
+# ── Test 25: Clean state with no future dates or .bak files passes ──
+setup
+cat > "$TEMP_DIR/supabase/migrations/20260505000000_users.sql" <<'EOF'
+SELECT 1;
+EOF
+cat > "$TEMP_DIR/supabase/migrations/20260505000001_accounts.sql" <<'EOF'
+SELECT 1;
+EOF
+mkdir -p "$TEMP_DIR/supabase/seed"
+mkdir -p "$TEMP_DIR/supabase/policies"
+touch "$TEMP_DIR/supabase/seed/.gitkeep"
+touch "$TEMP_DIR/supabase/policies/.gitkeep"
+assert_passes "Clean workspace with no future dates or .bak files passes"
+
 # ── Summary ──
 echo ""
 echo "────────────────────────────────────────"
