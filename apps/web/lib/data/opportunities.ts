@@ -73,6 +73,7 @@ function toDomainOpportunity(data: Record<string, unknown>): OpportunityRecord {
     currency,
     ownerUserId: data.owner_user_id as string,
     ownerName: owner?.full_name ?? null,
+    salesInitiatorUserId: data.sales_initiator_user_id as string,
     salesUnitId: data.sales_unit_id as string,
     revenueRecognitionUnitId: (data.revenue_recognition_unit_id as string) ?? null,
     billingEntityId: (data.billing_entity_id as string) ?? null,
@@ -119,6 +120,7 @@ export async function getOpportunities(
       amount,
       currency,
       owner_user_id,
+      sales_initiator_user_id,
       sales_unit_id,
       revenue_recognition_unit_id,
       billing_entity_id,
@@ -178,6 +180,7 @@ export async function getOpportunityById(
       amount,
       currency,
       owner_user_id,
+      sales_initiator_user_id,
       sales_unit_id,
       revenue_recognition_unit_id,
       billing_entity_id,
@@ -427,6 +430,7 @@ export async function createOpportunity(
       amount,
       currency,
       owner_user_id,
+      sales_initiator_user_id,
       sales_unit_id,
       revenue_recognition_unit_id,
       billing_entity_id,
@@ -510,6 +514,7 @@ export async function updateOpportunity(
   if (parsed.description !== undefined) dbData.description = parsed.description || null
   if (parsed.lossReason !== undefined) dbData.loss_reason = parsed.lossReason || null
   if (parsed.ownerUserId !== undefined) dbData.owner_user_id = parsed.ownerUserId
+  if (parsed.salesInitiatorUserId !== undefined) dbData.sales_initiator_user_id = parsed.salesInitiatorUserId
   if (parsed.salesUnitId !== undefined) dbData.sales_unit_id = parsed.salesUnitId
   if (parsed.revenueRecognitionUnitId !== undefined) dbData.revenue_recognition_unit_id = parsed.revenueRecognitionUnitId || null
   if (parsed.billingEntityId !== undefined) dbData.billing_entity_id = parsed.billingEntityId || null
