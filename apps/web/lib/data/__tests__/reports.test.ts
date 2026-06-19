@@ -6,6 +6,7 @@ const mockFrom = vi.fn()
 const mockSelect = vi.fn()
 const mockOrder = vi.fn()
 const mockLimit = vi.fn()
+const mockIn = vi.fn()
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(() => ({
@@ -19,12 +20,14 @@ function buildQueryBuilder() {
   })
   mockSelect.mockReturnValue({
     order: mockOrder,
+    in: mockIn,
   })
   mockOrder.mockReturnValue({
     limit: mockLimit,
   })
   mockLimit.mockResolvedValue({ data: [], error: null })
-  return { select: mockSelect, order: mockOrder, limit: mockLimit }
+  mockIn.mockResolvedValue({ data: [], error: null })
+  return { select: mockSelect, order: mockOrder, limit: mockLimit, in: mockIn }
 }
 
 beforeEach(() => {

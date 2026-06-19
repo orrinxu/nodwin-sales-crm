@@ -166,7 +166,7 @@ export async function saveCustomSchedule(
 
   const { error: insertError } = await supabase
     .from("opportunity_revenue_schedule")
-    .insert(rows)
+    .insert(rows as never)
 
   if (insertError) {
     throw new Error(`Failed to insert revenue schedule: ${insertError.message}`)

@@ -415,7 +415,7 @@ export async function createOpportunity(
 
   const { data, error } = await supabase
     .from("opportunities")
-    .insert(dbData)
+    .insert(dbData as never)
     .select(
       `
       id,
@@ -524,7 +524,7 @@ export async function updateOpportunity(
   if (Object.keys(dbData).length > 0) {
     const { error } = await supabase
       .from("opportunities")
-      .update(dbData)
+      .update(dbData as never)
       .eq("id", id)
 
     if (error) {

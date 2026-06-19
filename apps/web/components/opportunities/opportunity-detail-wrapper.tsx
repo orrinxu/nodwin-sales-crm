@@ -17,7 +17,7 @@ import { OpportunityForm } from "@/components/opportunities/opportunity-form"
 import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
 import { ActivityComposer } from "@/components/opportunities/activity-composer"
 import type { EntityOption } from "@/components/entity-combobox"
-import type { OpportunityRecord, BusinessUnitOption } from "@/lib/data/opportunities.types"
+import type { OpportunityRecord, BusinessUnitOption, ServiceType, PropertyType } from "@/lib/data/opportunities.types"
 import type { ActivityRecord } from "@/lib/data/activities"
 import { getStageLabel, SERVICE_TYPE_LABELS, PROPERTY_TYPE_LABELS } from "@/lib/data/opportunities.types"
 import { NON_TERMINAL_STAGES, TERMINAL_STAGES } from "@/lib/opportunity"
@@ -307,7 +307,7 @@ export function OpportunityDetailWrapper({
                   value={
                     opportunity.serviceType && opportunity.serviceType.length > 0
                       // eslint-disable-next-line security/detect-object-injection
-                      ? opportunity.serviceType.map((t) => SERVICE_TYPE_LABELS[t] ?? t).join(", ")
+                      ? opportunity.serviceType.map((t) => SERVICE_TYPE_LABELS[t as ServiceType] ?? t).join(", ")
                       : "\u2014"
                   }
                 />
@@ -315,7 +315,7 @@ export function OpportunityDetailWrapper({
                   label="Property Type"
                   value={
                     opportunity.propertyType
-                      ? (PROPERTY_TYPE_LABELS[opportunity.propertyType] ?? opportunity.propertyType)
+                      ? (PROPERTY_TYPE_LABELS[opportunity.propertyType as PropertyType] ?? opportunity.propertyType)
                       : "\u2014"
                   }
                 />

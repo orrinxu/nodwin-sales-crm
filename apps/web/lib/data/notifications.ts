@@ -243,7 +243,7 @@ export async function upsertNotificationRouting(
 
   const { data, error } = await supabase
     .from("notification_routing")
-    .upsert(payload, { onConflict: "event_type, channel, entity_id" })
+    .upsert(payload as never, { onConflict: "event_type, channel, entity_id" })
     .select()
     .single()
 
@@ -377,7 +377,7 @@ export async function upsertEmailTemplate(
   if (input.id) {
     const { data, error } = await supabase
       .from("email_templates")
-      .update({ ...payload, updated_by: ctx.user.id })
+      .update({ ...payload, updated_by: ctx.user.id } as never)
       .eq("id", input.id)
       .select()
       .single()
@@ -393,7 +393,7 @@ export async function upsertEmailTemplate(
 
   const { data, error } = await supabase
     .from("email_templates")
-    .insert({ ...payload, created_by: ctx.user.id, updated_by: ctx.user.id })
+    .insert({ ...payload, created_by: ctx.user.id, updated_by: ctx.user.id } as never)
     .select()
     .single()
 

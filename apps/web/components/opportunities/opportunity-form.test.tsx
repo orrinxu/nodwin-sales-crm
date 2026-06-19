@@ -373,7 +373,7 @@ describe("OpportunityForm", () => {
     it("disables submit button during pending state", async () => {
       const createAction = vi.fn(
         () => new Promise((resolve) => setTimeout(() => resolve({ id: "opp-new" }), 100)),
-      )
+      ) as unknown as typeof defaultProps.createAction
       const user = setupUser()
       render(
         <OpportunityForm {...defaultProps} createAction={createAction} />,
