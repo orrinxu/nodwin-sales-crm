@@ -133,6 +133,7 @@ describe("OpportunityQuickCreate", () => {
         accountId: "acct-1",
         amount: undefined,
         salesUnitId: "bu-1",
+        stage: "qualify",
       })
       expect(onSuccess).toHaveBeenCalled()
     })
@@ -169,6 +170,7 @@ describe("OpportunityQuickCreate", () => {
         accountId: "acct-2",
         amount: "1500.50",
         salesUnitId: "bu-2",
+        stage: "qualify",
       })
     })
   })

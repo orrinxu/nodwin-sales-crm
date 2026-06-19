@@ -28,6 +28,33 @@ export const VISIBILITY_TIERS = ["standard", "restricted", "confidential"] as co
 
 export type VisibilityTier = (typeof VISIBILITY_TIERS)[number]
 
+export const SERVICE_TYPES = [
+  "brand_campaign_and_activation",
+  "content_production",
+  "convention_b2c",
+  "publisher_services",
+  "shop_b2c_retail",
+  "studio_production",
+  "talent_influencer_services",
+  "consultancy_services",
+  "pr",
+] as const
+
+export type ServiceType = (typeof SERVICE_TYPES)[number]
+
+export const PROPERTY_TYPES = [
+  "conference",
+  "expo",
+  "festival",
+  "food_festival",
+  "scripted_reality_show",
+  "talk_show",
+  "tournament",
+  "consultancy_services",
+] as const
+
+export type PropertyType = (typeof PROPERTY_TYPES)[number]
+
 export interface OpportunityRecord {
   id: string
   name: string
@@ -44,6 +71,10 @@ export interface OpportunityRecord {
   salesUnitId: string
   revenueRecognitionUnitId: string | null
   billingEntityId: string | null
+  entitySalesId: string | null
+  serviceType: string[] | null
+  propertyType: string | null
+  barterValue: string | null
   servicePeriodStart: string | null
   servicePeriodEnd: string | null
   executionDate: string | null
@@ -99,6 +130,10 @@ export interface OpportunityCreateInput {
   salesUnitId: string
   revenueRecognitionUnitId?: string
   billingEntityId?: string
+  entitySalesId?: string
+  serviceType?: ServiceType[]
+  propertyType?: PropertyType
+  barterValue?: string
   servicePeriodStart?: string
   servicePeriodEnd?: string
   executionDate?: string
