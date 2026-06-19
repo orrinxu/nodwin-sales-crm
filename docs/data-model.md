@@ -121,7 +121,6 @@ The core unit. Locked from the existing Salesforce schema for v1, with adjustmen
 | primary_contact_id | uuid (FK Contact, nullable) | |
 | stage | enum | qualify \| meet_and_present \| propose \| negotiate \| verbal_agreement \| closed_won \| closed_lost |
 | probability_pct | numeric(5,2) | Default per-stage; overridable on the deal |
-| sales_initiator_user_id | uuid (FK User) | Who first sourced the lead; may differ from current Owner |
 | owner_user_id | uuid (FK User) | Primary deal owner |
 | sales_unit_id | uuid (FK Business Unit) | Primary Sales Unit (revenue split managed separately) |
 | revenue_recognition_unit_id | uuid (FK Business Unit, nullable) | Set later, often at close |
