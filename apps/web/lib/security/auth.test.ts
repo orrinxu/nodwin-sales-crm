@@ -233,6 +233,69 @@ describe("requireUser", () => {
   })
 })
 
+describe("getUser", () => {
+  it("returns AuthenticatedUser when session is valid", async () => {
+    mockGetUser.mockResolvedValue({
+      data: {
+        user: {
+          id: "user-1",
+          email: "alice@nodwin.com",
+          app_metadata: { role: "admin" },
+          user_metadata: {},
+        },
+      },
+      error: null,
+    })
+
+    const { getUser } = await import("./auth")
+    const result = await getUser()
+
+    expect(result).toEqual({
+      id: "user-1",
+      email: "alice@nodwin.com",
+      role: "admin",
+    })
+  })
+
+  it("returns null when no session exists", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: null },
+      error: { message: "Auth session missing" },
+    })
+
+    const { getUser } = await import("./auth")
+    const result = await getUser()
+
+    expect(result).toBeNull()
+  })
+
+  it("returns null when user is null", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: null },
+      error: null,
+    })
+
+    const { getUser } = await import("./auth")
+    const result = await getUser()
+
+    expect(result).toBeNull()
+  })
+
+  it("returns local-preview admin when NEXT_PUBLIC_ENV is local-preview", async () => {
+    vi.stubEnv("NEXT_PUBLIC_ENV", "local-preview")
+
+    const { getUser } = await import("./auth")
+    const result = await getUser()
+
+    expect(result).toEqual({
+      id: "a0000000001-0001-0001-0001-000000000001",
+      email: "alice.admin@nodwin-test.example",
+      role: "admin",
+    })
+    expect(mockGetUser).not.toHaveBeenCalled()
+  })
+})
+
 describe("requireRole", () => {
   it("allows when user role matches required role", async () => {
     const { requireRole } = await import("./auth")

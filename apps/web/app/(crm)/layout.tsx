@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/security/auth"
+import { getUser } from "@/lib/security/auth"
 import { Sidebar } from "@/components/layout/sidebar"
 import { CrmHeader } from "@/components/layout/crm-header"
 
@@ -7,7 +7,11 @@ export default async function CrmLayout({
 }: {
   children: React.ReactNode
 }) {
-  const user = await requireUser()
+  const user = await getUser()
+
+  if (!user) {
+    throw new Error("Expected authenticated user in CRM layout; middleware should have redirected")
+  }
 
   return (
     <div className="flex h-screen">
