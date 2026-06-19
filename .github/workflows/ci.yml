@@ -151,8 +151,7 @@ jobs:
           ./bin/gitleaks detect \
             --source . \
             --report-path gitleaks-report.json \
-            --report-format json \
-            --verbose
+            --report-format json
         env:
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE || '' }}
 
