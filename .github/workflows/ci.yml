@@ -142,10 +142,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install gitleaks
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/scripts/install.sh | bash -s -- v8.24.2
+
       - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@v2.3.7
+        run: |
+          ./bin/gitleaks detect \
+            --source . \
+            --report-path gitleaks-report.json \
+            --report-format json \
+            --verbose
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE || '' }}
 
       - name: Upload gitleaks results
         if: always()
