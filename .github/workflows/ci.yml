@@ -150,6 +150,7 @@ jobs:
         run: |
           ./bin/gitleaks detect \
             --source . \
+            --config-path .gitleaksrc.toml \
             --report-path gitleaks-report.json \
             --report-format json
         env:
