@@ -6,9 +6,11 @@
 # Ensures all migration files in supabase/migrations/ follow the naming
 # convention and have no duplicate timestamps.
 #
-# Valid patterns:
-#   Timestamp:  YYYYMMDDHHMMSS_descriptive_name.sql
-#   Legacy:     NNNN_descriptive_name.sql  (4-digit sequential)
+# Checks performed:
+#   1. Filename pattern validation (timestamp or legacy)
+#   2. Duplicate timestamp detection (warnings in relaxed mode, errors in strict)
+#   3. Future-dated migrations (date prefix > today UTC)
+#   4. .bak files under supabase/migrations/, supabase/seed/, or supabase/policies/
 #
 # Duplicate timestamps are warnings by default. Set STRICT_MIGRATION_NAMES=1
 # to treat them as errors.
@@ -18,8 +20,9 @@
 #   STRICT_MIGRATION_NAMES=1 ./scripts/check-migration-filenames.sh  # errors
 #
 # Exit codes:
-#   0 — all filenames valid (dupes are only warnings in non-strict mode)
-#   1 — invalid filenames found, or duplicate timestamps in strict mode
+#   0 — all checks passed
+#   1 — invalid filenames, future-dated migrations, .bak files,
+#       or duplicate timestamps in strict mode
 #
 
 set -euo pipefail
@@ -162,10 +165,65 @@ else
 fi
 
 echo ""
+
+# ── Pass 3: Check for future-dated migrations ─────────────────────────────────
+
+echo "── Future-date check ─────────────────────────────"
+
+TODAY=$(date -u +%Y%m%d)
+future_count=0
+
+shopt -s nullglob
+
+for file in "$MIGRATIONS_DIR"/*.sql; do
+  filename=$(basename "$file")
+  ts=$(extract_timestamp "$filename")
+
+  if [ -n "$ts" ]; then
+    ts_date="${ts:0:8}"
+    if [ "$ts_date" -gt "$TODAY" ]; then
+      red "  ✗ Future-dated: $filename (date prefix: $ts_date > today: $TODAY)"
+      ((future_count++)) || true
+      EXIT_CODE=1
+    fi
+  fi
+done
+
+shopt -u nullglob
+
+echo ""
+
+if [ $future_count -gt 0 ]; then
+  red "  $future_count future-dated migration(s) found"
+else
+  green "  No future-dated migrations"
+fi
+
+echo ""
+
+# ── Pass 4: Check for .bak files ──────────────────────────────────────────────
+
+echo "── .bak file check ────────────────────────────────"
+
+bak_count=0
+
+while IFS= read -r bak_file; do
+  red "  ✗ .bak file: $bak_file"
+  ((bak_count++)) || true
+done < <(find supabase/migrations supabase/seed supabase/policies -name '*.bak' 2>/dev/null || true)
+
+if [ $bak_count -gt 0 ]; then
+  red "  $bak_count .bak file(s) found — remove before committing"
+  EXIT_CODE=1
+else
+  green "  No .bak files found"
+fi
+
+echo ""
 echo "════════════════════════════════════════════════"
 
 if [ $EXIT_CODE -eq 0 ]; then
-  green "✓ All migration filenames valid."
+  green "✓ All migration filename checks passed."
 else
   red "✗ Migration filename issues found."
 fi
