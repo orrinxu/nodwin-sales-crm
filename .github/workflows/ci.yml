@@ -54,6 +54,10 @@ jobs:
         run: VRLS_WARNINGS_ARE_ERRORS=1 bash scripts/lint-rls.sh
         timeout-minutes: 2
 
+      - name: Check migration filenames
+        run: bash scripts/check-migration-filenames.sh
+        timeout-minutes: 1
+
       - name: Run RLS policy coverage check
         run: bash scripts/check-rls-coverage.sh
         timeout-minutes: 1

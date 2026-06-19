@@ -14,7 +14,8 @@
     "db:reset": "supabase db reset",
     "db:seed": "supabase db query --local --file supabase/seed/seed-test-data.sql",
     "db:test": "supabase test db",
-    "rls:check": "bash scripts/check-rls-coverage.sh"
+    "rls:check": "bash scripts/check-rls-coverage.sh",
+    "migration:check": "bash scripts/check-migration-filenames.sh"
   },
   "engines": {
     "node": ">=20.0.0",
