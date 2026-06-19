@@ -1,4 +1,5 @@
 import "server-only"
+import type { Database } from "@/lib/database.types"
 import { createServerClient as createSsrClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { env } from "../security/env"
@@ -21,7 +22,7 @@ export async function createServerClient() {
     ? env.SUPABASE_SERVICE_ROLE_KEY
     : env.SUPABASE_ANON_KEY
 
-  return createSsrClient(env.SUPABASE_URL, key, {
+  return createSsrClient<Database>(env.SUPABASE_URL, key, {
     cookies: {
       getAll() {
         return cookieStore.getAll()
