@@ -91,7 +91,6 @@ export interface OpportunityRecord {
   currency: string
   ownerUserId: string
   ownerName: string | null
-  salesInitiatorUserId: string
   salesUnitId: string
   revenueRecognitionUnitId: string | null
   billingEntityId: string | null
@@ -151,7 +150,6 @@ export interface OpportunityCreateInput {
   closeDate?: string
   description?: string
   ownerUserId?: string
-  salesInitiatorUserId?: string
   salesUnitId: string
   revenueRecognitionUnitId?: string
   billingEntityId?: string
