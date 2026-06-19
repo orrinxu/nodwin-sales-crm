@@ -171,8 +171,8 @@ export function EntityCombobox({
       value={value}
       onValueChange={handleValueChange}
       onInputValueChange={(v) => setInputValue(v ?? "")}
-      className={className}
     >
+      <div className={className}>
       <ComboboxTrigger
         className={cn(value && "[&>span]:truncate", "max-w-full")}
         disabled={disabled}
@@ -235,6 +235,7 @@ export function EntityCombobox({
           </div>
         )}
       </ComboboxContent>
+      </div>
     </Combobox>
   )
 }

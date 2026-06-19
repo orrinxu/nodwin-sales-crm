@@ -87,7 +87,7 @@ export function AccountForm({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [parentAccountId, setParentAccountId] = useState("")
+  const [parentAccountId, setParentAccountId] = useState<string | null>(null)
   const [relationshipKind, setRelationshipKind] = useState<AccountRelationshipKind | "">("")
 
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>(
@@ -163,7 +163,7 @@ export function AccountForm({
 
       setOpen(false)
       form.reset()
-      setParentAccountId("")
+      setParentAccountId(null)
       setRelationshipKind("")
       setCustomFieldValues(account?.customData ?? {})
       onSuccess()
@@ -253,7 +253,7 @@ export function AccountForm({
               <EntityCombobox
                 items={ownerOptions}
                 value={ownerValue ?? ""}
-                onChange={(v) => form.setValue("accountOwnerUserId", v)}
+                onChange={(v) => form.setValue("accountOwnerUserId", v ?? undefined)}
                 placeholder="Select owner..."
                 searchPlaceholder="Search users..."
                 emptyMessage="No users found."

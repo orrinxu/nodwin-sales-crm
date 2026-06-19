@@ -168,13 +168,14 @@ function ComboboxEmpty({
 function ComboboxValue({
   className,
   ...props
-}: ComboboxPrimitive.Value.Props) {
+}: ComboboxPrimitive.Value.Props & { className?: string }) {
   return (
-    <ComboboxPrimitive.Value
-      data-slot="combobox-value"
-      className={cn("flex flex-1 text-left truncate", className)}
-      {...props}
-    />
+    <span className={cn("flex flex-1 text-left truncate", className)}>
+      <ComboboxPrimitive.Value
+        data-slot="combobox-value"
+        {...props}
+      />
+    </span>
   )
 }
 

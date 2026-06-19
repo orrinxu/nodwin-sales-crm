@@ -31,6 +31,21 @@ export interface TopAccount {
   count: number
 }
 
+export interface PipelineStageSummary {
+  stage: string
+  label: string
+  count: number
+  totalAmount: string
+  currency: string
+}
+
+export interface PipelineSummary {
+  stages: PipelineStageSummary[]
+  totalAmount: number
+  totalCount: number
+  currency: string
+}
+
 export interface ReportData {
   pipelineByStage: PipelineByStage[]
   wonLostRevenue: WonLostRevenue[]

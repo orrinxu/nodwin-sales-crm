@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event"
 import { OpportunityForm } from "./opportunity-form"
 import type { AccountOption } from "@/lib/data/contacts"
 import type { EntityOption } from "@/components/entity-combobox"
+import type { OpportunityRecord } from "@/lib/data/opportunities.types"
 
 vi.mock("server-only", () => ({}))
 
@@ -369,7 +370,7 @@ describe("OpportunityForm", () => {
 
     it("disables submit button during pending state", async () => {
       const createAction = vi.fn(
-        () => new Promise((resolve) => setTimeout(() => resolve({ id: "opp-new" }), 100)),
+        () => new Promise<OpportunityRecord>((resolve) => setTimeout(() => resolve({ id: "opp-new" } as OpportunityRecord), 100)),
       )
       const user = setupUser()
       render(
