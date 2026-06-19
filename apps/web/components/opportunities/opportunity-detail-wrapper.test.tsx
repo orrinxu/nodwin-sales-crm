@@ -1,8 +1,11 @@
 /// <reference types="@testing-library/jest-dom/vitest" />
 import { describe, it, expect, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { OpportunityDetailWrapper } from "./opportunity-detail-wrapper"
 import type { OpportunityRecord, BusinessUnitOption } from "@/lib/data/opportunities.types"
+import { NON_TERMINAL_STAGES } from "@/lib/opportunity"
+import { getStageLabel } from "@/lib/data/opportunities.types"
 
 vi.mock("server-only", () => ({}))
 
@@ -34,22 +37,6 @@ vi.mock("@/components/opportunities/opportunity-form", () => ({
   ),
 }))
 
-vi.mock("@/components/ui/tabs", () => {
-  function Tabs({ children, defaultValue }: { children: React.ReactNode; defaultValue?: string }) {
-    return <div data-testid="tabs" data-default-value={defaultValue}>{children}</div>
-  }
-  function TabsList({ children }: { children: React.ReactNode }) {
-    return <div data-testid="tabs-list">{children}</div>
-  }
-  function TabsTab({ children, value }: { children: React.ReactNode; value: string }) {
-    return <button data-testid="tabs-tab" data-value={value} type="button">{children}</button>
-  }
-  function TabsPanel({ children, value }: { children: React.ReactNode; value: string }) {
-    return <div data-testid="tabs-panel" data-value={value}>{children}</div>
-  }
-  return { Tabs, TabsList, TabsTab, TabsPanel }
-})
-
 const mockBusinessUnits: BusinessUnitOption[] = [
   { id: "bu-1", name: "East Asia Sales" },
 ]
@@ -68,9 +55,25 @@ function makeOpportunity(overrides: Partial<OpportunityRecord> = {}): Opportunit
     ownerUserId: "user-1",
     ownerName: "Alice",
     salesUnitId: "bu-1",
+    revenueRecognitionUnitId: null,
+    billingEntityId: null,
+    entitySalesId: null,
+    serviceType: null,
+    propertyType: null,
+    barterValue: null,
+    servicePeriodStart: null,
+    servicePeriodEnd: null,
+    executionDate: null,
+    estimatedGrossMarginPct: null,
+    countryExecution: null,
+    projectType: null,
+    revenueCategory: null,
+    recurring: false,
+    recurringSplitKind: null,
     description: "A promising opportunity",
     closeDate: "2026-06-30",
     lossReason: null,
+    visibilityTier: "standard",
     customData: {},
     createdAt: "2026-01-15T08:00:00Z",
     updatedAt: "2026-04-01T10:00:00Z",
@@ -81,7 +84,9 @@ function makeOpportunity(overrides: Partial<OpportunityRecord> = {}): Opportunit
 const defaultProps = {
   opportunity: makeOpportunity(),
   businessUnits: mockBusinessUnits,
+  entities: [],
   updateAction: vi.fn(),
+  updateStageAction: vi.fn(),
   activities: [],
   createActivityAction: vi.fn(),
 }
@@ -96,7 +101,7 @@ describe("OpportunityDetailWrapper", () => {
   describe("header", () => {
     it("renders the opportunity name", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Big Deal")).toBeInTheDocument()
+      expect(screen.getAllByText("Big Deal").length).toBeGreaterThanOrEqual(1)
     })
 
     it("renders the stage badge", () => {
@@ -105,54 +110,84 @@ describe("OpportunityDetailWrapper", () => {
       expect(badges.length).toBeGreaterThanOrEqual(1)
     })
 
-    it("renders the owner name", () => {
+    it("renders probability percentage in header", () => {
+      render(<OpportunityDetailWrapper {...defaultProps} />)
+      expect(screen.getAllByText("75%").length).toBeGreaterThanOrEqual(1)
+    })
+  })
+
+  describe("highlights bar", () => {
+    it("displays account name", () => {
+      render(<OpportunityDetailWrapper {...defaultProps} />)
+      expect(screen.getAllByText("Acme Corp").length).toBeGreaterThanOrEqual(1)
+    })
+
+    it("displays the formatted amount", () => {
+      render(<OpportunityDetailWrapper {...defaultProps} />)
+      expect(screen.getAllByText("$50,000.00").length).toBeGreaterThanOrEqual(1)
+    })
+
+    it("displays owner name", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
       const ownerEls = screen.getAllByText("Alice")
       expect(ownerEls.length).toBeGreaterThanOrEqual(1)
     })
 
-    it("renders 'Unassigned' when ownerName is null", () => {
+    it("displays 'Unassigned' when ownerName is null", () => {
       render(
         <OpportunityDetailWrapper
           {...defaultProps}
           opportunity={makeOpportunity({ ownerName: null })}
         />,
       )
-      expect(screen.getByText("Unassigned")).toBeInTheDocument()
+      expect(screen.getAllByText("Unassigned").length).toBeGreaterThanOrEqual(1)
     })
   })
 
-  describe("stage progress indicator", () => {
-    it("renders all 7 stage dots", () => {
+  describe("stage path", () => {
+    it("renders all non-terminal stage labels", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
-      const dots = document.querySelectorAll(".rounded-full")
-      expect(dots).toHaveLength(7)
+      NON_TERMINAL_STAGES.forEach((s) => {
+        expect(screen.getAllByText(getStageLabel(s)).length).toBeGreaterThanOrEqual(1)
+      })
     })
 
-    it("renders the first and last stage labels", () => {
+    it("does not render terminal stage labels in the path", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Qualify")).toBeInTheDocument()
-      expect(screen.getByText("Closed Lost")).toBeInTheDocument()
+      expect(screen.queryByText("Closed Won")).not.toBeInTheDocument()
+      expect(screen.queryByText("Closed Lost")).not.toBeInTheDocument()
     })
   })
 
-  describe("Overview card", () => {
-    it("displays the formatted amount", () => {
+  describe("collapsible sections", () => {
+    it("renders Details section with fields", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("$50,000.00")).toBeInTheDocument()
+      expect(screen.getByText("Details")).toBeInTheDocument()
     })
 
-    it("displays probability percentage", () => {
+    it("renders Description section", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("75%")).toBeInTheDocument()
+      expect(screen.getByText("Description")).toBeInTheDocument()
     })
 
-    it("displays currency", () => {
+    it("renders Pricing section", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("USD")).toBeInTheDocument()
+      expect(screen.getByText("Pricing")).toBeInTheDocument()
     })
 
-    it("displays close date", () => {
+    it("renders Other Information section", () => {
+      render(<OpportunityDetailWrapper {...defaultProps} />)
+      expect(screen.getByText("Other Information")).toBeInTheDocument()
+    })
+
+    it("renders System Information section", () => {
+      render(<OpportunityDetailWrapper {...defaultProps} />)
+      expect(screen.getByText("System Information")).toBeInTheDocument()
+    })
+  })
+
+  describe("close date", () => {
+    it("displays close date in Details section", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
       expect(screen.getByText("Jun 30, 2026")).toBeInTheDocument()
     })
@@ -164,74 +199,41 @@ describe("OpportunityDetailWrapper", () => {
           opportunity={makeOpportunity({ closeDate: null })}
         />,
       )
-      expect(screen.getByText("\u2014")).toBeInTheDocument()
+      expect(screen.getAllByText("\u2014").length).toBeGreaterThanOrEqual(1)
     })
   })
 
-  describe("Details card", () => {
-    it("displays account name", () => {
-      render(<OpportunityDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Acme Corp")).toBeInTheDocument()
-    })
-
-    it("shows em dash when accountName is null", () => {
-      render(
-        <OpportunityDetailWrapper
-          {...defaultProps}
-          opportunity={makeOpportunity({ accountName: null })}
-        />,
-      )
-      expect(screen.getByText("\u2014")).toBeInTheDocument()
-    })
-
-    it("displays sales unit name resolved from businessUnits", () => {
-      render(<OpportunityDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("East Asia Sales")).toBeInTheDocument()
-    })
-
-    it("shows em dash when sales unit not found", () => {
-      render(
-        <OpportunityDetailWrapper
-          {...defaultProps}
-          opportunity={makeOpportunity({ salesUnitId: "nonexistent", accountName: null })}
-        />,
-      )
-      const dashes = screen.getAllByText("\u2014")
-      expect(dashes.length).toBeGreaterThanOrEqual(1)
-    })
-  })
-
-  describe("description card", () => {
-    it("renders description when present", () => {
+  describe("description", () => {
+    it("renders description text when present", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
       expect(screen.getByText("A promising opportunity")).toBeInTheDocument()
     })
 
-    it("does not render description card when description is null", () => {
+    it("shows fallback when description is null", () => {
       render(
         <OpportunityDetailWrapper
           {...defaultProps}
           opportunity={makeOpportunity({ description: null })}
         />,
       )
-      expect(screen.queryByText("Description")).not.toBeInTheDocument()
+      expect(screen.getByText("No description provided.")).toBeInTheDocument()
     })
   })
 
-  describe("tabs", () => {
-    it("renders all 7 tabs", () => {
+  describe("right panel", () => {
+    it("renders related list placeholders", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
-      expect(screen.getAllByTestId("tabs-tab")).toHaveLength(7)
-    })
-
-    it("sets notes as default tab", () => {
-      render(<OpportunityDetailWrapper {...defaultProps} />)
-      const tabs = screen.getByTestId("tabs")
-      expect(tabs).toHaveAttribute("data-default-value", "notes")
+      expect(screen.getByText("Products")).toBeInTheDocument()
+      expect(screen.getByText("Files")).toBeInTheDocument()
+      expect(screen.getByText("Activity")).toBeInTheDocument()
+      expect(screen.getByText("Approval History")).toBeInTheDocument()
+      expect(screen.getByText("Opportunity Team")).toBeInTheDocument()
+      expect(screen.getByText("Opportunity Splits")).toBeInTheDocument()
+      expect(screen.getByText("Stage History")).toBeInTheDocument()
     })
   })
 
-  describe("edit button", () => {
+  describe("action buttons", () => {
     it("renders edit button", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
       expect(screen.getByText("Edit")).toBeInTheDocument()
@@ -240,6 +242,13 @@ describe("OpportunityDetailWrapper", () => {
     it("renders opportunity form", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
       expect(screen.getByTestId("opportunity-form")).toBeInTheDocument()
+    })
+
+    it("renders disabled action buttons", () => {
+      render(<OpportunityDetailWrapper {...defaultProps} />)
+      expect(screen.getByText("Submit for Approval")).toBeDisabled()
+      expect(screen.getByText("Set Revenue Schedule")).toBeDisabled()
+      expect(screen.getByText("Create Jira Issue")).toBeDisabled()
     })
   })
 })

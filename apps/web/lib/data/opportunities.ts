@@ -26,6 +26,8 @@ import {
   REVENUE_CATEGORIES,
   RECURRING_SPLIT_KINDS,
   VISIBILITY_TIERS,
+  SERVICE_TYPES,
+  PROPERTY_TYPES,
 } from "./opportunities.types"
 
 export type {
@@ -41,7 +43,7 @@ export type {
 
 export { getStageLabel } from "./opportunities.types"
 
-export { PROJECT_TYPES, REVENUE_CATEGORIES, RECURRING_SPLIT_KINDS, VISIBILITY_TIERS }
+export { PROJECT_TYPES, REVENUE_CATEGORIES, RECURRING_SPLIT_KINDS, VISIBILITY_TIERS, SERVICE_TYPES, PROPERTY_TYPES }
 
 export interface OpportunityCallContext {
   user: AuthenticatedUser
@@ -75,6 +77,10 @@ function toDomainOpportunity(data: Record<string, unknown>): OpportunityRecord {
     salesUnitId: data.sales_unit_id as string,
     revenueRecognitionUnitId: (data.revenue_recognition_unit_id as string) ?? null,
     billingEntityId: (data.billing_entity_id as string) ?? null,
+    entitySalesId: (data.entity_sales_id as string) ?? null,
+    serviceType: (data.service_type as string[]) ?? null,
+    propertyType: (data.property_type as string) ?? null,
+    barterValue: data.barter_value != null ? Money.fromAmount(String(data.barter_value), currency).toAmount() : null,
     servicePeriodStart: (data.service_period_start as string) ?? null,
     servicePeriodEnd: (data.service_period_end as string) ?? null,
     executionDate: (data.execution_date as string) ?? null,
@@ -118,6 +124,10 @@ export async function getOpportunities(
       sales_unit_id,
       revenue_recognition_unit_id,
       billing_entity_id,
+      entity_sales_id,
+      service_type,
+      property_type,
+      barter_value,
       service_period_start,
       service_period_end,
       execution_date,
@@ -174,6 +184,10 @@ export async function getOpportunityById(
       sales_unit_id,
       revenue_recognition_unit_id,
       billing_entity_id,
+      entity_sales_id,
+      service_type,
+      property_type,
+      barter_value,
       service_period_start,
       service_period_end,
       execution_date,
@@ -232,10 +246,19 @@ const opportunityCreateObject = z.object({
   accountId: z.string().min(1, "Account is required"),
   primaryContactId: z.string().optional(),
   stage: z.enum(DEAL_STAGES),
-  salesInitiatorUserId: z.string().optional(),
   salesUnitId: z.string().min(1, "Sales unit is required"),
   revenueRecognitionUnitId: z.string().optional(),
   billingEntityId: z.string().optional(),
+  entitySalesId: z.string().optional(),
+  serviceType: z.array(z.enum(SERVICE_TYPES)).optional(),
+  propertyType: z.enum(PROPERTY_TYPES).optional(),
+  barterValue: z.preprocess(
+    (val) => {
+      if (val === undefined || val === "" || val === 0) return undefined
+      return String(val)
+    },
+    z.string().optional(),
+  ),
   amount: z.preprocess(
     (val) => {
       if (val === undefined || val === "" || val === 0) return undefined
@@ -321,7 +344,7 @@ export async function createOpportunity(
     name: parsed.name,
     account_id: parsed.accountId,
     owner_user_id: parsed.ownerUserId ?? ctx.user.id,
-    sales_initiator_user_id: parsed.salesInitiatorUserId ?? ctx.user.id,
+
     sales_unit_id: parsed.salesUnitId,
     stage: parsed.stage,
     amount: amountMoney.toAmount(),
@@ -337,6 +360,18 @@ export async function createOpportunity(
   }
   if (parsed.billingEntityId) {
     dbData.billing_entity_id = parsed.billingEntityId
+  }
+  if (parsed.entitySalesId) {
+    dbData.entity_sales_id = parsed.entitySalesId
+  }
+  if (parsed.serviceType) {
+    dbData.service_type = parsed.serviceType
+  }
+  if (parsed.propertyType) {
+    dbData.property_type = parsed.propertyType
+  }
+  if (parsed.barterValue != null) {
+    dbData.barter_value = parsed.barterValue
   }
   if (parsed.servicePeriodStart) {
     dbData.service_period_start = parsed.servicePeriodStart
@@ -399,6 +434,10 @@ export async function createOpportunity(
       sales_unit_id,
       revenue_recognition_unit_id,
       billing_entity_id,
+      entity_sales_id,
+      service_type,
+      property_type,
+      barter_value,
       service_period_start,
       service_period_end,
       execution_date,
@@ -479,6 +518,10 @@ export async function updateOpportunity(
   if (parsed.salesUnitId !== undefined) dbData.sales_unit_id = parsed.salesUnitId
   if (parsed.revenueRecognitionUnitId !== undefined) dbData.revenue_recognition_unit_id = parsed.revenueRecognitionUnitId || null
   if (parsed.billingEntityId !== undefined) dbData.billing_entity_id = parsed.billingEntityId || null
+  if (parsed.entitySalesId !== undefined) dbData.entity_sales_id = parsed.entitySalesId || null
+  if (parsed.serviceType !== undefined) dbData.service_type = parsed.serviceType
+  if (parsed.propertyType !== undefined) dbData.property_type = parsed.propertyType || null
+  if (parsed.barterValue !== undefined) dbData.barter_value = parsed.barterValue || null
   if (parsed.probabilityPct !== undefined) dbData.probability_pct = parsed.probabilityPct
   if (parsed.visibilityTier !== undefined) dbData.visibility_tier = parsed.visibilityTier || null
   if (parsed.customData !== undefined) dbData.custom_data = parsed.customData

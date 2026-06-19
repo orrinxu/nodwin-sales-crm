@@ -2,13 +2,13 @@ import { describe, it, expect, vi } from "vitest"
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { OpportunityQuickCreate } from "./opportunity-quick-create"
-import type { AccountOption } from "@/lib/data/contacts"
+import type { EntityOption } from "@/components/entity-combobox"
 
 vi.mock("server-only", () => ({}))
 
-const mockAccounts: AccountOption[] = [
-  { id: "acct-1", name: "Acme Corp" },
-  { id: "acct-2", name: "Globex Inc" },
+const mockAccounts: EntityOption[] = [
+  { id: "acct-1", label: "Acme Corp" },
+  { id: "acct-2", label: "Globex Inc" },
 ]
 
 const mockBusinessUnits = [
@@ -61,7 +61,7 @@ describe("OpportunityQuickCreate", () => {
 
   describe("validation", () => {
     it("shows validation errors when submitting empty form", async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
       render(<OpportunityQuickCreate {...defaultProps} />)
 
       await user.click(screen.getByRole("button", { name: /quick add/i }))
@@ -74,7 +74,7 @@ describe("OpportunityQuickCreate", () => {
     })
 
     it("clears validation errors after successful submission", async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
       render(<OpportunityQuickCreate {...defaultProps} />)
 
       await user.click(screen.getByRole("button", { name: /quick add/i }))
@@ -85,9 +85,10 @@ describe("OpportunityQuickCreate", () => {
 
       await user.type(screen.getByLabelText(/name/i), "Test Deal")
 
-      const accountTrigger = screen.getByRole("combobox", { name: /account/i })
-      await user.click(accountTrigger)
-      await user.click(await screen.findByRole("option", { name: "Acme Corp" }))
+      // Account: EntityCombobox — click trigger, then click item text
+      const accountCombobox = screen.getAllByRole("combobox")[0]
+      await user.click(accountCombobox)
+      await user.click(screen.getByText("Acme Corp"))
 
       const salesUnitTrigger = screen.getByRole("combobox", { name: /sales unit/i })
       await user.click(salesUnitTrigger)
@@ -103,7 +104,7 @@ describe("OpportunityQuickCreate", () => {
     it("calls createAction with correct data and resets on success", async () => {
       const createAction = vi.fn().mockResolvedValue({ id: "opp-1" })
       const onSuccess = vi.fn()
-      const user = userEvent.setup()
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
 
       render(
         <OpportunityQuickCreate
@@ -117,9 +118,9 @@ describe("OpportunityQuickCreate", () => {
 
       await user.type(screen.getByLabelText(/name/i), "New Deal")
 
-      const accountTrigger = screen.getByRole("combobox", { name: /account/i })
-      await user.click(accountTrigger)
-      await user.click(await screen.findByRole("option", { name: "Acme Corp" }))
+      const accountCombobox = screen.getAllByRole("combobox")[0]
+      await user.click(accountCombobox)
+      await user.click(screen.getByText("Acme Corp"))
 
       const salesUnitTrigger = screen.getByRole("combobox", { name: /sales unit/i })
       await user.click(salesUnitTrigger)
@@ -132,13 +133,14 @@ describe("OpportunityQuickCreate", () => {
         accountId: "acct-1",
         amount: undefined,
         salesUnitId: "bu-1",
+        stage: "qualify",
       })
       expect(onSuccess).toHaveBeenCalled()
     })
 
     it("passes amount as string when provided", async () => {
       const createAction = vi.fn().mockResolvedValue({ id: "opp-1" })
-      const user = userEvent.setup()
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
 
       render(
         <OpportunityQuickCreate
@@ -151,9 +153,9 @@ describe("OpportunityQuickCreate", () => {
 
       await user.type(screen.getByLabelText(/name/i), "Big Deal")
 
-      const accountTrigger = screen.getByRole("combobox", { name: /account/i })
-      await user.click(accountTrigger)
-      await user.click(await screen.findByRole("option", { name: "Globex Inc" }))
+      const accountCombobox = screen.getAllByRole("combobox")[0]
+      await user.click(accountCombobox)
+      await user.click(screen.getByText("Globex Inc"))
 
       const salesUnitTrigger = screen.getByRole("combobox", { name: /sales unit/i })
       await user.click(salesUnitTrigger)
@@ -168,6 +170,7 @@ describe("OpportunityQuickCreate", () => {
         accountId: "acct-2",
         amount: "1500.50",
         salesUnitId: "bu-2",
+        stage: "qualify",
       })
     })
   })
@@ -177,7 +180,7 @@ describe("OpportunityQuickCreate", () => {
       const createAction = vi
         .fn()
         .mockRejectedValue(new Error("Account has reached opportunity limit"))
-      const user = userEvent.setup()
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
 
       render(
         <OpportunityQuickCreate
@@ -190,9 +193,9 @@ describe("OpportunityQuickCreate", () => {
 
       await user.type(screen.getByLabelText(/name/i), "Failing Deal")
 
-      const accountTrigger = screen.getByRole("combobox", { name: /account/i })
-      await user.click(accountTrigger)
-      await user.click(await screen.findByRole("option", { name: "Acme Corp" }))
+      const accountCombobox = screen.getAllByRole("combobox")[0]
+      await user.click(accountCombobox)
+      await user.click(screen.getByText("Acme Corp"))
 
       const salesUnitTrigger = screen.getByRole("combobox", { name: /sales unit/i })
       await user.click(salesUnitTrigger)
@@ -207,7 +210,7 @@ describe("OpportunityQuickCreate", () => {
 
     it("shows generic message for non-Error rejections", async () => {
       const createAction = vi.fn().mockRejectedValue("something broke")
-      const user = userEvent.setup()
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
 
       render(
         <OpportunityQuickCreate
@@ -220,9 +223,9 @@ describe("OpportunityQuickCreate", () => {
 
       await user.type(screen.getByLabelText(/name/i), "Weird Error Deal")
 
-      const accountTrigger = screen.getByRole("combobox", { name: /account/i })
-      await user.click(accountTrigger)
-      await user.click(await screen.findByRole("option", { name: "Acme Corp" }))
+      const accountCombobox = screen.getAllByRole("combobox")[0]
+      await user.click(accountCombobox)
+      await user.click(screen.getByText("Acme Corp"))
 
       const salesUnitTrigger = screen.getByRole("combobox", { name: /sales unit/i })
       await user.click(salesUnitTrigger)
@@ -240,7 +243,7 @@ describe("OpportunityQuickCreate", () => {
         .fn()
         .mockRejectedValueOnce(new Error("First error"))
         .mockResolvedValueOnce({ id: "opp-2" })
-      const user = userEvent.setup()
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
 
       render(
         <OpportunityQuickCreate
@@ -253,9 +256,9 @@ describe("OpportunityQuickCreate", () => {
 
       await user.type(screen.getByLabelText(/name/i), "Retry Deal")
 
-      const accountTrigger = screen.getByRole("combobox", { name: /account/i })
-      await user.click(accountTrigger)
-      await user.click(await screen.findByRole("option", { name: "Acme Corp" }))
+      const accountCombobox = screen.getAllByRole("combobox")[0]
+      await user.click(accountCombobox)
+      await user.click(screen.getByText("Acme Corp"))
 
       const salesUnitTrigger = screen.getByRole("combobox", { name: /sales unit/i })
       await user.click(salesUnitTrigger)

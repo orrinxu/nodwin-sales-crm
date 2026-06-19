@@ -6,6 +6,7 @@ import { LayoutGridIcon, ListIcon } from "lucide-react"
 import { type OpportunityRecord } from "@/lib/data/opportunities.types"
 import type { OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/opportunities.types"
 import type { AccountOption } from "@/lib/data/contacts"
+import type { EntityOption } from "@/components/entity-combobox"
 import { cn } from "@/lib/utils"
 import { OpportunityBoard } from "@/components/opportunities/opportunity-board"
 import { OpportunityListTable } from "@/components/opportunities/opportunity-list-table"
@@ -14,10 +15,15 @@ interface OpportunitiesViewProps {
   opportunities: OpportunityRecord[]
   accounts: AccountOption[]
   businessUnits: BusinessUnitOption[]
+  users?: EntityOption[]
   createAction: (input: OpportunityCreateInput) => Promise<OpportunityRecord>
   updateStageAction: (id: string, input: { stage: string }) => Promise<OpportunityRecord>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
   bulkUpdateStageAction: (input: { ids: string[]; stage: string }) => Promise<void>
+  searchAccountsAction?: (query: string) => Promise<EntityOption[]>
+  searchContactsAction?: (query: string, accountId?: string) => Promise<EntityOption[]>
+  searchUsersAction?: (query: string) => Promise<EntityOption[]>
+  createContactQuickAction?: (input: { fullName: string; email?: string; accountId?: string }) => Promise<EntityOption>
 }
 
 type ViewMode = "kanban" | "table"
@@ -26,10 +32,15 @@ export function OpportunitiesView({
   opportunities,
   accounts,
   businessUnits,
+  users,
   createAction,
   updateStageAction,
   bulkDeleteAction,
   bulkUpdateStageAction,
+  searchAccountsAction,
+  searchContactsAction,
+  searchUsersAction,
+  createContactQuickAction,
 }: OpportunitiesViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("kanban")
 
@@ -81,8 +92,13 @@ export function OpportunitiesView({
           opportunities={opportunities}
           accounts={accounts}
           businessUnits={businessUnits}
+          users={users}
           createAction={createAction}
           updateStageAction={updateStageAction}
+          searchAccountsAction={searchAccountsAction}
+          searchContactsAction={searchContactsAction}
+          searchUsersAction={searchUsersAction}
+          createContactQuickAction={createContactQuickAction}
         />
       ) : (
         <div className="flex-1 p-4 lg:p-6">

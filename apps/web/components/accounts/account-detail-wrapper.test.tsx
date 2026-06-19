@@ -100,6 +100,16 @@ const defaultDocuments: AccountDocument[] = [
   },
 ]
 
+const mockOwnerOptions = [
+  { id: "user-1", name: "Charlie Owner" },
+  { id: "user-2", name: "Alice Admin" },
+]
+
+const mockAccountOptions = [
+  { id: "acct-1", name: "Test Corp" },
+  { id: "acct-2", name: "Parent Inc" },
+]
+
 const defaultProps = {
   account: makeAccount(),
   fieldDefinitions: emptyFieldDefinitions,
@@ -108,6 +118,8 @@ const defaultProps = {
   opportunities: defaultOpportunities,
   documents: defaultDocuments,
   ownerName: "Charlie Owner",
+  ownerOptions: mockOwnerOptions,
+  accountOptions: mockAccountOptions,
   updateAction: vi.fn(),
 }
 

@@ -618,3 +618,45 @@ export async function getAccountOwnerOptions(
 ): Promise<{ id: string; name: string }[]> {
   return getOwnerOptions(ctx)
 }
+
+export async function createAccountRelationship(
+  ctx: AccountCallContext,
+  input: { fromAccountId: string; toAccountId: string; kind: AccountRelationshipKind; notes?: string | null },
+): Promise<void> {
+  void ctx.user
+  const supabase = await createServerClient()
+
+  const { error } = await supabase
+    .from("account_relationships")
+    .insert({
+      from_account_id: input.fromAccountId,
+      to_account_id: input.toAccountId,
+      kind: input.kind,
+      notes: input.notes ?? null,
+    })
+
+  if (error) {
+    throw new Error(`Failed to create account relationship: ${error.message}`)
+  }
+}
+
+export async function upsertAccountRelationship(
+  ctx: AccountCallContext,
+  input: { fromAccountId: string; toAccountId: string; kind: AccountRelationshipKind; notes?: string | null },
+): Promise<void> {
+  void ctx.user
+  const supabase = await createServerClient()
+
+  const { error } = await supabase
+    .from("account_relationships")
+    .upsert({
+      from_account_id: input.fromAccountId,
+      to_account_id: input.toAccountId,
+      kind: input.kind,
+      notes: input.notes ?? null,
+    }, { onConflict: "from_account_id, to_account_id, kind" })
+
+  if (error) {
+    throw new Error(`Failed to upsert account relationship: ${error.message}`)
+  }
+}

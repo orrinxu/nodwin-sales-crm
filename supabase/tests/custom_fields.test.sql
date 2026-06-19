@@ -42,10 +42,10 @@ VALUES ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'Test Account', 'bbbbbbbb-bbbb-b
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.opportunities (
-  id, name, account_id, stage, owner_user_id, sales_initiator_user_id, sales_unit_id, amount, currency, visibility_tier
+  id, name, account_id, stage, owner_user_id, sales_unit_id, amount, currency, visibility_tier
 ) VALUES (
   'dddddddd-dddd-dddd-dddd-dddddddddddd', 'Test Opp', 'cccccccc-cccc-cccc-cccc-cccccccccccc',
-  'qualify', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+  'qualify', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
   'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 100000, 'USD', 'standard'
 )
 ON CONFLICT (id) DO NOTHING;

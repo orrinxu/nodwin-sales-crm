@@ -6,9 +6,12 @@ import {
   createAccount,
   updateAccount,
   bulkDeleteAccounts,
+  createAccountRelationship,
+  upsertAccountRelationship,
   accountCreateSchema,
   accountUpdateSchema,
   bulkDeleteAccountsSchema,
+  type AccountRelationshipKind,
 } from "@/lib/data/accounts"
 
 export async function createAccountAction(input: unknown) {
@@ -28,6 +31,30 @@ export async function updateAccountAction(id: string, input: unknown) {
   revalidatePath("/accounts")
   revalidatePath(`/accounts/${id}`)
   return account
+}
+
+export async function createAccountRelationshipAction(
+  fromAccountId: string,
+  toAccountId: string,
+  kind: AccountRelationshipKind,
+  notes?: string | null,
+) {
+  const user = await requireUser()
+  const ctx = { user, source: "web" as const }
+  await createAccountRelationship(ctx, { fromAccountId, toAccountId, kind, notes })
+  revalidatePath(`/accounts/${fromAccountId}`)
+}
+
+export async function upsertAccountRelationshipAction(
+  fromAccountId: string,
+  toAccountId: string,
+  kind: AccountRelationshipKind,
+  notes?: string | null,
+) {
+  const user = await requireUser()
+  const ctx = { user, source: "web" as const }
+  await upsertAccountRelationship(ctx, { fromAccountId, toAccountId, kind, notes })
+  revalidatePath(`/accounts/${fromAccountId}`)
 }
 
 export async function bulkDeleteAccountsAction(input: unknown) {

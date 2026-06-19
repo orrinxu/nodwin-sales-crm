@@ -11,8 +11,9 @@ import { AccountForm } from "@/components/accounts/account-form"
 import { CustomFieldsDisplay } from "@/components/contacts/custom-fields-display"
 import { getStageLabel } from "@/lib/data/opportunities.types"
 import { Money } from "@/lib/money"
-import type { AccountRecord, AccountUpdateInput, AccountRelationship, AccountOpportunity, AccountDocument } from "@/lib/data/accounts"
+import type { AccountRecord, AccountUpdateInput, AccountRelationship, AccountOpportunity, AccountDocument, AccountRelationshipKind } from "@/lib/data/accounts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
+import type { EntityOption } from "@/components/entity-combobox"
 
 interface AccountDetailWrapperProps {
   account: AccountRecord
@@ -22,7 +23,12 @@ interface AccountDetailWrapperProps {
   opportunities: AccountOpportunity[]
   documents: AccountDocument[]
   ownerName: string | null
+  ownerOptions: EntityOption[]
+  accountOptions: EntityOption[]
+  currentUserId?: string
+  parentRelationship?: { toAccountId: string; kind: AccountRelationshipKind } | null
   updateAction: (id: string, input: AccountUpdateInput) => Promise<AccountRecord>
+  saveRelationshipAction?: (data: { parentAccountId: string; kind: AccountRelationshipKind }) => Promise<void>
 }
 
 const RELATIONSHIP_LABELS: Record<string, string> = {
@@ -41,7 +47,12 @@ export function AccountDetailWrapper({
   opportunities,
   documents,
   ownerName,
+  ownerOptions,
+  accountOptions,
+  currentUserId,
+  parentRelationship,
   updateAction,
+  saveRelationshipAction,
 }: AccountDetailWrapperProps) {
   const router = useRouter()
 
@@ -63,10 +74,15 @@ export function AccountDetailWrapper({
         <AccountForm
           account={account}
           fieldDefinitions={fieldDefinitions}
+          ownerOptions={ownerOptions}
+          accountOptions={accountOptions}
+          currentUserId={currentUserId}
+          parentRelationship={parentRelationship}
           createAction={async () => {
             throw new Error("Not available")
           }}
           updateAction={updateAction}
+          onSaveRelationship={saveRelationshipAction}
           onSuccess={() => {
             router.refresh()
           }}
@@ -80,24 +96,26 @@ export function AccountDetailWrapper({
       </div>
 
       <div className="flex flex-1 flex-col gap-6 p-6">
-        <div className="flex items-start gap-4">
-          <div className="flex-1">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {account.name}
-            </h1>
-            <div className="mt-2 flex items-center gap-3">
-              {account.industry && (
-                <Badge variant="secondary">{account.industry}</Badge>
-              )}
-              {ownerName && (
-                <span className="text-sm text-muted-foreground">{ownerName}</span>
-              )}
-              {!ownerName && (
-                <span className="text-sm text-muted-foreground">Unassigned</span>
-              )}
+            <div className="flex items-start gap-4">
+              <div className="flex-1">
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  {account.name}
+                </h1>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {account.industry && (
+                    <Badge variant="secondary">
+                      {account.industry}
+                    </Badge>
+                  )}
+                  {ownerName && (
+                    <span className="text-sm text-muted-foreground ml-1">{ownerName}</span>
+                  )}
+                  {!ownerName && (
+                    <span className="text-sm text-muted-foreground ml-1">Unassigned</span>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
         <div className="grid gap-6 sm:grid-cols-2">
           <Card>
@@ -164,31 +182,31 @@ export function AccountDetailWrapper({
             <CardHeader>
               <CardTitle>Details</CardTitle>
             </CardHeader>
-            <CardContent>
-              <dl className="grid gap-4">
-                <div className="grid gap-1">
-                  <dt className="text-xs text-muted-foreground">Owner</dt>
-                  <dd className="text-sm font-medium">
-                    {ownerName ?? "\u2014"}
-                  </dd>
-                </div>
-                {account.emailDomains && account.emailDomains.length > 0 && (
+              <CardContent>
+                <dl className="grid gap-4">
                   <div className="grid gap-1">
-                    <dt className="text-xs text-muted-foreground">Email Domains</dt>
-                    <dd>
-                      <div className="flex flex-wrap gap-1">
-                        {account.emailDomains.map((domain) => (
-                          <Badge key={domain} variant="outline" className="gap-1">
-                            <Mail className="size-3" />
-                            {domain}
-                          </Badge>
-                        ))}
-                      </div>
+                    <dt className="text-xs text-muted-foreground">Owner</dt>
+                    <dd className="text-sm font-medium">
+                      {ownerName ?? "\u2014"}
                     </dd>
                   </div>
-                )}
-              </dl>
-            </CardContent>
+                  {account.emailDomains && account.emailDomains.length > 0 && (
+                    <div className="grid gap-1">
+                      <dt className="text-xs text-muted-foreground">Email Domains</dt>
+                      <dd>
+                        <div className="flex flex-wrap gap-1">
+                          {account.emailDomains.map((domain) => (
+                            <Badge key={domain} variant="outline" className="gap-1">
+                              <Mail className="size-3" />
+                              {domain}
+                            </Badge>
+                          ))}
+                        </div>
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </CardContent>
           </Card>
         </div>
 

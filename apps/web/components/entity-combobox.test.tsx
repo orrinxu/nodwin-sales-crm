@@ -16,7 +16,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           placeholder="Choose account..."
         />,
@@ -52,7 +52,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           disabled
         />,
@@ -66,7 +66,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={[]}
-          value=""
+          value={null}
           onChange={vi.fn()}
           emptyMessage="No accounts available"
         />,
@@ -85,7 +85,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           searchPlaceholder="Search accounts..."
         />,
@@ -103,7 +103,7 @@ describe("EntityCombobox", () => {
     it("shows all items when input is empty", async () => {
       const user = userEvent.setup({ pointerEventsCheck: 0 })
       render(
-        <EntityCombobox items={mockItems} value="" onChange={vi.fn()} />,
+        <EntityCombobox items={mockItems} value={null} onChange={vi.fn()} />,
       )
 
       await user.click(screen.getByRole("combobox"))
@@ -118,7 +118,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           emptyMessage="Nothing here"
         />,
@@ -141,7 +141,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={onChange}
         />,
       )
@@ -158,7 +158,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={onChange}
         />,
       )
@@ -172,13 +172,246 @@ describe("EntityCombobox", () => {
     })
   })
 
+  describe("clearing selection", () => {
+    it("calls onChange with null when value is cleared externally", () => {
+      const onChange = vi.fn()
+      const { rerender } = render(
+        <EntityCombobox
+          items={mockItems}
+          value="acct-1"
+          onChange={onChange}
+        />,
+      )
+      expect(screen.getByText("Acme Corp")).toBeInTheDocument()
+
+      rerender(
+        <EntityCombobox
+          items={mockItems}
+          value={null}
+          onChange={onChange}
+        />,
+      )
+
+      expect(screen.getByText("Select...")).toBeInTheDocument()
+    })
+  })
+
+  describe("sublabel support", () => {
+    it("renders sublabel when provided", async () => {
+      const itemsWithSublabel: EntityOption[] = [
+        { id: "acct-1", name: "Acme Corp", sublabel: "Technology" },
+        { id: "acct-2", name: "Globex Inc" },
+      ]
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      render(
+        <EntityCombobox
+          items={itemsWithSublabel}
+          value={null}
+          onChange={vi.fn()}
+        />,
+      )
+
+      await user.click(screen.getByRole("combobox"))
+
+      expect(screen.getByText("Technology")).toBeInTheDocument()
+    })
+
+    it("does not render sublabel when not provided", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      render(
+        <EntityCombobox
+          items={mockItems}
+          value={null}
+          onChange={vi.fn()}
+        />,
+      )
+
+      await user.click(screen.getByRole("combobox"))
+
+      expect(screen.getByText("Acme Corp")).toBeInTheDocument()
+      expect(screen.getByText("Globex Inc")).toBeInTheDocument()
+      expect(screen.getByText("Waystar Royco")).toBeInTheDocument()
+      expect(
+        document.querySelectorAll("span.text-xs.text-muted-foreground"),
+      ).toHaveLength(0)
+    })
+  })
+
+  describe("label field support", () => {
+    it("uses label when both label and name are provided", async () => {
+      const itemsWithLabel: EntityOption[] = [
+        { id: "acct-1", name: "internal-key", label: "Acme Corporation" },
+      ]
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      render(
+        <EntityCombobox
+          items={itemsWithLabel}
+          value={null}
+          onChange={vi.fn()}
+        />,
+      )
+
+      await user.click(screen.getByRole("combobox"))
+
+      expect(screen.getByText("Acme Corporation")).toBeInTheDocument()
+      expect(screen.queryByText("internal-key")).not.toBeInTheDocument()
+    })
+
+    it("falls back to name when label not provided", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      render(
+        <EntityCombobox
+          items={mockItems}
+          value={null}
+          onChange={vi.fn()}
+        />,
+      )
+
+      await user.click(screen.getByRole("combobox"))
+
+      expect(screen.getByText("Acme Corp")).toBeInTheDocument()
+    })
+  })
+
+  describe("searchAction (server-side search)", () => {
+    it("calls searchAction with debounced input value", async () => {
+      const searchAction = vi.fn().mockResolvedValue([])
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      render(
+        <EntityCombobox
+          items={mockItems}
+          value={null}
+          onChange={vi.fn()}
+          searchAction={searchAction}
+        />,
+      )
+
+      await user.click(screen.getByRole("combobox"))
+      await user.type(screen.getByPlaceholderText("Search..."), "Acme")
+
+      await waitFor(() => {
+        expect(searchAction).toHaveBeenCalledWith("Acme")
+      })
+    })
+
+    it("shows loading state while searching", async () => {
+      const searchAction = vi.fn().mockImplementation(
+        () => new Promise((resolve) => setTimeout(() => resolve([]), 2000)),
+      )
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      render(
+        <EntityCombobox
+          items={mockItems}
+          value={null}
+          onChange={vi.fn()}
+          searchAction={searchAction}
+        />,
+      )
+
+      await user.click(screen.getByRole("combobox"))
+      await user.type(screen.getByPlaceholderText("Search..."), "Acme")
+
+      await waitFor(() => {
+        expect(screen.getByText("Searching...")).toBeInTheDocument()
+      })
+    })
+
+    it("displays search results", async () => {
+      const searchAction = vi.fn().mockResolvedValue([
+        { id: "sr-1", name: "Search Result 1" },
+      ])
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      render(
+        <EntityCombobox
+          items={mockItems}
+          value={null}
+          onChange={vi.fn()}
+          searchAction={searchAction}
+        />,
+      )
+
+      await user.click(screen.getByRole("combobox"))
+      await user.type(screen.getByPlaceholderText("Search..."), "Acme")
+
+      await waitFor(() => {
+        expect(screen.getByText("Search Result 1")).toBeInTheDocument()
+      })
+      expect(screen.queryByText("Acme Corp")).not.toBeInTheDocument()
+      expect(screen.queryByText("Globex Inc")).not.toBeInTheDocument()
+    })
+
+    it("debounces rapid keystrokes", async () => {
+      const searchAction = vi.fn().mockResolvedValue([])
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      render(
+        <EntityCombobox
+          items={mockItems}
+          value={null}
+          onChange={vi.fn()}
+          searchAction={searchAction}
+        />,
+      )
+
+      await user.click(screen.getByRole("combobox"))
+      await user.type(screen.getByPlaceholderText("Search..."), "Acme")
+
+      await waitFor(() => {
+        expect(searchAction).toHaveBeenCalledTimes(1)
+        expect(searchAction).toHaveBeenCalledWith("Acme")
+      })
+    })
+
+    it("handles searchAction errors gracefully", async () => {
+      const searchAction = vi.fn().mockRejectedValue(new Error("Network error"))
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      render(
+        <EntityCombobox
+          items={mockItems}
+          value={null}
+          onChange={vi.fn()}
+          searchAction={searchAction}
+          emptyMessage="No results"
+        />,
+      )
+
+      await user.click(screen.getByRole("combobox"))
+      await user.type(screen.getByPlaceholderText("Search..."), "Acme")
+
+      await waitFor(() => {
+        expect(
+          screen.getByText((content) => content.includes("No results")),
+        ).toBeInTheDocument()
+      })
+    })
+
+    it("shows all items initially when no search input", async () => {
+      const searchAction = vi.fn()
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      render(
+        <EntityCombobox
+          items={mockItems}
+          value={null}
+          onChange={vi.fn()}
+          searchAction={searchAction}
+        />,
+      )
+
+      await user.click(screen.getByRole("combobox"))
+
+      expect(screen.getByText("Acme Corp")).toBeInTheDocument()
+      expect(screen.getByText("Globex Inc")).toBeInTheDocument()
+      expect(screen.getByText("Waystar Royco")).toBeInTheDocument()
+      expect(searchAction).not.toHaveBeenCalled()
+    })
+  })
+
   describe("create-on-the-fly", () => {
     it("shows create option when no match and onCreate provided", async () => {
       const user = userEvent.setup({ pointerEventsCheck: 0 })
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           onCreate={vi.fn()}
         />,
@@ -196,7 +429,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           onCreate={vi.fn()}
         />,
@@ -217,7 +450,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
         />,
       )
@@ -237,7 +470,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           onCreate={vi.fn()}
         />,
@@ -257,7 +490,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={onChange}
           onCreate={onCreate}
         />,
@@ -274,13 +507,56 @@ describe("EntityCombobox", () => {
       })
     })
 
+    it("shows create option when using createAction prop", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      render(
+        <EntityCombobox
+          items={mockItems}
+          value={null}
+          onChange={vi.fn()}
+          createAction={vi.fn()}
+        />,
+      )
+
+      await user.click(screen.getByRole("combobox"))
+
+      await user.type(screen.getByPlaceholderText("Search..."), "NewCorp")
+
+      expect(screen.getByRole("button", { name: 'Create "NewCorp"' })).toBeInTheDocument()
+    })
+
+    it("prefers createAction over onCreate when both provided", async () => {
+      const onCreate = vi.fn().mockResolvedValue({ id: "nocall", name: "Nope" })
+      const createAction = vi.fn().mockResolvedValue({ id: "new-1", name: "NewCorp" })
+      const onChange = vi.fn()
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      render(
+        <EntityCombobox
+          items={mockItems}
+          value={null}
+          onChange={onChange}
+          onCreate={onCreate}
+          createAction={createAction}
+        />,
+      )
+
+      await user.click(screen.getByRole("combobox"))
+      await user.type(screen.getByPlaceholderText("Search..."), "NewCorp")
+      await user.click(screen.getByRole("button", { name: 'Create "NewCorp"' }))
+
+      await waitFor(() => {
+        expect(createAction).toHaveBeenCalledWith("NewCorp")
+        expect(onCreate).not.toHaveBeenCalled()
+      })
+    })
+
     it("shows error when creation fails", async () => {
       const onCreate = vi.fn().mockRejectedValue(new Error("Name already exists"))
       const user = userEvent.setup({ pointerEventsCheck: 0 })
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           onCreate={onCreate}
         />,
@@ -300,7 +576,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           onCreate={onCreate}
         />,
@@ -319,7 +595,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           onCreate={vi.fn()}
           createLabel={(q) => `Add ${q} as new`}
@@ -343,7 +619,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           onCreate={onCreate}
         />,
@@ -362,7 +638,7 @@ describe("EntityCombobox", () => {
     it("filters items case-insensitively", async () => {
       const user = userEvent.setup({ pointerEventsCheck: 0 })
       render(
-        <EntityCombobox items={mockItems} value="" onChange={vi.fn()} />,
+        <EntityCombobox items={mockItems} value={null} onChange={vi.fn()} />,
       )
 
       await user.click(screen.getByRole("combobox"))
@@ -377,7 +653,7 @@ describe("EntityCombobox", () => {
       render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={vi.fn()}
           onCreate={vi.fn()}
         />,
@@ -401,7 +677,7 @@ describe("EntityCombobox", () => {
       const { rerender } = render(
         <EntityCombobox
           items={mockItems}
-          value=""
+          value={null}
           onChange={onChange}
           onCreate={onCreate}
         />,
