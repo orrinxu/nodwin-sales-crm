@@ -9,7 +9,7 @@
 
 BEGIN;
 
-SELECT plan(23);
+SELECT plan(32);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -255,6 +255,95 @@ SELECT throws_ok(
   '23514',
   NULL,
   'import_jobs status CHECK rejects invalid values'
+);
+
+-- ============================================================================
+-- SERVICE_ROLE TESTS — ORR-583
+-- ============================================================================
+-- Tests that service_role policies grant the expected access:
+--   • finance_export_config_service_role — full access
+--   • import_jobs_update_service_role   — UPDATE
+--   • import_jobs_service_role_all      — full access
+
+-- 24. service_role can SELECT finance_export_config
+SELECT tests.as_service_role();
+SET LOCAL ROLE service_role;
+SELECT is(
+  (SELECT COUNT(*) FROM public.finance_export_config),
+  2::bigint,
+  'service_role can SELECT finance_export_config'
+);
+
+-- 25. service_role can INSERT finance_export_config
+SELECT tests.as_service_role();
+SET LOCAL ROLE service_role;
+SELECT lives_ok(
+  $$INSERT INTO public.finance_export_config (id, entity_id, destination_drive_folder_id) VALUES ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'folder_service_role_001')$$,
+  'service_role can INSERT finance_export_config'
+);
+
+-- 26. service_role can UPDATE finance_export_config
+SELECT tests.as_service_role();
+SET LOCAL ROLE service_role;
+UPDATE public.finance_export_config SET destination_drive_folder_id = 'folder_service_role_updated' WHERE id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+SELECT is(
+  (SELECT destination_drive_folder_id FROM public.finance_export_config WHERE id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'),
+  'folder_service_role_updated',
+  'service_role can UPDATE finance_export_config'
+);
+
+-- 27. service_role can DELETE finance_export_config
+SELECT tests.as_service_role();
+SET LOCAL ROLE service_role;
+DELETE FROM public.finance_export_config WHERE id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+SELECT is_empty(
+  $$SELECT id FROM public.finance_export_config WHERE id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'$$,
+  'service_role can DELETE finance_export_config'
+);
+
+-- 28. service_role can SELECT import_jobs (bypasses created_by restriction)
+SELECT tests.as_service_role();
+SET LOCAL ROLE service_role;
+SELECT is(
+  (SELECT COUNT(*) FROM public.import_jobs),
+  1::bigint,
+  'service_role can SELECT all import_jobs'
+);
+
+-- 29. service_role can INSERT import_jobs
+SELECT tests.as_service_role();
+SET LOCAL ROLE service_role;
+SELECT lives_ok(
+  $$INSERT INTO public.import_jobs (id, entity_id, kind, target_entity_type, status, created_by) VALUES ('sr-insert-01-sr-insert-01-srinsert01', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'export', 'accounts', 'pending', '33333333-3333-3333-3333-333333333333')$$,
+  'service_role can INSERT import_jobs'
+);
+
+-- 30. service_role can UPDATE import_jobs (admin/rep cannot)
+SELECT tests.as_service_role();
+SET LOCAL ROLE service_role;
+UPDATE public.import_jobs SET status = 'completed' WHERE id = 'aaaaaa01-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+SELECT is(
+  (SELECT status FROM public.import_jobs WHERE id = 'aaaaaa01-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
+  'completed',
+  'service_role can UPDATE import_jobs'
+);
+
+-- 31. service_role can DELETE import_jobs (admin/rep cannot)
+SELECT tests.as_service_role();
+SET LOCAL ROLE service_role;
+DELETE FROM public.import_jobs WHERE id = 'aaaaaa01-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+SELECT is_empty(
+  $$SELECT id FROM public.import_jobs WHERE id = 'aaaaaa01-aaaa-aaaa-aaaa-aaaaaaaaaaaa'$$,
+  'service_role can DELETE import_jobs'
+);
+
+-- 32. service_role can see import_jobs created by another user
+SELECT tests.as_service_role();
+SET LOCAL ROLE service_role;
+SELECT is(
+  (SELECT COUNT(*) FROM public.import_jobs),
+  1::bigint,
+  'service_role can see import_jobs created by another user'
 );
 
 SELECT * FROM finish();

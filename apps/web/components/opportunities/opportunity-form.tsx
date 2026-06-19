@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -27,6 +27,7 @@ import {
   SelectItem,
 } from "@/components/ui/select"
 import { EntityCombobox, type EntityOption } from "@/components/entity-combobox"
+import { DualListbox, type DualListboxOption } from "@/components/ui/dual-listbox"
 
 import type { OpportunityRecord, OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/opportunities.types"
 import type { AccountOption } from "@/lib/data/contacts"
@@ -42,10 +43,16 @@ import {
   REVENUE_CATEGORIES,
   RECURRING_SPLIT_KINDS,
   VISIBILITY_TIERS,
+  SERVICE_TYPES,
+  PROPERTY_TYPES,
+  SERVICE_TYPE_LABELS,
+  PROPERTY_TYPE_LABELS,
   type ProjectType,
   type RevenueCategory,
   type RecurringSplitKind,
   type VisibilityTier,
+  type PropertyType,
+  type ServiceType,
 } from "@/lib/data/opportunities.types"
 
 const formSchema = z.object({
@@ -70,12 +77,25 @@ const formSchema = z.object({
   recurring: z.coerce.boolean().optional(),
   recurringSplitKind: z.enum(RECURRING_SPLIT_KINDS).optional().or(z.literal("")),
   visibilityTier: z.enum(VISIBILITY_TIERS).optional(),
+  billingEntityId: z.string().optional().or(z.literal("")),
+  entitySalesId: z.string().optional().or(z.literal("")),
+  barterValue: z.string().optional().or(z.literal("")),
+  serviceType: z.string().optional().or(z.literal("")),
+  propertyType: z.enum(PROPERTY_TYPES).optional().or(z.literal("")),
+  lossReason: z.string().max(2000).optional().or(z.literal("")),
 }).superRefine((data, ctx) => {
   if (data.recurring && !data.recurringSplitKind) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "Recurring split kind is required when recurring is enabled",
       path: ["recurringSplitKind"],
+    })
+  }
+  if (data.stage === "closed_lost" && !data.lossReason) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Loss reason is required when stage is Closed Lost",
+      path: ["lossReason"],
     })
   }
 })
@@ -94,6 +114,42 @@ function getDefaultStageProbability(stage: DealStage): number {
     default: return 0
   }
 }
+
+const COUNTRY_OPTIONS: DualListboxOption[] = [
+  { id: "AE", label: "United Arab Emirates" },
+  { id: "AR", label: "Argentina" },
+  { id: "AU", label: "Australia" },
+  { id: "BD", label: "Bangladesh" },
+  { id: "BR", label: "Brazil" },
+  { id: "CA", label: "Canada" },
+  { id: "CN", label: "China" },
+  { id: "DE", label: "Germany" },
+  { id: "EG", label: "Egypt" },
+  { id: "ES", label: "Spain" },
+  { id: "FR", label: "France" },
+  { id: "GB", label: "United Kingdom" },
+  { id: "ID", label: "Indonesia" },
+  { id: "IN", label: "India" },
+  { id: "IT", label: "Italy" },
+  { id: "JP", label: "Japan" },
+  { id: "KR", label: "South Korea" },
+  { id: "MX", label: "Mexico" },
+  { id: "MY", label: "Malaysia" },
+  { id: "NG", label: "Nigeria" },
+  { id: "NL", label: "Netherlands" },
+  { id: "PH", label: "Philippines" },
+  { id: "PK", label: "Pakistan" },
+  { id: "PL", label: "Poland" },
+  { id: "QA", label: "Qatar" },
+  { id: "RU", label: "Russia" },
+  { id: "SA", label: "Saudi Arabia" },
+  { id: "SG", label: "Singapore" },
+  { id: "TH", label: "Thailand" },
+  { id: "TR", label: "Turkey" },
+  { id: "US", label: "United States" },
+  { id: "VN", label: "Vietnam" },
+  { id: "ZA", label: "South Africa" },
+]
 
 interface OpportunityFormProps {
   opportunity?: OpportunityRecord
@@ -135,6 +191,20 @@ export function OpportunityForm({
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>(
     () => opportunity?.customData ?? {},
   )
+  const [countryExecutionValue, setCountryExecutionValue] = useState<string[]>(
+    () => opportunity?.countryExecution
+      ? opportunity.countryExecution.split(",").map((s) => s.trim()).filter(Boolean)
+      : [],
+  )
+  const [serviceTypeValue, setServiceTypeValue] = useState<string[]>(
+    () => opportunity?.serviceType ?? [],
+  )
+
+  const serviceTypeOptions: DualListboxOption[] = useMemo(
+    // eslint-disable-next-line security/detect-object-injection
+    () => SERVICE_TYPES.map((t) => ({ id: t, label: SERVICE_TYPE_LABELS[t] ?? t })),
+    [],
+  )
 
   const isEditing = !!opportunity
 
@@ -162,12 +232,19 @@ export function OpportunityForm({
       recurring: opportunity?.recurring ?? false,
       recurringSplitKind: (opportunity?.recurringSplitKind as RecurringSplitKind) ?? undefined,
       visibilityTier: (opportunity?.visibilityTier as VisibilityTier) ?? "standard",
+      billingEntityId: opportunity?.billingEntityId ?? "",
+      entitySalesId: opportunity?.entitySalesId ?? "",
+      barterValue: opportunity?.barterValue ?? "",
+      serviceType: opportunity?.serviceType?.join(", ") ?? "",
+      propertyType: (opportunity?.propertyType ?? "") as "" | PropertyType,
+      lossReason: opportunity?.lossReason ?? "",
     },
   })
 
   const watchRecurring = form.watch("recurring")
   const watchStage = form.watch("stage")
   const watchAccountId = form.watch("accountId")
+  const isClosedLost = watchStage === "closed_lost"
 
   const handleStageChange = useCallback((stage: DealStage) => {
     form.setValue("stage", stage)
@@ -194,12 +271,20 @@ export function OpportunityForm({
         servicePeriodEnd: data.servicePeriodEnd || undefined,
         executionDate: data.executionDate || undefined,
         estimatedGrossMarginPct: data.estimatedGrossMarginPct ?? undefined,
-        countryExecution: data.countryExecution || undefined,
         projectType: (data.projectType as ProjectType) || undefined,
         revenueCategory: (data.revenueCategory as RevenueCategory) || undefined,
         recurring: data.recurring ?? false,
         recurringSplitKind: (data.recurringSplitKind as RecurringSplitKind) || undefined,
         visibilityTier: (data.visibilityTier as VisibilityTier) || undefined,
+        billingEntityId: data.billingEntityId || undefined,
+        entitySalesId: data.entitySalesId || undefined,
+        barterValue: data.barterValue || undefined,
+        serviceType: serviceTypeValue.length > 0 ? serviceTypeValue as ServiceType[] : undefined,
+        propertyType: (data.propertyType || undefined) as PropertyType | undefined,
+        lossReason: data.stage === "closed_lost" ? data.lossReason || undefined : undefined,
+        countryExecution: countryExecutionValue.length > 0
+          ? countryExecutionValue.join(", ")
+          : undefined,
         customData: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
       }
 
@@ -247,8 +332,20 @@ export function OpportunityForm({
         recurring: opportunity.recurring ?? false,
         recurringSplitKind: (opportunity.recurringSplitKind as RecurringSplitKind) ?? undefined,
         visibilityTier: (opportunity.visibilityTier as VisibilityTier) ?? "standard",
+        billingEntityId: opportunity.billingEntityId ?? "",
+        entitySalesId: opportunity.entitySalesId ?? "",
+        barterValue: opportunity.barterValue ?? "",
+        serviceType: opportunity.serviceType?.join(", ") ?? "",
+        propertyType: (opportunity.propertyType ?? "") as "" | PropertyType,
+        lossReason: opportunity.lossReason ?? "",
       })
       setCustomFieldValues(opportunity.customData ?? {})
+      setCountryExecutionValue(
+        opportunity.countryExecution
+          ? opportunity.countryExecution.split(",").map((s) => s.trim()).filter(Boolean)
+          : [],
+      )
+      setServiceTypeValue(opportunity.serviceType ?? [])
     } else if (newOpen) {
       form.reset({
         name: "",
@@ -272,8 +369,16 @@ export function OpportunityForm({
         recurring: false,
         recurringSplitKind: undefined,
         visibilityTier: "standard",
+        billingEntityId: "",
+        entitySalesId: "",
+        barterValue: "",
+        serviceType: "",
+        propertyType: "" as "" | PropertyType,
+        lossReason: "",
       })
       setCustomFieldValues({})
+      setCountryExecutionValue([])
+      setServiceTypeValue([])
     }
   }
 
@@ -565,11 +670,14 @@ export function OpportunityForm({
 
                 {/* Country of Execution */}
                 <div className="grid gap-1.5">
-                  <Label htmlFor="countryExecution">Country of Execution</Label>
-                  <Input
-                    id="countryExecution"
-                    {...form.register("countryExecution")}
-                    placeholder="e.g. India"
+                  <Label>Country of Execution</Label>
+                  <DualListbox
+                    options={COUNTRY_OPTIONS}
+                    value={countryExecutionValue}
+                    onChange={setCountryExecutionValue}
+                    availableLabel="Available"
+                    chosenLabel="Selected"
+                    searchPlaceholder="Filter..."
                   />
                 </div>
 
@@ -684,6 +792,93 @@ export function OpportunityForm({
                   </Select>
                 </div>
 
+                {/* Billing Entity */}
+                <div className="grid gap-1.5">
+                  <Label>Billing Entity</Label>
+                  <Select
+                    value={form.getValues("billingEntityId") || ""}
+                    onValueChange={(v) => form.setValue("billingEntityId", String(v ?? ""), { shouldValidate: true })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select billing entity" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      {businessUnits.map((bu) => (
+                        <SelectItem key={bu.id} value={bu.id}>
+                          {bu.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Entity Sales */}
+                <div className="grid gap-1.5">
+                  <Label>Entity Sales</Label>
+                  <Select
+                    value={form.getValues("entitySalesId") || ""}
+                    onValueChange={(v) => form.setValue("entitySalesId", String(v ?? ""), { shouldValidate: true })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select entity sales" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      {businessUnits.map((bu) => (
+                        <SelectItem key={bu.id} value={bu.id}>
+                          {bu.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Barter Value */}
+                <div className="grid gap-1.5">
+                  <Label htmlFor="barterValue">Barter Value</Label>
+                  <Input
+                    id="barterValue"
+                    {...form.register("barterValue")}
+                    placeholder="0.00"
+                  />
+                </div>
+
+                {/* Service Type */}
+                <div className="grid gap-1.5">
+                  <Label>Service Type</Label>
+                  <DualListbox
+                    options={serviceTypeOptions}
+                    value={serviceTypeValue}
+                    onChange={setServiceTypeValue}
+                    availableLabel="Available"
+                    chosenLabel="Selected"
+                    searchPlaceholder="Filter..."
+                  />
+                </div>
+
+                {/* Property Type */}
+                <div className="grid gap-1.5">
+                  <Label>Property Type</Label>
+                  <Select
+                    value={form.getValues("propertyType") || ""}
+                    onValueChange={(v) => form.setValue("propertyType", (v ? String(v) : "") as "" | PropertyType, { shouldValidate: true })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select property type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      {PROPERTY_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {/* eslint-disable-next-line security/detect-object-injection */}
+                          {PROPERTY_TYPE_LABELS[t] ?? t}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Description */}
                 <div className="grid gap-1.5">
                   <Label htmlFor="description">Description</Label>
@@ -694,6 +889,25 @@ export function OpportunityForm({
                     {...form.register("description")}
                   />
                 </div>
+
+                {/* Loss Reason (conditional on Closed Lost) */}
+                {isClosedLost && (
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="lossReason">
+                      Loss Reason <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="lossReason"
+                      {...form.register("lossReason")}
+                      placeholder="Why was this opportunity lost?"
+                    />
+                    {form.formState.errors.lossReason && (
+                      <p className="text-xs text-destructive">
+                        {form.formState.errors.lossReason.message}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Custom Fields */}
                 {fieldDefinitions.length > 0 && (

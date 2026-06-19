@@ -18,17 +18,26 @@ import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
 import { ActivityComposer } from "@/components/opportunities/activity-composer"
 import type { EntityOption } from "@/components/entity-combobox"
 import type { OpportunityRecord, BusinessUnitOption } from "@/lib/data/opportunities.types"
-import type { EntityRecord } from "@/lib/data/entities"
 import type { ActivityRecord } from "@/lib/data/activities"
-import { getStageLabel } from "@/lib/data/opportunities.types"
+import { getStageLabel, SERVICE_TYPE_LABELS, PROPERTY_TYPE_LABELS } from "@/lib/data/opportunities.types"
 import { NON_TERMINAL_STAGES, TERMINAL_STAGES } from "@/lib/opportunity"
 import type { DealStage } from "@/lib/opportunity"
 import { Money } from "@/lib/money"
 
+const COUNTRY_LABELS: Record<string, string> = {
+  AE: "United Arab Emirates", AR: "Argentina", AU: "Australia", BD: "Bangladesh",
+  BR: "Brazil", CA: "Canada", CN: "China", DE: "Germany", EG: "Egypt",
+  ES: "Spain", FR: "France", GB: "United Kingdom", ID: "Indonesia",
+  IN: "India", IT: "Italy", JP: "Japan", KR: "South Korea", MX: "Mexico",
+  MY: "Malaysia", NG: "Nigeria", NL: "Netherlands", PH: "Philippines",
+  PK: "Pakistan", PL: "Poland", QA: "Qatar", RU: "Russia", SA: "Saudi Arabia",
+  SG: "Singapore", TH: "Thailand", TR: "Turkey", US: "United States",
+  VN: "Vietnam", ZA: "South Africa",
+}
+
 interface OpportunityDetailWrapperProps {
   opportunity: OpportunityRecord
   businessUnits: BusinessUnitOption[]
-  entities: EntityRecord[]
   users?: EntityOption[]
   updateAction: (id: string, input: unknown) => Promise<OpportunityRecord>
   updateStageAction: (id: string, input: unknown) => Promise<OpportunityRecord>
@@ -95,7 +104,6 @@ function RelatedListCard({ title, emptyMessage }: { title: string; emptyMessage:
 export function OpportunityDetailWrapper({
   opportunity,
   businessUnits,
-  entities,
   users,
   updateAction,
   updateStageAction,
@@ -111,8 +119,8 @@ export function OpportunityDetailWrapper({
     ? Money.fromAmount(opportunity.barterValue, opportunity.currency).toDisplay()
     : null
 
-  const currentStageIndex = NON_TERMINAL_STAGES.indexOf(opportunity.stage as any)
   const isTerminal = (TERMINAL_STAGES as readonly string[]).includes(opportunity.stage)
+  const currentStageIndex = isTerminal ? -1 : NON_TERMINAL_STAGES.indexOf(opportunity.stage)
 
   const handleStageClick = useCallback(async (stage: DealStage) => {
     if (updatingStage) return
@@ -129,7 +137,7 @@ export function OpportunityDetailWrapper({
 
   const entityName = (id: string | null) => {
     if (!id) return "\u2014"
-    return entities.find((e) => e.id === id)?.name ?? id
+    return businessUnits.find((e) => e.id === id)?.name ?? id
   }
 
   return (
@@ -202,7 +210,7 @@ export function OpportunityDetailWrapper({
         <CardContent className="py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-0">
-              {NON_TERMINAL_STAGES.map((s, i) => {
+              {NON_TERMINAL_STAGES.map((s) => {
                 const stageIdx = NON_TERMINAL_STAGES.indexOf(s)
                 const isActive = !isTerminal && stageIdx <= currentStageIndex
                 const isCurrent = opportunity.stage === s
@@ -280,7 +288,9 @@ export function OpportunityDetailWrapper({
                 <Field label="Amount" value={formattedAmount} />
                 <Field label="Currency" value={opportunity.currency} />
                 <Field label="Est. Gross Margin (%)" value={opportunity.estimatedGrossMarginPct != null ? `${opportunity.estimatedGrossMarginPct}%` : "\u2014"} />
-                <Field label="Country Execution" value={opportunity.countryExecution ?? "\u2014"} />
+                <Field label="Country Execution" value={opportunity.countryExecution
+                  ? opportunity.countryExecution.split(",").map((c) => COUNTRY_LABELS[c.trim()] ?? c.trim()).join(", ")
+                  : "\u2014"} />
                 <Field label="Billing Entity" value={entityName(opportunity.billingEntityId)} />
                 <Field label="Entity Sales" value={entityName(opportunity.entitySalesId)} />
                 <Field label="Barter Value" value={formattedBarter ?? "\u2014"} />
@@ -296,11 +306,19 @@ export function OpportunityDetailWrapper({
                   label="Service Type"
                   value={
                     opportunity.serviceType && opportunity.serviceType.length > 0
-                      ? opportunity.serviceType.join(", ")
+                      // eslint-disable-next-line security/detect-object-injection
+                      ? opportunity.serviceType.map((t) => SERVICE_TYPE_LABELS[t] ?? t).join(", ")
                       : "\u2014"
                   }
                 />
-                <Field label="Property Type" value={opportunity.propertyType ?? "\u2014"} />
+                <Field
+                  label="Property Type"
+                  value={
+                    opportunity.propertyType
+                      ? (PROPERTY_TYPE_LABELS[opportunity.propertyType] ?? opportunity.propertyType)
+                      : "\u2014"
+                  }
+                />
               </dl>
             </CollapsibleSection>
 
