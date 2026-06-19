@@ -55,6 +55,29 @@ export const PROPERTY_TYPES = [
 
 export type PropertyType = (typeof PROPERTY_TYPES)[number]
 
+export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
+  brand_campaign_and_activation: "Brand Campaign & Activation",
+  content_production: "Content Production",
+  convention_b2c: "Convention B2C",
+  publisher_services: "Publisher Services",
+  shop_b2c_retail: "Shop/B2C/Retail",
+  studio_production: "Studio Production",
+  talent_influencer_services: "Talent/Influencer Services",
+  consultancy_services: "Consultancy Services",
+  pr: "PR",
+}
+
+export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
+  conference: "Conference",
+  expo: "Expo",
+  festival: "Festival",
+  food_festival: "Food Festival",
+  scripted_reality_show: "Scripted/Reality Show",
+  talk_show: "Talk Show",
+  tournament: "Tournament",
+  consultancy_services: "Consultancy Services",
+}
+
 export interface OpportunityRecord {
   id: string
   name: string

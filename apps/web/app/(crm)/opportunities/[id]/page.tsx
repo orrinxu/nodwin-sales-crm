@@ -4,7 +4,6 @@ import {
   getOpportunityById,
   getBusinessUnitOptions,
 } from "@/lib/data/opportunities"
-import { getAllEntities } from "@/lib/data/entities"
 import { getActivitiesForOpportunity } from "@/lib/data/activities"
 import {
   updateOpportunityAction,
@@ -22,10 +21,9 @@ export default async function OpportunityDetailPage({
   const { id } = await params
 
   const ctx = { user, source: "web" as const }
-  const [opportunity, businessUnits, entities, activities] = await Promise.all([
+  const [opportunity, businessUnits, activities] = await Promise.all([
     getOpportunityById(ctx, id),
     getBusinessUnitOptions(ctx),
-    getAllEntities(ctx),
     getActivitiesForOpportunity(ctx, id),
   ])
 
@@ -37,7 +35,6 @@ export default async function OpportunityDetailPage({
     <OpportunityDetailWrapper
       opportunity={opportunity}
       businessUnits={businessUnits}
-      entities={entities}
       updateAction={updateOpportunityAction}
       updateStageAction={updateOpportunityStageAction}
       activities={activities}

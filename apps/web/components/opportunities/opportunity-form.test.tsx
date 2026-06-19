@@ -603,6 +603,93 @@ describe("OpportunityForm", () => {
     })
   })
 
+  describe("new fields — section B", () => {
+    async function expandSectionB(user: ReturnType<typeof setupUser>) {
+      await openSheet(user)
+      await user.click(screen.getByText("More details"))
+    }
+
+    it("renders Billing Entity select", async () => {
+      const user = setupUser()
+      render(<OpportunityForm {...defaultProps} />)
+      await expandSectionB(user)
+      expect(screen.getByText("Billing Entity")).toBeInTheDocument()
+    })
+
+    it("renders Entity Sales select", async () => {
+      const user = setupUser()
+      render(<OpportunityForm {...defaultProps} />)
+      await expandSectionB(user)
+      expect(screen.getByText("Entity Sales")).toBeInTheDocument()
+    })
+
+    it("renders Barter Value input", async () => {
+      const user = setupUser()
+      render(<OpportunityForm {...defaultProps} />)
+      await expandSectionB(user)
+      expect(screen.getByText("Barter Value")).toBeInTheDocument()
+    })
+
+    it("renders Service Type DualListbox", async () => {
+      const user = setupUser()
+      render(<OpportunityForm {...defaultProps} />)
+      await expandSectionB(user)
+      expect(screen.getByText("Service Type")).toBeInTheDocument()
+    })
+
+    it("renders Property Type select", async () => {
+      const user = setupUser()
+      render(<OpportunityForm {...defaultProps} />)
+      await expandSectionB(user)
+      expect(screen.getByText("Property Type")).toBeInTheDocument()
+    })
+
+    it("submits billing entity, entity sales, barter value", async () => {
+      const createAction = vi.fn().mockResolvedValue({ id: "opp-new" })
+      const user = setupUser()
+      render(
+        <OpportunityForm {...defaultProps} createAction={createAction} />,
+      )
+      await openSheet(user)
+      await fillRequiredFields(user)
+      await user.click(screen.getByText("More details"))
+
+      const barterInput = screen.getByLabelText("Barter Value")
+      await user.type(barterInput, "5000")
+      await user.click(screen.getByRole("button", { name: /create opportunity/i }))
+
+      await waitFor(() => {
+        expect(createAction).toHaveBeenCalledWith(
+          expect.objectContaining({ barterValue: "5000" }),
+        )
+      })
+    })
+
+    it("shows loss reason field when stage is closed_lost in edit mode", async () => {
+      const user = setupUser()
+      render(
+        <OpportunityForm
+          {...defaultProps}
+          opportunity={{ ...mockOpportunity, stage: "closed_lost" as const }}
+          updateAction={vi.fn()}
+        />,
+      )
+      await openSheet(user)
+      await user.click(screen.getByText("More details"))
+
+      expect(screen.getByText("Loss Reason")).toBeInTheDocument()
+    })
+
+    it("hides loss reason when stage is not closed_lost", async () => {
+      const user = setupUser()
+      render(<OpportunityForm {...defaultProps} />)
+      await openSheet(user)
+      await user.click(screen.getByText("More details"))
+
+      expect(screen.queryByText("Loss Reason")).not.toBeInTheDocument()
+    })
+  })
+
   describe("currency", () => {
     it("defaults to USD", async () => {
       const createAction = vi.fn().mockResolvedValue({ id: "opp-new" })
