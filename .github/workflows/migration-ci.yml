@@ -24,6 +24,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check migration filenames
+        run: STRICT_MIGRATION_NAMES=1 bash scripts/check-migration-filenames.sh
+        timeout-minutes: 1
+
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
