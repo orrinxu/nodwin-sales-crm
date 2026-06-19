@@ -96,6 +96,10 @@
 # approval_thresholds, revenue_recognition_defaults). All authenticated users
 # need read access. Write access is admin-only.
 .*financial_settings.*:USING \(true\)
+.*approval_thresholds.*:USING \(true\)
+.*fiscal_year.*:USING \(true\)
+.*reporting_currency.*:USING \(true\)
+.*revenue_recognition.*:USING \(true\)
 
 # ── admin_b_users_roles_access ────────────────────────────────────────────────
 # Untracked stray file; users/roles config table uses same pattern as other
