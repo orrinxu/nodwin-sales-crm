@@ -186,9 +186,17 @@ The board may also configure Paperclip to require approval before any change to 
 
 ---
 
-## 7. Required patterns
+## 7. Verification gate before marking "done"
 
-### 7.1 Before you start a ticket
+Before patching any issue to `status=done`, you MUST run `bash scripts/verify.sh` from the repo root and confirm it exits 0. Paste the **last 10 lines** of its output into the closing comment of the ticket. If the work touched `supabase/migrations/`, you must additionally run `supabase db reset --local` and `curl -s http://localhost:3002/dashboard | grep -ciE 'sidebar|<nav|aside'` and paste both outputs in the same comment.
+
+A ticket marked `done` without the verify output in the closing comment is considered **provisional** — the reviewer may reopen it without further discussion. This rule has no exceptions for "the change was small" or "tests don't apply."
+
+---
+
+## 8. Required patterns
+
+### 8.1 Before you start a ticket
 
 1. Read the ticket in full.
 2. Read this file. (Yes, every session.)
@@ -196,7 +204,7 @@ The board may also configure Paperclip to require approval before any change to 
 4. If the ticket touches a high-risk file (§6), say so up front in your first message on the ticket.
 5. If anything is ambiguous, ask the board before coding. Ambiguity is not your call to resolve.
 
-### 7.2 While coding
+### 8.2 While coding
 
 - Make small, focused commits. One concern per commit.
 - Write the test alongside the code, not after.
@@ -204,7 +212,7 @@ The board may also configure Paperclip to require approval before any change to 
 - If you are about to introduce a new dependency, ask first.
 - If you are about to refactor something outside the scope of the ticket, ask first.
 
-### 7.3 Before opening a PR
+### 8.3 Before opening a PR
 
 **Branch hygiene (prevents stale commits and merge conflicts):**
 
@@ -236,7 +244,7 @@ Never commit with `--no-verify` to bypass the hook. If the hook fails, fix the R
 
 **Stale branch policy:** PRs with merge conflicts caused by already-merged commits will be closed without review. Open a clean PR from a fresh branch.
 
-### 7.4 PR description format
+### 8.4 PR description format
 
 ```
 ## What
@@ -261,7 +269,7 @@ Never commit with `--no-verify` to bypass the hook. If the hook fails, fix the R
 <anything you want a human to look at, or "none">
 ```
 
-### 7.5 Tests
+### 8.5 Tests
 
 - Every new function in `lib/` has a unit test.
 - Every new RLS policy has a corresponding `.test.sql` file in `supabase/tests/` with at minimum:
@@ -281,19 +289,19 @@ Never commit with `--no-verify` to bypass the hook. If the hook fails, fix the R
 - Every money operation has a test using `dinero.js` semantics (no float comparisons).
 - E2E tests for major user flows (deal creation, stage advance, approval, P&L generation) but only after the feature is functionally complete.
 
-### 7.6 Comments
+### 8.6 Comments
 
 - Comment the *why*, not the *what*.
 - If you write a comment explaining why something looks weird, also leave a note for whether it can be cleaned up later or whether it's load-bearing weirdness.
 - Do not write apologetic or hedging comments ("I think this works", "not sure if this is right"). If you're not sure, ask the board.
 
-### 7.7 Data-layer source parameter
+### 8.7 Data-layer source parameter
 
 Every function in `lib/data/` accepts an explicit `{ user, source }` parameter and passes both to audit logging. The `source` value is one of: `'web' | 'mcp' | 'webhook' | 'system'`. RLS uses `user` for permission checks. Rate limiting and audit context use `source` to distinguish the call origin. Functions that omit either parameter must be flagged in code review and rejected.
 
 ---
 
-## 8. How to handle ambiguity
+## 9. How to handle ambiguity
 
 If a ticket says "build the contact list page" and you don't know whether contacts should be sortable by company, **ask**. Do not guess. The board would rather answer one Slack message than redo a feature.
 
@@ -305,14 +313,14 @@ If a third-party API behaves differently than its documentation, **ask before wo
 
 ---
 
-## 9. What "done" means
+## 10. What "done" means
 
 A ticket is done when:
 
 1. Code is written and matches the ticket's described scope.
 2. Tests are written and passing locally and in CI.
 3. Lint passes. Typecheck passes. RLS tests pass.
-4. PR is opened with the description format from §7.4.
+4. PR is opened with the description format from §8.4.
 5. PR has been reviewed by the CTO agent (or the board, if the ticket touches a high-risk file).
 6. PR is merged to `main`.
 7. The ticket is updated with a brief summary of what shipped.
@@ -322,28 +330,28 @@ A ticket is **not** done because the code "works on my machine", "looks right", 
 
 ---
 
-## 10. Ticket scope and discipline
+## 11. Ticket scope and discipline
 
-### 10.1 One ticket = one PR
+### 11.1 One ticket = one PR
 
 - **A single PR implements exactly one ticket.** Do not combine multiple tickets into a single PR, even if they are "related" or "small."
 - If you finish a ticket and notice adjacent work that should also be done, open a new ticket — do not append it to the current PR.
 - PRs that combine tickets without explicit CEO approval will be rejected.
 
-### 10.2 Don't silently expand scope
+### 11.2 Don't silently expand scope
 
 - If you discover during implementation that your ticket requires building infrastructure that was previously marked `done` but does not exist on `main`, **stop immediately.**
 - Do not silently implement the missing work. Post a comment on your ticket explaining the blocker and tag the CTO/CEO.
 - The CTO/CEO will either reopen the original ticket, create a new ticket for the missing work, or explicitly adjust your ticket's scope.
 - Workers who silently expand scope without surfacing the change will receive a process warning. Repeated violations may result in reassignment.
 
-### 10.3 Don't combine tickets
+### 11.3 Don't combine tickets
 
 - Never use a single branch or PR to close multiple independent tickets.
 - Never add "while I'm here" refactors, feature additions, or bug fixes that are not in the ticket's described scope.
 - If a linter or typechecker flags issues in code outside your ticket's scope, surface it — do not fix it silently.
 
-### 10.4 Branch hygiene
+### 11.4 Branch hygiene
 
 To prevent stale commits and unnecessary merge conflicts, all agents MUST follow these branching rules:
 
@@ -360,12 +368,12 @@ To prevent stale commits and unnecessary merge conflicts, all agents MUST follow
 
 ---
 
-## 11. The "vibe coding" failure modes — explicit list
+## 12. The "vibe coding" failure modes — explicit list
 
 This project is being built primarily via AI-assisted coding with a non-coder lead. The historical failure modes for this approach are well-documented and have all been observed before. Pre-emptively, every agent must guard against:
 
 1. **The "Auth Emails Vanish" problem.** Resolved by mandatory custom SMTP from day one. If you find code using Supabase default SMTP for transactional email, that is a bug — open a ticket.
-2. **The "Public RLS" catastrophe.** Resolved by mandatory RLS on every public table, mandatory `.test.sql` for every policy, the `scripts/check-rls-coverage.sh` linter (enforced in CI), and CI that runs the full test suite. If you create a table without RLS and tests, that is a bug. Legitimate exceptions require `SECURITY_REVIEWER_EXEMPT` with reviewer approval (see §7.5).
+2. **The "Public RLS" catastrophe.** Resolved by mandatory RLS on every public table, mandatory `.test.sql` for every policy, the `scripts/check-rls-coverage.sh` linter (enforced in CI), and CI that runs the full test suite. If you create a table without RLS and tests, that is a bug. Legitimate exceptions require `SECURITY_REVIEWER_EXEMPT` with reviewer approval (see §8.5).
 3. **The "Stripe Webhook Wide Open" mistake.** Resolved by the rule that every webhook handler's first line is signature verification, and CI/lint that flags missing verification. Even though we don't use Stripe, this applies to every webhook — Slack, Postmark, Google.
 4. **The "Agent Lost the Plot" drift.** Resolved by this file being read every session, by ticket-scoped work, and by `BUILD_TICKETS.md` enforcing sequence.
 5. **The "Free Tier Abuse Drain."** Resolved by `lib/ai/router.ts` enforcing per-user, per-team, per-company hard caps, plus rate limits at the API gateway, plus provider-dashboard-level caps. If you find an AI call path bypassing the router, that is a bug.
@@ -375,13 +383,13 @@ If you see any of the above failure patterns appearing during development, surfa
 
 ---
 
-## 12. GitHub access
+## 13. GitHub access
 
 All agents have SSH access to GitHub. The system SSH key (`~/.ssh/id_ed25519`) is already authenticated with the remote repository. You can `git fetch`, `git push`, and open PRs without additional setup. If you encounter a permission-denied error, stop and escalate to the CEO.
 
 ---
 
-## 13. Working with Paperclip
+## 14. Working with Paperclip
 
 This repo is orchestrated by Paperclip (https://github.com/paperclipai/paperclip). You are running as an agent inside a Paperclip company. Specifically:
 
@@ -395,7 +403,7 @@ If you do not know what role you are playing, ask.
 
 ---
 
-## 14. When to escalate to the human board
+## 15. When to escalate to the human board
 
 Escalate (via Paperclip's approval mechanism or by stopping work and surfacing a question) when:
 
@@ -412,7 +420,7 @@ The board would rather be asked too often than too rarely. There is no penalty f
 
 ---
 
-## 15. Things that are explicitly NOT your job
+## 16. Things that are explicitly NOT your job
 
 To save you cognitive load:
 
@@ -427,7 +435,7 @@ Stay in your lane. The lane is well-defined and there's plenty to do inside it.
 
 ---
 
-## 16. Final note
+## 17. Final note
 
 If you are an agent reading this for the first time: the rules above are not bureaucracy. They are the codified output of weeks of careful design decisions, plus a body of documented failure modes from people who tried to build similar things without these rules. Following them is what makes this project safe to ship. Working around them is what makes a $400 surprise bill, a leaked client RFP, or a wrong revenue number that goes to a finance team.
 
