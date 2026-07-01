@@ -175,7 +175,14 @@ jobs:
       - name: Start Supabase local stack
         run: |
           set -o pipefail
-          supabase start 2>&1 | tee /tmp/supabase-start.log
+          # DB tests (pgTAP + `db lint`) only need Postgres. Exclude the heavy
+          # services that aren't needed and that intermittently fail their health
+          # check on CI runners — the edge-runtime (Deno) container and the
+          # vector/analytics stack were aborting `supabase start` with a 502.
+          # Retry once to absorb other transient container hiccups.
+          EXCLUDE="edge-runtime,functions,imgproxy,studio,vector,analytics"
+          start() { supabase start -x "$EXCLUDE" 2>&1 | tee /tmp/supabase-start.log; }
+          start || { echo "::warning::supabase start failed; stopping and retrying once"; supabase stop --no-backup 2>/dev/null || true; start; }
           if grep -qiE '(does not have.*(rls|row level security)|rls.*warning|warning.*rls)' /tmp/supabase-start.log; then
             echo "::error::RLS warnings detected in Supabase startup output"
             exit 1

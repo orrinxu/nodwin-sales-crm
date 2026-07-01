@@ -66,7 +66,13 @@ jobs:
 
       - name: Start Supabase local stack
         if: steps.changes.outputs.schema == 'true'
-        run: supabase start
+        run: |
+          set -o pipefail
+          # Exclude heavy/flaky services not needed for schema lint + type gen
+          # (edge-runtime / vector / analytics were 502-ing on CI). Retry once.
+          EXCLUDE="edge-runtime,functions,imgproxy,studio,vector,analytics"
+          start() { supabase start -x "$EXCLUDE"; }
+          start || { echo "::warning::supabase start failed; stopping and retrying once"; supabase stop --no-backup 2>/dev/null || true; start; }
         # 15 min headroom for slow Docker image pulls (was 8, which timed out).
         timeout-minutes: 15
 
