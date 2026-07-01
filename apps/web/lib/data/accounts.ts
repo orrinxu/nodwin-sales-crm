@@ -226,13 +226,26 @@ export async function getAccountRelationshipGraph(
   }
 }
 
+// PostgREST returns a to-many aggregate embed (e.g. `opportunities(count)`) as
+// `[{ count: N }]`, not a bare number. Casting it `as number` left an object on
+// the record, which then rendered as a React child and 500'd the accounts page.
+function extractEmbeddedCount(value: unknown): number {
+  if (Array.isArray(value)) {
+    return (value[0] as { count?: number } | undefined)?.count ?? 0
+  }
+  if (value && typeof value === "object" && "count" in value) {
+    return (value as { count?: number }).count ?? 0
+  }
+  return typeof value === "number" ? value : 0
+}
+
 function toDomainAccountListRecord(data: Record<string, unknown>): AccountListRecord {
   const owner = data.owner as { full_name: string } | null
   return {
     ...toDomainAccount(data),
     ownerName: owner?.full_name ?? null,
-    contactCount: (data.contact_count as number) ?? 0,
-    opportunityCount: (data.opportunity_count as number) ?? 0,
+    contactCount: extractEmbeddedCount(data.contact_count),
+    opportunityCount: extractEmbeddedCount(data.opportunity_count),
   }
 }
 
