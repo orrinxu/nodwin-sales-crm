@@ -35,6 +35,7 @@ vi.mock("@/lib/money", () => ({
           currency: "USD",
         }).format(Number(amount))
       },
+    }),
   },
 }))
 
