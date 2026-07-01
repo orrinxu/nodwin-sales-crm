@@ -4,8 +4,9 @@ import { createGeminiAdapter } from "./gemini"
 import { createDeepseekAdapter } from "./deepseek"
 import { createMoonshotAdapter } from "./moonshot"
 import { createOllamaAdapter } from "./ollama"
+import { createOpenAICompatibleAdapter } from "./openai-compatible"
 
-export type ProviderName = "claude" | "gemini" | "kimi" | "deepseek" | "ollama_local"
+export type ProviderName = "claude" | "gemini" | "kimi" | "deepseek" | "ollama_local" | "openai_compatible"
 
 export function createAdaptersFromEnv(): Map<ProviderName, ProviderAdapter> {
   const adapters = new Map<ProviderName, ProviderAdapter>()
@@ -30,6 +31,10 @@ export function createAdaptersFromEnv(): Map<ProviderName, ProviderAdapter> {
     adapters.set("ollama_local", createOllamaAdapter())
   }
 
+  if (process.env.OPENAI_COMPATIBLE_BASE_URL) {
+    adapters.set("openai_compatible", createOpenAICompatibleAdapter())
+  }
+
   return adapters
 }
 
@@ -39,4 +44,5 @@ export {
   createDeepseekAdapter,
   createMoonshotAdapter,
   createOllamaAdapter,
+  createOpenAICompatibleAdapter,
 }

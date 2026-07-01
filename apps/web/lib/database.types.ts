@@ -2455,7 +2455,13 @@ export type Database = {
         | "draft_email"
         | "next_best_action"
         | "other"
-      ai_provider: "claude" | "gemini" | "kimi" | "deepseek" | "ollama_local"
+      ai_provider:
+        | "claude"
+        | "gemini"
+        | "kimi"
+        | "deepseek"
+        | "ollama_local"
+        | "openai_compatible"
       approval_decision_type: "approved" | "rejected" | "skipped"
       approval_status: "pending" | "approved" | "rejected" | "cancelled"
       approval_step_status: "pending" | "approved" | "rejected" | "skipped"
@@ -2686,7 +2692,14 @@ export const Constants = {
         "next_best_action",
         "other",
       ],
-      ai_provider: ["claude", "gemini", "kimi", "deepseek", "ollama_local"],
+      ai_provider: [
+        "claude",
+        "gemini",
+        "kimi",
+        "deepseek",
+        "ollama_local",
+        "openai_compatible",
+      ],
       approval_decision_type: ["approved", "rejected", "skipped"],
       approval_status: ["pending", "approved", "rejected", "cancelled"],
       approval_step_status: ["pending", "approved", "rejected", "skipped"],

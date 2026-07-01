@@ -11,7 +11,7 @@ export interface AiCallDeps {
   usageLogger?: UsageLogger
 }
 
-const DEFAULT_PROVIDER_PRIORITY: AiProvider[] = ["claude", "gemini", "kimi", "deepseek", "ollama_local"]
+const DEFAULT_PROVIDER_PRIORITY: AiProvider[] = ["claude", "gemini", "kimi", "deepseek", "openai_compatible", "ollama_local"]
 
 function pickAdapters(
   _feature: string,
