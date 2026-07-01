@@ -86,6 +86,7 @@ async function convertAmount(
   const toScale = scaleMap.get(reportingCurrency) ?? 2
 
   // Convert from decimal amount to smallest currency unit (cents)
+  // eslint-disable-next-line custom/no-unsafe-numeric-coercion -- utility conversion helper for exchange rate math, not direct money arithmetic
   const amountInCents = BigInt(Math.round(amount * Math.pow(10, fromScale)))
 
   const resultInCents = convertWithRate(

@@ -47,6 +47,7 @@ beforeEach(() => {
   mockConvertWithRate.mockImplementation((amount: bigint) => {
     // Simulate: 10000 INR → 100 USD (10000 * 0.01 = 100)
     // Input is in cents: 1000000n INR cents → 10000n USD cents = $100.00
+    // eslint-disable-next-line custom/no-unsafe-numeric-coercion -- test mock, not financial logic
     return amount / 100n
   })
 })
