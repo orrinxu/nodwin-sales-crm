@@ -1,6 +1,12 @@
 -- supabase/policies/documents.sql
 -- HIGH-RISK FILE — see AGENTS.md §6.
 --
+-- ⚠️  PARTIALLY SUPERSEDED by migration 20260619000006 (Confidential-tier masking,
+--     ORR-600 #3). The `OR current_user_role() = 'admin'` branch of
+--     documents_select_scoped now excludes documents attached to Confidential
+--     opportunities: `AND NOT opportunity_is_confidential(opportunity_id)`. See that
+--     migration for the authoritative definition.
+--
 -- RLS policies for the public.documents table.
 -- These are also embedded in 20260507000000_documents.sql so the migration is
 -- self-contained.  This file exists for security-review readability.

@@ -1,6 +1,15 @@
 -- supabase/policies/opportunities.sql
 -- HIGH-RISK FILE — see AGENTS.md §6.
 --
+-- ⚠️  PARTIALLY SUPERSEDED by migration 20260619000006 (Confidential-tier masking,
+--     ORR-600 #3). The blanket `OR current_user_role() = 'admin'` SELECT branches
+--     below now exclude Confidential deals: opportunities uses
+--     `AND visibility_tier <> 'confidential'`; opportunity_splits / _team_members
+--     use `AND NOT opportunity_is_confidential(opportunity_id)`; and the
+--     `*_write_admin` FOR ALL policies are replaced by explicit INSERT/UPDATE/DELETE
+--     policies (so they no longer grant admins SELECT). See that migration for the
+--     authoritative current definitions.
+--
 -- RLS policies for the opportunity schema (opportunities, opportunity_splits,
 -- opportunity_team_members, opportunity_visibility).
 -- These are also embedded in 20260505000007_opportunity_visibility.sql so the
