@@ -83,8 +83,7 @@ export async function getStageHistoryForOpportunity(
       event,
       reason,
       created_by,
-      created_at,
-      creator:created_by ( full_name )
+      created_at
     `,
     )
     .eq("opportunity_id", opportunityId)
@@ -94,7 +93,36 @@ export async function getStageHistoryForOpportunity(
     throw new Error(`Failed to load stage history: ${error.message}`)
   }
 
-  return (data ?? []).map((r) => fromDbRecord(r as Record<string, unknown>))
+  const rows = (data ?? []) as Record<string, unknown>[]
+
+  // opportunity_stage_history.created_by has no FK to users, so a PostgREST
+  // embed ("creator:created_by(full_name)") errors ("Could not find a
+  // relationship..."). Resolve creator names with a separate lookup instead.
+  const creatorIds = Array.from(
+    new Set(
+      rows
+        .map((r) => r.created_by as string | null)
+        .filter((v): v is string => !!v),
+    ),
+  )
+  const nameById = new Map<string, string>()
+  if (creatorIds.length > 0) {
+    const { data: users } = await supabase
+      .from("users")
+      .select("id, full_name")
+      .in("id", creatorIds)
+    for (const u of (users ?? []) as { id: string; full_name: string }[]) {
+      nameById.set(u.id, u.full_name)
+    }
+  }
+
+  return rows.map((r) => {
+    const createdBy = r.created_by as string | null
+    return fromDbRecord({
+      ...r,
+      creator: createdBy ? { full_name: nameById.get(createdBy) ?? null } : null,
+    })
+  })
 }
 
 export async function insertStageHistoryEntry(

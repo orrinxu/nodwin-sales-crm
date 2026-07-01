@@ -8,12 +8,15 @@ const mockEq = vi.fn()
 const mockSelect = vi.fn()
 const mockOrder = vi.fn()
 const mockInsert = vi.fn()
+const mockIn = vi.fn()
 
 function buildQueryBuilder() {
-  mockSelect.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder })
-  mockEq.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder })
-  mockOrder.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder })
-  return { select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder }
+  mockSelect.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder, in: mockIn })
+  mockEq.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder, in: mockIn })
+  mockOrder.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder, in: mockIn })
+  // Default for the separate creator-name lookup (getStageHistory queries users).
+  mockIn.mockResolvedValue({ data: [{ id: "user-1", full_name: "Alice" }], error: null })
+  return { select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder, in: mockIn }
 }
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -147,7 +150,7 @@ describe("getStageHistoryForOpportunity", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     buildQueryBuilder()
-    mockFrom.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder })
+    mockFrom.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder, in: mockIn })
   })
 
   it("returns mapped stage history records ordered by created_at desc", async () => {
@@ -159,6 +162,7 @@ describe("getStageHistoryForOpportunity", () => {
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe("hist-1")
     expect(result[0].opportunityId).toBe("opp-1")
+    expect(result[0].createdByName).toBe("Alice")
   })
 
   it("queries with correct filters", async () => {
@@ -172,15 +176,21 @@ describe("getStageHistoryForOpportunity", () => {
     expect(mockOrder).toHaveBeenCalledWith("created_at", { ascending: false })
   })
 
-  it("includes creator join", async () => {
-    mockOrder.mockResolvedValueOnce({ data: [], error: null })
+  it("resolves creator names via a separate users lookup, not a PostgREST embed", async () => {
+    mockOrder.mockResolvedValueOnce({ data: [mockDbRecord], error: null })
+    mockIn.mockResolvedValueOnce({ data: [{ id: "user-1", full_name: "Alice" }], error: null })
 
     const { getStageHistoryForOpportunity } = await import("../opportunity-stage-history")
-    await getStageHistoryForOpportunity(defaultCtx, "opp-1")
+    const result = await getStageHistoryForOpportunity(defaultCtx, "opp-1")
 
-    expect(mockSelect).toHaveBeenCalledWith(
+    // No embed on the history query (created_by has no FK to users).
+    expect(mockSelect).not.toHaveBeenCalledWith(
       expect.stringContaining("creator:created_by"),
     )
+    // Names come from a follow-up users lookup keyed by the distinct creator ids.
+    expect(mockFrom).toHaveBeenCalledWith("users")
+    expect(mockIn).toHaveBeenCalledWith("id", ["user-1"])
+    expect(result[0].createdByName).toBe("Alice")
   })
 
   it("returns empty array when no history exists", async () => {
