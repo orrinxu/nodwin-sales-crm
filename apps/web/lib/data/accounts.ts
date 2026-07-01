@@ -432,7 +432,7 @@ export async function createAccount(
 
   const { data, error } = await supabase
     .from("accounts")
-    .insert(dbData)
+    .insert(dbData as never)
     .select("*")
     .single()
 
@@ -466,7 +466,7 @@ export async function updateAccount(
   if (Object.keys(dbData).length > 0) {
     const { error } = await supabase
       .from("accounts")
-      .update(dbData)
+      .update(dbData as never)
       .eq("id", id)
 
     if (error) {

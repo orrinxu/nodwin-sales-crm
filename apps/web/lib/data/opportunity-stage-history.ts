@@ -105,7 +105,7 @@ export async function insertStageHistoryEntry(
 
   const { error } = await supabase
     .from("opportunity_stage_history")
-    .insert(toDbInsert(params))
+    .insert(toDbInsert(params) as never)
 
   if (error) {
     throw new Error(`Failed to insert stage history: ${error.message}`)

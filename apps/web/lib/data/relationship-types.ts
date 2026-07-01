@@ -115,7 +115,7 @@ export async function updateRelationshipType(
 
   const { error } = await supabase
     .from("relationship_types")
-    .update(dbData)
+    .update(dbData as never)
     .eq("code", code)
 
   if (error) {

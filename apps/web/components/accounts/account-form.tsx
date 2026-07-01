@@ -253,7 +253,7 @@ export function AccountForm({
               <EntityCombobox
                 items={ownerOptions}
                 value={ownerValue ?? ""}
-                onChange={(v) => form.setValue("accountOwnerUserId", v)}
+                onChange={(v) => form.setValue("accountOwnerUserId", v ?? undefined)}
                 placeholder="Select owner..."
                 searchPlaceholder="Search users..."
                 emptyMessage="No users found."
@@ -306,7 +306,7 @@ export function AccountForm({
                 <EntityCombobox
                   items={accountOptions}
                   value={parentAccountId}
-                  onChange={setParentAccountId}
+                  onChange={(v) => setParentAccountId(v ?? "")}
                   placeholder="Select account..."
                   searchPlaceholder="Search accounts..."
                   emptyMessage="No accounts found."
