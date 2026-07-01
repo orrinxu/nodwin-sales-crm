@@ -833,6 +833,30 @@ export type Database = {
           },
         ]
       }
+      cron_job_runs: {
+        Row: {
+          detail: Json | null
+          id: number
+          job_name: string
+          ran_at: string
+          status: string
+        }
+        Insert: {
+          detail?: Json | null
+          id?: never
+          job_name: string
+          ran_at?: string
+          status?: string
+        }
+        Update: {
+          detail?: Json | null
+          id?: never
+          job_name?: string
+          ran_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
       currencies: {
         Row: {
           active: boolean
@@ -2387,6 +2411,7 @@ export type Database = {
         }[]
       }
       is_email_domain_allowed: { Args: { _email: string }; Returns: boolean }
+      job_pipeline_health_snapshot: { Args: never; Returns: undefined }
       money_add: {
         Args: {
           a_amount: number
