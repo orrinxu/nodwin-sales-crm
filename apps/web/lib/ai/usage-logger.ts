@@ -44,7 +44,7 @@ export function createUsageLogger(): UsageLogger {
       const supabase = await createServerClient()
       const { data, error } = await supabase
         .from("ai_usage")
-        .insert(toDbInsert(params))
+        .insert(toDbInsert(params) as never)
         .select()
         .single()
 

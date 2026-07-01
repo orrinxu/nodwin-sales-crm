@@ -37,6 +37,12 @@ jobs:
         run: supabase start
         timeout-minutes: 8
 
+      - name: Check generated types are up to date
+        run: |
+          supabase gen types typescript --local --schema public > /tmp/expected.ts
+          diff -u apps/web/lib/database.types.ts /tmp/expected.ts
+        timeout-minutes: 2
+
       - name: Schema lint
         run: supabase db lint --local --level error --fail-on error
         timeout-minutes: 2

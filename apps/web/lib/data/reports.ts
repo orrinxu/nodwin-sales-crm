@@ -42,6 +42,21 @@ export interface ReportData {
   winRate: number
 }
 
+export interface PipelineStageSummary {
+  stage: string
+  label: string
+  count: number
+  totalAmount: string
+  currency: string
+}
+
+export interface PipelineSummary {
+  stages: PipelineStageSummary[]
+  totalAmount: string
+  currency: string
+  totalCount: number
+}
+
 export async function getReportData(): Promise<ReportData> {
   const supabase = await createServerClient()
 
@@ -65,7 +80,7 @@ export async function getReportData(): Promise<ReportData> {
   }
 
   const reportingCurrency = getReportingCurrency()
-  const raw = (opportunities ?? []) as Array<{
+  const raw = (opportunities ?? []) as unknown as Array<{
     id: string
     name: string
     stage: string

@@ -206,7 +206,7 @@ export async function createFinanceExportConfig(
 
   const { data, error } = await supabase
     .from("finance_export_config")
-    .upsert(dbData, { onConflict: "entity_id" })
+    .upsert(dbData as never, { onConflict: "entity_id" })
     .select("*, entities(name)")
     .single()
 
@@ -237,7 +237,7 @@ export async function updateFinanceExportConfig(
 
   const { error } = await supabase
     .from("finance_export_config")
-    .update(dbData)
+    .update(dbData as never)
     .eq("id", id)
 
   if (error) {
@@ -308,7 +308,7 @@ export async function createImportJob(
 
   const { data, error } = await supabase
     .from("import_jobs")
-    .insert(dbData)
+    .insert(dbData as never)
     .select("*, entities(name)")
     .single()
 

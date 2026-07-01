@@ -213,7 +213,7 @@ export async function reorderFieldDefinitions(
       parsed.items.map((item) => ({
         id: item.id,
         display_order: item.displayOrder,
-      })),
+      })) as never,
     )
 
   if (error) {

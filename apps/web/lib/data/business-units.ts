@@ -162,7 +162,7 @@ export async function createBusinessUnit(
 
   const { data, error } = await supabase
     .from("business_units")
-    .insert(dbData)
+    .insert(dbData as never)
     .select("*")
     .single()
 
@@ -191,7 +191,7 @@ export async function updateBusinessUnit(
 
   const { error } = await supabase
     .from("business_units")
-    .update(dbData)
+    .update(dbData as never)
     .eq("id", id)
 
   if (error) {

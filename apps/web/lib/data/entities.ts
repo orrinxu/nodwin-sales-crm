@@ -141,7 +141,7 @@ export async function createEntity(
 
   const { data, error } = await supabase
     .from("entities")
-    .insert(dbData)
+    .insert(dbData as never)
     .select("*")
     .single()
 
@@ -170,7 +170,7 @@ export async function updateEntity(
 
   const { error } = await supabase
     .from("entities")
-    .update(dbData)
+    .update(dbData as never)
     .eq("id", id)
 
   if (error) {
