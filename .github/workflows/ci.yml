@@ -103,7 +103,10 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned (not `latest`) so setup-cli makes no unauthenticated GitHub
+          # API call to resolve the newest release, which was hitting the
+          # 60-req/hr anonymous rate limit under heavy CI activity.
+          version: 2.105.0
 
       - name: Start Supabase local stack
         run: |
@@ -113,7 +116,8 @@ jobs:
             echo "::error::RLS warnings detected in Supabase startup output"
             exit 1
           fi
-        timeout-minutes: 8
+        # 15 min headroom for slow Docker image pulls (was 8, which timed out).
+        timeout-minutes: 15
 
       - name: Supabase schema lint
         run: supabase db lint --local --level error --fail-on error
