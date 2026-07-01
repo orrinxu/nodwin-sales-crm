@@ -2376,6 +2376,7 @@ export type Database = {
           total_prompt_tokens: number
         }[]
       }
+      is_email_domain_allowed: { Args: { _email: string }; Returns: boolean }
       money_add: {
         Args: {
           a_amount: number

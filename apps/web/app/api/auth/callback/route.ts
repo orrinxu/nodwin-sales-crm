@@ -3,8 +3,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 import { env } from "@/lib/security/env"
 
-const ALLOWED_DOMAINS = ["nodwin.com", "trinitygaming.in", "maxlevel.gg"]
-
 function isSafeRedirect(path: string, origin: string): boolean {
   if (!path.startsWith("/") || path.startsWith("//")) {
     return false
@@ -15,15 +13,6 @@ function isSafeRedirect(path: string, origin: string): boolean {
   } catch {
     return false
   }
-}
-
-function isAllowedDomain(email: string | undefined): boolean {
-  if (!email) return false
-  const atIndex = email.lastIndexOf("@")
-  if (atIndex <= 0 || atIndex >= email.length - 1) return false
-  if (email.indexOf("@") !== atIndex) return false
-  const domain = email.slice(atIndex + 1)
-  return ALLOWED_DOMAINS.includes(domain.toLowerCase())
 }
 
 function createSupabaseClient(request: NextRequest, response: NextResponse) {
@@ -72,7 +61,17 @@ export async function GET(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!isAllowedDomain(user?.email)) {
+  // Consult the same allow-list the sign-up Edge hook uses (auth_allowed_domains),
+  // via a SECURITY DEFINER RPC — no hard-coded list that could drift from the DB.
+  let domainAllowed = false
+  if (user?.email) {
+    const { data: allowed } = await supabase.rpc("is_email_domain_allowed", {
+      _email: user.email,
+    })
+    domainAllowed = allowed === true
+  }
+
+  if (!domainAllowed) {
     await supabase.auth.signOut()
     return NextResponse.redirect(
       new URL("/login?error=disallowed_domain", origin),

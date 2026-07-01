@@ -5,6 +5,7 @@ vi.mock("server-only", () => ({}))
 const mockExchangeCodeForSession = vi.fn()
 const mockGetUser = vi.fn()
 const mockSignOut = vi.fn()
+const mockRpc = vi.fn()
 
 const mockClient = {
   auth: {
@@ -12,6 +13,18 @@ const mockClient = {
     getUser: mockGetUser,
     signOut: mockSignOut,
   },
+  rpc: mockRpc,
+}
+
+// The callback now delegates the domain decision to the is_email_domain_allowed
+// RPC. Mirror the allow-list here so these integration tests exercise the
+// callback's allow/reject/redirect behaviour; the RPC's own logic (case, multi-@,
+// malformed) is tested authoritatively in supabase/tests/auth_domain_check.test.sql.
+const ALLOWED = ["nodwin.com", "trinitygaming.in", "maxlevel.gg"]
+function domainAllowedMock(_fn: string, args?: { _email?: string }) {
+  const m = /^[^@]+@([^@]+)$/.exec(args?._email ?? "")
+  const domain = m?.[1]?.toLowerCase()
+  return Promise.resolve({ data: domain ? ALLOWED.includes(domain) : false, error: null })
 }
 
 vi.mock("@supabase/ssr", () => ({
@@ -31,6 +44,8 @@ beforeEach(() => {
   mockExchangeCodeForSession.mockReset()
   mockGetUser.mockReset()
   mockSignOut.mockReset()
+  mockRpc.mockReset()
+  mockRpc.mockImplementation(domainAllowedMock)
 })
 
 describe("GET /api/auth/callback", () => {
