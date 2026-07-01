@@ -165,6 +165,7 @@ export function renderEmailTemplate(
 
   const renderedText = bodyText.replaceAll(
     /{{([\w-]+)}}/g,
+    // eslint-disable-next-line security/detect-object-injection -- varName extracted from template pattern, not user input
     (match, varName) => variables[varName] ?? match,
   )
 
