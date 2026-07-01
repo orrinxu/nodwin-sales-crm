@@ -32,6 +32,7 @@ vi.mock("@/lib/money", () => ({
         new Intl.NumberFormat("en-US", {
           style: "currency",
           currency: "USD",
+        // eslint-disable-next-line custom/no-unsafe-numeric-coercion -- test mock, not production money code
         }).format(Number(amount)),
     }),
   },
