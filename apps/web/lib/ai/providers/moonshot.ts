@@ -1,6 +1,8 @@
 import type { ProviderAdapter } from "../types"
 
-export function createMoonshotAdapter(model = "moonshot-v1-8k"): ProviderAdapter {
+export function createMoonshotAdapter(
+  model = process.env.MOONSHOT_MODEL ?? "moonshot-v1-8k",
+): ProviderAdapter {
   const apiKey = process.env.MOONSHOT_API_KEY
 
   return {

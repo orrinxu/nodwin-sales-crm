@@ -1,6 +1,8 @@
 import type { ProviderAdapter } from "../types"
 
-export function createDeepseekAdapter(model = "deepseek-chat"): ProviderAdapter {
+export function createDeepseekAdapter(
+  model = process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
+): ProviderAdapter {
   const apiKey = process.env.DEEPSEEK_API_KEY
 
   return {

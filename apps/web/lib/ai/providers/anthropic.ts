@@ -1,6 +1,8 @@
 import type { ProviderAdapter } from "../types"
 
-export function createAnthropicAdapter(model = "claude-3-5-sonnet-20241022"): ProviderAdapter {
+export function createAnthropicAdapter(
+  model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
+): ProviderAdapter {
   const apiKey = process.env.ANTHROPIC_API_KEY
 
   return {

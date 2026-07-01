@@ -1,6 +1,8 @@
 import type { ProviderAdapter } from "../types"
 
-export function createOllamaAdapter(model = "llama3.2"): ProviderAdapter {
+export function createOllamaAdapter(
+  model = process.env.OLLAMA_MODEL ?? "llama3.2",
+): ProviderAdapter {
   const baseUrl = process.env.OLLAMA_BASE_URL
 
   return {

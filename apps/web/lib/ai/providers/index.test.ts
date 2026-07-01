@@ -5,6 +5,7 @@ import { createGeminiAdapter } from "./gemini"
 import { createDeepseekAdapter } from "./deepseek"
 import { createMoonshotAdapter } from "./moonshot"
 import { createOllamaAdapter } from "./ollama"
+import { createOpenAICompatibleAdapter } from "./openai-compatible"
 
 describe("createAdaptersFromEnv", () => {
   const originalEnv = { ...process.env }
@@ -15,6 +16,7 @@ describe("createAdaptersFromEnv", () => {
     delete process.env.DEEPSEEK_API_KEY
     delete process.env.MOONSHOT_API_KEY
     delete process.env.OLLAMA_BASE_URL
+    delete process.env.OPENAI_COMPATIBLE_BASE_URL
   }
 
   beforeEach(() => {
@@ -37,6 +39,7 @@ describe("createAdaptersFromEnv", () => {
     expect(adapters.has("deepseek")).toBe(false)
     expect(adapters.has("kimi")).toBe(false)
     expect(adapters.has("ollama_local")).toBe(false)
+    expect(adapters.has("openai_compatible")).toBe(false)
   })
 
   it("returns empty map when no providers are configured", () => {
@@ -51,6 +54,7 @@ describe("createAdaptersFromEnv", () => {
     process.env.DEEPSEEK_API_KEY = "test-key"
     process.env.MOONSHOT_API_KEY = "test-key"
     process.env.OLLAMA_BASE_URL = "http://localhost:11434"
+    process.env.OPENAI_COMPATIBLE_BASE_URL = "http://localhost:1234/v1"
 
     const adapters = createAdaptersFromEnv()
 
@@ -59,6 +63,7 @@ describe("createAdaptersFromEnv", () => {
     expect(adapters.has("deepseek")).toBe(true)
     expect(adapters.has("kimi")).toBe(true)
     expect(adapters.has("ollama_local")).toBe(true)
+    expect(adapters.has("openai_compatible")).toBe(true)
   })
 })
 
@@ -91,5 +96,11 @@ describe("provider adapters throw when env is missing", () => {
     delete process.env.OLLAMA_BASE_URL
     const adapter = createOllamaAdapter()
     await expect(adapter.call("hello")).rejects.toThrow("OLLAMA_BASE_URL is not configured")
+  })
+
+  it("openai-compatible throws without OPENAI_COMPATIBLE_BASE_URL", async () => {
+    delete process.env.OPENAI_COMPATIBLE_BASE_URL
+    const adapter = createOpenAICompatibleAdapter()
+    await expect(adapter.call("hello")).rejects.toThrow("OPENAI_COMPATIBLE_BASE_URL is not configured")
   })
 })

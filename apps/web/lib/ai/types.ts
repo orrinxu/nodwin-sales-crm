@@ -1,6 +1,6 @@
 import { Money } from "../money"
 
-export type AiProvider = "claude" | "gemini" | "kimi" | "deepseek" | "ollama_local"
+export type AiProvider = "claude" | "gemini" | "kimi" | "deepseek" | "ollama_local" | "openai_compatible"
 
 export type AiFeature =
   | "search"
