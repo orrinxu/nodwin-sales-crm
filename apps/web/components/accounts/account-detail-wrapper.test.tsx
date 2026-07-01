@@ -29,11 +29,10 @@ vi.mock("@/lib/money", () => ({
   Money: {
     fromAmount: (amount: string) => ({
       toDisplay: () =>
-        // eslint-disable-next-line custom/no-unsafe-numeric-coercion -- test mock, not production money code
         new Intl.NumberFormat("en-US", {
           style: "currency",
           currency: "USD",
-        }).format(Number(amount)),
+        }).format(Number(amount)), // eslint-disable-line custom/no-unsafe-numeric-coercion -- test mock, not production money code
     }),
   },
 }))
