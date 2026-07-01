@@ -1,16 +1,17 @@
 # CI Pipeline - Nodwin Sales CRM
-# Runs on every PR: install, lint, typecheck, vitest, RLS tests, build
 #
-# Tool installation: any new tool used in this workflow MUST be installed via a
-# setup action or apt-get earlier in the same job. Do not assume tools are
-# pre-installed.
+# Runs the checks as INDEPENDENT PARALLEL JOBS so a failure in one (e.g. a unit
+# test) does not hide failures in the others (typecheck, build, RLS tests). Every
+# job's result is visible at once in the Checks tab.
 #
-# Performance notes:
-# - pnpm dependency cache between runs
-# - Node 20+ (Next.js 15 requirement)
-# - Supabase start adds ~3 min; total budget is 20 min
+# The "CI Pipeline" job at the end is a lightweight aggregator that depends on all
+# the others and fails if any of them failed. It is the REQUIRED status check in
+# the branch ruleset — keep that job named exactly "CI Pipeline" so the required
+# check keeps resolving. The individual jobs are not required directly.
 #
-# Branch protection: PRs to main require all checks to pass.
+# Notes:
+# - pnpm dependency cache between runs; Node 20+ (Next.js 15).
+# - Supabase start adds ~3-5 min and runs in parallel with the node jobs.
 
 name: CI
 
@@ -28,11 +29,10 @@ env:
   NODE_OPTIONS: --max-old-space-size=4096
 
 jobs:
-  ci:
-    name: CI Pipeline
+  static-checks:
+    name: Static checks
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
+    timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -62,43 +62,102 @@ jobs:
         run: bash scripts/check-rls-coverage.sh
         timeout-minutes: 1
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
           run_install: false
-
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'pnpm'
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
         timeout-minutes: 5
-
-      - name: Cache pnpm dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.pnpm-store
-            node_modules
-            apps/*/node_modules
-          key: ${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-
-
       - name: Lint
         run: pnpm lint
         timeout-minutes: 5
 
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        timeout-minutes: 5
       - name: Typecheck
         run: pnpm typecheck
         timeout-minutes: 10
 
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        timeout-minutes: 5
       - name: Run unit tests
         run: pnpm test
         timeout-minutes: 10
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        timeout-minutes: 5
+      - name: Build
+        run: pnpm build
+        timeout-minutes: 10
+
+  db-tests:
+    name: Database tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        timeout-minutes: 5
 
       - name: Normalize Supabase config for CI
         # config.toml hardcodes LAN/Tailscale IPs from the local-preview setup;
@@ -110,8 +169,7 @@ jobs:
         uses: supabase/setup-cli@v1
         with:
           # Pinned (not `latest`) so setup-cli makes no unauthenticated GitHub
-          # API call to resolve the newest release, which was hitting the
-          # 60-req/hr anonymous rate limit under heavy CI activity.
+          # API call to resolve the newest release (was hitting the anon rate limit).
           version: 2.105.0
 
       - name: Start Supabase local stack
@@ -133,6 +191,23 @@ jobs:
         run: pnpm db:test
         timeout-minutes: 5
 
-      - name: Build
-        run: pnpm build
-        timeout-minutes: 10
+  # Aggregator — REQUIRED status check. Named "CI Pipeline" to match the branch
+  # ruleset. Passes only when every job above succeeded; fails otherwise. Keeping
+  # this name means splitting the jobs does not break the required-check config.
+  ci-pipeline:
+    name: CI Pipeline
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [static-checks, lint, typecheck, unit-tests, build, db-tests]
+    steps:
+      - name: Verify all CI jobs passed
+        run: |
+          results='${{ join(needs.*.result, ',') }}'
+          echo "Job results: $results"
+          case "$results" in
+            *failure*|*cancelled*)
+              echo "::error::One or more CI jobs failed or were cancelled ($results)"
+              exit 1 ;;
+            *)
+              echo "All CI jobs passed." ;;
+          esac
