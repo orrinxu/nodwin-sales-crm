@@ -4,9 +4,11 @@ import { useCallback, useMemo, useState } from "react"
 import {
   flexRender,
   getCoreRowModel,
+  getSortedRowModel,
   useReactTable,
   type ColumnDef,
   type RowSelectionState,
+  type SortingState,
 } from "@tanstack/react-table"
 import { useRouter } from "next/navigation"
 
@@ -19,6 +21,7 @@ import { getStageLabel, type OpportunityRecord } from "@/lib/data/opportunities.
 import { Money } from "@/lib/money"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import {
   Table,
   TableBody,
@@ -42,7 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Trash2Icon, ArrowUpDownIcon } from "lucide-react"
+import { Trash2Icon, ArrowUpDownIcon, SearchIcon, XIcon } from "lucide-react"
 
 interface OpportunityListTableProps {
   opportunities: OpportunityRecord[]
@@ -54,6 +57,7 @@ interface OpportunityListTableProps {
 }
 
 const ALL_STAGES = [...NON_TERMINAL_STAGES, ...TERMINAL_STAGES]
+const UNASSIGNED = "__unassigned__"
 
 function formatCurrency(amount: string, currency: string): string {
   try {
@@ -76,6 +80,39 @@ function formatDate(dateStr: string | null): string {
   }
 }
 
+// Raw minor-unit value for sorting; never throws. Cross-currency comparison is a
+// rough total order (fine for a list sort — the dashboards do FX conversion).
+function centsOf(opp: OpportunityRecord): number {
+  try {
+    return Money.fromAmount(opp.amount, opp.currency).cents
+  } catch {
+    return 0
+  }
+}
+
+function SortHeader({
+  label,
+  onClick,
+  align = "left",
+}: {
+  label: string
+  onClick: () => void
+  align?: "left" | "right"
+}) {
+  return (
+    <div className={align === "right" ? "text-right" : undefined}>
+      <Button
+        variant="ghost"
+        className={align === "right" ? "-mr-3 h-8" : "-ml-3 h-8"}
+        onClick={onClick}
+      >
+        {label}
+        <ArrowUpDownIcon className="ml-2 size-4" />
+      </Button>
+    </div>
+  )
+}
+
 export function OpportunityListTable({
   opportunities,
   bulkDeleteAction,
@@ -83,18 +120,61 @@ export function OpportunityListTable({
 }: OpportunityListTableProps) {
   const router = useRouter()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [searchQuery, setSearchQuery] = useState("")
+  const [stageFilter, setStageFilter] = useState<string>("all")
+  const [ownerFilter, setOwnerFilter] = useState<string>("all")
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showStageDialog, setShowStageDialog] = useState(false)
   const [targetStage, setTargetStage] = useState<DealStage>("qualify")
   const [isPending, setIsPending] = useState(false)
 
+  const ownerOptions = useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const o of opportunities) {
+      const id = o.ownerUserId ?? UNASSIGNED
+      if (!seen.has(id)) seen.set(id, o.ownerName ?? "Unassigned")
+    }
+    return Array.from(seen, ([id, name]) => ({ id, name })).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    )
+  }, [opportunities])
+
+  const filteredOpportunities = useMemo(() => {
+    let result = opportunities
+    const q = searchQuery.trim().toLowerCase()
+    if (q) {
+      result = result.filter(
+        (o) =>
+          o.name.toLowerCase().includes(q) ||
+          (o.accountName?.toLowerCase().includes(q) ?? false),
+      )
+    }
+    if (stageFilter !== "all") {
+      result = result.filter((o) => o.stage === stageFilter)
+    }
+    if (ownerFilter !== "all") {
+      result = result.filter((o) => (o.ownerUserId ?? UNASSIGNED) === ownerFilter)
+    }
+    return result
+  }, [opportunities, searchQuery, stageFilter, ownerFilter])
+
+  const hasActiveFilters =
+    searchQuery.trim() !== "" || stageFilter !== "all" || ownerFilter !== "all"
+
+  const clearFilters = useCallback(() => {
+    setSearchQuery("")
+    setStageFilter("all")
+    setOwnerFilter("all")
+  }, [])
+
+  // getRowId keys the selection by opportunity id, so it survives filtering/sorting.
   const selectedIds = useMemo(
     () =>
       Object.entries(rowSelection)
-        .filter(([, isSelected]) => isSelected)
-        .map(([key]) => opportunities.at(Number(key))?.id)
-        .filter((id): id is string => !!id),
-    [rowSelection, opportunities],
+        .filter(([, selected]) => selected)
+        .map(([id]) => id),
+    [rowSelection],
   )
 
   const columns: ColumnDef<OpportunityRecord>[] = useMemo(
@@ -124,25 +204,49 @@ export function OpportunityListTable({
       },
       {
         accessorKey: "name",
-        header: "Name",
+        header: ({ column }) => (
+          <SortHeader
+            label="Name"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          />
+        ),
         cell: ({ row }) => (
-          <span className="font-medium">{row.getValue("name")}</span>
+          <button
+            className="text-left font-medium hover:underline"
+            onClick={() => router.push(`/opportunities/${row.original.id}`)}
+          >
+            {row.getValue("name")}
+          </button>
         ),
       },
       {
         accessorKey: "accountName",
-        header: "Account",
+        header: ({ column }) => (
+          <SortHeader
+            label="Account"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          />
+        ),
         cell: ({ row }) => row.getValue("accountName") ?? "—",
       },
       {
         accessorKey: "stage",
-        header: "Stage",
+        header: ({ column }) => (
+          <SortHeader
+            label="Stage"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          />
+        ),
         cell: ({ row }) => getStageLabel(row.getValue("stage")),
       },
       {
         accessorKey: "amount",
-        header: () => (
-          <div className="text-right">Amount</div>
+        header: ({ column }) => (
+          <SortHeader
+            label="Amount"
+            align="right"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          />
         ),
         cell: ({ row }) => {
           const amount = row.getValue<string>("amount")
@@ -153,30 +257,48 @@ export function OpportunityListTable({
             </div>
           )
         },
+        sortingFn: (rowA, rowB) => {
+          const a = centsOf(rowA.original)
+          const b = centsOf(rowB.original)
+          return a < b ? -1 : a > b ? 1 : 0
+        },
       },
       {
         accessorKey: "ownerName",
-        header: "Owner",
+        header: ({ column }) => (
+          <SortHeader
+            label="Owner"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          />
+        ),
         cell: ({ row }) => row.getValue("ownerName") ?? "—",
       },
       {
         accessorKey: "closeDate",
-        header: "Close Date",
+        header: ({ column }) => (
+          <SortHeader
+            label="Close Date"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          />
+        ),
         cell: ({ row }) => formatDate(row.getValue("closeDate")),
       },
     ],
-    [],
+    [router],
   )
 
   // TanStack Table is a compatible library; this is a known false positive.
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
-    data: opportunities,
+    data: filteredOpportunities,
     columns,
-    state: { rowSelection },
+    state: { rowSelection, sorting },
     enableRowSelection: true,
+    getRowId: (row) => row.id,
     onRowSelectionChange: setRowSelection,
+    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
   })
 
   const handleBulkDelete = useCallback(async () => {
@@ -211,6 +333,50 @@ export function OpportunityListTable({
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 sm:max-w-xs">
+          <SearchIcon className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search opportunities..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-8"
+          />
+        </div>
+        <Select value={stageFilter} onValueChange={(v) => setStageFilter(v ?? "all")}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="All stages" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All stages</SelectItem>
+            {ALL_STAGES.map((stage) => (
+              <SelectItem key={stage} value={stage}>
+                {getStageLabel(stage)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v ?? "all")}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="All owners" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All owners</SelectItem>
+            {ownerOptions.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {o.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            <XIcon />
+            Clear
+          </Button>
+        )}
+      </div>
+
       {selectedIds.length > 0 && (
         <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2">
           <span className="text-sm text-muted-foreground">
@@ -281,7 +447,9 @@ export function OpportunityListTable({
                   colSpan={columns.length}
                   className="h-24 text-center text-muted-foreground"
                 >
-                  No opportunities yet. Create one to get started.
+                  {hasActiveFilters
+                    ? "No opportunities match your filters."
+                    : "No opportunities yet. Create one to get started."}
                 </TableCell>
               </TableRow>
             )}

@@ -117,7 +117,7 @@ const mockOpportunities: OpportunityRecord[] = [
 vi.mock("server-only", () => ({}))
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
 }))
 
 import { OpportunityListTable } from "./opportunity-list-table"
@@ -254,4 +254,75 @@ describe("OpportunityListTable", () => {
 
     expect(screen.getByText("3 selected")).toBeTruthy()
   })
+
+  it("filters the list by search query", async () => {
+    const user = userEvent.setup()
+    render(
+      <OpportunityListTable
+        opportunities={mockOpportunities}
+        bulkDeleteAction={bulkDeleteAction}
+        bulkUpdateStageAction={bulkUpdateStageAction}
+      />,
+    )
+
+    await user.type(screen.getByPlaceholderText("Search opportunities..."), "Big")
+
+    expect(screen.getByText("Big Deal")).toBeTruthy()
+    expect(screen.queryByText("Small Deal")).toBeNull()
+    expect(screen.queryByText("Lost Deal")).toBeNull()
+  })
+
+  it("matches search against the account name too", async () => {
+    const user = userEvent.setup()
+    render(
+      <OpportunityListTable
+        opportunities={mockOpportunities}
+        bulkDeleteAction={bulkDeleteAction}
+        bulkUpdateStageAction={bulkUpdateStageAction}
+      />,
+    )
+
+    await user.type(screen.getByPlaceholderText("Search opportunities..."), "Gamma")
+
+    expect(screen.getByText("Lost Deal")).toBeTruthy()
+    expect(screen.queryByText("Big Deal")).toBeNull()
+  })
+
+  it("shows the no-match empty state and clears filters", async () => {
+    const user = userEvent.setup()
+    render(
+      <OpportunityListTable
+        opportunities={mockOpportunities}
+        bulkDeleteAction={bulkDeleteAction}
+        bulkUpdateStageAction={bulkUpdateStageAction}
+      />,
+    )
+
+    await user.type(screen.getByPlaceholderText("Search opportunities..."), "zzzz")
+    expect(screen.getByText("No opportunities match your filters.")).toBeTruthy()
+
+    await user.click(screen.getByRole("button", { name: /clear/i }))
+    expect(screen.getByText("Big Deal")).toBeTruthy()
+    expect(screen.getByText("Small Deal")).toBeTruthy()
+  })
+
+  it("sorts by amount ascending when the Amount header is clicked", async () => {
+    const user = userEvent.setup()
+    render(
+      <OpportunityListTable
+        opportunities={mockOpportunities}
+        bulkDeleteAction={bulkDeleteAction}
+        bulkUpdateStageAction={bulkUpdateStageAction}
+      />,
+    )
+
+    await user.click(screen.getByRole("button", { name: /amount/i }))
+
+    const rowText = screen.getAllByRole("row").map((r) => r.textContent ?? "")
+    const idx = (name: string) => rowText.findIndex((t) => t.includes(name))
+    // ascending by amount: Small ($5k) < Big ($50k) < Lost (EUR 100k)
+    expect(idx("Small Deal")).toBeLessThan(idx("Big Deal"))
+    expect(idx("Big Deal")).toBeLessThan(idx("Lost Deal"))
+  })
+
 })
