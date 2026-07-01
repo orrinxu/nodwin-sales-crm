@@ -28,13 +28,12 @@ vi.mock("@/lib/data/opportunities.types", () => ({
 vi.mock("@/lib/money", () => ({
   Money: {
     fromAmount: (amount: string) => ({
-      toDisplay: () => {
+      toDisplay: () =>
         // eslint-disable-next-line custom/no-unsafe-numeric-coercion -- test mock, not production money code
-        return new Intl.NumberFormat("en-US", {
+        new Intl.NumberFormat("en-US", {
           style: "currency",
           currency: "USD",
-        }).format(Number(amount))
-      },
+        }).format(Number(amount)),
     }),
   },
 }))
