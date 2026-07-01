@@ -72,11 +72,13 @@ export function EntityCombobox({
   const [searchResults, setSearchResults] = useState<EntityOption[] | null>(null)
   const [isSearching, setIsSearching] = useState(false)
   const inputValueRef = useRef(inputValue)
+  // eslint-disable-next-line react-hooks/refs -- keep latest inputValue accessible from callbacks without re-registering them
   inputValueRef.current = inputValue
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!searchAction) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset search results when searchAction becomes unavailable
       setSearchResults(null)
       return
     }

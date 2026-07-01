@@ -132,6 +132,7 @@ const stageLabels: Record<DealStage, string> = {
 }
 
 export function getStageLabel(stage: DealStage): string {
+  // eslint-disable-next-line security/detect-object-injection -- stage is typed DealStage
   return stageLabels[stage]
 }
 
