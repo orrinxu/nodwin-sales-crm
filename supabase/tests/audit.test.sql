@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(30);
+SELECT plan(31);
 
 -- ── Setup: temporary test table ──────────────────────────────────────────────
 DROP TABLE IF EXISTS test_audit_target CASCADE;
@@ -32,9 +32,9 @@ SELECT has_policy('public', 'audit_log', 'audit_log_delete_admin', 'DELETE polic
 -- ── Schema hardening ─────────────────────────────────────────────────────────
 SELECT col_not_null('public', 'audit_log', 'actor_source', 'actor_source is NOT NULL');
 SELECT col_has_default('public', 'audit_log', 'actor_source', 'actor_source has default');
-SELECT results_eq(
-  $$SELECT column_default FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_log' AND column_name = 'actor_source'$$,
-  $$VALUES ('system'::text)$$,
+SELECT is(
+  (SELECT column_default::text FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_log' AND column_name = 'actor_source'),
+  '''system''::text',
   'actor_source defaults to system'
 );
 
@@ -75,7 +75,9 @@ SELECT is(
 -- ── actor_source derived as 'user' when authenticated ─────────────────────────
 DELETE FROM public.audit_log WHERE table_name = 'test_audit_target';
 
-PERFORM set_config(
+-- Top-level script context is plain SQL, not PL/pgSQL, so use SELECT (not
+-- PERFORM) to call set_config. The enclosing BEGIN keeps is_local=true scoped.
+SELECT set_config(
   'request.jwt.claims',
   json_build_object('sub', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'role', 'authenticated')::text,
   true
@@ -92,7 +94,7 @@ SELECT results_eq(
 -- ── actor_source derived as 'system' when anonymous ───────────────────────────
 DELETE FROM public.audit_log WHERE table_name = 'test_audit_target';
 
-PERFORM set_config('request.jwt.claims', '', true);
+SELECT set_config('request.jwt.claims', '', true);
 
 INSERT INTO test_audit_target (name, value) VALUES ('gamma', 20);
 
@@ -105,12 +107,12 @@ SELECT results_eq(
 -- ── actor_source cannot be spoofed via HTTP header ────────────────────────────
 DELETE FROM public.audit_log WHERE table_name = 'test_audit_target';
 
-PERFORM set_config(
+SELECT set_config(
   'request.jwt.claims',
   json_build_object('sub', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'role', 'authenticated')::text,
   true
 );
-PERFORM set_config(
+SELECT set_config(
   'request.headers',
   '[{"header":"x-audit-source","value":"mcp"}]'::text,
   true
@@ -130,6 +132,13 @@ VALUES
   ('66666666-6666-6666-6666-666666666666', 'audit_rep@nodwin.com', '{"full_name":"Audit Rep"}'),
   ('77777777-7777-7777-7777-777777777777', 'audit_admin@nodwin.com', '{"full_name":"Audit Admin"}')
 ON CONFLICT (id) DO NOTHING;
+
+-- Clear the JWT claims set by the previous (header-spoofing) test so that
+-- auth.uid() is NULL here. The on_auth_user_created trigger already created
+-- default-role public.users rows for the inserts above, so this upsert changes
+-- audit_admin to 'admin'; the prevent_role_escalation trigger only permits that
+-- role change from a system context (auth.uid() IS NULL) or as an admin.
+SELECT set_config('request.jwt.claims', '', true);
 
 INSERT INTO public.users (id, email, full_name, primary_role, primary_entity_id)
 VALUES
@@ -181,6 +190,9 @@ SELECT has_index('public', 'audit_log', 'idx_audit_log_occurred_at', 'index on o
 -- SELECT has_function('audit', 'attach_trigger', 'audit.attach_trigger function exists');
 
 -- ── Cleanup ──────────────────────────────────────────────────────────────────
+-- Restore the owning role; the last assertions ran as `authenticated`, which
+-- may not drop a table created by postgres.
+RESET ROLE;
 DROP TABLE test_audit_target CASCADE;
 
 SELECT * FROM finish();

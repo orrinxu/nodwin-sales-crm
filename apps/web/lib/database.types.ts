@@ -454,34 +454,40 @@ export type Database = {
           approver_role: Database["public"]["Enums"]["user_role"] | null
           approver_user_id: string | null
           created_at: string
+          created_by: string | null
           due_by: string | null
           id: string
           instance_id: string
           status: Database["public"]["Enums"]["approval_step_status"]
           step_order: number
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           approver_role?: Database["public"]["Enums"]["user_role"] | null
           approver_user_id?: string | null
           created_at?: string
+          created_by?: string | null
           due_by?: string | null
           id?: string
           instance_id: string
           status?: Database["public"]["Enums"]["approval_step_status"]
           step_order: number
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           approver_role?: Database["public"]["Enums"]["user_role"] | null
           approver_user_id?: string | null
           created_at?: string
+          created_by?: string | null
           due_by?: string | null
           id?: string
           instance_id?: string
           status?: Database["public"]["Enums"]["approval_step_status"]
           step_order?: number
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -593,7 +599,7 @@ export type Database = {
           occurred_at: string
           old_data: Json | null
           operation: string
-          row_id: string
+          row_id: string | null
           table_name: string
         }
         Insert: {
@@ -607,7 +613,7 @@ export type Database = {
           occurred_at?: string
           old_data?: Json | null
           operation: string
-          row_id: string
+          row_id?: string | null
           table_name: string
         }
         Update: {
@@ -621,7 +627,7 @@ export type Database = {
           occurred_at?: string
           old_data?: Json | null
           operation?: string
-          row_id?: string
+          row_id?: string | null
           table_name?: string
         }
         Relationships: []
@@ -2401,6 +2407,14 @@ export type Database = {
       recompute_visibility_for_user: {
         Args: { _user_id: string }
         Returns: undefined
+      }
+      user_is_step_approver_for_instance: {
+        Args: { _instance_id: string; _user_id: string }
+        Returns: boolean
+      }
+      user_triggered_instance_of_step: {
+        Args: { _instance_id: string; _user_id: string }
+        Returns: boolean
       }
       validate_custom_data: {
         Args: { _entity_type: string; custom_data: Json }

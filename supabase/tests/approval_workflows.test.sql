@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(49);
+SELECT plan(50);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -15,7 +15,8 @@ VALUES
   ('77777777-7777-7777-7777-777777777777', 'admin@nodwin.com', '{"full_name":"Admin User"}'),
   ('88888888-8888-8888-8888-888888888888', 'rep@nodwin.com',   '{"full_name":"Sales Rep"}'),
   ('99999999-9999-9999-9999-999999999999', 'mgr@nodwin.com',   '{"full_name":"Manager"}'),
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab', 'other@nodwin.com',  '{"full_name":"Other Rep"}')
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab', 'other@nodwin.com',  '{"full_name":"Other Rep"}'),
+  ('a2a2a2a2-a2a2-a2a2-a2a2-a2a2a2a2a2a2', 'approver2@nodwin.com', '{"full_name":"Second Approver"}')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.users (id, email, full_name, primary_role, primary_entity_id)
@@ -23,7 +24,8 @@ VALUES
   ('77777777-7777-7777-7777-777777777777', 'admin@nodwin.com', 'Admin User', 'admin',       '0a0a0a0a-0a0a-0a0a-0a0a-0a0a0a0a0a0a'),
   ('88888888-8888-8888-8888-888888888888', 'rep@nodwin.com',   'Sales Rep',  'sales_rep',   '0a0a0a0a-0a0a-0a0a-0a0a-0a0a0a0a0a0a'),
   ('99999999-9999-9999-9999-999999999999', 'mgr@nodwin.com',   'Manager',    'sales_manager','0a0a0a0a-0a0a-0a0a-0a0a-0a0a0a0a0a0a'),
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab', 'other@nodwin.com', 'Other Rep',  'sales_rep',   '1b1b1b1b-1b1b-1b1b-1b1b-1b1b1b1b1b1b')
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab', 'other@nodwin.com', 'Other Rep',  'sales_rep',   '1b1b1b1b-1b1b-1b1b-1b1b-1b1b1b1b1b1b'),
+  ('a2a2a2a2-a2a2-a2a2-a2a2-a2a2a2a2a2a2', 'approver2@nodwin.com', 'Second Approver', 'sales_rep', '0a0a0a0a-0a0a-0a0a-0a0a-0a0a0a0a0a0a')
 ON CONFLICT (id) DO UPDATE SET
   full_name         = EXCLUDED.full_name,
   primary_role      = EXCLUDED.primary_role,
@@ -48,7 +50,7 @@ VALUES
 INSERT INTO public.approval_steps (id, instance_id, step_order, approver_user_id, status)
 VALUES
   ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 1, '99999999-9999-9999-9999-999999999999', 'pending'),
-  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 2, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab', 'pending');
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 2, 'a2a2a2a2-a2a2-a2a2-a2a2-a2a2a2a2a2a2', 'pending');
 
 -- Step for instance bbbbbbbb: step 1 → mgr
 INSERT INTO public.approval_steps (id, instance_id, step_order, approver_user_id, status)
@@ -104,9 +106,13 @@ SELECT lives_ok(
 );
 
 -- 5. Non-admin cannot update approval_workflows
+-- The rep cannot read approval_workflows (test 1), so the UPDATE matches zero
+-- rows. Verify the row is unchanged as admin, who can read it.
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 UPDATE public.approval_workflows SET name = 'Hacked' WHERE id = '11111111-1111-1111-1111-111111111111';
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
 SELECT is(
   (SELECT name FROM public.approval_workflows WHERE id = '11111111-1111-1111-1111-111111111111'),
   'Deal Approval',
@@ -124,9 +130,13 @@ SELECT is(
 );
 
 -- 7. Non-admin cannot delete approval_workflows
+-- The rep cannot read approval_workflows, so the DELETE matches zero rows.
+-- Verify the row still exists as admin, who can read it.
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 DELETE FROM public.approval_workflows WHERE id = '33333333-3333-3333-3333-333333333333';
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
 SELECT isnt_empty(
   $$SELECT id FROM public.approval_workflows WHERE id = '33333333-3333-3333-3333-333333333333'$$,
   'non-admin cannot delete approval_workflows (silently blocked)'
@@ -397,9 +407,14 @@ SELECT is(
 );
 
 -- 37. Non-admin cannot delete decisions
+-- The mgr is not an approver on step eeee nor did they trigger its instance, so
+-- they cannot see decision ...441; the DELETE matches zero rows. Verify the row
+-- survives as admin, who can read it.
 SELECT tests.as_user('mgr@nodwin.com');
 SET LOCAL ROLE authenticated;
 DELETE FROM public.approval_decisions WHERE id = '44444444-4444-4444-4444-444444444441';
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
 SELECT isnt_empty(
   $$SELECT id FROM public.approval_decisions WHERE id = '44444444-4444-4444-4444-444444444441'$$,
   'non-admin cannot delete decisions (silently blocked)'
