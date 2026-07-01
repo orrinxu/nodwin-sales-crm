@@ -168,6 +168,7 @@ export function DualListbox({
           variant="outline"
           size="icon"
           className="size-7"
+          aria-label="Move selected to chosen"
           onClick={moveToChosen}
           disabled={disabled || selectedAvailable.size === 0}
         >
@@ -178,6 +179,7 @@ export function DualListbox({
           variant="outline"
           size="icon"
           className="size-7"
+          aria-label="Move selected to available"
           onClick={moveToAvailable}
           disabled={disabled || selectedChosen.size === 0}
         >

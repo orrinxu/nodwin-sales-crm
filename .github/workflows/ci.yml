@@ -100,10 +100,19 @@ jobs:
         run: pnpm test
         timeout-minutes: 10
 
+      - name: Normalize Supabase config for CI
+        # config.toml hardcodes LAN/Tailscale IPs from the local-preview setup;
+        # cloud runners can't reach them, so supabase start's health check times
+        # out. Rewrite them to localhost for CI only (committed config untouched).
+        run: sed -i 's/192\.168\.88\.51/127.0.0.1/g; s/100\.126\.116\.7/127.0.0.1/g' supabase/config.toml
+
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned (not `latest`) so setup-cli makes no unauthenticated GitHub
+          # API call to resolve the newest release, which was hitting the
+          # 60-req/hr anonymous rate limit under heavy CI activity.
+          version: 2.105.0
 
       - name: Start Supabase local stack
         run: |
@@ -113,7 +122,8 @@ jobs:
             echo "::error::RLS warnings detected in Supabase startup output"
             exit 1
           fi
-        timeout-minutes: 8
+        # 15 min headroom for slow Docker image pulls (was 8, which timed out).
+        timeout-minutes: 15
 
       - name: Supabase schema lint
         run: supabase db lint --local --level error --fail-on error

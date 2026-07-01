@@ -54,8 +54,11 @@ INSERT INTO public.opportunities (
   ('00000000-0000-0000-0000-000000000001', 'Rep Opp',   'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'qualify', '11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 100000, 'USD', 'standard');
 
 -- Seed opportunity_visibility so rep can see their opp.
+-- The opportunity INSERT above already fires the visibility trigger, which
+-- creates the ('owner') row; guard against the duplicate with ON CONFLICT.
 INSERT INTO public.opportunity_visibility (opportunity_id, user_id, reason)
-VALUES ('00000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'owner');
+VALUES ('00000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'owner')
+ON CONFLICT (opportunity_id, user_id, reason) DO NOTHING;
 
 -- Documents.
 INSERT INTO public.documents (id, opportunity_id, account_id, drive_file_id, drive_folder_id, name, mime_type, category, uploaded_by)
@@ -176,20 +179,24 @@ SELECT is_empty(
 -- ── 10a. Other user cannot update rep's document ──────────────────────────────
 SELECT tests.as_user('other@nodwin.com');
 SET LOCAL ROLE authenticated;
+-- The other rep cannot see drive-file-1, so the UPDATE matches zero rows and
+-- RETURNING yields an empty set (not a single NULL row).
 SELECT results_eq(
   $$UPDATE public.documents SET name = 'Hacked.pdf' WHERE drive_file_id = 'drive-file-1' RETURNING id$$,
-  $$SELECT NULL::uuid$$,
+  $$SELECT NULL::uuid WHERE false$$,
   'other rep cannot update rep doc (RLS blocks row)'
 );
 
 -- ── 11. Non-admin cannot delete ───────────────────────────────────────────────
+-- The DELETE policy is admin-only (USING clause), so a non-admin's DELETE is
+-- silently filtered to zero rows rather than raising 42501. Verify the row
+-- survives the attempt: the rep can still see their own document afterwards.
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
-SELECT throws_ok(
-  $$DELETE FROM public.documents WHERE drive_file_id = 'drive-file-1'$$,
-  '42501',
-  NULL,
-  'rep cannot delete own document'
+DELETE FROM public.documents WHERE drive_file_id = 'drive-file-1';
+SELECT isnt_empty(
+  $$SELECT id FROM public.documents WHERE drive_file_id = 'drive-file-1'$$,
+  'rep cannot delete own document (silently blocked)'
 );
 
 -- ── 12. Admin can delete any document ─────────────────────────────────────────

@@ -16,8 +16,22 @@ import {
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
 import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
 import { ActivityComposer } from "@/components/opportunities/activity-composer"
+import { OpportunitySplitsEditor } from "@/components/opportunities/opportunity-splits-editor"
+import { OpportunityTeamEditor } from "@/components/opportunities/opportunity-team-editor"
+import { StageHistoryTimeline } from "@/components/opportunities/stage-history-timeline"
 import type { EntityOption } from "@/components/entity-combobox"
-import type { OpportunityRecord, BusinessUnitOption, ServiceType, PropertyType } from "@/lib/data/opportunities.types"
+import type {
+  OpportunityRecord,
+  BusinessUnitOption,
+  ServiceType,
+  PropertyType,
+  OpportunitySplit,
+  OpportunitySplitInput,
+  OpportunityTeamMember,
+  OpportunityTeamMemberInput,
+  UserOption,
+} from "@/lib/data/opportunities.types"
+import type { StageHistoryRecord } from "@/lib/data/opportunity-stage-history"
 import type { ActivityRecord } from "@/lib/data/activities"
 import { getStageLabel, SERVICE_TYPE_LABELS, PROPERTY_TYPE_LABELS } from "@/lib/data/opportunities.types"
 import { NON_TERMINAL_STAGES, TERMINAL_STAGES } from "@/lib/opportunity"
@@ -44,6 +58,12 @@ interface OpportunityDetailWrapperProps {
   activities: ActivityRecord[]
   createActivityAction: (opportunityId: string, input: unknown) => Promise<ActivityRecord>
   searchUsersAction?: (query: string) => Promise<EntityOption[]>
+  splits?: OpportunitySplit[]
+  teamMembers?: OpportunityTeamMember[]
+  stageHistory?: StageHistoryRecord[]
+  userOptions?: UserOption[]
+  updateSplitsAction?: (id: string, input: unknown) => Promise<void>
+  updateTeamAction?: (id: string, input: unknown) => Promise<void>
 }
 
 function formatDate(dateStr: string | null): string {
@@ -110,9 +130,33 @@ export function OpportunityDetailWrapper({
   activities,
   createActivityAction,
   searchUsersAction,
+  splits = [],
+  teamMembers = [],
+  stageHistory = [],
+  userOptions = [],
+  updateSplitsAction,
+  updateTeamAction,
 }: OpportunityDetailWrapperProps) {
   const router = useRouter()
   const [updatingStage, setUpdatingStage] = useState(false)
+
+  const handleSaveSplits = useCallback(
+    async (next: OpportunitySplitInput[]) => {
+      if (!updateSplitsAction) return
+      await updateSplitsAction(opportunity.id, { splits: next })
+      router.refresh()
+    },
+    [updateSplitsAction, opportunity.id, router],
+  )
+
+  const handleSaveTeam = useCallback(
+    async (next: OpportunityTeamMemberInput[]) => {
+      if (!updateTeamAction) return
+      await updateTeamAction(opportunity.id, { members: next })
+      router.refresh()
+    },
+    [updateTeamAction, opportunity.id, router],
+  )
 
   const formattedAmount = Money.fromAmount(opportunity.amount, opportunity.currency).toDisplay()
   const formattedBarter = opportunity.barterValue
@@ -362,9 +406,40 @@ export function OpportunityDetailWrapper({
           </Card>
 
           <RelatedListCard title="Approval History" emptyMessage="No approval history yet." />
-          <RelatedListCard title="Opportunity Team" emptyMessage="No team members assigned." />
-          <RelatedListCard title="Opportunity Splits" emptyMessage="No splits configured." />
-          <RelatedListCard title="Stage History" emptyMessage="Stage history coming soon." />
+
+          {updateTeamAction ? (
+            <OpportunityTeamEditor
+              members={teamMembers}
+              users={userOptions}
+              onSave={handleSaveTeam}
+            />
+          ) : (
+            <RelatedListCard title="Opportunity Team" emptyMessage="No team members assigned." />
+          )}
+
+          {updateSplitsAction ? (
+            <OpportunitySplitsEditor
+              splits={splits}
+              businessUnits={businessUnits}
+              users={userOptions}
+              onSave={handleSaveSplits}
+            />
+          ) : (
+            <RelatedListCard title="Opportunity Splits" emptyMessage="No splits configured." />
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Stage History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {stageHistory.length > 0 ? (
+                <StageHistoryTimeline history={stageHistory} />
+              ) : (
+                <p className="text-xs text-muted-foreground">No stage changes recorded yet.</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

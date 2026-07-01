@@ -310,7 +310,7 @@ describe("OpportunityForm", () => {
       render(<OpportunityForm {...defaultProps} />)
       await expandSectionB(user)
 
-      const recurringCheckbox = screen.getByRole("checkbox")
+      const recurringCheckbox = screen.getByRole("checkbox", { name: /recurring/i })
       await user.click(recurringCheckbox)
 
       expect(screen.getByText("Recurring Split Kind")).toBeInTheDocument()
@@ -321,7 +321,7 @@ describe("OpportunityForm", () => {
       render(<OpportunityForm {...defaultProps} />)
       await expandSectionB(user)
 
-      const checkbox = screen.getByRole("checkbox")
+      const checkbox = screen.getByRole("checkbox", { name: /recurring/i })
       await user.click(checkbox)
       expect(screen.getByText("Recurring Split Kind")).toBeInTheDocument()
 
@@ -338,7 +338,7 @@ describe("OpportunityForm", () => {
       render(<OpportunityForm {...defaultProps} />)
       await expandSectionB(user)
 
-      const checkbox = screen.getByRole("checkbox")
+      const checkbox = screen.getByRole("checkbox", { name: /recurring/i })
       await user.click(checkbox)
 
       expect(screen.getByText("Recurring Split Kind")).toBeInTheDocument()
@@ -438,7 +438,12 @@ describe("OpportunityForm", () => {
 
       await user.click(screen.getByText("More details"))
 
-      await user.type(screen.getByLabelText(/country of execution/i), "India")
+      await user.click(screen.getByRole("checkbox", { name: "India" }))
+      // Two DualListboxes (Country, Service Type) each render a move button;
+      // Country of Execution renders first, so it is index [0].
+      await user.click(
+        screen.getAllByRole("button", { name: /move selected to chosen/i })[0],
+      )
       await user.type(
         screen.getByLabelText("Estimated Gross Margin (%)"),
         "35",
@@ -449,7 +454,7 @@ describe("OpportunityForm", () => {
       await waitFor(() => {
         expect(createAction).toHaveBeenCalledWith(
           expect.objectContaining({
-            countryExecution: "India",
+            countryExecution: "IN",
             estimatedGrossMarginPct: 35,
           }),
         )
@@ -466,7 +471,7 @@ describe("OpportunityForm", () => {
       await fillRequiredFields(user)
       await user.click(screen.getByText("More details"))
 
-      const checkbox = screen.getByRole("checkbox")
+      const checkbox = screen.getByRole("checkbox", { name: /recurring/i })
       await user.click(checkbox)
 
       // Recurring Split Kind Select appears — combobox indices shift

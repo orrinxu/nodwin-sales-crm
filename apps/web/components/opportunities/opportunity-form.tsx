@@ -732,6 +732,7 @@ export function OpportunityForm({
                   <label className="inline-flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
+                      aria-label="Recurring"
                       className="size-4 rounded border-input accent-primary"
                       checked={watchRecurring ?? false}
                       onChange={(e) => {

@@ -12,7 +12,7 @@
 
 BEGIN;
 
-SELECT plan(18);
+SELECT plan(16);
 
 -- ── Helper: create test users ─────────────────────────────────────────────────
 -- Create auth.users entries (Supabase built-in) and corresponding public.users.
@@ -29,14 +29,20 @@ VALUES
   ('00000000-0000-0000-0000-000000000004', 'other_rep@nodwin.com', '{}')
 ON CONFLICT (id) DO NOTHING;
 
--- Insert into public.users
+-- Insert into public.users.
+-- NOTE: the on_auth_user_created trigger on auth.users already auto-creates a
+-- public.users row (with the default role) for each auth.users insert above, so
+-- we must DO UPDATE the role here — DO NOTHING would leave every user as the
+-- default 'sales_rep' and break the admin RLS assertions.
 INSERT INTO public.users (id, email, full_name, primary_role, primary_entity_id, primary_business_unit_id)
 VALUES
   ('00000000-0000-0000-0000-000000000001', 'rep@nodwin.com', 'Test Rep', 'sales_rep', NULL, NULL),
   ('00000000-0000-0000-0000-000000000002', 'manager@nodwin.com', 'Test Manager', 'sales_manager', NULL, NULL),
   ('00000000-0000-0000-0000-000000000003', 'admin@nodwin.com', 'Test Admin', 'admin', NULL, NULL),
   ('00000000-0000-0000-0000-000000000004', 'other_rep@nodwin.com', 'Other Rep', 'sales_rep', NULL, NULL)
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+  full_name    = EXCLUDED.full_name,
+  primary_role = EXCLUDED.primary_role;
 
 -- ── Test 1-2: Table and view exist ────────────────────────────────────────────
 
@@ -71,6 +77,7 @@ SELECT ok(
 -- ── Test 5-7: Insert as own user ──────────────────────────────────────────────
 
 SELECT tests.as_user('rep@nodwin.com');
+SET LOCAL ROLE authenticated;
 
 SELECT tests.assert_can_insert(
   'ai_usage',
@@ -105,12 +112,14 @@ SELECT tests.assert_cannot_insert(
 -- ── Test 8-10: Select own rows vs others ──────────────────────────────────────
 
 SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
 INSERT INTO public.ai_usage (id, user_id, provider, model, prompt_tokens, completion_tokens, cost_amount, cost_currency, feature, request_id, started_at, finished_at, status)
 VALUES
   ('00000000-0000-0000-0000-000000000020', '00000000-0000-0000-0000-000000000001', 'gemini', 'gemini-2.0-flash', 100, 50, 0.0020, 'USD', 'search', 'req-010', now(), now(), 'success'),
   ('00000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000002', 'deepseek', 'deepseek-chat', 200, 100, 0.0010, 'USD', 'draft_email', 'req-011', now(), now(), 'success');
 
 SELECT tests.as_user('rep@nodwin.com');
+SET LOCAL ROLE authenticated;
 
 SELECT tests.assert_can_select(
   'ai_usage',
@@ -127,6 +136,7 @@ SELECT tests.assert_cannot_select(
 -- ── Test 11-13: Admin can see all ─────────────────────────────────────────────
 
 SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
 
 SELECT tests.assert_can_select(
   'ai_usage',
@@ -157,7 +167,17 @@ SELECT tests.assert_can_insert(
 
 -- ── Test 14-16: ai_daily_caps RLS ─────────────────────────────────────────────
 
+-- Seed one active cap so the "authenticated user can SELECT" assertion has a
+-- row to see. Uses scope_id 00000000-...-002 to avoid colliding (via the
+-- partial unique index on active caps per scope) with the admin INSERT below,
+-- which targets scope_id ...-001.
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+INSERT INTO public.ai_daily_caps (id, scope_kind, scope_id, soft_cap_amount, soft_cap_currency, hard_cap_amount, hard_cap_currency, active, created_at, updated_at)
+VALUES (gen_random_uuid(), 'team', '00000000-0000-0000-0000-000000000002', 30.00, 'USD', 50.00, 'USD', true, now(), now());
+
 SELECT tests.as_user('rep@nodwin.com');
+SET LOCAL ROLE authenticated;
 
 SELECT tests.assert_can_select(
   'ai_daily_caps',
@@ -172,6 +192,7 @@ SELECT tests.assert_cannot_insert(
 );
 
 SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
 
 SELECT tests.assert_can_insert(
   'ai_daily_caps',

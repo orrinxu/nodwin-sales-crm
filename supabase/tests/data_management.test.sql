@@ -23,7 +23,8 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.entities (id, name, base_currency)
 VALUES
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'Test Entity', 'USD'),
-  ('ffffffff-ffff-ffff-ffff-ffffffffffff', 'Second Entity', 'USD')
+  ('ffffffff-ffff-ffff-ffff-ffffffffffff', 'Second Entity', 'USD'),
+  ('abababab-abab-abab-abab-abababababab', 'Third Entity', 'USD')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.users (id, email, full_name, primary_role, primary_entity_id)
@@ -200,9 +201,13 @@ SELECT is(
 );
 
 -- 18. Sales rep cannot update import_jobs (not service_role)
+-- The rep cannot see the admin-owned row (see test 16), so the UPDATE matches
+-- zero rows.  Verify the row is unchanged as admin, who can read it.
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 UPDATE public.import_jobs SET status = 'running' WHERE id = 'aaaaaa01-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
 SELECT is(
   (SELECT status FROM public.import_jobs WHERE id = 'aaaaaa01-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
   'pending',
@@ -220,9 +225,13 @@ SELECT is(
 );
 
 -- 20. Sales rep cannot delete import_jobs
+-- The rep cannot see the admin-owned row, so the DELETE matches zero rows.
+-- Verify the row still exists as admin, who can read it.
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 DELETE FROM public.import_jobs WHERE id = 'aaaaaa01-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
 SELECT isnt_empty(
   $$SELECT id FROM public.import_jobs WHERE id = 'aaaaaa01-aaaa-aaaa-aaaa-aaaaaaaaaaaa'$$,
   'sales rep cannot delete import_jobs (silently blocked)'
@@ -275,19 +284,22 @@ SELECT is(
 );
 
 -- 25. service_role can INSERT finance_export_config
+-- Entities 'eeee...' and 'ffff...' already have config rows and the table has a
+-- UNIQUE(entity_id) constraint, so this row targets the dedicated third entity
+-- with its own unique id.
 SELECT tests.as_service_role();
 SET LOCAL ROLE service_role;
 SELECT lives_ok(
-  $$INSERT INTO public.finance_export_config (id, entity_id, destination_drive_folder_id) VALUES ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'folder_service_role_001')$$,
+  $$INSERT INTO public.finance_export_config (id, entity_id, destination_drive_folder_id) VALUES ('a5a5a5a5-a5a5-a5a5-a5a5-a5a5a5a5a5a5', 'abababab-abab-abab-abab-abababababab', 'folder_service_role_001')$$,
   'service_role can INSERT finance_export_config'
 );
 
 -- 26. service_role can UPDATE finance_export_config
 SELECT tests.as_service_role();
 SET LOCAL ROLE service_role;
-UPDATE public.finance_export_config SET destination_drive_folder_id = 'folder_service_role_updated' WHERE id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+UPDATE public.finance_export_config SET destination_drive_folder_id = 'folder_service_role_updated' WHERE id = 'a5a5a5a5-a5a5-a5a5-a5a5-a5a5a5a5a5a5';
 SELECT is(
-  (SELECT destination_drive_folder_id FROM public.finance_export_config WHERE id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'),
+  (SELECT destination_drive_folder_id FROM public.finance_export_config WHERE id = 'a5a5a5a5-a5a5-a5a5-a5a5-a5a5a5a5a5a5'),
   'folder_service_role_updated',
   'service_role can UPDATE finance_export_config'
 );
@@ -295,9 +307,9 @@ SELECT is(
 -- 27. service_role can DELETE finance_export_config
 SELECT tests.as_service_role();
 SET LOCAL ROLE service_role;
-DELETE FROM public.finance_export_config WHERE id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+DELETE FROM public.finance_export_config WHERE id = 'a5a5a5a5-a5a5-a5a5-a5a5-a5a5a5a5a5a5';
 SELECT is_empty(
-  $$SELECT id FROM public.finance_export_config WHERE id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'$$,
+  $$SELECT id FROM public.finance_export_config WHERE id = 'a5a5a5a5-a5a5-a5a5-a5a5-a5a5a5a5a5a5'$$,
   'service_role can DELETE finance_export_config'
 );
 
@@ -314,7 +326,7 @@ SELECT is(
 SELECT tests.as_service_role();
 SET LOCAL ROLE service_role;
 SELECT lives_ok(
-  $$INSERT INTO public.import_jobs (id, entity_id, kind, target_entity_type, status, created_by) VALUES ('sr-insert-01-sr-insert-01-srinsert01', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'export', 'accounts', 'pending', '33333333-3333-3333-3333-333333333333')$$,
+  $$INSERT INTO public.import_jobs (id, entity_id, kind, target_entity_type, status, created_by) VALUES ('aaaaaa02-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'export', 'accounts', 'pending', '33333333-3333-3333-3333-333333333333')$$,
   'service_role can INSERT import_jobs'
 );
 

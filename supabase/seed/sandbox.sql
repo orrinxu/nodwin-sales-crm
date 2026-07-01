@@ -359,7 +359,7 @@ INSERT INTO public.opportunities (
    '2026-05-01', '2026-08-31', '2026-04-15',
    'consulting_tech', 'content', false,
    'Fake seed opportunity - Eta Digital Budget Cut.',
-   'standard', '{"test":"seed_opp_30"}'::jsonb),
+   'standard', '{"test":"seed_opp_30"}'::jsonb)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name, account_id = EXCLUDED.account_id,
   stage = EXCLUDED.stage, probability_pct = EXCLUDED.probability_pct,
