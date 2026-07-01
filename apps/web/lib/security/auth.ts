@@ -62,8 +62,16 @@ export async function requireUser(
   }
 
   const user = data.user
-  const role = (user.app_metadata?.role as string | undefined) ??
-    (user.user_metadata?.role as string | undefined)
+
+  // Resolve the role from the system of record (public.users) via the
+  // SECURITY DEFINER current_user_role() RPC. The previous app_metadata.role /
+  // user_metadata.role claim was never populated (there is no custom
+  // access-token hook), so every app-layer requireRole() check saw undefined.
+  let role: string | undefined
+  const { data: roleData } = await supabase.rpc("current_user_role")
+  if (typeof roleData === "string") {
+    role = roleData
+  }
 
   return {
     id: user.id,

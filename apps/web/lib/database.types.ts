@@ -2336,6 +2336,16 @@ export type Database = {
           reason: string
         }[]
       }
+      confidential_opportunities_metadata: {
+        Args: never
+        Returns: {
+          created_at: string
+          id: string
+          owner_name: string
+          owner_user_id: string
+          value_bucket: string
+        }[]
+      }
       current_user_entity_id: { Args: never; Returns: string }
       current_user_role: {
         Args: never
@@ -2376,6 +2386,7 @@ export type Database = {
           total_prompt_tokens: number
         }[]
       }
+      is_email_domain_allowed: { Args: { _email: string }; Returns: boolean }
       money_add: {
         Args: {
           a_amount: number
@@ -2398,6 +2409,10 @@ export type Database = {
           b_amount: number
           b_currency: string
         }
+        Returns: boolean
+      }
+      opportunity_is_confidential: {
+        Args: { _opp_id: string }
         Returns: boolean
       }
       recompute_visibility_for_opportunity: {

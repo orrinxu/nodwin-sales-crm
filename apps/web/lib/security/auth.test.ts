@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { UnauthorisedError, ForbiddenError } from "./errors"
 
 const mockGetUser = vi.fn()
+const mockRpc = vi.fn()
 
 const mockClient = {
   auth: { getUser: mockGetUser },
+  rpc: mockRpc,
 }
 
 vi.mock("next/headers", () => ({
@@ -45,6 +47,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.unstubAllEnvs()
   mockGetUser.mockReset()
+  mockRpc.mockReset()
+  // Default: current_user_role() resolves to admin unless a test overrides it.
+  mockRpc.mockResolvedValue({ data: "admin", error: null })
 })
 
 describe("requireUser", () => {
@@ -71,26 +76,29 @@ describe("requireUser", () => {
     })
   })
 
-  it("falls back to user_metadata when app_metadata.role is absent", async () => {
+  it("resolves role from current_user_role() RPC, not from JWT metadata", async () => {
     mockGetUser.mockResolvedValue({
       data: {
         user: {
           id: "user-2",
           email: "bob@nodwin.com",
-          app_metadata: {},
-          user_metadata: { role: "sales_rep" },
+          // Stale / attacker-controlled metadata must NOT be trusted for role.
+          app_metadata: { role: "admin" },
+          user_metadata: { role: "admin" },
         },
       },
       error: null,
     })
+    mockRpc.mockResolvedValue({ data: "sales_rep", error: null })
 
     const { requireUser } = await import("./auth")
     const result = await requireUser()
 
     expect(result.role).toBe("sales_rep")
+    expect(mockRpc).toHaveBeenCalledWith("current_user_role")
   })
 
-  it("sets role to undefined when no role metadata exists", async () => {
+  it("sets role to undefined when the RPC returns null", async () => {
     mockGetUser.mockResolvedValue({
       data: {
         user: {
@@ -102,6 +110,7 @@ describe("requireUser", () => {
       },
       error: null,
     })
+    mockRpc.mockResolvedValue({ data: null, error: null })
 
     const { requireUser } = await import("./auth")
     const result = await requireUser()
