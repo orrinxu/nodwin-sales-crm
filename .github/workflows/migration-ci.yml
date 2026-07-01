@@ -51,6 +51,12 @@ jobs:
         run: STRICT_MIGRATION_NAMES=1 bash scripts/check-migration-filenames.sh
         timeout-minutes: 1
 
+      - name: Normalize Supabase config for CI
+        if: steps.changes.outputs.schema == 'true'
+        # config.toml hardcodes LAN/Tailscale IPs from the local-preview setup;
+        # cloud runners can't reach them. Rewrite to localhost for CI only.
+        run: sed -i 's/192\.168\.88\.51/127.0.0.1/g; s/100\.126\.116\.7/127.0.0.1/g' supabase/config.toml
+
       - name: Setup Supabase CLI
         if: steps.changes.outputs.schema == 'true'
         uses: supabase/setup-cli@v1

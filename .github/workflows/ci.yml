@@ -100,6 +100,12 @@ jobs:
         run: pnpm test
         timeout-minutes: 10
 
+      - name: Normalize Supabase config for CI
+        # config.toml hardcodes LAN/Tailscale IPs from the local-preview setup;
+        # cloud runners can't reach them, so supabase start's health check times
+        # out. Rewrite them to localhost for CI only (committed config untouched).
+        run: sed -i 's/192\.168\.88\.51/127.0.0.1/g; s/100\.126\.116\.7/127.0.0.1/g' supabase/config.toml
+
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
