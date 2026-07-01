@@ -1,10 +1,12 @@
 name: Migration CI
 
+# Runs on every PR to main so the required "Schema Lint & Diff" check always
+# reports. The heavy database steps are gated on whether this PR actually
+# touches supabase/migrations, /policies, or /seed — when it doesn't, the job
+# finishes in seconds and reports success (instead of a path filter leaving the
+# required check stuck as "expected", which silently blocks unrelated PRs).
 on:
   pull_request:
-    paths:
-      - 'supabase/migrations/**'
-      - 'supabase/policies/**'
     branches:
       - main
   workflow_dispatch:
@@ -24,31 +26,58 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Detect schema-affecting changes
+        id: changes
+        run: |
+          BASE="${{ github.base_ref }}"
+          if [ -z "$BASE" ]; then
+            # Manual dispatch (no PR base) — run the full checks.
+            echo "schema=true" >> "$GITHUB_OUTPUT"
+          else
+            git fetch --no-tags --depth=1 origin "$BASE" || true
+            if git diff --name-only "origin/$BASE" HEAD | grep -qE '^supabase/(migrations|policies|seed)/'; then
+              echo "schema=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "schema=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: No schema changes — skipping schema lint
+        if: steps.changes.outputs.schema != 'true'
+        run: echo "No supabase/migrations, /policies, or /seed changes in this PR; nothing to schema-lint."
+
       - name: Check migration filenames
+        if: steps.changes.outputs.schema == 'true'
         run: STRICT_MIGRATION_NAMES=1 bash scripts/check-migration-filenames.sh
         timeout-minutes: 1
 
       - name: Setup Supabase CLI
+        if: steps.changes.outputs.schema == 'true'
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned (not `latest`) to avoid the anonymous GitHub API rate limit.
+          version: 2.105.0
 
       - name: Start Supabase local stack
+        if: steps.changes.outputs.schema == 'true'
         run: supabase start
-        timeout-minutes: 8
+        # 15 min headroom for slow Docker image pulls (was 8, which timed out).
+        timeout-minutes: 15
 
       - name: Check generated types are up to date
+        if: steps.changes.outputs.schema == 'true'
         run: |
           supabase gen types typescript --local --schema public > /tmp/expected.ts
           diff -u apps/web/lib/database.types.ts /tmp/expected.ts
         timeout-minutes: 2
 
       - name: Schema lint
+        if: steps.changes.outputs.schema == 'true'
         run: supabase db lint --local --level error --fail-on error
         timeout-minutes: 2
 
       - name: Schema diff against main
-        if: hashFiles('supabase/.temp/project-ref') != ''
+        if: steps.changes.outputs.schema == 'true' && hashFiles('supabase/.temp/project-ref') != ''
         run: |
           git fetch origin main
           supabase db diff --linked --file /tmp/diff.sql origin/main...HEAD 2>&1 | tee /tmp/diff-output.txt
