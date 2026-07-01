@@ -11,6 +11,12 @@ export const metadata: Metadata = {
   description: "Sales CRM for Nodwin",
 };
 
+// The app is fully auth-gated and renders per-request data (every page calls
+// requireUser, which reads cookies and validates env). Nothing should be
+// statically prerendered — otherwise `next build` evaluates env/data access at
+// build time (no secrets present) and fails. Force all routes to be dynamic.
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: Readonly<{
