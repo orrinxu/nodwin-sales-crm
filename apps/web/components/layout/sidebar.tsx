@@ -42,7 +42,7 @@ import {
 import { useState } from "react"
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Pipeline", href: "/opportunities", icon: Kanban },
 
   { name: "Accounts", href: "/accounts", icon: Building2 },
