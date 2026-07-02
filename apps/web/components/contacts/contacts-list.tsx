@@ -44,6 +44,8 @@ import type { AccountOption, ContactListRecord, ContactCreateInput, ContactRecor
 interface ContactsListProps {
   contacts: ContactListRecord[]
   accounts: AccountOption[]
+  /** Contacts are admin-managed; non-admins get a read-only view (no create/delete). */
+  canManage?: boolean
   createAction: (input: ContactCreateInput) => Promise<ContactRecord>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
 }
@@ -64,6 +66,7 @@ function formatDate(dateStr: string | null): string {
 export function ContactsList({
   contacts,
   accounts,
+  canManage = false,
   createAction,
   bulkDeleteAction,
 }: ContactsListProps) {
@@ -229,11 +232,13 @@ export function ContactsList({
             Manage your contacts and address book.
           </p>
         </div>
-        <ContactForm
-          accounts={accounts}
-          createAction={createAction}
-          onSuccess={() => router.refresh()}
-        />
+        {canManage && (
+          <ContactForm
+            accounts={accounts}
+            createAction={createAction}
+            onSuccess={() => router.refresh()}
+          />
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -283,7 +288,7 @@ export function ContactsList({
       </div>
 
       <div className="space-y-4">
-        {selectedIds.length > 0 && (
+        {canManage && selectedIds.length > 0 && (
           <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2">
             <span className="text-sm text-muted-foreground">
               {selectedIds.length} selected

@@ -65,6 +65,8 @@ interface AccountsListProps {
   accountOptions: EntityOption[]
   fieldDefinitions?: FieldDefinition[]
   currentUserId?: string
+  /** Accounts are admin-managed; non-admins get a read-only view (no create/delete). */
+  canManage?: boolean
   createAction: (input: AccountCreateInput) => Promise<AccountRecord>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
 }
@@ -76,6 +78,7 @@ export function AccountsList({
   accountOptions,
   fieldDefinitions = [],
   currentUserId,
+  canManage = false,
   createAction,
   bulkDeleteAction,
 }: AccountsListProps) {
@@ -293,14 +296,16 @@ export function AccountsList({
             Manage your accounts and companies.
           </p>
         </div>
-        <AccountForm
-          createAction={createAction}
-          ownerOptions={ownerOptions}
-          accountOptions={accountOptions}
-          fieldDefinitions={fieldDefinitions}
-          currentUserId={currentUserId}
-          onSuccess={() => router.refresh()}
-        />
+        {canManage && (
+          <AccountForm
+            createAction={createAction}
+            ownerOptions={ownerOptions}
+            accountOptions={accountOptions}
+            fieldDefinitions={fieldDefinitions}
+            currentUserId={currentUserId}
+            onSuccess={() => router.refresh()}
+          />
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -348,7 +353,7 @@ export function AccountsList({
       </div>
 
       <div className="space-y-4">
-        {selectedIds.length > 0 && (
+        {canManage && selectedIds.length > 0 && (
           <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2">
             <span className="text-sm text-muted-foreground">
               {selectedIds.length} selected

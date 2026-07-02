@@ -30,6 +30,8 @@ interface AccountDetailWrapperProps {
   accountOptions: EntityOption[]
   currentUserId?: string
   activities: ActivityRecord[]
+  /** Accounts are admin-managed; non-admins get a read-only detail view (no edit). */
+  canManage?: boolean
   parentRelationship?: { toAccountId: string; kind: AccountRelationshipKind } | null
   updateAction: (id: string, input: AccountUpdateInput) => Promise<AccountRecord>
   createActivityAction: (accountId: string, input: unknown) => Promise<ActivityRecord>
@@ -56,6 +58,7 @@ export function AccountDetailWrapper({
   accountOptions,
   currentUserId,
   activities,
+  canManage = false,
   parentRelationship,
   updateAction,
   createActivityAction,
@@ -77,6 +80,7 @@ export function AccountDetailWrapper({
 
   return (
     <div className="relative">
+      {canManage && (
       <div className="absolute top-6 right-6 z-10">
         <AccountForm
           account={account}
@@ -101,6 +105,7 @@ export function AccountDetailWrapper({
           }
         />
       </div>
+      )}
 
       <div className="flex flex-1 flex-col gap-6 p-6">
             <div className="flex items-start gap-4">

@@ -72,6 +72,7 @@ export default async function AccountDetailPage({
       accountOptions={accountOptions}
       currentUserId={user.id}
       activities={activities}
+      canManage={user.role === "admin"}
       parentRelationship={parentRelationship}
       updateAction={updateAccountAction}
       createActivityAction={createAccountActivityAction}

@@ -26,6 +26,7 @@ export default async function AccountsPage() {
       accountOptions={accountOptions}
       fieldDefinitions={fieldDefinitions}
       currentUserId={user.id}
+      canManage={user.role === "admin"}
       createAction={createAccountAction}
       bulkDeleteAction={bulkDeleteAccountsAction}
     />

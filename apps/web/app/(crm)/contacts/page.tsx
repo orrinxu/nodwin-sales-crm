@@ -16,6 +16,7 @@ export default async function ContactsPage() {
     <ContactsList
       accounts={accounts}
       contacts={contacts}
+      canManage={user.role === "admin"}
       createAction={createContactAction}
       bulkDeleteAction={bulkDeleteContactsAction}
     />

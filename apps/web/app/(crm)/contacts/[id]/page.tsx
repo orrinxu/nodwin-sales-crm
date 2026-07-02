@@ -36,6 +36,7 @@ export default async function ContactDetailPage({
       linkedAccountIds={linkedAccountIds}
       fieldDefinitions={fieldDefinitions}
       activities={activities}
+      canManage={user.role === "admin"}
       updateAction={updateContactAction}
       createActivityAction={createContactActivityAction}
     />

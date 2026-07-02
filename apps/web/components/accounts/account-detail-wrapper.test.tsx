@@ -121,6 +121,7 @@ const defaultProps = {
   ownerOptions: mockOwnerOptions,
   accountOptions: mockAccountOptions,
   activities: [],
+  canManage: true,
   updateAction: vi.fn(),
   createActivityAction: vi.fn(),
 }
@@ -165,6 +166,12 @@ describe("AccountDetailWrapper", () => {
     it("renders account form", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
       expect(screen.getByTestId("account-form")).toBeInTheDocument()
+    })
+
+    it("hides the edit form for non-admins (canManage=false)", () => {
+      render(<AccountDetailWrapper {...defaultProps} canManage={false} />)
+      expect(screen.queryByTestId("account-form")).not.toBeInTheDocument()
+      expect(screen.queryByText("Edit")).not.toBeInTheDocument()
     })
   })
 

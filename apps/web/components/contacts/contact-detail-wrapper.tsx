@@ -19,6 +19,8 @@ interface ContactDetailWrapperProps {
   linkedAccountIds: string[]
   fieldDefinitions: FieldDefinition[]
   activities: ActivityRecord[]
+  /** Contacts are admin-managed; non-admins get a read-only detail view (no edit). */
+  canManage?: boolean
   updateAction: (id: string, input: Partial<ContactCreateInput>) => Promise<ContactRecord>
   createActivityAction: (contactId: string, input: unknown) => Promise<ActivityRecord>
 }
@@ -29,6 +31,7 @@ export function ContactDetailWrapper({
   linkedAccountIds,
   fieldDefinitions,
   activities,
+  canManage = false,
   updateAction,
   createActivityAction,
 }: ContactDetailWrapperProps) {
@@ -36,6 +39,7 @@ export function ContactDetailWrapper({
 
   return (
     <div className="relative">
+      {canManage && (
       <div className="absolute top-6 right-6 z-10">
         <ContactForm
           contact={contact}
@@ -55,6 +59,7 @@ export function ContactDetailWrapper({
           }
         />
       </div>
+      )}
       <div className="flex flex-1 flex-col gap-6 p-6">
         <div className="flex items-center gap-4">
           <div>

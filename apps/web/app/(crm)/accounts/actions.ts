@@ -1,7 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { requireUser } from "@/lib/security/auth"
+import { requireUser, requireRole } from "@/lib/security/auth"
 import {
   createAccount,
   updateAccount,
@@ -26,6 +26,7 @@ export async function createAccountActivityAction(accountId: string, input: unkn
 
 export async function createAccountAction(input: unknown) {
   const user = await requireUser()
+  requireRole(user, "admin")
   const parsed = accountCreateSchema.parse(input)
   const ctx = { user, source: "web" as const }
   const account = await createAccount(ctx, parsed)
@@ -35,6 +36,7 @@ export async function createAccountAction(input: unknown) {
 
 export async function updateAccountAction(id: string, input: unknown) {
   const user = await requireUser()
+  requireRole(user, "admin")
   const parsed = accountUpdateSchema.parse(input)
   const ctx = { user, source: "web" as const }
   const account = await updateAccount(ctx, id, parsed)
@@ -69,6 +71,7 @@ export async function upsertAccountRelationshipAction(
 
 export async function bulkDeleteAccountsAction(input: unknown) {
   const user = await requireUser()
+  requireRole(user, "admin")
   const parsed = bulkDeleteAccountsSchema.parse(input)
   const ctx = { user, source: "web" as const }
   await bulkDeleteAccounts(ctx, parsed)

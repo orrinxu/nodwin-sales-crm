@@ -1,7 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { requireUser } from "@/lib/security/auth"
+import { requireUser, requireRole } from "@/lib/security/auth"
 import {
   createContact,
   updateContact,
@@ -14,6 +14,7 @@ import { createActivity, activityCreateSchema } from "@/lib/data/activities"
 
 export async function createContactAction(input: unknown) {
   const user = await requireUser()
+  requireRole(user, "admin")
   const parsed = contactCreateSchema.parse(input)
   const ctx = { user, source: "web" as const }
   const contact = await createContact(ctx, parsed)
@@ -23,6 +24,7 @@ export async function createContactAction(input: unknown) {
 
 export async function updateContactAction(id: string, input: unknown) {
   const user = await requireUser()
+  requireRole(user, "admin")
   const parsed = contactUpdateSchema.parse(input)
   const ctx = { user, source: "web" as const }
   const contact = await updateContact(ctx, id, parsed)
@@ -42,6 +44,7 @@ export async function createContactActivityAction(contactId: string, input: unkn
 
 export async function bulkDeleteContactsAction(input: unknown) {
   const user = await requireUser()
+  requireRole(user, "admin")
   const parsed = bulkDeleteContactsSchema.parse(input)
   const ctx = { user, source: "web" as const }
   await bulkDeleteContacts(ctx, parsed)
