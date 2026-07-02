@@ -338,6 +338,8 @@ function toDomainActivity(data: Record<string, unknown>): ActivityRecord {
     opportunityName: opportunity?.name ?? null,
     accountId: (data.account_id as string) ?? null,
     accountName: account?.name ?? null,
+    contactId: (data.contact_id as string) ?? null,
+    contactName: null,
     userId: data.user_id as string,
     userName: author?.full_name ?? null,
     type: data.type as ActivityType,

@@ -13,8 +13,8 @@ const mockResolved = {
 const mockCreateAction = vi.fn().mockResolvedValue(mockResolved)
 
 const defaultProps = {
-  opportunityId: "opp-1",
-  accountId: "acct-1",
+  revalidateId: "opp-1",
+  scope: { opportunityId: "opp-1", accountId: "acct-1" },
   createAction: mockCreateAction,
   onCreated: vi.fn(),
 }
@@ -27,7 +27,17 @@ describe("ActivityComposer", () => {
 
     it("renders with accountId null", () => {
       expect(() => (
-        <ActivityComposer {...defaultProps} accountId={null} />
+        <ActivityComposer {...defaultProps} scope={{ opportunityId: "opp-1", accountId: null }} />
+      )).not.toThrow()
+    })
+
+    it("renders in a contact scope", () => {
+      expect(() => (
+        <ActivityComposer
+          {...defaultProps}
+          revalidateId="contact-1"
+          scope={{ contactId: "contact-1", accountId: "acct-1" }}
+        />
       )).not.toThrow()
     })
 
@@ -141,6 +151,32 @@ describe("ActivityComposer", () => {
       await user.click(screen.getByRole("button", { name: /save note/i }))
 
       expect(createAction).not.toHaveBeenCalled()
+    })
+
+    it("spreads a contact scope into the payload and revalidates the contact", async () => {
+      const createAction = vi.fn().mockResolvedValue({ id: "act-5" } as ActivityRecord)
+      const user = userEvent.setup()
+
+      render(
+        <ActivityComposer
+          {...defaultProps}
+          revalidateId="contact-1"
+          scope={{ contactId: "contact-1", accountId: "acct-1" }}
+          createAction={createAction}
+        />,
+      )
+
+      await user.type(screen.getByRole("textbox", { name: /note/i }), "Called the contact")
+      await user.click(screen.getByRole("button", { name: /save note/i }))
+
+      expect(createAction).toHaveBeenCalledWith("contact-1", {
+        contactId: "contact-1",
+        accountId: "acct-1",
+        type: "note",
+        subject: null,
+        body: "Called the contact",
+        metadata: {},
+      })
     })
   })
 

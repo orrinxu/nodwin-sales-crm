@@ -396,8 +396,8 @@ export function OpportunityDetailWrapper({
             </CardHeader>
             <CardContent className="space-y-3">
               <ActivityComposer
-                opportunityId={opportunity.id}
-                accountId={opportunity.accountId}
+                revalidateId={opportunity.id}
+                scope={{ opportunityId: opportunity.id, accountId: opportunity.accountId }}
                 createAction={createActivityAction}
                 onCreated={() => router.refresh()}
               />

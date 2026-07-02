@@ -2,7 +2,8 @@ import { notFound } from "next/navigation"
 import { requireUser } from "@/lib/security/auth"
 import { getContactById, getContactAccountLinks, getAccountOptions } from "@/lib/data/contacts"
 import { getFieldDefinitions } from "@/lib/data/field-definitions"
-import { updateContactAction } from "../actions"
+import { getActivitiesForContact } from "@/lib/data/activities"
+import { updateContactAction, createContactActivityAction } from "../actions"
 import { ContactDetailWrapper } from "@/components/contacts/contact-detail-wrapper"
 
 export default async function ContactDetailPage({
@@ -14,11 +15,12 @@ export default async function ContactDetailPage({
   const { id } = await params
 
   const ctx = { user, source: "web" as const }
-  const [contact, accounts, links, fieldDefinitions] = await Promise.all([
+  const [contact, accounts, links, fieldDefinitions, activities] = await Promise.all([
     getContactById(ctx, id),
     getAccountOptions(ctx),
     getContactAccountLinks(ctx, id).catch(() => []),
     getFieldDefinitions(ctx, "contact"),
+    getActivitiesForContact(ctx, id),
   ])
 
   if (!contact) {
@@ -33,7 +35,9 @@ export default async function ContactDetailPage({
       accounts={accounts}
       linkedAccountIds={linkedAccountIds}
       fieldDefinitions={fieldDefinitions}
+      activities={activities}
       updateAction={updateContactAction}
+      createActivityAction={createContactActivityAction}
     />
   )
 }

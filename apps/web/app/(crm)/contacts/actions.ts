@@ -10,6 +10,7 @@ import {
   contactUpdateSchema,
   bulkDeleteContactsSchema,
 } from "@/lib/data/contacts"
+import { createActivity, activityCreateSchema } from "@/lib/data/activities"
 
 export async function createContactAction(input: unknown) {
   const user = await requireUser()
@@ -28,6 +29,15 @@ export async function updateContactAction(id: string, input: unknown) {
   revalidatePath("/contacts")
   revalidatePath(`/contacts/${id}`)
   return contact
+}
+
+export async function createContactActivityAction(contactId: string, input: unknown) {
+  const user = await requireUser()
+  const parsed = activityCreateSchema.parse(input)
+  const ctx = { user, source: "web" as const }
+  const activity = await createActivity(ctx, parsed)
+  revalidatePath(`/contacts/${contactId}`)
+  return activity
 }
 
 export async function bulkDeleteContactsAction(input: unknown) {

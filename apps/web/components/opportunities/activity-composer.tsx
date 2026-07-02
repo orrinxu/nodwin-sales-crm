@@ -15,16 +15,28 @@ import {
 } from "@/components/ui/tabs"
 import type { ActivityRecord, ActivityType } from "@/lib/data/activities"
 
+/**
+ * Fields identifying what an activity is scoped to (opportunity, account,
+ * and/or contact). Spread verbatim into the create payload, so only the keys
+ * relevant to the current view are sent.
+ */
+export type ActivityScope = {
+  opportunityId?: string | null
+  accountId?: string | null
+  contactId?: string | null
+}
+
 interface ActivityComposerProps {
-  opportunityId: string
-  accountId: string | null
-  createAction: (opportunityId: string, input: unknown) => Promise<ActivityRecord>
+  /** Entity id passed to createAction so the server action can revalidate its path. */
+  revalidateId: string
+  scope: ActivityScope
+  createAction: (revalidateId: string, input: unknown) => Promise<ActivityRecord>
   onCreated?: () => void
 }
 
 export function ActivityComposer({
-  opportunityId,
-  accountId,
+  revalidateId,
+  scope,
   createAction,
   onCreated,
 }: ActivityComposerProps) {
@@ -47,16 +59,16 @@ export function ActivityComposer({
           </TabsList>
           <TabsPanel value="note">
             <NoteForm
-              opportunityId={opportunityId}
-              accountId={accountId}
+              revalidateId={revalidateId}
+              scope={scope}
               createAction={createAction}
               onCreated={onCreated}
             />
           </TabsPanel>
           <TabsPanel value="call">
             <CallForm
-              opportunityId={opportunityId}
-              accountId={accountId}
+              revalidateId={revalidateId}
+              scope={scope}
               createAction={createAction}
               onCreated={onCreated}
             />
@@ -67,22 +79,21 @@ export function ActivityComposer({
   )
 }
 
-interface NoteFormProps {
-  opportunityId: string
-  accountId: string | null
-  createAction: (opportunityId: string, input: unknown) => Promise<ActivityRecord>
+interface FormProps {
+  revalidateId: string
+  scope: ActivityScope
+  createAction: (revalidateId: string, input: unknown) => Promise<ActivityRecord>
   onCreated?: () => void
 }
 
-function NoteForm({ opportunityId, accountId, createAction, onCreated }: NoteFormProps) {
+function NoteForm({ revalidateId, scope, createAction, onCreated }: FormProps) {
   const [body, setBody] = useState("")
   const [subject, setSubject] = useState("")
 
   const createNote = async () => {
     if (!body.trim()) return
-    await createAction(opportunityId, {
-      opportunityId,
-      accountId,
+    await createAction(revalidateId, {
+      ...scope,
       type: "note" as ActivityType,
       subject: subject.trim() || null,
       body: body.trim(),
@@ -123,23 +134,15 @@ function NoteForm({ opportunityId, accountId, createAction, onCreated }: NoteFor
   )
 }
 
-interface CallFormProps {
-  opportunityId: string
-  accountId: string | null
-  createAction: (opportunityId: string, input: unknown) => Promise<ActivityRecord>
-  onCreated?: () => void
-}
-
-function CallForm({ opportunityId, accountId, createAction, onCreated }: CallFormProps) {
+function CallForm({ revalidateId, scope, createAction, onCreated }: FormProps) {
   const [subject, setSubject] = useState("")
   const [notes, setNotes] = useState("")
   const [duration, setDuration] = useState("")
 
   const logCall = async () => {
     if (!subject.trim() && !notes.trim()) return
-    await createAction(opportunityId, {
-      opportunityId,
-      accountId,
+    await createAction(revalidateId, {
+      ...scope,
       type: "call" as ActivityType,
       subject: subject.trim() || null,
       body: notes.trim() || null,

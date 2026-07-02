@@ -11,6 +11,8 @@ const baseActivity: ActivityRecord = {
   opportunityName: "Big Deal",
   accountId: "acct-1",
   accountName: "Acme Corp",
+  contactId: null,
+  contactName: null,
   userId: "user-1",
   userName: "Alice",
   type: "note",

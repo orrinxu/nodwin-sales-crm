@@ -4,17 +4,23 @@ import { useRouter } from "next/navigation"
 import { Pencil } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ContactForm } from "@/components/contacts/contact-form"
 import type { ContactRecord, ContactCreateInput, AccountOption } from "@/lib/data/contacts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
+import type { ActivityRecord } from "@/lib/data/activities"
 import { CustomFieldsDisplay } from "@/components/contacts/custom-fields-display"
+import { ActivityComposer } from "@/components/opportunities/activity-composer"
+import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
 
 interface ContactDetailWrapperProps {
   contact: ContactRecord
   accounts: AccountOption[]
   linkedAccountIds: string[]
   fieldDefinitions: FieldDefinition[]
+  activities: ActivityRecord[]
   updateAction: (id: string, input: Partial<ContactCreateInput>) => Promise<ContactRecord>
+  createActivityAction: (contactId: string, input: unknown) => Promise<ActivityRecord>
 }
 
 export function ContactDetailWrapper({
@@ -22,7 +28,9 @@ export function ContactDetailWrapper({
   accounts,
   linkedAccountIds,
   fieldDefinitions,
+  activities,
   updateAction,
+  createActivityAction,
 }: ContactDetailWrapperProps) {
   const router = useRouter()
 
@@ -62,6 +70,20 @@ export function ContactDetailWrapper({
           fieldDefinitions={fieldDefinitions}
           customData={contact.customData}
         />
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Activity</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <ActivityComposer
+              revalidateId={contact.id}
+              scope={{ contactId: contact.id, accountId: contact.primaryAccountId }}
+              createAction={createActivityAction}
+              onCreated={() => router.refresh()}
+            />
+            <ActivityTimeline activities={activities} />
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
