@@ -1,9 +1,11 @@
 "use client"
 
 import { useDraggable } from "@dnd-kit/core"
-import { GripVertical, Building2, DollarSign, User } from "lucide-react"
+import { GripVertical, Building2, DollarSign, User, Flame, Clock } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import type { OpportunityRecord } from "@/lib/data/opportunities.types"
+import { isHotLead, isOverdue } from "@/lib/opportunity/kanban-intel"
 import { Money } from "@/lib/money"
 
 interface OpportunityCardProps {
@@ -28,6 +30,10 @@ export function OpportunityCard({ opportunity }: OpportunityCardProps) {
     opportunity.currency,
   ).toDisplay()
 
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const hot = isHotLead(opportunity)
+  const overdue = isOverdue(opportunity, todayIso)
+
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
       <Card
@@ -49,6 +55,25 @@ export function OpportunityCard({ opportunity }: OpportunityCardProps) {
               <p className="truncate text-sm font-medium leading-tight">
                 {opportunity.name}
               </p>
+              {hot || overdue ? (
+                <div className="flex flex-wrap items-center gap-1">
+                  {hot ? (
+                    <Badge
+                      variant="secondary"
+                      className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"
+                    >
+                      <Flame className="size-3" />
+                      Hot
+                    </Badge>
+                  ) : null}
+                  {overdue ? (
+                    <Badge variant="destructive">
+                      <Clock className="size-3" />
+                      Overdue
+                    </Badge>
+                  ) : null}
+                </div>
+              ) : null}
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Building2 className="size-3 shrink-0" />
                 <span className="truncate">
