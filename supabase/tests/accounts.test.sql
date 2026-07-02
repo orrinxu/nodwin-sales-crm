@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(22);
+SELECT plan(24);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -110,24 +110,48 @@ SELECT is_empty(
   'anon cannot read account_relationships'
 );
 
--- ── 7. Non-admin cannot insert account ───────────────────────────────────────
+-- ── 7. Rep can insert their own account (ORR-608) ─────────────────────────────
+-- created_by defaults to auth.uid() via the audit-fields trigger, satisfying
+-- the INSERT WITH CHECK (created_by = auth.uid()).
+SELECT tests.as_user('rep@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT lives_ok(
+  $$INSERT INTO public.accounts (id, name) VALUES ('a7a7a7a7-a7a7-a7a7-a7a7-a7a7a7a7a7a7', 'Rep New Account')$$,
+  'rep can insert their own account'
+);
+
+-- ── 7a. Rep cannot spoof created_by to another user ───────────────────────────
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT throws_ok(
-  $$INSERT INTO public.accounts (id, name) VALUES ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'Bad Account')$$,
+  $$INSERT INTO public.accounts (id, name, created_by) VALUES ('a8a8a8a8-a8a8-a8a8-a8a8-a8a8a8a8a8a8', 'Spoofed', '22222222-2222-2222-2222-222222222222')$$,
   '42501',
   NULL,
-  'rep cannot insert account'
+  'rep cannot insert an account attributed to another user'
 );
 
--- ── 8. Non-admin cannot update account ───────────────────────────────────────
+-- ── 8. Rep can update an account they own (ORR-608) ───────────────────────────
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
-UPDATE public.accounts SET name = 'Hacked' WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+UPDATE public.accounts SET name = 'Rep Edited Tencent' WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 SELECT is(
   (SELECT name FROM public.accounts WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
-  'Tencent',
-  'rep cannot update account (silently blocked)'
+  'Rep Edited Tencent',
+  'rep can update an account they own'
+);
+
+-- ── 8a. Rep cannot update an account they neither own nor created ─────────────
+SELECT tests.as_user('rep@nodwin.com');
+SET LOCAL ROLE authenticated;
+UPDATE public.accounts SET name = 'Hacked' WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+-- Verify as service role: the rep cannot see the unowned account, so read it
+-- back with RLS bypassed to confirm the name is untouched.
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+SELECT is(
+  (SELECT name FROM public.accounts WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'),
+  'Nodwin India',
+  'rep cannot update an unowned account (silently blocked)'
 );
 
 -- ── 9. Non-admin cannot delete account ───────────────────────────────────────

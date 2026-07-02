@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(23);
+SELECT plan(25);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -105,24 +105,48 @@ SELECT is_empty(
   'anon cannot read contact_account_links'
 );
 
--- ── 8. Non-admin cannot insert contact ────────────────────────────────────────
+-- ── 8. Rep can insert their own contact (ORR-608) ─────────────────────────────
+-- created_by defaults to auth.uid() via the audit-fields trigger, satisfying
+-- the INSERT WITH CHECK (created_by = auth.uid()).
+SELECT tests.as_user('rep@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT lives_ok(
+  $$INSERT INTO public.contacts (id, full_name, primary_account_id, email, owner_user_id) VALUES ('c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7', 'Rep New Contact', '0a0a0a0a-0a0a-0a0a-0a0a-0a0a0a0a0a0a', 'repnew@example.com', '44444444-4444-4444-4444-444444444444')$$,
+  'rep can insert their own contact'
+);
+
+-- ── 8a. Rep cannot spoof created_by to another user ───────────────────────────
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT throws_ok(
-  $$INSERT INTO public.contacts (id, full_name, primary_account_id, email, owner_user_id) VALUES ('dddddddd-dddd-dddd-dddd-ddddddddddda', 'Bad Contact', '0a0a0a0a-0a0a-0a0a-0a0a-0a0a0a0a0a0a', 'bad@example.com', '44444444-4444-4444-4444-444444444444')$$,
+  $$INSERT INTO public.contacts (id, full_name, email, created_by) VALUES ('c8c8c8c8-c8c8-c8c8-c8c8-c8c8c8c8c8c8', 'Spoofed', 'spoof@example.com', '55555555-5555-5555-5555-555555555555')$$,
   '42501',
   NULL,
-  'rep cannot insert contact'
+  'rep cannot insert a contact attributed to another user'
 );
 
--- ── 9. Non-admin cannot update contact ────────────────────────────────────────
+-- ── 9. Rep can update a contact they own (ORR-608) ────────────────────────────
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
-UPDATE public.contacts SET full_name = 'Hacked' WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+UPDATE public.contacts SET full_name = 'Alice Rep-Edited' WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 SELECT is(
   (SELECT full_name FROM public.contacts WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
-  'Alice Li',
-  'rep cannot update contact (silently blocked)'
+  'Alice Rep-Edited',
+  'rep can update a contact they own'
+);
+
+-- ── 9a. Rep cannot update a contact they neither own nor created ──────────────
+SELECT tests.as_user('rep@nodwin.com');
+SET LOCAL ROLE authenticated;
+UPDATE public.contacts SET full_name = 'Hacked' WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+-- Verify as service role: the rep cannot see the unowned contact, so read it
+-- back with RLS bypassed to confirm the name is untouched.
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+SELECT is(
+  (SELECT full_name FROM public.contacts WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'),
+  'Bob Kumar',
+  'rep cannot update an unowned contact (silently blocked)'
 );
 
 -- ── 10. Non-admin cannot delete contact ───────────────────────────────────────
@@ -178,23 +202,22 @@ SELECT throws_ok(
   'rep cannot insert contact_account_link'
 );
 
--- ── 16. Non-admin cannot update contact_account_link ──────────────────────────
+-- ── 16. Rep can insert a link for a contact they created (ORR-608) ────────────
+-- Charlie (cccc) was created by the rep, so the rep may manage its links.
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
-UPDATE public.contact_account_links SET account_id = '0a0a0a0a-0a0a-0a0a-0a0a-0a0a0a0a0a0a' WHERE id = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
-SELECT is(
-  (SELECT account_id FROM public.contact_account_links WHERE id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'),
-  '0a0a0a0a-0a0a-0a0a-0a0a-0a0a0a0a0a0a',
-  'rep cannot update contact_account_link (silently blocked)'
+SELECT lives_ok(
+  $$INSERT INTO public.contact_account_links (id, contact_id, account_id) VALUES ('f0f0f0f0-f0f0-f0f0-f0f0-f0f0f0f0f0f0', 'cccccccc-cccc-cccc-cccc-cccccccccccc', '0a0a0a0a-0a0a-0a0a-0a0a-0a0a0a0a0a0a')$$,
+  'rep can insert a link for a contact they created'
 );
 
--- ── 17. Non-admin cannot delete contact_account_link ──────────────────────────
+-- ── 17. Rep can delete a link for their own contact (ORR-608) ─────────────────
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
-DELETE FROM public.contact_account_links WHERE id = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
-SELECT isnt_empty(
-  $$SELECT id FROM public.contact_account_links WHERE id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'$$,
-  'rep cannot delete contact_account_link (silently blocked)'
+DELETE FROM public.contact_account_links WHERE id = 'f0f0f0f0-f0f0-f0f0-f0f0-f0f0f0f0f0f0';
+SELECT is_empty(
+  $$SELECT id FROM public.contact_account_links WHERE id = 'f0f0f0f0-f0f0-f0f0-f0f0-f0f0f0f0f0f0'$$,
+  'rep can delete a link for their own contact'
 );
 
 -- ── 18. Admin can delete contact_account_link ─────────────────────────────────
