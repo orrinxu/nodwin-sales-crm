@@ -25,6 +25,8 @@ export interface ActivityRecord {
   opportunityName: string | null
   accountId: string | null
   accountName: string | null
+  contactId: string | null
+  contactName: string | null
   userId: string
   userName: string | null
   type: ActivityType
@@ -39,6 +41,7 @@ export interface ActivityRecord {
 export const activityCreateSchema = z.object({
   opportunityId: z.string().uuid().nullable().optional(),
   accountId: z.string().uuid().nullable().optional(),
+  contactId: z.string().uuid().nullable().optional(),
   type: z.enum(ACTIVITY_TYPES),
   subject: z.string().max(300).nullable().optional().or(z.literal("")),
   body: z.string().max(10000).nullable().optional().or(z.literal("")),
@@ -51,6 +54,7 @@ const ACTIVITY_SELECT = `
   id,
   account_id,
   opportunity_id,
+  contact_id,
   user_id,
   type,
   external_thread_id,
@@ -61,19 +65,23 @@ const ACTIVITY_SELECT = `
   updated_at,
   author:user_id ( full_name ),
   opportunity:opportunity_id ( name ),
-  account:account_id ( name )
+  account:account_id ( name ),
+  contact:contact_id ( full_name )
 `
 
 function toDomainActivity(data: Record<string, unknown>): ActivityRecord {
   const author = data.author as { full_name: string } | null
   const opportunity = data.opportunity as { name: string } | null
   const account = data.account as { name: string } | null
+  const contact = data.contact as { full_name: string } | null
   return {
     id: data.id as string,
     opportunityId: (data.opportunity_id as string) ?? null,
     opportunityName: opportunity?.name ?? null,
     accountId: (data.account_id as string) ?? null,
     accountName: account?.name ?? null,
+    contactId: (data.contact_id as string) ?? null,
+    contactName: contact?.full_name ?? null,
     userId: data.user_id as string,
     userName: author?.full_name ?? null,
     type: data.type as ActivityType,
@@ -130,6 +138,25 @@ export async function getActivitiesForOpportunity(
   return (data ?? []).map((r) => toDomainActivity(r as Record<string, unknown>))
 }
 
+export async function getActivitiesForContact(
+  ctx: ActivityCallContext,
+  contactId: string,
+): Promise<ActivityRecord[]> {
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("activities")
+    .select(ACTIVITY_SELECT)
+    .eq("contact_id", contactId)
+    .order("created_at", { ascending: false })
+
+  if (error) {
+    throw new Error(`Failed to load activities: ${error.message}`)
+  }
+
+  return (data ?? []).map((r) => toDomainActivity(r as Record<string, unknown>))
+}
+
 export async function createActivity(
   ctx: ActivityCallContext,
   input: ActivityCreateInput,
@@ -141,6 +168,7 @@ export async function createActivity(
     .insert({
       opportunity_id: input.opportunityId ?? null,
       account_id: input.accountId ?? null,
+      contact_id: input.contactId ?? null,
       user_id: ctx.user.id,
       type: input.type,
       subject: input.subject || null,

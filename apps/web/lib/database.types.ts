@@ -131,6 +131,7 @@ export type Database = {
         Row: {
           account_id: string | null
           body: string | null
+          contact_id: string | null
           created_at: string
           created_by: string | null
           external_thread_id: string | null
@@ -146,6 +147,7 @@ export type Database = {
         Insert: {
           account_id?: string | null
           body?: string | null
+          contact_id?: string | null
           created_at?: string
           created_by?: string | null
           external_thread_id?: string | null
@@ -161,6 +163,7 @@ export type Database = {
         Update: {
           account_id?: string | null
           body?: string | null
+          contact_id?: string | null
           created_at?: string
           created_by?: string | null
           external_thread_id?: string | null
@@ -179,6 +182,13 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
           {

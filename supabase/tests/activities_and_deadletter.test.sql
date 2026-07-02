@@ -7,7 +7,7 @@
 
 BEGIN;
 
-SELECT plan(40);
+SELECT plan(47);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -106,6 +106,10 @@ VALUES
   ('aaaaaaa1-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'ccccccc1-cccc-cccc-cccc-cccccccccccc', '33333333-3333-3333-3333-333333333333', 'note', 'User3 own note'),
   ('aaaaaaa2-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'ccccccc1-cccc-cccc-cccc-cccccccccccc', '11111111-1111-1111-1111-111111111111', 'note', 'Rep note on User3 Account'),
   ('aaaaaaa3-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '33333333-3333-3333-3333-333333333333', 'note', 'User3 note on unowned Account');
+
+-- Contact owned by rep, linked to the rep-visible Test Account (for contact_id tests).
+INSERT INTO public.contacts (id, full_name, primary_account_id, owner_user_id)
+VALUES ('c0ffeeee-cccc-cccc-cccc-cccccccccccc', 'Rep Contact', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111');
 
 -- ── 1. Authenticated user can read activities ────────────────────────────────
 SELECT tests.as_user('rep@nodwin.com');
@@ -462,6 +466,66 @@ SELECT has_index(
   'idx_deadletter_message_id',
   ARRAY['message_id'],
   'message_id partial index exists'
+);
+
+-- ── 39. activities contact_id column exists ──────────────────────────────────
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+SELECT has_column(
+  'public',
+  'activities',
+  'contact_id',
+  'activities has contact_id column'
+);
+
+-- ── 40. activities contact_id partial index exists ───────────────────────────
+SELECT has_index(
+  'public',
+  'activities',
+  'idx_activities_contact_id',
+  ARRAY['contact_id'],
+  'contact_id index exists'
+);
+
+-- ── 41. Rep can insert a contact-scoped activity ─────────────────────────────
+SELECT tests.as_user('rep@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT lives_ok(
+  $$INSERT INTO public.activities (id, account_id, contact_id, user_id, type, subject)
+    VALUES ('c0ffeea1-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'c0ffeeee-cccc-cccc-cccc-cccccccccccc', '11111111-1111-1111-1111-111111111111', 'note', 'Logged from contact view')$$,
+  'rep can insert a contact-scoped activity'
+);
+
+-- ── 42. Author can read their contact-scoped activity ────────────────────────
+SELECT isnt_empty(
+  $$SELECT id FROM public.activities WHERE id = 'c0ffeea1-aaaa-aaaa-aaaa-aaaaaaaaaaaa'$$,
+  'author can read their contact-scoped activity'
+);
+
+-- ── 43. contact_id FK to contacts is enforced ────────────────────────────────
+SELECT throws_ok(
+  $$INSERT INTO public.activities (id, account_id, contact_id, user_id, type)
+    VALUES ('c0ffeea2-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'deadbeef-dead-dead-dead-deaddeaddead', '11111111-1111-1111-1111-111111111111', 'note')$$,
+  '23503',
+  NULL,
+  'contact_id references contacts (FK enforced)'
+);
+
+-- ── 44. Other user cannot read a contact-scoped activity they do not own ──────
+SELECT tests.as_user('other@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.activities WHERE id = 'c0ffeea1-aaaa-aaaa-aaaa-aaaaaaaaaaaa'$$,
+  'unrelated user cannot read a contact-scoped activity'
+);
+
+-- ── 45. contact_id defaults to NULL for non-contact activities ────────────────
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+SELECT is(
+  (SELECT contact_id FROM public.activities WHERE id = 'aaaaaaa1-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
+  NULL,
+  'contact_id is NULL for activities not logged against a contact'
 );
 
 SELECT * FROM finish();
