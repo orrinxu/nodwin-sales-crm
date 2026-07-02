@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(31);
+SELECT plan(35);
 
 -- ── Setup: temporary test table ──────────────────────────────────────────────
 DROP TABLE IF EXISTS test_audit_target CASCADE;
@@ -112,9 +112,12 @@ SELECT set_config(
   json_build_object('sub', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'role', 'authenticated')::text,
   true
 );
+-- PostgREST exposes request.headers as a JSON OBJECT keyed by lowercased
+-- header name (see the object shape used below), so the spoof attempt must use
+-- that shape to reflect reality.
 SELECT set_config(
   'request.headers',
-  '[{"header":"x-audit-source","value":"mcp"}]'::text,
+  '{"x-audit-source":"mcp"}'::text,
   true
 );
 
@@ -125,6 +128,49 @@ SELECT results_eq(
   $$VALUES ('user'::text)$$,
   'actor_source ignores x-audit-source header spoofing'
 );
+
+-- ── request.headers is a JSON OBJECT (real PostgREST shape) — regression for ──
+-- ── "cannot extract elements from an object" on every API write (ORR-604) ─────
+DELETE FROM public.audit_log WHERE table_name = 'test_audit_target';
+
+SELECT set_config(
+  'request.headers',
+  '{"user-agent":"pgtap-suite/1.0","x-forwarded-for":"203.0.113.7"}'::text,
+  true
+);
+
+-- Helper reads a header by key from the object without raising.
+SELECT is(
+  audit.get_request_header('user-agent'),
+  'pgtap-suite/1.0',
+  'get_request_header reads user-agent from object-shaped request.headers'
+);
+SELECT is(
+  audit.get_request_header('x-forwarded-for'),
+  '203.0.113.7',
+  'get_request_header reads x-forwarded-for from object-shaped request.headers'
+);
+
+-- The write itself must succeed (previously aborted with "cannot extract
+-- elements from an object") and capture the header metadata.
+INSERT INTO test_audit_target (name, value) VALUES ('epsilon', 40);
+
+SELECT results_eq(
+  $$SELECT actor_user_agent, actor_ip FROM public.audit_log WHERE table_name = 'test_audit_target' AND new_data->>'name' = 'epsilon'$$,
+  $$VALUES ('pgtap-suite/1.0'::text, '203.0.113.7'::text)$$,
+  'INSERT with object-shaped request.headers succeeds and records actor_user_agent + actor_ip'
+);
+
+-- Defensive: a non-object headers value returns NULL rather than raising, so a
+-- malformed value can never abort the underlying write.
+SELECT set_config('request.headers', '[{"header":"user-agent","value":"legacy"}]'::text, true);
+SELECT is(
+  audit.get_request_header('user-agent'),
+  NULL,
+  'get_request_header returns NULL (no error) when request.headers is not an object'
+);
+
+SELECT set_config('request.headers', '', true);
 
 -- ── RLS: non-admin authenticated user cannot SELECT audit rows ────────────────
 INSERT INTO auth.users (id, email, raw_user_meta_data)
