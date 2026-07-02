@@ -138,6 +138,25 @@ export async function getActivitiesForOpportunity(
   return (data ?? []).map((r) => toDomainActivity(r as Record<string, unknown>))
 }
 
+export async function getActivitiesForAccount(
+  ctx: ActivityCallContext,
+  accountId: string,
+): Promise<ActivityRecord[]> {
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("activities")
+    .select(ACTIVITY_SELECT)
+    .eq("account_id", accountId)
+    .order("created_at", { ascending: false })
+
+  if (error) {
+    throw new Error(`Failed to load activities: ${error.message}`)
+  }
+
+  return (data ?? []).map((r) => toDomainActivity(r as Record<string, unknown>))
+}
+
 export async function getActivitiesForContact(
   ctx: ActivityCallContext,
   contactId: string,

@@ -9,9 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { AccountForm } from "@/components/accounts/account-form"
 import { CustomFieldsDisplay } from "@/components/contacts/custom-fields-display"
+import { ActivityComposer } from "@/components/opportunities/activity-composer"
+import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
 import { getStageLabel } from "@/lib/data/opportunities.types"
 import { Money } from "@/lib/money"
 import type { AccountRecord, AccountUpdateInput, AccountRelationship, AccountOpportunity, AccountDocument, AccountRelationshipKind } from "@/lib/data/accounts"
+import type { ActivityRecord } from "@/lib/data/activities"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import type { EntityOption } from "@/components/entity-combobox"
 
@@ -26,8 +29,10 @@ interface AccountDetailWrapperProps {
   ownerOptions: EntityOption[]
   accountOptions: EntityOption[]
   currentUserId?: string
+  activities: ActivityRecord[]
   parentRelationship?: { toAccountId: string; kind: AccountRelationshipKind } | null
   updateAction: (id: string, input: AccountUpdateInput) => Promise<AccountRecord>
+  createActivityAction: (accountId: string, input: unknown) => Promise<ActivityRecord>
   saveRelationshipAction?: (data: { parentAccountId: string; kind: AccountRelationshipKind }) => Promise<void>
 }
 
@@ -50,8 +55,10 @@ export function AccountDetailWrapper({
   ownerOptions,
   accountOptions,
   currentUserId,
+  activities,
   parentRelationship,
   updateAction,
+  createActivityAction,
   saveRelationshipAction,
 }: AccountDetailWrapperProps) {
   const router = useRouter()
@@ -389,6 +396,21 @@ export function AccountDetailWrapper({
             </CardContent>
           </Card>
         )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Activity</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <ActivityComposer
+              revalidateId={account.id}
+              scope={{ accountId: account.id }}
+              createAction={createActivityAction}
+              onCreated={() => router.refresh()}
+            />
+            <ActivityTimeline activities={activities} />
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

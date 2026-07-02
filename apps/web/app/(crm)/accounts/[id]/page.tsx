@@ -10,7 +10,8 @@ import {
   getAccounts,
 } from "@/lib/data/accounts"
 import { getFieldDefinitions } from "@/lib/data/field-definitions"
-import { updateAccountAction, upsertAccountRelationshipAction } from "../actions"
+import { getActivitiesForAccount } from "@/lib/data/activities"
+import { updateAccountAction, upsertAccountRelationshipAction, createAccountActivityAction } from "../actions"
 import { AccountDetailWrapper } from "@/components/accounts/account-detail-wrapper"
 
 export default async function AccountDetailPage({
@@ -22,7 +23,7 @@ export default async function AccountDetailPage({
   const { id } = await params
 
   const ctx = { user, source: "web" as const }
-  const [account, fieldDefinitions, relationships, contacts, opportunities, owners, documents, { accounts: allAccounts }] = await Promise.all([
+  const [account, fieldDefinitions, relationships, contacts, opportunities, owners, documents, activities, { accounts: allAccounts }] = await Promise.all([
     getAccountById(ctx, id),
     getFieldDefinitions(ctx, "account"),
     getAccountRelationships(ctx, id),
@@ -30,6 +31,7 @@ export default async function AccountDetailPage({
     getOpportunitiesForAccount(ctx, id),
     getOwnerOptions(ctx),
     getAccountLinkedDocuments(ctx, id),
+    getActivitiesForAccount(ctx, id),
     getAccounts(ctx),
   ])
 
@@ -69,8 +71,10 @@ export default async function AccountDetailPage({
       ownerOptions={ownerOptions}
       accountOptions={accountOptions}
       currentUserId={user.id}
+      activities={activities}
       parentRelationship={parentRelationship}
       updateAction={updateAccountAction}
+      createActivityAction={createAccountActivityAction}
       saveRelationshipAction={saveRelationship}
     />
   )
