@@ -120,7 +120,9 @@ const defaultProps = {
   ownerName: "Charlie Owner",
   ownerOptions: mockOwnerOptions,
   accountOptions: mockAccountOptions,
+  activities: [],
   updateAction: vi.fn(),
+  createActivityAction: vi.fn(),
 }
 
 describe("AccountDetailWrapper", () => {

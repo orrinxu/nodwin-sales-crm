@@ -13,6 +13,16 @@ import {
   bulkDeleteAccountsSchema,
   type AccountRelationshipKind,
 } from "@/lib/data/accounts"
+import { createActivity, activityCreateSchema } from "@/lib/data/activities"
+
+export async function createAccountActivityAction(accountId: string, input: unknown) {
+  const user = await requireUser()
+  const parsed = activityCreateSchema.parse(input)
+  const ctx = { user, source: "web" as const }
+  const activity = await createActivity(ctx, parsed)
+  revalidatePath(`/accounts/${accountId}`)
+  return activity
+}
 
 export async function createAccountAction(input: unknown) {
   const user = await requireUser()
