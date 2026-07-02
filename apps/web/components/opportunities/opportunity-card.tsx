@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useDraggable } from "@dnd-kit/core"
 import { GripVertical, Building2, DollarSign, User, Flame, Clock } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
@@ -11,6 +12,10 @@ import { Money } from "@/lib/money"
 interface OpportunityCardProps {
   opportunity: OpportunityRecord
 }
+
+// Stop pointerdown on interactive children from reaching the drag sensor, so a
+// click on a link navigates instead of being swallowed as the start of a drag.
+const stopDrag = (e: React.PointerEvent) => e.stopPropagation()
 
 export function OpportunityCard({ opportunity }: OpportunityCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
@@ -35,26 +40,31 @@ export function OpportunityCard({ opportunity }: OpportunityCardProps) {
   const overdue = isOverdue(opportunity, todayIso)
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes}>
+    <div ref={setNodeRef} style={style}>
       <Card
         className={`cursor-grab active:cursor-grabbing transition-shadow ${
           isDragging ? "opacity-50 shadow-lg" : "hover:shadow-md"
         }`}
         size="sm"
+        {...attributes}
+        {...listeners}
       >
         <CardContent className="p-3">
           <div className="flex items-start gap-2">
-            <button
-              className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"
-              {...listeners}
-              aria-label="Drag to move"
+            <span
+              className="mt-0.5 shrink-0 text-muted-foreground"
+              aria-hidden="true"
             >
               <GripVertical className="size-3.5" />
-            </button>
+            </span>
             <div className="min-w-0 flex-1 space-y-1.5">
-              <p className="truncate text-sm font-medium leading-tight">
+              <Link
+                href={`/opportunities/${opportunity.id}`}
+                onPointerDown={stopDrag}
+                className="block cursor-pointer truncate text-sm font-medium leading-tight hover:underline"
+              >
                 {opportunity.name}
-              </p>
+              </Link>
               {hot || overdue ? (
                 <div className="flex flex-wrap items-center gap-1">
                   {hot ? (
@@ -76,9 +86,17 @@ export function OpportunityCard({ opportunity }: OpportunityCardProps) {
               ) : null}
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Building2 className="size-3 shrink-0" />
-                <span className="truncate">
-                  {opportunity.accountName ?? "—"}
-                </span>
+                {opportunity.accountName ? (
+                  <Link
+                    href={`/accounts/${opportunity.accountId}`}
+                    onPointerDown={stopDrag}
+                    className="cursor-pointer truncate hover:text-foreground hover:underline"
+                  >
+                    {opportunity.accountName}
+                  </Link>
+                ) : (
+                  <span className="truncate">—</span>
+                )}
               </div>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <DollarSign className="size-3 shrink-0" />
