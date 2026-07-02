@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(56);
+SELECT plan(58);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -669,6 +669,30 @@ SET LOCAL ROLE authenticated;
 SELECT lives_ok(
   $$DELETE FROM public.opportunities WHERE id = '00000000-0000-0000-0000-000000000001'$$,
   'admin can delete opportunity with splits (CASCADE)'
+);
+
+-- ── 52. Owner can create their own opportunity via INSERT ... RETURNING ────────
+-- Regression for ORR-605: createOpportunity() runs `.insert().select()` under
+-- the user session, which is INSERT ... RETURNING. The owner's
+-- opportunity_visibility row is populated AFTER insert, so RETURNING previously
+-- failed the SELECT policy for a non-admin owner ("new row violates row-level
+-- security policy") even though the row was written. The owner branch on the
+-- SELECT policy makes RETURNING succeed the moment the row exists.
+SELECT tests.as_user('owner@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT lives_ok(
+  $$INSERT INTO public.opportunities (id, name, account_id, stage, owner_user_id, sales_unit_id, amount, currency, visibility_tier)
+    VALUES ('0e0e0e0e-0e0e-0e0e-0e0e-0e0e0e0e0e0e', 'Owner Self-Create', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'qualify', '10000000-0000-0000-0000-000000000001', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 25000, 'USD', 'standard')
+    RETURNING id$$,
+  'owner (sales_rep) can INSERT ... RETURNING their own opportunity'
+);
+
+-- ── 53. A rep in another entity still cannot see that freshly created deal ─────
+SELECT tests.as_user('other@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.opportunities WHERE id = '0e0e0e0e-0e0e-0e0e-0e0e-0e0e0e0e0e0e'$$,
+  'owner branch does not leak the new deal to an unrelated rep'
 );
 
 SELECT * FROM finish();
