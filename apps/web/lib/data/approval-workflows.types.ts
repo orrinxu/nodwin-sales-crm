@@ -17,16 +17,37 @@ export const APPROVER_ROLE_OPTIONS = [
 // path today; add others here as their submit paths land (avoids inert config).
 export const WORKFLOW_ENTITY_TYPES = ["opportunity"] as const
 
+// Deal stages — the opportunity pipeline stages that can trigger an approval.
+export const DEAL_STAGE_OPTIONS = [
+  "qualify",
+  "meet_and_present",
+  "propose",
+  "negotiate",
+  "verbal_agreement",
+  "closed_won",
+  "closed_lost",
+] as const
+
+export const APPROVAL_STEP_MODE_OPTIONS = [
+  "all_required",
+  "any_one",
+] as const
+
 // How a step's approver is resolved: the submitter's own manager (at submit
 // time), a specific person (e.g. CFO/COO/CEO), or an entity-scoped role.
 export type ApproverKind = "manager" | "user" | "role"
+
+export type ApprovalStepMode = (typeof APPROVAL_STEP_MODE_OPTIONS)[number]
 
 export interface AdminWorkflowStep {
   stepOrder: number
   approverKind: ApproverKind
   approverRole: string | null
   approverUserId: string | null
+  approverUserIds: string[] | null
   approverName: string | null
+  name: string | null
+  mode: ApprovalStepMode
 }
 
 export interface AdminApprovalWorkflow {
@@ -36,6 +57,10 @@ export interface AdminApprovalWorkflow {
   entityType: string
   entityId: string | null
   entityName: string | null
+  appliesToEntityId: string | null
+  appliesToEntityName: string | null
+  triggerStage: string | null
+  enforceGate: boolean
   active: boolean
   steps: AdminWorkflowStep[]
 }
