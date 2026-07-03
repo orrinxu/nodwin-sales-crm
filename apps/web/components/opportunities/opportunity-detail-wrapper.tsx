@@ -22,6 +22,7 @@ import { OpportunityTeamEditor } from "@/components/opportunities/opportunity-te
 import { StageHistoryTimeline } from "@/components/opportunities/stage-history-timeline"
 import { ApprovalHistory } from "@/components/opportunities/approval-history"
 import { ApprovalDecisionBox } from "@/components/opportunities/approval-decision-box"
+import { ApprovalAdminControls } from "@/components/opportunities/approval-admin-controls"
 import type { EntityOption } from "@/components/entity-combobox"
 import type {
   OpportunityRecord,
@@ -70,8 +71,12 @@ interface OpportunityDetailWrapperProps {
   approvalStatus?: string
   canSubmitApproval?: boolean
   actionableStepId?: string | null
+  pendingApprovalInstanceId?: string | null
+  canAdminApprovals?: boolean
   submitApprovalAction?: (opportunityId: string) => Promise<void>
   recordDecisionAction?: (opportunityId: string, input: { stepId: string; decision: "approved" | "rejected"; comment?: string }) => Promise<void>
+  reassignApprovalAction?: (opportunityId: string, input: { stepId: string; newUserId: string }) => Promise<void>
+  cancelApprovalAction?: (opportunityId: string, instanceId: string) => Promise<void>
   updateSplitsAction?: (id: string, input: unknown) => Promise<void>
   updateTeamAction?: (id: string, input: unknown) => Promise<void>
 }
@@ -165,8 +170,12 @@ export function OpportunityDetailWrapper({
   approvalStatus = "Not submitted",
   canSubmitApproval = false,
   actionableStepId = null,
+  pendingApprovalInstanceId = null,
+  canAdminApprovals = false,
   submitApprovalAction,
   recordDecisionAction,
+  reassignApprovalAction,
+  cancelApprovalAction,
   updateSplitsAction,
   updateTeamAction,
 }: OpportunityDetailWrapperProps) {
@@ -197,6 +206,34 @@ export function OpportunityDetailWrapper({
       }
     },
     [recordDecisionAction, opportunity.id, router],
+  )
+
+  const handleReassign = useCallback(
+    async (stepId: string, userId: string) => {
+      if (!reassignApprovalAction) return
+      setApprovalPending(true)
+      try {
+        await reassignApprovalAction(opportunity.id, { stepId, newUserId: userId })
+        router.refresh()
+      } finally {
+        setApprovalPending(false)
+      }
+    },
+    [reassignApprovalAction, opportunity.id, router],
+  )
+
+  const handleCancel = useCallback(
+    async (instanceId: string) => {
+      if (!cancelApprovalAction) return
+      setApprovalPending(true)
+      try {
+        await cancelApprovalAction(opportunity.id, instanceId)
+        router.refresh()
+      } finally {
+        setApprovalPending(false)
+      }
+    },
+    [cancelApprovalAction, opportunity.id, router],
   )
 
   const noteActivities = activities.filter((a) => a.type === "note")
@@ -534,6 +571,16 @@ export function OpportunityDetailWrapper({
                   stepId={actionableStepId}
                   pending={approvalPending}
                   onDecide={handleDecision}
+                />
+              )}
+              {canAdminApprovals && pendingApprovalInstanceId && reassignApprovalAction && cancelApprovalAction && (
+                <ApprovalAdminControls
+                  stepId={actionableStepId}
+                  instanceId={pendingApprovalInstanceId}
+                  users={userOptions}
+                  pending={approvalPending}
+                  onReassign={handleReassign}
+                  onCancel={handleCancel}
                 />
               )}
             </CardContent>

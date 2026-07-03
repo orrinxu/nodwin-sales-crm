@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation"
-import { requireUser } from "@/lib/security/auth"
+import { requireUser, isSuperAdmin } from "@/lib/security/auth"
 import {
   getOpportunityById,
   getBusinessUnitOptions,
@@ -23,6 +23,8 @@ import {
   updateOpportunityTeamMembersAction,
   submitOpportunityForApprovalAction,
   recordApprovalDecisionAction,
+  reassignApprovalStepAction,
+  cancelApprovalInstanceAction,
 } from "../actions"
 import { OpportunityDetailWrapper } from "@/components/opportunities/opportunity-detail-wrapper"
 
@@ -70,8 +72,12 @@ export default async function OpportunityDetailPage({
       approvalStatus={approvalStatus}
       canSubmitApproval={approvalActionState.canSubmit}
       actionableStepId={approvalActionState.actionableStepId}
+      pendingApprovalInstanceId={approvalActionState.pendingInstanceId}
+      canAdminApprovals={isSuperAdmin(user)}
       submitApprovalAction={submitOpportunityForApprovalAction}
       recordDecisionAction={recordApprovalDecisionAction}
+      reassignApprovalAction={reassignApprovalStepAction}
+      cancelApprovalAction={cancelApprovalInstanceAction}
       updateSplitsAction={updateOpportunitySplitsAction}
       updateTeamAction={updateOpportunityTeamMembersAction}
     />

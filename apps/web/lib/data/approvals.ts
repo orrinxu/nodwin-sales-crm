@@ -195,11 +195,43 @@ export async function recordApprovalDecision(
   }
 }
 
+export async function reassignApprovalStep(
+  ctx: ApprovalCallContext,
+  stepId: string,
+  newUserId: string,
+): Promise<void> {
+  void ctx
+  const supabase = await createServerClient()
+  const { error } = await supabase.rpc("reassign_approval_step", {
+    _step_id: stepId,
+    _new_user_id: newUserId,
+  })
+  if (error) {
+    throw new Error(`Failed to reassign approval: ${error.message}`)
+  }
+}
+
+export async function cancelApprovalInstance(
+  ctx: ApprovalCallContext,
+  instanceId: string,
+): Promise<void> {
+  void ctx
+  const supabase = await createServerClient()
+  const { error } = await supabase.rpc("cancel_approval_instance", {
+    _instance_id: instanceId,
+  })
+  if (error) {
+    throw new Error(`Failed to cancel approval: ${error.message}`)
+  }
+}
+
 export interface ApprovalActionState {
   // May the current user submit this opportunity for approval right now?
   canSubmit: boolean
   // The id of the step the current user can decide right now (else null).
   actionableStepId: string | null
+  // The current pending approval instance (for admin reassign/cancel), else null.
+  pendingInstanceId: string | null
 }
 
 // Resolves what the current viewer can DO with an opportunity's approval:
@@ -230,8 +262,10 @@ export async function getApprovalActionState(
     const { data: canManage } = await supabase.rpc("can_manage_opportunity", {
       _opportunity_id: opportunityId,
     })
-    return { canSubmit: !!canManage, actionableStepId: null }
+    return { canSubmit: !!canManage, actionableStepId: null, pendingInstanceId: null }
   }
+
+  const pendingInstanceId = (inst as { id: string }).id
 
   // Pending: find the current (lowest-order) pending step and whether this user
   // may decide it.
@@ -258,5 +292,5 @@ export async function getApprovalActionState(
     if (canDecide) actionableStepId = current.id
   }
 
-  return { canSubmit: false, actionableStepId }
+  return { canSubmit: false, actionableStepId, pendingInstanceId }
 }
