@@ -220,15 +220,31 @@ describe("OpportunityDetailWrapper", () => {
   })
 
   describe("right panel", () => {
-    it("renders related list placeholders", () => {
+    it("renders the communications tabs and related cards", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Products")).toBeInTheDocument()
-      expect(screen.getByText("Files")).toBeInTheDocument()
-      expect(screen.getByText("Activity")).toBeInTheDocument()
+      // Communications tab labels (always rendered in the tab list)
+      expect(screen.getByRole("tab", { name: "Activity" })).toBeInTheDocument()
+      expect(screen.getByRole("tab", { name: "Notes" })).toBeInTheDocument()
+      expect(screen.getByRole("tab", { name: "Calls" })).toBeInTheDocument()
+      expect(screen.getByRole("tab", { name: "Files" })).toBeInTheDocument()
+      expect(screen.getByRole("tab", { name: "Email" })).toBeInTheDocument()
+      // Related cards
       expect(screen.getByText("Approval History")).toBeInTheDocument()
       expect(screen.getByText("Opportunity Team")).toBeInTheDocument()
       expect(screen.getByText("Opportunity Splits")).toBeInTheDocument()
       expect(screen.getByText("Stage History")).toBeInTheDocument()
+    })
+
+    it("shows a read-only 'not submitted' state when there are no approvals", () => {
+      render(<OpportunityDetailWrapper {...defaultProps} />)
+      expect(
+        screen.getByText("This opportunity has not been submitted for approval."),
+      ).toBeInTheDocument()
+    })
+
+    it("renders the approval status passed from the server", () => {
+      render(<OpportunityDetailWrapper {...defaultProps} approvalStatus="Pending" />)
+      expect(screen.getAllByText("Pending").length).toBeGreaterThanOrEqual(1)
     })
   })
 
