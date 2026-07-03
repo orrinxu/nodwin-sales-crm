@@ -95,8 +95,8 @@ const emptyRelationshipGraph: AccountRelationshipGraph = {
 }
 
 const defaultContacts = [
-  { id: "c-1", fullName: "Alice Smith", title: "CEO", email: "alice@testcorp.com" },
-  { id: "c-2", fullName: "Bob Jones", title: "CTO", email: null },
+  { id: "c-1", fullName: "Alice Smith", title: "CEO", email: "alice@testcorp.com", relation: "primary" as const },
+  { id: "c-2", fullName: "Bob Jones", title: "CTO", email: null, relation: "linked" as const },
 ]
 
 const defaultOpportunities: AccountOpportunity[] = [
@@ -140,6 +140,11 @@ const defaultProps = {
   taxIds: [],
   relationshipGraph: defaultRelationshipGraph,
   contacts: defaultContacts,
+  canManageContacts: false,
+  attachableContacts: [],
+  attachContactsAction: vi.fn(),
+  detachContactAction: vi.fn(),
+  createContactAction: vi.fn(),
   opportunities: defaultOpportunities,
   documents: defaultDocuments,
   ownerName: "Charlie Owner",
@@ -305,6 +310,32 @@ describe("AccountDetailWrapper", () => {
         <AccountDetailWrapper {...defaultProps} contacts={[]} />,
       )
       expect(screen.queryByText("Contacts")).not.toBeInTheDocument()
+    })
+
+    it("shows the Primary badge for a primary contact", () => {
+      render(<AccountDetailWrapper {...defaultProps} />)
+      expect(screen.getByText("Primary")).toBeInTheDocument()
+    })
+
+    it("hides attach/detach controls for non-admins", () => {
+      render(<AccountDetailWrapper {...defaultProps} canManageContacts={false} />)
+      expect(screen.queryByRole("button", { name: "Attach" })).not.toBeInTheDocument()
+      expect(screen.queryByLabelText("Detach Bob Jones")).not.toBeInTheDocument()
+    })
+
+    it("shows Attach and a detach control for linked (not primary) contacts when admin", () => {
+      render(<AccountDetailWrapper {...defaultProps} canManageContacts={true} />)
+      expect(screen.getByRole("button", { name: "Attach" })).toBeInTheDocument()
+      // Bob is linked → detachable; Alice is primary → not detachable here.
+      expect(screen.getByLabelText("Detach Bob Jones")).toBeInTheDocument()
+      expect(screen.queryByLabelText("Detach Alice Smith")).not.toBeInTheDocument()
+    })
+
+    it("shows the empty state with Attach for admins when there are no contacts", () => {
+      render(<AccountDetailWrapper {...defaultProps} contacts={[]} canManageContacts={true} />)
+      expect(screen.getByText("Contacts (0)")).toBeInTheDocument()
+      expect(screen.getByText(/No contacts attached yet/)).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Attach" })).toBeInTheDocument()
     })
   })
 

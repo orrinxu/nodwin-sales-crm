@@ -360,6 +360,38 @@ function toDbContact(input: ContactCreateInput): Record<string, unknown> {
   return dbData
 }
 
+export interface ContactPickerOption {
+  id: string
+  fullName: string
+  email: string | null
+  title: string | null
+}
+
+// Lightweight list of all RLS-visible contacts, for pickers (e.g. attaching
+// contacts to an account). Unlike getContacts (paged at 20) this returns the
+// full visible set up to a generous cap, ordered by name.
+export async function getContactOptions(ctx: ContactCallContext): Promise<ContactPickerOption[]> {
+  void ctx
+  const supabase = await createServerClient()
+  const { data, error } = await supabase
+    .from("contacts")
+    .select("id, full_name, email, title")
+    .order("full_name", { ascending: true })
+    .limit(1000)
+  if (error) {
+    throw new Error(`Failed to load contact options: ${error.message}`)
+  }
+  return (data ?? []).map((r) => {
+    const row = r as Record<string, unknown>
+    return {
+      id: row.id as string,
+      fullName: row.full_name as string,
+      email: (row.email as string) ?? null,
+      title: (row.title as string) ?? null,
+    }
+  })
+}
+
 export async function createContact(
   ctx: ContactCallContext,
   input: ContactCreateInput,

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation"
-import { requireUser } from "@/lib/security/auth"
+import { requireUser, isSuperAdmin } from "@/lib/security/auth"
 import {
   getAccountById,
   getAccountRelationships,
@@ -13,7 +13,16 @@ import {
 import { getFieldDefinitions } from "@/lib/data/field-definitions"
 import { getTaxIdTypes, getTaxIdsForAccount } from "@/lib/data/account-tax-ids"
 import { getActivitiesForAccount } from "@/lib/data/activities"
-import { updateAccountAction, upsertAccountRelationshipAction, createAccountActivityAction, saveAccountTaxIdsAction } from "../actions"
+import { getContactOptions } from "@/lib/data/contacts"
+import {
+  updateAccountAction,
+  upsertAccountRelationshipAction,
+  createAccountActivityAction,
+  saveAccountTaxIdsAction,
+  attachContactsToAccountAction,
+  detachContactFromAccountAction,
+  createContactForAccountAction,
+} from "../actions"
 import { AccountDetailWrapper } from "@/components/accounts/account-detail-wrapper"
 
 export default async function AccountDetailPage({
@@ -25,7 +34,10 @@ export default async function AccountDetailPage({
   const { id } = await params
 
   const ctx = { user, source: "web" as const }
-  const [account, fieldDefinitions, taxIdTypes, taxIds, relationships, relationshipGraph, contacts, opportunities, owners, documents, activities, { accounts: allAccounts }] = await Promise.all([
+  // Attaching/creating contacts writes to admin-only RLS tables, so only offer
+  // it (and fetch the picker list) for admins.
+  const canManageContacts = isSuperAdmin(user)
+  const [account, fieldDefinitions, taxIdTypes, taxIds, relationships, relationshipGraph, contacts, opportunities, owners, documents, activities, { accounts: allAccounts }, contactOptions] = await Promise.all([
     getAccountById(ctx, id),
     getFieldDefinitions(ctx, "account"),
     getTaxIdTypes(ctx),
@@ -38,6 +50,7 @@ export default async function AccountDetailPage({
     getAccountLinkedDocuments(ctx, id),
     getActivitiesForAccount(ctx, id),
     getAccounts(ctx),
+    canManageContacts ? getContactOptions(ctx) : Promise.resolve([]),
   ])
 
   if (!account) {
@@ -58,6 +71,10 @@ export default async function AccountDetailPage({
         kind: firstRelationship.kind,
       }
     : null
+
+  // Only offer contacts not already attached (primary or linked) to this account.
+  const relatedContactIds = new Set(contacts.map((c) => c.id))
+  const attachableContacts = contactOptions.filter((c) => !relatedContactIds.has(c.id))
 
   const saveRelationship = async (data: { parentAccountId: string; kind: string }) => {
     "use server"
@@ -80,10 +97,15 @@ export default async function AccountDetailPage({
       currentUserId={user.id}
       activities={activities}
       parentRelationship={parentRelationship}
+      canManageContacts={canManageContacts}
+      attachableContacts={attachableContacts}
       updateAction={updateAccountAction}
       saveTaxIdsAction={saveAccountTaxIdsAction}
       createActivityAction={createAccountActivityAction}
       saveRelationshipAction={saveRelationship}
+      attachContactsAction={attachContactsToAccountAction}
+      detachContactAction={detachContactFromAccountAction}
+      createContactAction={createContactForAccountAction}
     />
   )
 }
