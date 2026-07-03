@@ -4,7 +4,6 @@ import {
   getPipelineSummary,
   getRecentDeals,
   getRecentActivities,
-  getReportingCurrency,
 } from "@/lib/data/metrics"
 import type { PipelineMetrics, PipelineStageSummary } from "@/lib/data/metrics"
 import { MetricsCards } from "@/components/dashboard/metrics-cards"
@@ -23,7 +22,9 @@ export default async function DashboardPage() {
     getRecentActivities(ctx),
   ])
 
-  const currency = getReportingCurrency()
+  // Use the same resolved currency the metrics were converted into, so the
+  // pipeline chart and recent-deal amounts match the metric cards.
+  const currency = pipelineMetrics.currency
   const fmt = new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency,

@@ -61,13 +61,15 @@ function buildQuery(returnData: unknown[] | null, error?: { message: string }) {
     if (table === "currencies") {
       return { select: mockCurrenciesSelect }
     }
-    if (table === "user_preferences") {
-      // getDisplayCurrency: no row → reporting currency falls back to USD.
-      return {
-        select: () => ({
-          eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
-        }),
-      }
+    if (
+      table === "user_preferences" ||
+      table === "users" ||
+      table === "reporting_currency_settings"
+    ) {
+      // Reporting-currency resolution: no display pref, no entity, no override
+      // row → falls back to USD.
+      const nullResult = { maybeSingle: () => Promise.resolve({ data: null, error: null }) }
+      return { select: () => ({ eq: () => nullResult, is: () => nullResult }) }
     }
     return { select: mockSelect }
   })
@@ -84,13 +86,15 @@ function buildOrderLimitQuery(returnData: unknown[] | null, error?: { message: s
     if (table === "currencies") {
       return { select: mockCurrenciesSelect }
     }
-    if (table === "user_preferences") {
-      // getDisplayCurrency: no row → reporting currency falls back to USD.
-      return {
-        select: () => ({
-          eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
-        }),
-      }
+    if (
+      table === "user_preferences" ||
+      table === "users" ||
+      table === "reporting_currency_settings"
+    ) {
+      // Reporting-currency resolution: no display pref, no entity, no override
+      // row → falls back to USD.
+      const nullResult = { maybeSingle: () => Promise.resolve({ data: null, error: null }) }
+      return { select: () => ({ eq: () => nullResult, is: () => nullResult }) }
     }
     return { select: mockSelect }
   })
