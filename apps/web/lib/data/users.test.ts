@@ -29,8 +29,9 @@ describe("userAdminUpdateSchema", () => {
     expect(parsed.primaryEntityId).toBeNull()
   })
 
-  it("exposes all nine roles", () => {
-    expect(USER_ROLES).toHaveLength(9)
+  it("exposes all roles including entity_admin", () => {
+    expect(USER_ROLES).toHaveLength(10)
+    expect(USER_ROLES).toContain("entity_admin")
   })
 })
 

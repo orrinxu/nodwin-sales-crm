@@ -7,6 +7,7 @@ export const USER_ROLES = [
   "group_sales_lead",
   "finance",
   "ops",
+  "entity_admin",
   "admin",
   "exec",
   "external_partner",
