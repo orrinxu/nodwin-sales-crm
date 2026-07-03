@@ -123,6 +123,30 @@ const mockFieldDefinitions: FieldDefinition[] = [
   },
 ]
 
+const mockTaxIdTypes = [
+  { code: "IN_GSTIN", label: "GSTIN", countryIso: "IN", formatRegex: "^[0-9A-Z]{15}$", displayOrder: 1 },
+  { code: "IN_PAN", label: "PAN", countryIso: "IN", formatRegex: null, displayOrder: 2 },
+  { code: "SG_UEN", label: "UEN", countryIso: "SG", formatRegex: null, displayOrder: 1 },
+]
+
+const mockAccount = {
+  id: "acct-1",
+  name: "Acme Corp",
+  legalName: null,
+  website: null,
+  country: "IN",
+  industry: null,
+  description: null,
+  accountOwnerUserId: null,
+  emailDomains: null,
+  customData: {},
+  createdAt: "2026-01-01T00:00:00Z",
+  updatedAt: "2026-06-01T00:00:00Z",
+  createdBy: null,
+  updatedBy: null,
+  deletedAt: null,
+}
+
 const defaultProps = {
   ownerOptions: mockOwnerOptions,
   accountOptions: mockAccountOptions,
@@ -327,12 +351,23 @@ describe("AccountForm", () => {
   })
 
   describe("custom field filtering", () => {
-    it("places payment_terms and tax fields in Section 3 (Commercial)", async () => {
+    it("places payment_terms in Section 3 (Commercial)", async () => {
       render(<AccountForm {...defaultProps} fieldDefinitions={mockFieldDefinitions} />)
       fireEvent.click(screen.getByText("Create Account"))
       await waitFor(() => {
         expect(screen.getByText("Commercial")).toBeInTheDocument()
       })
+    })
+
+    it("no longer renders the legacy tax_* fields as custom fields (superseded by structured Tax IDs)", async () => {
+      render(<AccountForm {...defaultProps} fieldDefinitions={mockFieldDefinitions} />)
+      fireEvent.click(screen.getByText("Create Account"))
+      await waitFor(() => {
+        expect(screen.getByText("Commercial")).toBeInTheDocument()
+      })
+      // tax_gst_in is a legacy tax custom field — it must not render anywhere
+      // (not in Commercial, not leaked into the generic Custom Fields bucket).
+      expect(screen.queryByTestId("cf-tax_gst_in")).not.toBeInTheDocument()
     })
 
     it("places phone_main and hq_address in Section 5 (Contact & Matching)", async () => {
@@ -349,6 +384,50 @@ describe("AccountForm", () => {
       await waitFor(() => {
         expect(screen.getByTestId("cf-custom_field_x")).toBeInTheDocument()
       })
+    })
+  })
+
+  describe("tax IDs", () => {
+    it("renders the Tax IDs editor and grouped add-picker when tax types are provided", async () => {
+      render(<AccountForm {...defaultProps} taxIdTypes={mockTaxIdTypes} />)
+      fireEvent.click(screen.getByText("Create Account"))
+      await waitFor(() => {
+        expect(screen.getByText("Commercial")).toBeInTheDocument()
+      })
+      fireEvent.click(screen.getByText("Commercial"))
+      await waitFor(() => {
+        expect(screen.getByLabelText("Add tax ID")).toBeInTheDocument()
+      })
+      expect(screen.getByText("No tax IDs added yet.")).toBeInTheDocument()
+    })
+
+    it("renders existing tax-id rows, and an inactive type by its raw code", async () => {
+      render(
+        <AccountForm
+          {...defaultProps}
+          account={mockAccount}
+          taxIdTypes={mockTaxIdTypes}
+          initialTaxIds={[
+            { id: "t1", taxType: "IN_GSTIN", value: "22AAAAA0000A1Z5" },
+            { id: "t2", taxType: "OLD_INACTIVE", value: "legacy-123" },
+          ]}
+          updateAction={vi.fn()}
+          trigger={<button type="button">Edit</button>}
+        />,
+      )
+      fireEvent.click(screen.getByText("Edit"))
+      await waitFor(() => {
+        expect(screen.getByText("Commercial")).toBeInTheDocument()
+      })
+      fireEvent.click(screen.getByText("Commercial"))
+      await waitFor(() => {
+        // active type shows its label; inactive type falls back to the raw code
+        // so the row is never silently dropped. (Query by the row label's title
+        // attribute — "GSTIN" also appears as an <option> in the add-picker.)
+        expect(screen.getByTitle("GSTIN")).toBeInTheDocument()
+        expect(screen.getByTitle("OLD_INACTIVE")).toBeInTheDocument()
+      })
+      expect((screen.getByLabelText("GSTIN value") as HTMLInputElement).value).toBe("22AAAAA0000A1Z5")
     })
   })
 

@@ -7,8 +7,9 @@ import { Pencil, Globe, MapPin, Briefcase, Mail, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { AccountForm } from "@/components/accounts/account-form"
+import { AccountForm, TAX_CF_KEYS } from "@/components/accounts/account-form"
 import { CustomFieldsDisplay } from "@/components/contacts/custom-fields-display"
+import { AccountTaxIdsDisplay } from "@/components/accounts/account-tax-ids-display"
 import { ActivityComposer } from "@/components/opportunities/activity-composer"
 import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
 import { RelationshipTree } from "@/components/accounts/relationship-tree"
@@ -17,11 +18,15 @@ import { Money } from "@/lib/money"
 import type { AccountRecord, AccountUpdateInput, AccountRelationshipGraph, AccountOpportunity, AccountDocument, AccountRelationshipKind } from "@/lib/data/accounts"
 import type { ActivityRecord } from "@/lib/data/activities"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
+import type { TaxIdType, AccountTaxId } from "@/lib/data/account-tax-ids"
+import type { TaxIdRow } from "@/components/accounts/tax-ids-editor"
 import type { EntityOption } from "@/components/entity-combobox"
 
 interface AccountDetailWrapperProps {
   account: AccountRecord
   fieldDefinitions: FieldDefinition[]
+  taxIdTypes: TaxIdType[]
+  taxIds: AccountTaxId[]
   relationshipGraph: AccountRelationshipGraph | null
   contacts: { id: string; fullName: string; title: string | null; email: string | null }[]
   opportunities: AccountOpportunity[]
@@ -33,6 +38,7 @@ interface AccountDetailWrapperProps {
   activities: ActivityRecord[]
   parentRelationship?: { toAccountId: string; kind: AccountRelationshipKind } | null
   updateAction: (id: string, input: AccountUpdateInput) => Promise<AccountRecord>
+  saveTaxIdsAction: (accountId: string, input: { taxIds: TaxIdRow[] }) => Promise<void>
   createActivityAction: (accountId: string, input: unknown) => Promise<ActivityRecord>
   saveRelationshipAction?: (data: { parentAccountId: string; kind: AccountRelationshipKind }) => Promise<void>
 }
@@ -40,6 +46,8 @@ interface AccountDetailWrapperProps {
 export function AccountDetailWrapper({
   account,
   fieldDefinitions,
+  taxIdTypes,
+  taxIds,
   relationshipGraph,
   contacts,
   opportunities,
@@ -51,10 +59,18 @@ export function AccountDetailWrapper({
   activities,
   parentRelationship,
   updateAction,
+  saveTaxIdsAction,
   createActivityAction,
   saveRelationshipAction,
 }: AccountDetailWrapperProps) {
   const router = useRouter()
+
+  // The legacy tax_* custom fields are superseded by structured tax IDs — hide
+  // them from the read-view so tax data isn't shown twice (and the stale
+  // custom-field copies don't linger). See TAX_CF_KEYS in account-form.
+  const displayFieldDefinitions = fieldDefinitions.filter(
+    (d) => !TAX_CF_KEYS.includes(d.key),
+  )
 
   const hasRelationships = (relationshipGraph?.root.children.length ?? 0) > 0
 
@@ -76,6 +92,8 @@ export function AccountDetailWrapper({
         <AccountForm
           account={account}
           fieldDefinitions={fieldDefinitions}
+          taxIdTypes={taxIdTypes}
+          initialTaxIds={taxIds}
           ownerOptions={ownerOptions}
           accountOptions={accountOptions}
           currentUserId={currentUserId}
@@ -84,6 +102,7 @@ export function AccountDetailWrapper({
             throw new Error("Not available")
           }}
           updateAction={updateAction}
+          saveTaxIdsAction={saveTaxIdsAction}
           onSaveRelationship={saveRelationshipAction}
           onSuccess={() => {
             router.refresh()
@@ -225,8 +244,10 @@ export function AccountDetailWrapper({
           </Card>
         )}
 
+        <AccountTaxIdsDisplay taxIds={taxIds} taxIdTypes={taxIdTypes} />
+
         <CustomFieldsDisplay
-          fieldDefinitions={fieldDefinitions}
+          fieldDefinitions={displayFieldDefinitions}
           customData={account.customData}
         />
 

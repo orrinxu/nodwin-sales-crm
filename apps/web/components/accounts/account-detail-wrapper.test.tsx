@@ -136,6 +136,8 @@ const mockAccountOptions = [
 const defaultProps = {
   account: makeAccount(),
   fieldDefinitions: emptyFieldDefinitions,
+  taxIdTypes: [],
+  taxIds: [],
   relationshipGraph: defaultRelationshipGraph,
   contacts: defaultContacts,
   opportunities: defaultOpportunities,
@@ -145,6 +147,7 @@ const defaultProps = {
   accountOptions: mockAccountOptions,
   activities: [],
   updateAction: vi.fn(),
+  saveTaxIdsAction: vi.fn(),
   createActivityAction: vi.fn(),
 }
 
