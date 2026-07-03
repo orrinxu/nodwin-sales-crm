@@ -31,14 +31,8 @@ const baseProps = {
 }
 
 describe("CustomFieldsForm", () => {
-  it("renders the 'Custom Fields' heading by default", () => {
+  it("renders fields without the developer-facing 'Custom Fields' heading", () => {
     render(<CustomFieldsForm {...baseProps} />)
-    expect(screen.getByText("Custom Fields")).toBeInTheDocument()
-    expect(screen.getByText("Payment Terms")).toBeInTheDocument()
-  })
-
-  it("suppresses the heading when hideHeading is set, but still renders fields", () => {
-    render(<CustomFieldsForm {...baseProps} hideHeading />)
     expect(screen.queryByText("Custom Fields")).not.toBeInTheDocument()
     expect(screen.getByText("Payment Terms")).toBeInTheDocument()
   })
