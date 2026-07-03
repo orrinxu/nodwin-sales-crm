@@ -1,4 +1,4 @@
--- supabase/migrations/20260704000000_email_transport.sql
+-- supabase/migrations/20260703390000_email_transport.sql
 -- HIGH-RISK FILE — see AGENTS.md §6 (holds email credentials).
 --
 -- Admin-configurable email transport. Replaces the hardcoded Resend env config
