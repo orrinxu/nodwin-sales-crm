@@ -64,6 +64,9 @@ interface Option {
 interface UsersListProps {
   users: AdminUserRecord[]
   currentUserId: string
+  // Super Admin only: role / manager / entity assignment. Entity Admins may edit
+  // name / business unit / status of their own entity's users.
+  canManageRoles: boolean
   entities: Option[]
   businessUnits: Option[]
   updateAction: (userId: string, input: unknown) => Promise<void>
@@ -72,6 +75,7 @@ interface UsersListProps {
 function EditUserDialog({
   user,
   isSelf,
+  canManageRoles,
   entities,
   businessUnits,
   otherUsers,
@@ -80,6 +84,7 @@ function EditUserDialog({
 }: {
   user: AdminUserRecord
   isSelf: boolean
+  canManageRoles: boolean
   entities: Option[]
   businessUnits: Option[]
   otherUsers: { id: string; name: string }[]
@@ -100,14 +105,19 @@ function EditUserDialog({
     setPending(true)
     setError(null)
     try {
-      await updateAction(user.id, {
+      const payload: Record<string, unknown> = {
         fullName: fullName.trim() || undefined,
-        role,
-        primaryEntityId: entityId === NONE ? null : entityId,
         primaryBusinessUnitId: buId === NONE ? null : buId,
-        managerUserId: managerId === NONE ? null : managerId,
         active,
-      })
+      }
+      // Role / manager / entity are Super-Admin-only (and trigger-blocked for
+      // Entity Admins) — don't submit them when the viewer can't manage them.
+      if (canManageRoles) {
+        payload.role = role
+        payload.primaryEntityId = entityId === NONE ? null : entityId
+        payload.managerUserId = managerId === NONE ? null : managerId
+      }
+      await updateAction(user.id, payload)
       onOpenChange(false)
       router.refresh()
     } catch (err) {
@@ -134,7 +144,7 @@ function EditUserDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Role</Label>
-              <Select value={role} onValueChange={(v) => v && setRole(v as UserRole)}>
+              <Select value={role} onValueChange={(v) => v && setRole(v as UserRole)} disabled={!canManageRoles}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {USER_ROLES.map((r) => (
@@ -148,7 +158,7 @@ function EditUserDialog({
             </div>
             <div className="grid gap-1.5">
               <Label>Manager</Label>
-              <Select value={managerId} onValueChange={(v) => setManagerId(v ?? NONE)}>
+              <Select value={managerId} onValueChange={(v) => setManagerId(v ?? NONE)} disabled={!canManageRoles}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NONE}>None</SelectItem>
@@ -160,7 +170,7 @@ function EditUserDialog({
             </div>
             <div className="grid gap-1.5">
               <Label>Entity</Label>
-              <Select value={entityId} onValueChange={(v) => setEntityId(v ?? NONE)}>
+              <Select value={entityId} onValueChange={(v) => setEntityId(v ?? NONE)} disabled={!canManageRoles}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NONE}>None</SelectItem>
@@ -204,7 +214,7 @@ function EditUserDialog({
   )
 }
 
-export function UsersList({ users, currentUserId, entities, businessUnits, updateAction }: UsersListProps) {
+export function UsersList({ users, currentUserId, canManageRoles, entities, businessUnits, updateAction }: UsersListProps) {
   const [query, setQuery] = useState("")
   const [editing, setEditing] = useState<AdminUserRecord | null>(null)
 
@@ -286,6 +296,7 @@ export function UsersList({ users, currentUserId, entities, businessUnits, updat
         <EditUserDialog
           user={editing}
           isSelf={editing.id === currentUserId}
+          canManageRoles={canManageRoles}
           entities={entities}
           businessUnits={businessUnits}
           otherUsers={otherUsers}
