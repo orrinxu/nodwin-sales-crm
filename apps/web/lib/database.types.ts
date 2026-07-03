@@ -2621,6 +2621,10 @@ export type Database = {
         Returns: boolean
       }
       can_write_account: { Args: { _account_id: string }; Returns: boolean }
+      cancel_approval_instance: {
+        Args: { _instance_id: string }
+        Returns: undefined
+      }
       check_ai_caps: {
         Args: { p_estimated_cost: number; p_user_id: string }
         Returns: {
@@ -2712,6 +2716,10 @@ export type Database = {
       opportunity_is_confidential: {
         Args: { _opp_id: string }
         Returns: boolean
+      }
+      reassign_approval_step: {
+        Args: { _new_user_id: string; _step_id: string }
+        Returns: undefined
       }
       recompute_visibility_for_opportunity: {
         Args: { _opportunity_id: string }

@@ -1,7 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { requireUser } from "@/lib/security/auth"
+import { requireUser, requireRole } from "@/lib/security/auth"
 import {
   createOpportunity,
   updateOpportunity,
@@ -27,6 +27,8 @@ import type { ContactCallContext } from "@/lib/data/contacts"
 import {
   submitOpportunityForApproval,
   recordApprovalDecision,
+  reassignApprovalStep,
+  cancelApprovalInstance,
   type ApprovalDecisionType,
 } from "@/lib/data/approvals"
 import { z } from "zod"
@@ -70,6 +72,30 @@ export async function recordApprovalDecisionAction(opportunityId: string, input:
   const { stepId, decision, comment } = decisionSchema.parse(input)
   const ctx = { user, source: "web" as const }
   await recordApprovalDecision(ctx, stepId, decision as ApprovalDecisionType, comment || null)
+  revalidatePath(`/opportunities/${id}`)
+}
+
+export async function reassignApprovalStepAction(
+  opportunityId: string,
+  input: unknown,
+) {
+  const user = await requireUser()
+  requireRole(user, "admin")
+  const id = z.string().uuid().parse(opportunityId)
+  const { stepId, newUserId } = z
+    .object({ stepId: z.string().uuid(), newUserId: z.string().uuid() })
+    .parse(input)
+  const ctx = { user, source: "web" as const }
+  await reassignApprovalStep(ctx, stepId, newUserId)
+  revalidatePath(`/opportunities/${id}`)
+}
+
+export async function cancelApprovalInstanceAction(opportunityId: string, instanceId: string) {
+  const user = await requireUser()
+  requireRole(user, "admin")
+  const id = z.string().uuid().parse(opportunityId)
+  const ctx = { user, source: "web" as const }
+  await cancelApprovalInstance(ctx, z.string().uuid().parse(instanceId))
   revalidatePath(`/opportunities/${id}`)
 }
 
