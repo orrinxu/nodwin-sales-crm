@@ -14,6 +14,7 @@ import {
   type AccountRelationshipKind,
 } from "@/lib/data/accounts"
 import { createActivity, activityCreateSchema } from "@/lib/data/activities"
+import { setTaxIdsForAccount, setAccountTaxIdsSchema } from "@/lib/data/account-tax-ids"
 
 export async function createAccountActivityAction(accountId: string, input: unknown) {
   const user = await requireUser()
@@ -41,6 +42,15 @@ export async function updateAccountAction(id: string, input: unknown) {
   revalidatePath("/accounts")
   revalidatePath(`/accounts/${id}`)
   return account
+}
+
+export async function saveAccountTaxIdsAction(accountId: string, input: unknown) {
+  const user = await requireUser()
+  const parsed = setAccountTaxIdsSchema.parse(input)
+  const ctx = { user, source: "web" as const }
+  await setTaxIdsForAccount(ctx, accountId, parsed)
+  revalidatePath("/accounts")
+  revalidatePath(`/accounts/${accountId}`)
 }
 
 export async function createAccountRelationshipAction(

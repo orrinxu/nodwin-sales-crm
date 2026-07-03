@@ -11,8 +11,9 @@ import {
   getAccounts,
 } from "@/lib/data/accounts"
 import { getFieldDefinitions } from "@/lib/data/field-definitions"
+import { getTaxIdTypes, getTaxIdsForAccount } from "@/lib/data/account-tax-ids"
 import { getActivitiesForAccount } from "@/lib/data/activities"
-import { updateAccountAction, upsertAccountRelationshipAction, createAccountActivityAction } from "../actions"
+import { updateAccountAction, upsertAccountRelationshipAction, createAccountActivityAction, saveAccountTaxIdsAction } from "../actions"
 import { AccountDetailWrapper } from "@/components/accounts/account-detail-wrapper"
 
 export default async function AccountDetailPage({
@@ -24,9 +25,11 @@ export default async function AccountDetailPage({
   const { id } = await params
 
   const ctx = { user, source: "web" as const }
-  const [account, fieldDefinitions, relationships, relationshipGraph, contacts, opportunities, owners, documents, activities, { accounts: allAccounts }] = await Promise.all([
+  const [account, fieldDefinitions, taxIdTypes, taxIds, relationships, relationshipGraph, contacts, opportunities, owners, documents, activities, { accounts: allAccounts }] = await Promise.all([
     getAccountById(ctx, id),
     getFieldDefinitions(ctx, "account"),
+    getTaxIdTypes(ctx),
+    getTaxIdsForAccount(ctx, id),
     getAccountRelationships(ctx, id),
     getAccountRelationshipGraph(ctx, id),
     getContactsForAccount(ctx, id),
@@ -65,6 +68,8 @@ export default async function AccountDetailPage({
     <AccountDetailWrapper
       account={account}
       fieldDefinitions={fieldDefinitions}
+      taxIdTypes={taxIdTypes}
+      taxIds={taxIds}
       relationshipGraph={relationshipGraph}
       contacts={contacts}
       opportunities={opportunities}
@@ -76,6 +81,7 @@ export default async function AccountDetailPage({
       activities={activities}
       parentRelationship={parentRelationship}
       updateAction={updateAccountAction}
+      saveTaxIdsAction={saveAccountTaxIdsAction}
       createActivityAction={createAccountActivityAction}
       saveRelationshipAction={saveRelationship}
     />

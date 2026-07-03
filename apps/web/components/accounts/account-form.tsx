@@ -27,7 +27,9 @@ import { EntityCombobox } from "@/components/entity-combobox"
 import type { EntityOption } from "@/components/entity-combobox"
 import type { AccountRecord, AccountCreateInput, AccountUpdateInput, AccountRelationshipKind } from "@/lib/data/accounts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
+import type { TaxIdType, AccountTaxId } from "@/lib/data/account-tax-ids"
 import { CustomFieldsForm } from "@/components/contacts/custom-fields-form"
+import { TaxIdsEditor, type TaxIdRow } from "@/components/accounts/tax-ids-editor"
 
 const RELATIONSHIP_KIND_OPTIONS: { value: AccountRelationshipKind; label: string }[] = [
   { value: "subsidiary_of", label: "Subsidiary of" },
@@ -37,15 +39,21 @@ const RELATIONSHIP_KIND_OPTIONS: { value: AccountRelationshipKind; label: string
   { value: "sister_company", label: "Sister company" },
 ]
 
-const SECTION_3_CF_KEYS = ["payment_terms", "credit_risk_flag", "tax_gst_in", "tax_pan_in", "tax_vat_eu", "tax_trn_mena"]
+const SECTION_3_CF_KEYS = ["payment_terms", "credit_risk_flag"]
 const SECTION_5_CF_KEYS = ["phone_main", "hq_address"]
+
+// Legacy per-type tax custom fields, now replaced by structured account_tax_ids
+// (ORR-622). They are excluded from every custom-field section so they neither
+// render as editable custom fields nor leak into the generic Custom Fields
+// bucket; the structured Tax IDs editor is the sole surface for tax identifiers.
+export const TAX_CF_KEYS = ["tax_gst_in", "tax_pan_in", "tax_vat_eu", "tax_trn_mena"]
 
 const formSchema = z.object({
   name: z.string().min(1, "Account name is required").max(200),
   legalName: z.string().max(200).optional().or(z.literal("")),
   accountOwnerUserId: z.string().optional().or(z.literal("")),
   website: z.string().max(500).optional().or(z.literal("")),
-  country: z.string().max(100).optional().or(z.literal("")),
+  country: z.string().min(1, "Country is required").max(100),
   industry: z.string().max(100).optional().or(z.literal("")),
   description: z.string().max(5000).optional().or(z.literal("")),
   emailDomainsInput: z.string().max(1000).optional().or(z.literal("")),
@@ -56,6 +64,8 @@ type FormData = z.infer<typeof formSchema>
 interface AccountFormProps {
   account?: AccountRecord
   fieldDefinitions?: FieldDefinition[]
+  taxIdTypes?: TaxIdType[]
+  initialTaxIds?: AccountTaxId[]
   ownerOptions: EntityOption[]
   accountOptions: EntityOption[]
   currentUserId?: string
@@ -66,6 +76,7 @@ interface AccountFormProps {
   createAction: (input: AccountCreateInput) => Promise<AccountRecord>
   updateAction?: (id: string, input: AccountUpdateInput) => Promise<AccountRecord>
   onSaveRelationship?: (data: { parentAccountId: string; kind: AccountRelationshipKind }) => Promise<void>
+  saveTaxIdsAction?: (accountId: string, input: { taxIds: TaxIdRow[] }) => Promise<void>
   onSuccess: () => void
   trigger?: React.ReactNode
 }
@@ -73,6 +84,8 @@ interface AccountFormProps {
 export function AccountForm({
   account,
   fieldDefinitions = [],
+  taxIdTypes = [],
+  initialTaxIds = [],
   ownerOptions,
   accountOptions,
   currentUserId,
@@ -80,6 +93,7 @@ export function AccountForm({
   createAction,
   updateAction,
   onSaveRelationship,
+  saveTaxIdsAction,
   onSuccess,
   trigger,
 }: AccountFormProps) {
@@ -93,6 +107,12 @@ export function AccountForm({
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>(
     () => account?.customData ?? {},
   )
+
+  const initialTaxIdRows = useMemo<TaxIdRow[]>(
+    () => initialTaxIds.map((t) => ({ taxType: t.taxType, value: t.value })),
+    [initialTaxIds],
+  )
+  const [taxIds, setTaxIds] = useState<TaxIdRow[]>(initialTaxIdRows)
 
   const isEditing = !!account
 
@@ -121,10 +141,16 @@ export function AccountForm({
   const { section3Defs, section5Defs, section7Defs } = useMemo(() => {
     const s3 = fieldDefinitions.filter((d) => SECTION_3_CF_KEYS.includes(d.key))
     const s5 = fieldDefinitions.filter((d) => SECTION_5_CF_KEYS.includes(d.key))
-    const used = new Set([...SECTION_3_CF_KEYS, ...SECTION_5_CF_KEYS])
+    // TAX_CF_KEYS are deliberately excluded everywhere — replaced by the
+    // structured Tax IDs editor — so they never leak into the s7 bucket.
+    const used = new Set([...SECTION_3_CF_KEYS, ...SECTION_5_CF_KEYS, ...TAX_CF_KEYS])
     const s7 = fieldDefinitions.filter((d) => !used.has(d.key))
     return { section3Defs: s3, section5Defs: s5, section7Defs: s7 }
   }, [fieldDefinitions])
+
+  // The structured Tax IDs editor shows whenever there are types to add or rows
+  // already present (incl. rows of a now-inactive type that must not be dropped).
+  const showTaxEditor = taxIdTypes.length > 0 || taxIds.length > 0
 
   async function onSubmit(data: FormData) {
     setPending(true)
@@ -161,11 +187,22 @@ export function AccountForm({
         })
       }
 
+      // Persist tax IDs as a second call, once we have the account id — mirrors
+      // the relationship save. The replace RPC treats an empty list as "clear".
+      if (saveTaxIdsAction) {
+        await saveTaxIdsAction(savedAccount.id, {
+          taxIds: taxIds
+            .map((t) => ({ taxType: t.taxType, value: t.value.trim() }))
+            .filter((t) => t.value !== ""),
+        })
+      }
+
       setOpen(false)
       form.reset()
       setParentAccountId("")
       setRelationshipKind("")
       setCustomFieldValues(account?.customData ?? {})
+      setTaxIds(initialTaxIdRows)
       onSuccess()
     } catch (e) {
       setError(e instanceof Error ? e.message : "An unexpected error occurred")
@@ -178,6 +215,7 @@ export function AccountForm({
     setOpen(newOpen)
     if (newOpen) {
       setCustomFieldValues(account?.customData ?? {})
+      setTaxIds(initialTaxIdRows)
       setParentAccountId(parentRelationship?.toAccountId ?? "")
       setRelationshipKind(parentRelationship?.kind ?? "")
       form.reset({
@@ -332,17 +370,26 @@ export function AccountForm({
               )}
             </CollapsibleSection>
 
-            {/* ── Section 3: Commercial ────────────────────────────── */}
-            {section3Defs.length > 0 && (
+            {/* ── Section 3: Commercial (custom fields + structured Tax IDs) ── */}
+            {(section3Defs.length > 0 || showTaxEditor) && (
               <CollapsibleSection title="Commercial" defaultOpen={false}>
-                <CustomFieldsForm
-                  fieldDefinitions={section3Defs}
-                  values={customFieldValues}
-                  onChange={(key, value) =>
-                    setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
-                  }
-                  errors={{}}
-                />
+                {section3Defs.length > 0 && (
+                  <CustomFieldsForm
+                    fieldDefinitions={section3Defs}
+                    values={customFieldValues}
+                    onChange={(key, value) =>
+                      setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
+                    }
+                    errors={{}}
+                  />
+                )}
+                {showTaxEditor && (
+                  <TaxIdsEditor
+                    taxIdTypes={taxIdTypes}
+                    value={taxIds}
+                    onChange={setTaxIds}
+                  />
+                )}
               </CollapsibleSection>
             )}
 

@@ -43,6 +43,8 @@ import { Card } from "@/components/ui/card"
 import { AccountForm } from "@/components/accounts/account-form"
 import type { AccountListRecord, AccountCreateInput, AccountRecord } from "@/lib/data/accounts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
+import type { TaxIdType } from "@/lib/data/account-tax-ids"
+import type { TaxIdRow } from "@/components/accounts/tax-ids-editor"
 import type { EntityOption } from "@/components/entity-combobox"
 
 function formatDate(dateStr: string | null): string {
@@ -64,8 +66,10 @@ interface AccountsListProps {
   ownerOptions: EntityOption[]
   accountOptions: EntityOption[]
   fieldDefinitions?: FieldDefinition[]
+  taxIdTypes?: TaxIdType[]
   currentUserId?: string
   createAction: (input: AccountCreateInput) => Promise<AccountRecord>
+  saveTaxIdsAction?: (accountId: string, input: { taxIds: TaxIdRow[] }) => Promise<void>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
 }
 
@@ -75,8 +79,10 @@ export function AccountsList({
   ownerOptions,
   accountOptions,
   fieldDefinitions = [],
+  taxIdTypes = [],
   currentUserId,
   createAction,
+  saveTaxIdsAction,
   bulkDeleteAction,
 }: AccountsListProps) {
   const router = useRouter()
@@ -295,9 +301,11 @@ export function AccountsList({
         </div>
         <AccountForm
           createAction={createAction}
+          saveTaxIdsAction={saveTaxIdsAction}
           ownerOptions={ownerOptions}
           accountOptions={accountOptions}
           fieldDefinitions={fieldDefinitions}
+          taxIdTypes={taxIdTypes}
           currentUserId={currentUserId}
           onSuccess={() => router.refresh()}
         />
