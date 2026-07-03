@@ -176,7 +176,7 @@ describe("requireUser", () => {
     const result = await requireUser()
 
     expect(result).toEqual({
-      id: "a0000000001-0001-0001-0001-000000000001",
+      id: "a0000001-0001-0001-0001-000000000001",
       email: "alice.admin@nodwin-test.example",
       role: "admin",
     })
@@ -191,7 +191,7 @@ describe("requireUser", () => {
     const result = await requireUser()
 
     expect(result).toEqual({
-      id: "a0000000001-0001-0001-0001-000000000001",
+      id: "a0000001-0001-0001-0001-000000000001",
       email: "alice.admin@nodwin-test.example",
       role: "admin",
     })
