@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
 import { AccountDetailWrapper } from "./account-detail-wrapper"
-import type { AccountRecord, AccountRelationship, AccountOpportunity, AccountDocument } from "@/lib/data/accounts"
+import type { AccountRecord, AccountRelationshipGraph, AccountOpportunity, AccountDocument } from "@/lib/data/accounts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 
 vi.mock("server-only", () => ({}))
@@ -60,16 +60,39 @@ function makeAccount(overrides: Partial<AccountRecord> = {}): AccountRecord {
 
 const emptyFieldDefinitions: FieldDefinition[] = []
 
-const defaultRelationships: AccountRelationship[] = [
-  {
-    id: "rel-1",
-    fromAccountId: "acct-1",
-    toAccountId: "acct-2",
-    kind: "subsidiary_of",
-    notes: "Acquired in 2024",
-    toAccountName: "Parent Inc",
+const defaultRelationshipGraph: AccountRelationshipGraph = {
+  root: {
+    id: "acct-1",
+    accountId: "acct-1",
+    accountName: "Test Corp",
+    kind: null,
+    direction: null,
+    notes: null,
+    children: [
+      {
+        id: "rel-1",
+        accountId: "acct-2",
+        accountName: "Parent Inc",
+        kind: "subsidiary_of",
+        direction: "outbound",
+        notes: "Acquired in 2024",
+        children: [],
+      },
+    ],
   },
-]
+}
+
+const emptyRelationshipGraph: AccountRelationshipGraph = {
+  root: {
+    id: "acct-1",
+    accountId: "acct-1",
+    accountName: "Test Corp",
+    kind: null,
+    direction: null,
+    notes: null,
+    children: [],
+  },
+}
 
 const defaultContacts = [
   { id: "c-1", fullName: "Alice Smith", title: "CEO", email: "alice@testcorp.com" },
@@ -113,7 +136,7 @@ const mockAccountOptions = [
 const defaultProps = {
   account: makeAccount(),
   fieldDefinitions: emptyFieldDefinitions,
-  relationships: defaultRelationships,
+  relationshipGraph: defaultRelationshipGraph,
   contacts: defaultContacts,
   opportunities: defaultOpportunities,
   documents: defaultDocuments,
@@ -135,7 +158,7 @@ describe("AccountDetailWrapper", () => {
   describe("header", () => {
     it("renders the account name", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Test Corp")).toBeInTheDocument()
+      expect(screen.getByRole("heading", { name: "Test Corp" })).toBeInTheDocument()
     })
 
     it("renders the industry badge", () => {
@@ -350,10 +373,10 @@ describe("AccountDetailWrapper", () => {
     })
   })
 
-  describe("Relationships card", () => {
-    it("renders relationships heading with count", () => {
+  describe("Relationship tree", () => {
+    it("renders the relationship tree title", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Related Accounts (1)")).toBeInTheDocument()
+      expect(screen.getByText("Relationship Tree")).toBeInTheDocument()
     })
 
     it("renders relationship kind label", () => {
@@ -361,21 +384,21 @@ describe("AccountDetailWrapper", () => {
       expect(screen.getByText("Subsidiary of")).toBeInTheDocument()
     })
 
-    it("renders target account name", () => {
+    it("renders related account name", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
       expect(screen.getByText("Parent Inc")).toBeInTheDocument()
     })
 
     it("renders relationship notes", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Acquired in 2024")).toBeInTheDocument()
+      expect(screen.getByText(/Acquired in 2024/)).toBeInTheDocument()
     })
 
-    it("does not render relationships card when empty", () => {
+    it("does not render the tree when there are no relationships", () => {
       render(
-        <AccountDetailWrapper {...defaultProps} relationships={[]} />,
+        <AccountDetailWrapper {...defaultProps} relationshipGraph={emptyRelationshipGraph} />,
       )
-      expect(screen.queryByText("Related Accounts")).not.toBeInTheDocument()
+      expect(screen.queryByText("Relationship Tree")).not.toBeInTheDocument()
     })
   })
 
@@ -387,7 +410,7 @@ describe("AccountDetailWrapper", () => {
           contacts={[]}
           opportunities={[]}
           documents={[]}
-          relationships={[]}
+          relationshipGraph={emptyRelationshipGraph}
         />,
       )
       expect(
