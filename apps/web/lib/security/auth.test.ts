@@ -264,3 +264,28 @@ describe("requireRole", () => {
     expect(() => requireRole(user, "admin")).toThrow(ForbiddenError)
   })
 })
+
+describe("two-tier admin helpers", () => {
+  const mk = (role: string | undefined) => ({ id: "u", email: "u@nodwin.com", role })
+
+  it("isSuperAdmin only for admin", async () => {
+    const { isSuperAdmin } = await import("./auth")
+    expect(isSuperAdmin(mk("admin"))).toBe(true)
+    expect(isSuperAdmin(mk("entity_admin"))).toBe(false)
+    expect(isSuperAdmin(mk("sales_rep"))).toBe(false)
+  })
+
+  it("isEntityAdmin only for entity_admin", async () => {
+    const { isEntityAdmin } = await import("./auth")
+    expect(isEntityAdmin(mk("entity_admin"))).toBe(true)
+    expect(isEntityAdmin(mk("admin"))).toBe(false)
+  })
+
+  it("requireAdminAccess admits both admin tiers, rejects others", async () => {
+    const { requireAdminAccess } = await import("./auth")
+    expect(() => requireAdminAccess(mk("admin"))).not.toThrow()
+    expect(() => requireAdminAccess(mk("entity_admin"))).not.toThrow()
+    expect(() => requireAdminAccess(mk("sales_rep"))).toThrow(ForbiddenError)
+    expect(() => requireAdminAccess(mk(undefined))).toThrow(ForbiddenError)
+  })
+})

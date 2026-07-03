@@ -25,6 +25,7 @@ function makeProps(overview: ReportingCurrencyOverview, extra = {}) {
     currencies,
     entities,
     defaultCurrency: "USD",
+    canEditGroupDefault: true,
     setGroupAction: vi.fn().mockResolvedValue(undefined),
     setEntityAction: vi.fn().mockResolvedValue(undefined),
     removeEntityAction: vi.fn().mockResolvedValue(undefined),
@@ -39,6 +40,17 @@ describe("OrganisationSettings", () => {
     render(<OrganisationSettings {...makeProps({ groupDefault: null, entityOverrides: [] })} />)
     expect(screen.getByText("Reporting currency")).toBeInTheDocument()
     expect(screen.getByText("Group default")).toBeInTheDocument()
+  })
+
+  it("shows the group default read-only when the viewer can't edit it (entity admin)", () => {
+    render(
+      <OrganisationSettings
+        {...makeProps({ groupDefault: "INR", entityOverrides: [] }, { canEditGroupDefault: false })}
+      />,
+    )
+    // No Save button for the group default; the value is shown as text.
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument()
+    expect(screen.getByText(/set by a group admin/)).toBeInTheDocument()
   })
 
   it("saves the group default", async () => {

@@ -2652,6 +2652,7 @@ export type Database = {
         | "admin"
         | "exec"
         | "external_partner"
+        | "entity_admin"
       visibility_tier: "standard" | "restricted" | "confidential"
     }
     CompositeTypes: {
@@ -2896,6 +2897,7 @@ export const Constants = {
         "admin",
         "exec",
         "external_partner",
+        "entity_admin",
       ],
       visibility_tier: ["standard", "restricted", "confidential"],
     },

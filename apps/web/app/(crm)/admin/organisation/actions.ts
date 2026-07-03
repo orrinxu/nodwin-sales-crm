@@ -1,7 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { requireUser, requireRole } from "@/lib/security/auth"
+import { requireUser, requireRole, requireAdminAccess } from "@/lib/security/auth"
 import {
   setGroupReportingCurrency,
   setEntityReportingCurrency,
@@ -27,9 +27,11 @@ export async function setGroupReportingCurrencyAction(input: unknown) {
   revalidateReportingSurfaces()
 }
 
+// Per-entity overrides: admin OR entity_admin. RLS confines an entity_admin to
+// their own entity's row.
 export async function setEntityReportingCurrencyAction(input: unknown) {
   const user = await requireUser()
-  requireRole(user, "admin")
+  requireAdminAccess(user)
   const parsed = entityReportingCurrencySchema.parse(input)
   const ctx = { user, source: "web" as const }
   await setEntityReportingCurrency(ctx, parsed)
@@ -38,7 +40,7 @@ export async function setEntityReportingCurrencyAction(input: unknown) {
 
 export async function removeEntityReportingCurrencyAction(entityId: string) {
   const user = await requireUser()
-  requireRole(user, "admin")
+  requireAdminAccess(user)
   const ctx = { user, source: "web" as const }
   await removeEntityReportingCurrency(ctx, entityId)
   revalidateReportingSurfaces()

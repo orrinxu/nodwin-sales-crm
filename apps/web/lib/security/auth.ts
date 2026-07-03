@@ -93,3 +93,25 @@ export function requireRole(
     )
   }
 }
+
+// Two-tier admin (SOW §3 / org-admin settings):
+//   Super Admin ('admin')        — group-wide + all entities.
+//   Entity Admin ('entity_admin') — only their own entity (RLS enforces which).
+export function isSuperAdmin(user: AuthenticatedUser): boolean {
+  return user.role === "admin"
+}
+
+export function isEntityAdmin(user: AuthenticatedUser): boolean {
+  return user.role === "entity_admin"
+}
+
+// Admits either admin tier. Use for surfaces both can reach; RLS + per-action
+// checks confine an Entity Admin to their own entity. Group-wide actions must
+// still use requireRole(user, "admin").
+export function requireAdminAccess(user: AuthenticatedUser): void {
+  if (!isSuperAdmin(user) && !isEntityAdmin(user)) {
+    throw new ForbiddenError(
+      `Requires admin access, got '${user.role ?? "none"}'`,
+    )
+  }
+}
