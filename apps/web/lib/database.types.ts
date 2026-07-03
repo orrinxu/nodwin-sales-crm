@@ -2713,6 +2713,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      opportunity_has_approved_approval: {
+        Args: { _opportunity_id: string }
+        Returns: boolean
+      }
       opportunity_is_confidential: {
         Args: { _opp_id: string }
         Returns: boolean

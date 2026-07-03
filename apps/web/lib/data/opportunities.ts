@@ -475,6 +475,29 @@ export async function createOpportunity(
   return opportunity
 }
 
+// Phase 3c: EVERY opportunity must have an approved approval before it can be
+// moved to Closed Won. Uses a SECURITY DEFINER helper so the check is correct
+// regardless of whether the closer can see the approval under RLS.
+async function assertClosedWonApprovalGate(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  opportunityId: string,
+  fromStage: string,
+  toStage: string,
+): Promise<void> {
+  if (toStage !== "closed_won" || fromStage === "closed_won") return
+  const { data, error } = await supabase.rpc("opportunity_has_approved_approval", {
+    _opportunity_id: opportunityId,
+  })
+  if (error) {
+    throw new Error(`Failed to check approval status: ${error.message}`)
+  }
+  if (!data) {
+    throw new Error(
+      "This opportunity must have an approved approval before it can be moved to Closed Won.",
+    )
+  }
+}
+
 export async function updateOpportunity(
   ctx: OpportunityCallContext,
   id: string,
@@ -485,6 +508,10 @@ export async function updateOpportunity(
 
   const existing = await getOpportunityById(ctx, id)
   if (!existing) throw new Error("Opportunity not found for update")
+
+  if (parsed.stage !== undefined) {
+    await assertClosedWonApprovalGate(supabase, id, existing.stage, parsed.stage)
+  }
 
   const dbData: Record<string, unknown> = {}
 
@@ -564,6 +591,8 @@ export async function updateOpportunityStage(
   if (!existing) throw new Error("Opportunity not found for stage update")
 
   if (existing.stage !== parsed.stage) {
+    await assertClosedWonApprovalGate(supabase, id, existing.stage, parsed.stage)
+
     const event = determineStageEvent(existing.stage, parsed.stage)
 
     const { error } = await supabase

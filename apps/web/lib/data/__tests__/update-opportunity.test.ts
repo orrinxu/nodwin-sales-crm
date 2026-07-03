@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}))
 
 const mockSingle = vi.fn()
 const mockFrom = vi.fn()
+const mockRpc = vi.fn()
 const mockMoneyFromAmount = vi.fn()
 
 const mockEq = vi.fn()
@@ -21,6 +22,7 @@ function buildQueryBuilder() {
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(() => ({
     from: mockFrom,
+    rpc: mockRpc,
   })),
 }))
 
@@ -75,6 +77,29 @@ describe("updateOpportunity", () => {
 
     expect(result.name).toBe("Bigger Deal")
     expect(mockUpdate).toHaveBeenCalledWith({ name: "Bigger Deal" })
+  })
+
+  it("blocks moving to Closed Won without an approved approval (3c gate)", async () => {
+    mockSingle.mockResolvedValueOnce({ data: mockDbOpportunity, error: null }) // existing (negotiate)
+    mockRpc.mockResolvedValue({ data: false, error: null })
+
+    const { updateOpportunity } = await import("../opportunities")
+    await expect(
+      updateOpportunity(defaultCtx, "opp-1", { stage: "closed_won" }),
+    ).rejects.toThrow("approved approval")
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
+  it("allows Closed Won when an approved approval exists (3c gate)", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "closed_won" }, error: null })
+    mockRpc.mockResolvedValue({ data: true, error: null })
+
+    const { updateOpportunity } = await import("../opportunities")
+    await updateOpportunity(defaultCtx, "opp-1", { stage: "closed_won" })
+    expect(mockRpc).toHaveBeenCalledWith("opportunity_has_approved_approval", { _opportunity_id: "opp-1" })
+    expect(mockUpdate).toHaveBeenCalledWith({ stage: "closed_won" })
   })
 
   it("updates multiple fields", async () => {
