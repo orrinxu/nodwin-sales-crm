@@ -2522,6 +2522,7 @@ export type Database = {
       }
     }
     Functions: {
+      can_read_account: { Args: { _account_id: string }; Returns: boolean }
       can_write_account: { Args: { _account_id: string }; Returns: boolean }
       check_ai_caps: {
         Args: { p_estimated_cost: number; p_user_id: string }
