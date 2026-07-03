@@ -270,12 +270,23 @@ describe("AccountForm", () => {
       })
     })
 
-    it("renders Classification & Territory section", async () => {
+    it("no longer renders the 'coming soon' Classification & Territory placeholder", async () => {
       render(<AccountForm {...defaultProps} />)
       fireEvent.click(screen.getByText("Create Account"))
       await waitFor(() => {
-        expect(screen.getByText("Classification & Territory")).toBeInTheDocument()
+        expect(screen.getByText("Contact & Matching")).toBeInTheDocument()
       })
+      expect(screen.queryByText("Classification & Territory")).not.toBeInTheDocument()
+      expect(screen.queryByText(/being added in a future release/)).not.toBeInTheDocument()
+    })
+
+    it("does not leak the 'Custom Fields' developer heading on the form", async () => {
+      render(<AccountForm {...defaultProps} />)
+      fireEvent.click(screen.getByText("Create Account"))
+      await waitFor(() => {
+        expect(screen.getByText("Essentials")).toBeInTheDocument()
+      })
+      expect(screen.queryByText("Custom Fields")).not.toBeInTheDocument()
     })
 
     it("renders Contact & Matching section", async () => {

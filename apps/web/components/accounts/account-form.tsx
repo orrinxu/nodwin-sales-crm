@@ -342,17 +342,9 @@ export function AccountForm({
                     setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
                   }
                   errors={{}}
-                  hideHeading
                 />
               </CollapsibleSection>
             )}
-
-            {/* ── Section 4: Classification & Territory ────────────────────────────── */}
-            <CollapsibleSection title="Classification & Territory" defaultOpen={false}>
-              <p className="text-sm text-muted-foreground">
-                Classification fields (tier, lifecycle status, region, sales unit, source, tags) are being added in a future release.
-              </p>
-            </CollapsibleSection>
 
             {/* ── Section 5: Contact & Matching ────────────────────────────── */}
             <CollapsibleSection title="Contact & Matching" defaultOpen={false}>
@@ -376,7 +368,6 @@ export function AccountForm({
                     setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
                   }
                   errors={{}}
-                  hideHeading
                 />
               )}
             </CollapsibleSection>
