@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   Landmark,
   ClipboardCheck,
+  Mail,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -62,6 +63,7 @@ const adminItems = [
   { name: "Business Units", href: "/admin/business-units", icon: Briefcase },
   { name: "Relationship Types", href: "/admin/relationship-types", icon: LinkIcon },
   { name: "Approval Workflows", href: "/admin/approval-workflows", icon: ClipboardCheck },
+  { name: "Email", href: "/admin/email", icon: Mail },
   { name: "Data Management", href: "/admin/data-management", icon: Database },
   { name: "Allowed Domains", href: "/admin/allowed-domains", icon: ShieldCheck },
 ]

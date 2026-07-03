@@ -97,6 +97,13 @@
 # configuration. Write access is admin-only.
 .*integration_config.*:USING \(true\)
 
+# ── email_transport ───────────────────────────────────────────────────────────
+# Holds email credentials: SELECT is admin-only (NOT read-all) so secrets never
+# leak. Only the service_role policy is USING(true) — service_role bypasses RLS
+# and the server reads the row to send; this explicit policy is documentation.
+.*email_transport.*:USING \(true\)
+.*email_transport.*:WITH CHECK \(true\)
+
 # ── financial_settings ────────────────────────────────────────────────────────
 # Financial settings tables (reporting_currency_settings, fiscal_year_settings,
 # approval_thresholds, revenue_recognition_defaults). All authenticated users

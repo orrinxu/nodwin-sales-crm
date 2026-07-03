@@ -1240,6 +1240,63 @@ export type Database = {
           },
         ]
       }
+      email_transport: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          from_address: string | null
+          from_name: string | null
+          id: string
+          provider: string
+          resend_api_key: string | null
+          resend_domain: string | null
+          smtp_host: string | null
+          smtp_password: string | null
+          smtp_port: number | null
+          smtp_secure: boolean
+          smtp_username: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          from_address?: string | null
+          from_name?: string | null
+          id?: string
+          provider?: string
+          resend_api_key?: string | null
+          resend_domain?: string | null
+          smtp_host?: string | null
+          smtp_password?: string | null
+          smtp_port?: number | null
+          smtp_secure?: boolean
+          smtp_username?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          from_address?: string | null
+          from_name?: string | null
+          id?: string
+          provider?: string
+          resend_api_key?: string | null
+          resend_domain?: string | null
+          smtp_host?: string | null
+          smtp_password?: string | null
+          smtp_port?: number | null
+          smtp_secure?: boolean
+          smtp_username?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       entities: {
         Row: {
           active: boolean
