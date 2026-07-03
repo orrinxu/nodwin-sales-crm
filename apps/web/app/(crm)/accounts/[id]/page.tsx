@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/security/auth"
 import {
   getAccountById,
   getAccountRelationships,
+  getAccountRelationshipGraph,
   getContactsForAccount,
   getOpportunitiesForAccount,
   getOwnerOptions,
@@ -23,10 +24,11 @@ export default async function AccountDetailPage({
   const { id } = await params
 
   const ctx = { user, source: "web" as const }
-  const [account, fieldDefinitions, relationships, contacts, opportunities, owners, documents, activities, { accounts: allAccounts }] = await Promise.all([
+  const [account, fieldDefinitions, relationships, relationshipGraph, contacts, opportunities, owners, documents, activities, { accounts: allAccounts }] = await Promise.all([
     getAccountById(ctx, id),
     getFieldDefinitions(ctx, "account"),
     getAccountRelationships(ctx, id),
+    getAccountRelationshipGraph(ctx, id),
     getContactsForAccount(ctx, id),
     getOpportunitiesForAccount(ctx, id),
     getOwnerOptions(ctx),
@@ -63,7 +65,7 @@ export default async function AccountDetailPage({
     <AccountDetailWrapper
       account={account}
       fieldDefinitions={fieldDefinitions}
-      relationships={relationships}
+      relationshipGraph={relationshipGraph}
       contacts={contacts}
       opportunities={opportunities}
       documents={documents}
