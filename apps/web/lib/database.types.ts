@@ -58,6 +58,54 @@ export type Database = {
           },
         ]
       }
+      account_tax_ids: {
+        Row: {
+          account_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          tax_type: string
+          updated_at: string
+          updated_by: string | null
+          value: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          tax_type: string
+          updated_at?: string
+          updated_by?: string | null
+          value: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          tax_type?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_tax_ids_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_tax_ids_tax_type_fkey"
+            columns: ["tax_type"]
+            isOneToOne: false
+            referencedRelation: "tax_id_types"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       accounts: {
         Row: {
           account_owner_user_id: string | null
@@ -2127,6 +2175,45 @@ export type Database = {
           updated_at?: string
           workspace_id?: string
           workspace_name?: string | null
+        }
+        Relationships: []
+      }
+      tax_id_types: {
+        Row: {
+          active: boolean
+          code: string
+          country_iso: string
+          created_at: string
+          created_by: string | null
+          display_order: number
+          format_regex: string | null
+          label: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          country_iso: string
+          created_at?: string
+          created_by?: string | null
+          display_order?: number
+          format_regex?: string | null
+          label: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          country_iso?: string
+          created_at?: string
+          created_by?: string | null
+          display_order?: number
+          format_regex?: string | null
+          label?: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }

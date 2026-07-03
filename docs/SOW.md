@@ -4,7 +4,7 @@
 >
 > **Prepared for:** Akshat Rathee, Mickael Piantchenko, Abhishek Aggarwal — Nodwin Gaming · Trinity Gaming India · MaxLevel
 > **Project lead:** Orrin Xu
-> **Version:** 1.1 · 4 May 2026
+> **Version:** 1.2 · 3 Jul 2026
 >
 > **Source:** This document is the canonical SOW. The `.docx` distributed for sign-off was generated from this markdown.
 >
@@ -184,6 +184,8 @@ A client company. Supports a hierarchy: a single Account can have multiple paren
 | custom_data | jsonb | |
 | created_at, updated_at, created_by, updated_by | audit | |
 
+**Country is required on the Account form** (ORR-622 GATE B): it drives which tax-ID types are offered. Tax identifiers are **not** stored as ad-hoc custom fields — they live in the `account_tax_ids` child table (§4.4.2).
+
 #### 4.4.1 Account Relationships
 
 A separate `account_relationships` table models the company-structure graph required for clients like Tencent.
@@ -197,6 +199,35 @@ A separate `account_relationships` table models the company-structure graph requ
 | notes | text | |
 
 In the UI this surfaces as a company-tree visualisation on the Account detail page (collapsible tree with subsidiary / procurement / partner relationships). The AI search is aware of the tree, so a query like "all Tencent deals" returns deals across all related Tencent accounts.
+
+#### 4.4.2 Tax Identifiers (ORR-622)
+
+The group sells into many tax jurisdictions (Singapore, India, Korea, Japan, EU, MENA, China, …). Tax IDs are modelled as a **child table** (GATE A decision — chosen over a JSONB array for queryability, per-format validation, and Salesforce-import dedupe), replacing the earlier hardcoded per-type custom fields (`tax_gst_in` / `tax_pan_in` / `tax_vat_eu` / `tax_trn_mena`). An account may hold multiple tax IDs, of one or more types.
+
+`account_tax_ids`:
+
+| Field | Type | Notes |
+|---|---|---|
+| id | uuid (PK) | |
+| account_id | uuid (FK Account, ON DELETE CASCADE) | |
+| tax_type | text (FK `tax_id_types.code`) | e.g. `IN_GSTIN`, `SG_UEN` |
+| value | text | non-empty; validated per-type against `tax_id_types.format_regex` |
+| created_at, updated_at, created_by, updated_by | audit | |
+
+UNIQUE `(account_id, tax_type, value)` (dedupe). **RLS mirrors the parent account** — a user reads/writes an account's tax IDs iff they may read/write the account (admin OR owner OR creator). Audit-logged.
+
+`tax_id_types` is a seeded reference table driving the country→type mapping and validation (GATE C decision — seeded via migration for v1; a full **admin CRUD UI is deferred** to a later ticket):
+
+| Field | Type | Notes |
+|---|---|---|
+| code | text (PK) | e.g. `IN_GSTIN` |
+| label | text | Display label |
+| country_iso | text | ISO 3166-1 alpha-2 (`EU` used for the VAT group) |
+| format_regex | text (nullable) | Anchored per-type validation pattern |
+| display_order | int | |
+| active | boolean | |
+
+Read by all authenticated users; admin-only writes (mirrors `currencies`). **The seeded labels/formats are PROVISIONAL pending Finance confirmation** before go-live.
 
 ### 4.5 Contact
 
@@ -991,4 +1022,4 @@ By signing below, the named parties confirm they have read this document and agr
 
 *End of Scope of Work · Version 1.1 · 4 May 2026*
 
-*Changelog: v1.1 added MCP server (Phase 9.5 / v1.5) covering programmatic access for AI agent clients (Claude Desktop, NanoClaw, Cursor, Cowork). Added §4.13 (MCP sessions and audit), §5.2 (MCP must-haves), §6.8 (MCP architecture), §8.5 (data-layer source parameter prep work), §13.1 (v1.5 acceptance criteria). v1.0 baseline preserved otherwise.*
+*Changelog: v1.2 (3 Jul 2026) codified the Account tax-ID model (§4.4.2): the `account_tax_ids` child table + seeded `tax_id_types` reference table (GATE A = child table, GATE C = seeded table with admin UI deferred), Country becoming required on the Account form (GATE B). Seeded tax labels/formats are provisional pending Finance sign-off. v1.1 added MCP server (Phase 9.5 / v1.5) covering programmatic access for AI agent clients (Claude Desktop, NanoClaw, Cursor, Cowork). Added §4.13 (MCP sessions and audit), §5.2 (MCP must-haves), §6.8 (MCP architecture), §8.5 (data-layer source parameter prep work), §13.1 (v1.5 acceptance criteria). v1.0 baseline preserved otherwise.*

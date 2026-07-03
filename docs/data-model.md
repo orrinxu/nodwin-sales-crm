@@ -90,6 +90,12 @@ A separate `account_relationships` table models the company-structure graph requ
 
 In the UI this surfaces as a company-tree visualisation on the Account detail page (collapsible tree with subsidiary / procurement / partner relationships). The AI search is aware of the tree, so a query like "all Tencent deals" returns deals across all related Tencent accounts.
 
+#### 4.4.2 Tax Identifiers (ORR-622)
+
+Tax IDs are a **child table** `account_tax_ids (id, account_id FK→Account ON DELETE CASCADE, tax_type FK→tax_id_types.code, value, audit)`, UNIQUE `(account_id, tax_type, value)`, replacing the earlier `tax_*` custom fields in `custom_data` (backfilled). An account may hold multiple tax IDs. **RLS mirrors the parent account** (admin OR owner OR creator); audit-logged.
+
+`tax_id_types (code PK, label, country_iso, format_regex, display_order, active)` is a seeded reference table (read-all, admin-write) that drives the country→type mapping on the Account form and per-type validation. **Country is required** on the form (drives the mapping). Admin CRUD UI for tax types is deferred; seeded labels/formats are provisional pending Finance sign-off.
+
 ### 4.5 Contact
 
 A person at an Account. A contact can be associated with multiple accounts (e.g., a procurement officer who handles Tencent Music and Tencent Games separately), but has a primary account.

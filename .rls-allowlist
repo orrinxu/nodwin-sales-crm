@@ -41,6 +41,12 @@
 # access to reference currency codes. Write access is admin-only.
 .*currencies.*:USING \(true\)
 
+# ── tax_id_types ───────────────────────────────────────────────────────────────
+# Reference lookup table (ORR-622): all authenticated users read the tax-type
+# registry to build the Account form; writes are admin-only. Same pattern as
+# currencies.
+.*tax_id_types.*:USING \(true\)
+
 # ── custom_fields ───────────────────────────────────────────────────────────────
 # field_definitions is a configuration table. All authenticated users need
 # read access to see field schemas. Write access is admin-only.
