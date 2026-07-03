@@ -38,6 +38,38 @@ CREATE POLICY "approval_workflows_delete_admin"
   TO authenticated
   USING (public.current_user_role() = 'admin');
 
+-- ── approval_workflow_steps (template layer) ──────────────────────────────────
+-- Mirrors business_units pattern: authenticated can read, admin-only writes.
+ALTER TABLE public.approval_workflow_steps ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "approval_workflow_steps_select_authenticated" ON public.approval_workflow_steps;
+CREATE POLICY "approval_workflow_steps_select_authenticated"
+  ON public.approval_workflow_steps
+  FOR SELECT
+  TO authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "approval_workflow_steps_insert_admin" ON public.approval_workflow_steps;
+CREATE POLICY "approval_workflow_steps_insert_admin"
+  ON public.approval_workflow_steps
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (public.current_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "approval_workflow_steps_update_admin" ON public.approval_workflow_steps;
+CREATE POLICY "approval_workflow_steps_update_admin"
+  ON public.approval_workflow_steps
+  FOR UPDATE
+  TO authenticated
+  USING (public.current_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "approval_workflow_steps_delete_admin" ON public.approval_workflow_steps;
+CREATE POLICY "approval_workflow_steps_delete_admin"
+  ON public.approval_workflow_steps
+  FOR DELETE
+  TO authenticated
+  USING (public.current_user_role() = 'admin');
+
 -- ── approval_instances ────────────────────────────────────────────────────────
 ALTER TABLE public.approval_instances ENABLE ROW LEVEL SECURITY;
 

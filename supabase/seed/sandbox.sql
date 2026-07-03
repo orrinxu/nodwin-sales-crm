@@ -418,3 +418,55 @@ ON CONFLICT (id) DO UPDATE SET
   opportunity_id = EXCLUDED.opportunity_id,
   user_id = EXCLUDED.user_id,
   role = EXCLUDED.role;
+
+-- ===========================================================================
+-- 7. EAST ASIA DEFAULT APPROVAL WORKFLOWS (ORR-608 Phase 0)
+--    Budget Gate @ meet_and_present, Closure Gate @ verbal_agreement
+-- ===========================================================================
+
+DO $$
+DECLARE
+  _budget_wf_id   uuid;
+  _closure_wf_id  uuid;
+BEGIN
+  -- Budget workflow: triggered at meet_and_present
+  SELECT id INTO _budget_wf_id FROM public.approval_workflows
+  WHERE entity_type = 'opportunity'
+    AND trigger_stage = 'meet_and_present'
+    AND applies_to_entity_id = 'e0000001-0001-0001-0001-000000000001'
+  ORDER BY created_at LIMIT 1;
+
+  IF _budget_wf_id IS NULL THEN
+    INSERT INTO public.approval_workflows (name, description, entity_type, entity_id, applies_to_entity_id, trigger_stage, active)
+    VALUES ('East Asia — Budget Gate',
+            'Budget approval gate for East Asia opportunities at meet_and_present.',
+            'opportunity', NULL, 'e0000001-0001-0001-0001-000000000001', 'meet_and_present', true)
+    RETURNING id INTO _budget_wf_id;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM public.approval_workflow_steps WHERE workflow_id = _budget_wf_id) THEN
+    INSERT INTO public.approval_workflow_steps (workflow_id, step_order, name, approver_role, approver_kind, mode)
+    VALUES (_budget_wf_id, 1, 'Budget Review', 'sales_manager', 'role', 'all_required');
+  END IF;
+
+  -- Closure workflow: triggered at verbal_agreement
+  SELECT id INTO _closure_wf_id FROM public.approval_workflows
+  WHERE entity_type = 'opportunity'
+    AND trigger_stage = 'verbal_agreement'
+    AND applies_to_entity_id = 'e0000001-0001-0001-0001-000000000001'
+  ORDER BY created_at LIMIT 1;
+
+  IF _closure_wf_id IS NULL THEN
+    INSERT INTO public.approval_workflows (name, description, entity_type, entity_id, applies_to_entity_id, trigger_stage, active)
+    VALUES ('East Asia — Closure Gate',
+            'Closure approval gate for East Asia opportunities at verbal_agreement.',
+            'opportunity', NULL, 'e0000001-0001-0001-0001-000000000001', 'verbal_agreement', true)
+    RETURNING id INTO _closure_wf_id;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM public.approval_workflow_steps WHERE workflow_id = _closure_wf_id) THEN
+    INSERT INTO public.approval_workflow_steps (workflow_id, step_order, name, approver_role, approver_kind, mode)
+    VALUES (_closure_wf_id, 1, 'Closure Sign-off', 'sales_manager', 'role', 'all_required');
+  END IF;
+END;
+$$;
