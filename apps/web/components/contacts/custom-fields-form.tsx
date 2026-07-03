@@ -9,6 +9,9 @@ interface CustomFieldsFormProps {
   values: Record<string, unknown>
   onChange: (key: string, value: unknown) => void
   errors: Record<string, string | undefined>
+  // Suppress the built-in "Custom Fields" heading when the parent already
+  // provides a section title (avoids a redundant nested heading).
+  hideHeading?: boolean
 }
 
 export function CustomFieldsForm({
@@ -16,14 +19,17 @@ export function CustomFieldsForm({
   values,
   onChange,
   errors,
+  hideHeading = false,
 }: CustomFieldsFormProps) {
   if (fieldDefinitions.length === 0) return null
 
   return (
     <div className="space-y-4">
-      <div className="border-b pb-2">
-        <h3 className="text-sm font-medium">Custom Fields</h3>
-      </div>
+      {!hideHeading && (
+        <div className="border-b pb-2">
+          <h3 className="text-sm font-medium">Custom Fields</h3>
+        </div>
+      )}
       {fieldDefinitions.map((def) => (
         <FieldInput
           key={def.id}
