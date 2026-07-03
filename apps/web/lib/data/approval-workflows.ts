@@ -189,9 +189,6 @@ export async function deleteApprovalWorkflow(
   }
 }
 
-// Atomic replace of a workflow's step template via direct Supabase queries.
-// We bypass the replace_workflow_steps RPC because it doesn't support the
-// newer step columns (name, approver_user_ids, mode) added in ORR-608.
 export async function replaceWorkflowSteps(
   ctx: ApprovalWorkflowCallContext,
   workflowId: string,
@@ -201,36 +198,23 @@ export async function replaceWorkflowSteps(
   const { steps } = replaceWorkflowStepsSchema.parse(input)
   const supabase = await createServerClient()
 
-  const { error: deleteError } = await supabase
-    .from("approval_workflow_steps")
-    .delete()
-    .eq("workflow_id", workflowId)
-
-  if (deleteError) {
-    throw new Error(`Failed to clear workflow steps: ${deleteError.message}`)
-  }
-
-  if (steps.length === 0) return
-
-  const rows = steps.map((s) => {
-    const hasMultiUser = s.approverUserIds && s.approverUserIds.length > 0
-    return {
-      workflow_id: workflowId,
-      step_order: s.stepOrder,
-      approver_kind: s.approverKind,
-      approver_role: s.approverKind === "role" ? (s.approverRole ?? "") : "",
-      approver_user_id: s.approverKind === "user" && !hasMultiUser ? (s.approverUserId ?? "") : "",
-      approver_user_ids: s.approverKind === "user" && hasMultiUser ? s.approverUserIds : null,
-      name: s.name ?? null,
-      mode: s.mode ?? "all_required",
-    }
+  const { error } = await supabase.rpc("replace_workflow_steps", {
+    _workflow_id: workflowId,
+    _steps: steps.map((s) => {
+      const hasMultiUser = s.approverUserIds && s.approverUserIds.length > 0
+      return {
+        step_order: s.stepOrder,
+        approver_kind: s.approverKind,
+        approver_role: s.approverKind === "role" ? (s.approverRole ?? null) : null,
+        approver_user_id: s.approverKind === "user" && !hasMultiUser ? (s.approverUserId ?? null) : null,
+        approver_user_ids: s.approverKind === "user" && hasMultiUser ? s.approverUserIds : null,
+        name: s.name ?? null,
+        mode: s.mode ?? "all_required",
+      }
+    }),
   })
 
-  const { error: insertError } = await supabase
-    .from("approval_workflow_steps")
-    .insert(rows as never)
-
-  if (insertError) {
-    throw new Error(`Failed to save workflow steps: ${insertError.message}`)
+  if (error) {
+    throw new Error(`Failed to save workflow steps: ${error.message}`)
   }
 }

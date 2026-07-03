@@ -12,6 +12,7 @@ import { getActivitiesForOpportunity } from "@/lib/data/activities"
 import {
   getApprovalHistoryForOpportunity,
   getApprovalActionState,
+  getEnforceGateStatus,
   approvalStatusLabel,
   summarizeApprovalStatus,
 } from "@/lib/data/approvals"
@@ -37,9 +38,14 @@ export default async function OpportunityDetailPage({
   const { id } = await params
 
   const ctx = { user, source: "web" as const }
-  const [opportunity, businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState] =
+
+  const opportunity = await getOpportunityById(ctx, id)
+  if (!opportunity) {
+    notFound()
+  }
+
+  const [businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState, enforceGateStatus] =
     await Promise.all([
-      getOpportunityById(ctx, id),
       getBusinessUnitOptions(ctx),
       getActivitiesForOpportunity(ctx, id),
       getOpportunitySplits(ctx, id),
@@ -48,11 +54,8 @@ export default async function OpportunityDetailPage({
       getUserOptions(ctx),
       getApprovalHistoryForOpportunity(ctx, id),
       getApprovalActionState(ctx, id),
+      getEnforceGateStatus(ctx, id, opportunity.stage),
     ])
-
-  if (!opportunity) {
-    notFound()
-  }
 
   const approvalStatus = approvalStatusLabel(summarizeApprovalStatus(approvals))
 
@@ -80,6 +83,7 @@ export default async function OpportunityDetailPage({
       cancelApprovalAction={cancelApprovalInstanceAction}
       updateSplitsAction={updateOpportunitySplitsAction}
       updateTeamAction={updateOpportunityTeamMembersAction}
+      enforceGateStatus={enforceGateStatus}
     />
   )
 }

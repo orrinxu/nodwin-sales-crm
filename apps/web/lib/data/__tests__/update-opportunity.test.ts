@@ -260,3 +260,134 @@ describe("updateOpportunity", () => {
     ).rejects.toThrow("Opportunity not found after update")
   })
 })
+
+describe("enforce_gate (Phase 4)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    buildQueryBuilder()
+    mockFrom.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder, update: mockUpdate })
+    mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+    mockMoneyFromAmount.mockReturnValue({ toAmount: () => "50000.00" })
+  })
+
+  it("blocks forward stage advance when enforce_gate RPC returns false", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "negotiate" }, error: null })
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "verbal_agreement" }, error: null })
+
+    mockRpc.mockImplementation(async (fnName: string) => {
+      if (fnName === "opportunity_check_enforce_gate") return { data: false, error: null }
+      return { data: true, error: null }
+    })
+
+    const { updateOpportunityStage } = await import("../opportunities")
+    await expect(
+      updateOpportunityStage(defaultCtx, "opp-1", { stage: "verbal_agreement" }),
+    ).rejects.toThrow("approved approval")
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
+  it("allows forward stage advance when enforce_gate RPC returns true", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "negotiate" }, error: null })
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "verbal_agreement" }, error: null })
+
+    mockRpc.mockImplementation(async (fnName: string) => {
+      if (fnName === "opportunity_check_enforce_gate") return { data: true, error: null }
+      return { data: true, error: null }
+    })
+
+    const { updateOpportunityStage } = await import("../opportunities")
+    await updateOpportunityStage(defaultCtx, "opp-1", { stage: "verbal_agreement" })
+    expect(mockUpdate).toHaveBeenCalledWith({ stage: "verbal_agreement" })
+  })
+
+  it("does not check enforce_gate for backward moves", async () => {
+    const oppInPropose = { ...mockDbOpportunity, stage: "propose" }
+    mockSingle
+      .mockResolvedValueOnce({ data: oppInPropose, error: null })
+      .mockResolvedValueOnce({ data: { ...oppInPropose, stage: "qualify" }, error: null })
+
+    const { updateOpportunityStage } = await import("../opportunities")
+    await updateOpportunityStage(defaultCtx, "opp-1", { stage: "qualify" })
+    expect(mockRpc).not.toHaveBeenCalled()
+    expect(mockUpdate).toHaveBeenCalledWith({ stage: "qualify" })
+  })
+
+  it("blocks enforce_gate in updateOpportunity when advancing stage", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "negotiate" }, error: null })
+
+    mockRpc.mockImplementation(async (fnName: string) => {
+      if (fnName === "opportunity_check_enforce_gate") return { data: false, error: null }
+      return { data: true, error: null }
+    })
+
+    const { updateOpportunity } = await import("../opportunities")
+    await expect(
+      updateOpportunity(defaultCtx, "opp-1", { stage: "verbal_agreement" }),
+    ).rejects.toThrow("approved approval")
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
+  it("blocks enforce_gate in bulk update when any row fails gate", async () => {
+    const updateIn = vi.fn().mockResolvedValue({ error: null })
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        in: vi.fn().mockResolvedValue({
+          data: [{ id: "opp-1", stage: "negotiate" }, { id: "opp-2", stage: "qualify" }],
+          error: null,
+        }),
+      }),
+      update: vi.fn().mockReturnValue({ in: updateIn }),
+    })
+
+    mockRpc.mockImplementation(async (fnName: string) => {
+      if (fnName === "opportunity_check_enforce_gate") return { data: false, error: null }
+      return { data: true, error: null }
+    })
+
+    const { bulkUpdateOpportunityStage } = await import("../opportunities")
+    await expect(
+      bulkUpdateOpportunityStage(defaultCtx, { ids: ["opp-1", "opp-2"], stage: "verbal_agreement" }),
+    ).rejects.toThrow("approved approval")
+    expect(updateIn).not.toHaveBeenCalled()
+  })
+
+  it("allows bulk stage update when all rows pass enforce_gate", async () => {
+    const updateIn = vi.fn().mockResolvedValue({ error: null })
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        in: vi.fn().mockResolvedValue({
+          data: [{ id: "opp-1", stage: "qualify" }],
+          error: null,
+        }),
+      }),
+      update: vi.fn().mockReturnValue({ in: updateIn }),
+    })
+
+    mockRpc.mockImplementation(async (fnName: string) => {
+      if (fnName === "opportunity_check_enforce_gate") return { data: true, error: null }
+      return { data: true, error: null }
+    })
+
+    const { bulkUpdateOpportunityStage } = await import("../opportunities")
+    await bulkUpdateOpportunityStage(defaultCtx, { ids: ["opp-1"], stage: "verbal_agreement" })
+    expect(updateIn).toHaveBeenCalledWith("id", ["opp-1"])
+  })
+
+  it("throws on enforce_gate RPC error", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "negotiate" }, error: null })
+
+    mockRpc.mockImplementation(async (fnName: string) => {
+      if (fnName === "opportunity_check_enforce_gate") return { data: null, error: new Error("RPC timeout") }
+      return { data: true, error: null }
+    })
+
+    const { updateOpportunityStage } = await import("../opportunities")
+    await expect(
+      updateOpportunityStage(defaultCtx, "opp-1", { stage: "verbal_agreement" }),
+    ).rejects.toThrow("Failed to check approval gate")
+  })
+})
