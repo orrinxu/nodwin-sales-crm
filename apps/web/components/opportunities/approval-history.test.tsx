@@ -26,6 +26,7 @@ describe("ApprovalHistory", () => {
             id: "step-1",
             stepOrder: 0,
             approverRole: null,
+            approverUserId: null,
             approverName: "Alice Admin",
             status: "approved",
             dueBy: null,

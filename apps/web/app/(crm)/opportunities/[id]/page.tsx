@@ -11,6 +11,7 @@ import { getStageHistoryForOpportunity } from "@/lib/data/opportunity-stage-hist
 import { getActivitiesForOpportunity } from "@/lib/data/activities"
 import {
   getApprovalHistoryForOpportunity,
+  getApprovalActionState,
   approvalStatusLabel,
   summarizeApprovalStatus,
 } from "@/lib/data/approvals"
@@ -20,6 +21,8 @@ import {
   createActivityAction,
   updateOpportunitySplitsAction,
   updateOpportunityTeamMembersAction,
+  submitOpportunityForApprovalAction,
+  recordApprovalDecisionAction,
 } from "../actions"
 import { OpportunityDetailWrapper } from "@/components/opportunities/opportunity-detail-wrapper"
 
@@ -32,7 +35,7 @@ export default async function OpportunityDetailPage({
   const { id } = await params
 
   const ctx = { user, source: "web" as const }
-  const [opportunity, businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals] =
+  const [opportunity, businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState] =
     await Promise.all([
       getOpportunityById(ctx, id),
       getBusinessUnitOptions(ctx),
@@ -42,6 +45,7 @@ export default async function OpportunityDetailPage({
       getStageHistoryForOpportunity(ctx, id),
       getUserOptions(ctx),
       getApprovalHistoryForOpportunity(ctx, id),
+      getApprovalActionState(ctx, id),
     ])
 
   if (!opportunity) {
@@ -64,6 +68,10 @@ export default async function OpportunityDetailPage({
       userOptions={userOptions}
       approvals={approvals}
       approvalStatus={approvalStatus}
+      canSubmitApproval={approvalActionState.canSubmit}
+      actionableStepId={approvalActionState.actionableStepId}
+      submitApprovalAction={submitOpportunityForApprovalAction}
+      recordDecisionAction={recordApprovalDecisionAction}
       updateSplitsAction={updateOpportunitySplitsAction}
       updateTeamAction={updateOpportunityTeamMembersAction}
     />

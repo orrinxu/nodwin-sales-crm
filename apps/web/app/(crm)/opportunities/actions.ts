@@ -24,6 +24,12 @@ import {
 } from "@/lib/data/activities"
 import { searchAccountOptions, searchContactOptions, createContact, contactCreateSchema } from "@/lib/data/contacts"
 import type { ContactCallContext } from "@/lib/data/contacts"
+import {
+  submitOpportunityForApproval,
+  recordApprovalDecision,
+  type ApprovalDecisionType,
+} from "@/lib/data/approvals"
+import { z } from "zod"
 
 export async function createOpportunityAction(input: unknown) {
   const user = await requireUser()
@@ -42,6 +48,29 @@ export async function updateOpportunityAction(id: string, input: unknown) {
   revalidatePath("/opportunities")
   revalidatePath(`/opportunities/${id}`)
   return opportunity
+}
+
+export async function submitOpportunityForApprovalAction(opportunityId: string) {
+  const user = await requireUser()
+  const id = z.string().uuid().parse(opportunityId)
+  const ctx = { user, source: "web" as const }
+  await submitOpportunityForApproval(ctx, id)
+  revalidatePath(`/opportunities/${id}`)
+}
+
+const decisionSchema = z.object({
+  stepId: z.string().uuid(),
+  decision: z.enum(["approved", "rejected", "skipped"]),
+  comment: z.string().max(2000).optional().or(z.literal("")),
+})
+
+export async function recordApprovalDecisionAction(opportunityId: string, input: unknown) {
+  const user = await requireUser()
+  const id = z.string().uuid().parse(opportunityId)
+  const { stepId, decision, comment } = decisionSchema.parse(input)
+  const ctx = { user, source: "web" as const }
+  await recordApprovalDecision(ctx, stepId, decision as ApprovalDecisionType, comment || null)
+  revalidatePath(`/opportunities/${id}`)
 }
 
 export async function updateOpportunityStageAction(
