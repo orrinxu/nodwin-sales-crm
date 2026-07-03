@@ -1,27 +1,24 @@
 -- supabase/tests/approval_write_path.test.sql
--- pgTAP: the approval write-path RPCs (ORR-604 Phase 1).
---   submit_opportunity_for_approval  — authz, per-entity workflow resolution,
---                                       step instantiation, duplicate guard.
---   record_approval_decision         — approver-role authz, sequential order,
---                                       approve-to-resolution, reject-resolution.
+-- pgTAP: approval write path under the Phase-3a approver model (ORR-604).
+--   * org-wide default = the submitter's MANAGER (resolved at submit).
+--   * role-based steps are ENTITY-FIREWALLED (a role holder may only decide
+--     approvals for opportunities in their own entity).
+--   * a submitter with no manager escalates to admin.
 --
--- Step ids are captured with \gset as the service role (bypassing RLS) so the
--- decide-authorisation tests can pass a valid id regardless of the acting user's
--- read access. Status reads also run as the service role.
---
+-- Step ids captured via \gset as the service role (bypasses RLS).
 -- Run with: supabase test db
 
 BEGIN;
 
-SELECT plan(17);
+SELECT plan(19);
 
--- ── Fixtures ─────────────────────────────────────────────────────────────────
 INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
   ('aa000000-0000-0000-0000-0000000000a1', 'admin@nodwin.com', '{"full_name":"Admin"}'),
-  ('bb000000-0000-0000-0000-0000000000b1', 'rep@nodwin.com',   '{"full_name":"Rep Owner"}'),
-  ('cc000000-0000-0000-0000-0000000000c1', 'mgr@nodwin.com',   '{"full_name":"Sales Mgr"}'),
-  ('dd000000-0000-0000-0000-0000000000d1', 'fin@nodwin.com',   '{"full_name":"Finance"}'),
-  ('ee000000-0000-0000-0000-0000000000e1', 'other@nodwin.com', '{"full_name":"Other Rep"}')
+  ('bb000000-0000-0000-0000-0000000000b1', 'rep@nodwin.com',   '{"full_name":"Rep"}'),
+  ('cc000000-0000-0000-0000-0000000000c1', 'mgr@nodwin.com',   '{"full_name":"E1 Mgr"}'),
+  ('dd000000-0000-0000-0000-0000000000d1', 'fin@nodwin.com',   '{"full_name":"E2 Finance"}'),
+  ('ee000000-0000-0000-0000-0000000000e1', 'other@nodwin.com', '{"full_name":"Other Rep"}'),
+  ('ff000000-0000-0000-0000-0000000000f1', 'mgr2@nodwin.com',  '{"full_name":"E2 Mgr"}')
 ON CONFLICT (id) DO NOTHING;
 
 SELECT tests.as_service_role();
@@ -32,17 +29,19 @@ INSERT INTO public.entities (id, name) VALUES
   ('e2000000-0000-0000-0000-0000000000e2', 'Entity Two')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.users (id, email, full_name, primary_role, primary_entity_id) VALUES
-  ('aa000000-0000-0000-0000-0000000000a1', 'admin@nodwin.com', 'Admin',     'admin',         'e1000000-0000-0000-0000-0000000000e1'),
-  ('bb000000-0000-0000-0000-0000000000b1', 'rep@nodwin.com',   'Rep Owner', 'sales_rep',     'e1000000-0000-0000-0000-0000000000e1'),
-  ('cc000000-0000-0000-0000-0000000000c1', 'mgr@nodwin.com',   'Sales Mgr', 'sales_manager', 'e1000000-0000-0000-0000-0000000000e1'),
-  ('dd000000-0000-0000-0000-0000000000d1', 'fin@nodwin.com',   'Finance',   'finance',       'e2000000-0000-0000-0000-0000000000e2'),
-  ('ee000000-0000-0000-0000-0000000000e1', 'other@nodwin.com', 'Other Rep', 'sales_rep',     'e1000000-0000-0000-0000-0000000000e1')
-ON CONFLICT (id) DO UPDATE SET primary_role = EXCLUDED.primary_role;
+-- rep's manager is the E1 manager. other has NO manager (tests admin fallback).
+INSERT INTO public.users (id, email, full_name, primary_role, primary_entity_id, manager_user_id) VALUES
+  ('aa000000-0000-0000-0000-0000000000a1', 'admin@nodwin.com', 'Admin',      'admin',         'e1000000-0000-0000-0000-0000000000e1', NULL),
+  ('bb000000-0000-0000-0000-0000000000b1', 'rep@nodwin.com',   'Rep',        'sales_rep',     'e1000000-0000-0000-0000-0000000000e1', 'cc000000-0000-0000-0000-0000000000c1'),
+  ('cc000000-0000-0000-0000-0000000000c1', 'mgr@nodwin.com',   'E1 Mgr',     'sales_manager', 'e1000000-0000-0000-0000-0000000000e1', NULL),
+  ('dd000000-0000-0000-0000-0000000000d1', 'fin@nodwin.com',   'E2 Finance', 'finance',       'e2000000-0000-0000-0000-0000000000e2', NULL),
+  ('ee000000-0000-0000-0000-0000000000e1', 'other@nodwin.com', 'Other Rep',  'sales_rep',     'e1000000-0000-0000-0000-0000000000e1', NULL),
+  ('ff000000-0000-0000-0000-0000000000f1', 'mgr2@nodwin.com',  'E2 Mgr',     'sales_manager', 'e2000000-0000-0000-0000-0000000000e2', NULL)
+ON CONFLICT (id) DO UPDATE SET primary_role = EXCLUDED.primary_role, manager_user_id = EXCLUDED.manager_user_id, primary_entity_id = EXCLUDED.primary_entity_id;
 
 INSERT INTO public.business_units (id, name, entity_id, kind, manager_user_id) VALUES
   ('b1000000-0000-0000-0000-0000000000b1', 'BU One', 'e1000000-0000-0000-0000-0000000000e1', 'sales', 'cc000000-0000-0000-0000-0000000000c1'),
-  ('b2000000-0000-0000-0000-0000000000b2', 'BU Two', 'e2000000-0000-0000-0000-0000000000e2', 'sales', 'cc000000-0000-0000-0000-0000000000c1')
+  ('b2000000-0000-0000-0000-0000000000b2', 'BU Two', 'e2000000-0000-0000-0000-0000000000e2', 'sales', 'ff000000-0000-0000-0000-0000000000f1')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.accounts (id, name, account_owner_user_id, created_by)
@@ -52,100 +51,94 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.opportunities (id, name, account_id, stage, owner_user_id, sales_unit_id, amount, currency, visibility_tier) VALUES
   ('01000000-0000-0000-0000-000000000001', 'Opp One',   'a1000000-0000-0000-0000-0000000000a1', 'qualify', 'bb000000-0000-0000-0000-0000000000b1', 'b1000000-0000-0000-0000-0000000000b1', 100000, 'USD', 'standard'),
   ('02000000-0000-0000-0000-000000000002', 'Opp Two',   'a1000000-0000-0000-0000-0000000000a1', 'qualify', 'bb000000-0000-0000-0000-0000000000b1', 'b2000000-0000-0000-0000-0000000000b2', 100000, 'USD', 'standard'),
-  ('03000000-0000-0000-0000-000000000003', 'Opp Three', 'a1000000-0000-0000-0000-0000000000a1', 'qualify', 'bb000000-0000-0000-0000-0000000000b1', 'b1000000-0000-0000-0000-0000000000b1', 100000, 'USD', 'standard')
+  ('03000000-0000-0000-0000-000000000003', 'Opp Three', 'a1000000-0000-0000-0000-0000000000a1', 'qualify', 'ee000000-0000-0000-0000-0000000000e1', 'b1000000-0000-0000-0000-0000000000b1', 100000, 'USD', 'standard')
 ON CONFLICT (id) DO NOTHING;
 
--- Entity Two's custom 2-step workflow: Sales Manager → Finance.
+-- Entity Two custom 2-step ROLE workflow: Sales Manager → Finance.
 DO $$
 DECLARE _wf uuid;
 BEGIN
   INSERT INTO public.approval_workflows (name, entity_type, entity_id, active)
-  VALUES ('Entity Two Opportunity Approval', 'opportunity', 'e2000000-0000-0000-0000-0000000000e2', true)
+  VALUES ('E2 Opp Approval', 'opportunity', 'e2000000-0000-0000-0000-0000000000e2', true)
   RETURNING id INTO _wf;
-  INSERT INTO public.approval_workflow_steps (workflow_id, step_order, approver_role) VALUES
-    (_wf, 1, 'sales_manager'),
-    (_wf, 2, 'finance');
-END;
-$$;
+  INSERT INTO public.approval_workflow_steps (workflow_id, step_order, approver_kind, approver_role) VALUES
+    (_wf, 1, 'role', 'sales_manager'),
+    (_wf, 2, 'role', 'finance');
+END $$;
 
--- ── submit: authorisation ────────────────────────────────────────────────────
--- 1. A non-owner rep cannot submit someone else's opportunity.
+-- ── Default workflow = submitter's manager ───────────────────────────────────
+-- 1. Non-owner cannot submit.
 SELECT tests.as_user('other@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT throws_ok(
   $$SELECT public.submit_opportunity_for_approval('01000000-0000-0000-0000-000000000001')$$,
-  '42501', NULL, 'non-owner cannot submit an opportunity for approval'
+  '42501', NULL, 'non-owner cannot submit'
 );
 
--- 2. The owner can submit their opportunity.
+-- 2. Owner submits Opp One (E1) — default workflow.
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT lives_ok(
   $$SELECT public.submit_opportunity_for_approval('01000000-0000-0000-0000-000000000001')$$,
-  'owner can submit their opportunity for approval'
+  'owner submits opp one'
 );
 
--- capture Opp One's step id (service role bypasses RLS)
 SELECT tests.as_service_role();
 SET LOCAL ROLE postgres;
 SELECT s.id AS opp1_s1 FROM public.approval_steps s
   JOIN public.approval_instances i ON i.id = s.instance_id
   WHERE i.entity_id = '01000000-0000-0000-0000-000000000001' AND s.step_order = 1 \gset
 
--- 3. It created a pending instance...
-SELECT is(
-  (SELECT status::text FROM public.approval_instances WHERE entity_id = '01000000-0000-0000-0000-000000000001'),
-  'pending', 'submit created a pending approval instance'
-);
--- 4. ...with exactly one step (the org-wide default), approver_role sales_manager.
+-- 3. The step resolved to the submitter's MANAGER (named-user), not a role.
 SELECT results_eq(
-  $$SELECT step_order, approver_role::text FROM public.approval_steps s
+  $$SELECT approver_user_id, approver_role FROM public.approval_steps s
     JOIN public.approval_instances i ON i.id = s.instance_id
-    WHERE i.entity_id = '01000000-0000-0000-0000-000000000001' ORDER BY step_order$$,
-  $$VALUES (1, 'sales_manager')$$,
-  'default workflow instantiated one sales_manager step'
+    WHERE i.entity_id = '01000000-0000-0000-0000-000000000001'$$,
+  $$VALUES ('cc000000-0000-0000-0000-0000000000c1'::uuid, NULL::public.user_role)$$,
+  'default workflow resolved the submitter''s manager'
 );
-
--- 5. Re-submitting while pending is blocked.
+-- 4. The instance recorded the opportunity's business entity.
+SELECT is(
+  (SELECT business_entity_id FROM public.approval_instances WHERE entity_id = '01000000-0000-0000-0000-000000000001'),
+  'e1000000-0000-0000-0000-0000000000e1'::uuid, 'instance recorded the business entity'
+);
+-- 5. Duplicate submit blocked.
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT throws_ok(
   $$SELECT public.submit_opportunity_for_approval('01000000-0000-0000-0000-000000000001')$$,
-  '23505', NULL, 'cannot submit an opportunity that already has a pending approval'
+  '23505', NULL, 'duplicate submit blocked'
 );
-
--- ── decide: authorisation + resolution ───────────────────────────────────────
--- 6. A rep without the step's role cannot decide it.
+-- 6. A non-manager cannot decide the manager step.
 SELECT tests.as_user('other@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT throws_ok(
   format($$SELECT public.record_approval_decision(%L, 'approved')$$, :'opp1_s1'),
-  '42501', NULL, 'a non-approver role cannot decide the step'
+  '42501', NULL, 'a non-approver cannot decide the manager step'
 );
--- 7. The sales manager (holds the step role) can approve it.
+-- 7. The manager approves.
 SELECT tests.as_user('mgr@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT lives_ok(
-  format($$SELECT public.record_approval_decision(%L, 'approved', 'looks good')$$, :'opp1_s1'),
-  'a sales_manager can approve the sales_manager step'
+  format($$SELECT public.record_approval_decision(%L, 'approved')$$, :'opp1_s1'),
+  'the submitter''s manager approves'
 );
--- 8. The (single-step) instance is now approved.
+-- 8. Instance approved.
 SELECT tests.as_service_role();
 SET LOCAL ROLE postgres;
 SELECT is(
   (SELECT status::text FROM public.approval_instances WHERE entity_id = '01000000-0000-0000-0000-000000000001'),
-  'approved', 'approving the only step resolves the instance to approved'
+  'approved', 'manager approval resolves the instance'
 );
 
--- ── per-entity workflow resolution + sequential multi-step ────────────────────
--- 9. Submitting Opp Two resolves Entity Two's 2-step workflow.
+-- ── Entity-firewalled role workflow (Opp Two, E2) ────────────────────────────
+-- 9. Owner submits Opp Two (E2) — resolves the 2-step role workflow.
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT lives_ok(
   $$SELECT public.submit_opportunity_for_approval('02000000-0000-0000-0000-000000000002')$$,
-  'owner can submit the Entity Two opportunity'
+  'owner submits opp two'
 );
-
 SELECT tests.as_service_role();
 SET LOCAL ROLE postgres;
 SELECT s.id AS opp2_s1 FROM public.approval_steps s
@@ -154,71 +147,80 @@ SELECT s.id AS opp2_s1 FROM public.approval_steps s
 SELECT s.id AS opp2_s2 FROM public.approval_steps s
   JOIN public.approval_instances i ON i.id = s.instance_id
   WHERE i.entity_id = '02000000-0000-0000-0000-000000000002' AND s.step_order = 2 \gset
-
 SELECT results_eq(
   $$SELECT step_order, approver_role::text FROM public.approval_steps s
     JOIN public.approval_instances i ON i.id = s.instance_id
     WHERE i.entity_id = '02000000-0000-0000-0000-000000000002' ORDER BY step_order$$,
   $$VALUES (1, 'sales_manager'), (2, 'finance')$$,
-  'Entity Two resolved its own 2-step workflow (not the default)'
+  'E2 workflow instantiated its 2 role steps'
 );
--- 10. Step 2 cannot be decided before step 1 (sequential).
+-- 10. FIREWALL: an E1 sales_manager cannot decide an E2 role step.
+SELECT tests.as_user('mgr@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT throws_ok(
+  format($$SELECT public.record_approval_decision(%L, 'approved')$$, :'opp2_s1'),
+  '42501', NULL, 'a sales_manager from another entity cannot decide (firewalled)'
+);
+-- 11. Sequential: E2 finance cannot decide step 2 before step 1.
 SELECT tests.as_user('fin@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT throws_ok(
   format($$SELECT public.record_approval_decision(%L, 'approved')$$, :'opp2_s2'),
-  '23514', NULL, 'cannot decide step 2 while step 1 is pending'
+  '23514', NULL, 'cannot decide step 2 before step 1'
 );
--- 11. Manager approves step 1 — instance still pending (step 2 remains).
-SELECT tests.as_user('mgr@nodwin.com');
+-- 12. The E2 sales_manager approves step 1.
+SELECT tests.as_user('mgr2@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT lives_ok(
   format($$SELECT public.record_approval_decision(%L, 'approved')$$, :'opp2_s1'),
-  'manager approves step 1 of the 2-step workflow'
+  'the E2 sales_manager approves step 1'
 );
-SELECT tests.as_service_role();
-SET LOCAL ROLE postgres;
-SELECT is(
-  (SELECT status::text FROM public.approval_instances WHERE entity_id = '02000000-0000-0000-0000-000000000002'),
-  'pending', 'instance stays pending until all steps are approved'
-);
--- 12. Finance approves step 2 — instance resolves to approved.
+-- 13. E2 finance approves step 2 → instance approved.
 SELECT tests.as_user('fin@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT lives_ok(
   format($$SELECT public.record_approval_decision(%L, 'approved')$$, :'opp2_s2'),
-  'finance approves step 2'
+  'the E2 finance approves step 2'
 );
 SELECT tests.as_service_role();
 SET LOCAL ROLE postgres;
 SELECT is(
   (SELECT status::text FROM public.approval_instances WHERE entity_id = '02000000-0000-0000-0000-000000000002'),
-  'approved', 'approving the final step resolves the instance'
+  'approved', 'both role steps approved resolves the instance'
 );
 
--- ── reject path ──────────────────────────────────────────────────────────────
--- 13. Submit Opp Three, manager rejects → instance rejected.
-SELECT tests.as_user('rep@nodwin.com');
+-- ── No-manager submitter escalates to admin ──────────────────────────────────
+-- 14. 'other' has no manager; submitting resolves the default step to admin role.
+SELECT tests.as_user('other@nodwin.com');
 SET LOCAL ROLE authenticated;
-SELECT public.submit_opportunity_for_approval('03000000-0000-0000-0000-000000000003');
-
+SELECT lives_ok(
+  $$SELECT public.submit_opportunity_for_approval('03000000-0000-0000-0000-000000000003')$$,
+  'a manager-less submitter can still submit'
+);
 SELECT tests.as_service_role();
 SET LOCAL ROLE postgres;
 SELECT s.id AS opp3_s1 FROM public.approval_steps s
   JOIN public.approval_instances i ON i.id = s.instance_id
   WHERE i.entity_id = '03000000-0000-0000-0000-000000000003' AND s.step_order = 1 \gset
-
-SELECT tests.as_user('mgr@nodwin.com');
+SELECT results_eq(
+  $$SELECT approver_role::text, approver_user_id FROM public.approval_steps s
+    JOIN public.approval_instances i ON i.id = s.instance_id
+    WHERE i.entity_id = '03000000-0000-0000-0000-000000000003'$$,
+  $$VALUES ('admin', NULL::uuid)$$,
+  'no-manager step escalates to admin role'
+);
+-- 15. Admin approves it.
+SELECT tests.as_user('admin@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT lives_ok(
-  format($$SELECT public.record_approval_decision(%L, 'rejected', 'numbers do not work')$$, :'opp3_s1'),
-  'manager can reject a step'
+  format($$SELECT public.record_approval_decision(%L, 'approved')$$, :'opp3_s1'),
+  'admin approves the escalated step'
 );
 SELECT tests.as_service_role();
 SET LOCAL ROLE postgres;
 SELECT is(
   (SELECT status::text FROM public.approval_instances WHERE entity_id = '03000000-0000-0000-0000-000000000003'),
-  'rejected', 'a rejection resolves the instance to rejected'
+  'approved', 'admin approval resolves the escalated instance'
 );
 
 SELECT * FROM finish();

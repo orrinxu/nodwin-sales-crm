@@ -34,7 +34,7 @@ interface Option {
 }
 
 interface StepDraft {
-  kind: "role" | "user"
+  kind: "manager" | "role" | "user"
   approverRole: string
   approverUserId: string
 }
@@ -84,11 +84,15 @@ export function ApprovalWorkflowsList({
 
   const userName = (id: string) => userOptions.find((u) => u.id === id)?.name ?? "Unknown user"
 
+  function stepApproverLabel(s: { approverKind: string; approverName: string | null; approverRole: string | null }): string {
+    if (s.approverKind === "manager") return "Submitter's manager"
+    if (s.approverKind === "user") return s.approverName ?? "Specific user"
+    return s.approverRole ? titleCase(s.approverRole) : "?"
+  }
+
   function stepLabel(workflow: AdminApprovalWorkflow): string {
     if (workflow.steps.length === 0) return "No steps (auto-approves)"
-    return workflow.steps
-      .map((s) => s.approverName ?? (s.approverRole ? titleCase(s.approverRole) : "?"))
-      .join(" → ")
+    return workflow.steps.map(stepApproverLabel).join(" → ")
   }
 
   function openCreate() {
@@ -112,7 +116,7 @@ export function ApprovalWorkflowsList({
     setActive(w.active)
     setSteps(
       w.steps.map((s) => ({
-        kind: s.approverUserId ? "user" : "role",
+        kind: s.approverKind,
         approverRole: s.approverRole ?? "",
         approverUserId: s.approverUserId ?? "",
       })),
@@ -125,7 +129,7 @@ export function ApprovalWorkflowsList({
     setSteps((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)))
   }
   function addStep() {
-    setSteps((prev) => [...prev, { kind: "role", approverRole: "sales_manager", approverUserId: "" }])
+    setSteps((prev) => [...prev, { kind: "manager", approverRole: "", approverUserId: "" }])
   }
   function removeStep(index: number) {
     setSteps((prev) => prev.filter((_, i) => i !== index))
@@ -146,11 +150,13 @@ export function ApprovalWorkflowsList({
       setError("Name is required")
       return
     }
-    // Drop incomplete steps (no approver chosen).
+    // Drop incomplete steps (a role/user step with nothing chosen). Manager
+    // steps are always complete.
     const cleanSteps = steps
-      .filter((s) => (s.kind === "role" ? s.approverRole : s.approverUserId))
+      .filter((s) => s.kind === "manager" || (s.kind === "role" ? s.approverRole : s.approverUserId))
       .map((s, i) => ({
         stepOrder: i + 1,
+        approverKind: s.kind,
         approverRole: s.kind === "role" ? s.approverRole : null,
         approverUserId: s.kind === "user" ? s.approverUserId : null,
       }))
@@ -323,13 +329,18 @@ export function ApprovalWorkflowsList({
                   <select
                     className={SELECT_CLASS}
                     value={s.kind}
-                    onChange={(e) => updateStep(i, { kind: e.target.value as "role" | "user" })}
+                    onChange={(e) => updateStep(i, { kind: e.target.value as "manager" | "role" | "user" })}
                     aria-label={`Step ${i + 1} approver type`}
                   >
+                    <option value="manager">Submitter&apos;s manager</option>
                     <option value="role">By role</option>
                     <option value="user">Specific user</option>
                   </select>
-                  {s.kind === "role" ? (
+                  {s.kind === "manager" ? (
+                    <span className="flex-1 text-xs text-muted-foreground">
+                      Routed to the submitter&apos;s manager (falls back to an admin if none).
+                    </span>
+                  ) : s.kind === "role" ? (
                     <select
                       className={`${SELECT_CLASS} flex-1`}
                       value={s.approverRole}

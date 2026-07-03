@@ -448,6 +448,7 @@ export type Database = {
       }
       approval_instances: {
         Row: {
+          business_entity_id: string | null
           created_at: string
           created_by: string | null
           entity_id: string
@@ -460,6 +461,7 @@ export type Database = {
           workflow_id: string
         }
         Insert: {
+          business_entity_id?: string | null
           created_at?: string
           created_by?: string | null
           entity_id: string
@@ -472,6 +474,7 @@ export type Database = {
           workflow_id: string
         }
         Update: {
+          business_entity_id?: string | null
           created_at?: string
           created_by?: string | null
           entity_id?: string
@@ -484,6 +487,13 @@ export type Database = {
           workflow_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "approval_instances_business_entity_id_fkey"
+            columns: ["business_entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "approval_instances_triggered_by_user_id_fkey"
             columns: ["triggered_by_user_id"]
@@ -614,6 +624,7 @@ export type Database = {
       }
       approval_workflow_steps: {
         Row: {
+          approver_kind: string
           approver_role: Database["public"]["Enums"]["user_role"] | null
           approver_user_id: string | null
           created_at: string
@@ -625,6 +636,7 @@ export type Database = {
           workflow_id: string
         }
         Insert: {
+          approver_kind?: string
           approver_role?: Database["public"]["Enums"]["user_role"] | null
           approver_user_id?: string | null
           created_at?: string
@@ -636,6 +648,7 @@ export type Database = {
           workflow_id: string
         }
         Update: {
+          approver_kind?: string
           approver_role?: Database["public"]["Enums"]["user_role"] | null
           approver_user_id?: string | null
           created_at?: string

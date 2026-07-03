@@ -16,12 +16,17 @@ export interface ApprovalWorkflowCallContext {
 export const workflowStepInputSchema = z
   .object({
     stepOrder: z.number().int().min(1),
+    approverKind: z.enum(["manager", "user", "role"]),
     approverRole: z.string().max(64).nullable().optional(),
     approverUserId: z.string().uuid().nullable().optional(),
   })
-  .refine((s) => !!s.approverRole || !!s.approverUserId, {
-    message: "Each step needs an approver role or a specific user",
-  })
+  .refine(
+    (s) =>
+      s.approverKind === "manager" ||
+      (s.approverKind === "role" && !!s.approverRole) ||
+      (s.approverKind === "user" && !!s.approverUserId),
+    { message: "A role step needs a role; a specific-person step needs a user" },
+  )
 
 export const workflowCreateSchema = z.object({
   name: z.string().min(1, "Name is required").max(200),
@@ -41,7 +46,7 @@ const WORKFLOW_SELECT = `
   id, name, description, entity_type, entity_id, active,
   entity:entity_id ( name ),
   steps:approval_workflow_steps (
-    step_order, approver_role, approver_user_id,
+    step_order, approver_kind, approver_role, approver_user_id,
     approver:approver_user_id ( full_name )
   )
 `
@@ -62,6 +67,7 @@ function toWorkflow(data: Record<string, unknown>): AdminApprovalWorkflow {
         const approver = s.approver as { full_name: string } | null
         return {
           stepOrder: s.step_order as number,
+          approverKind: ((s.approver_kind as string) ?? "role") as "manager" | "user" | "role",
           approverRole: (s.approver_role as string) ?? null,
           approverUserId: (s.approver_user_id as string) ?? null,
           approverName: approver?.full_name ?? null,
@@ -171,8 +177,9 @@ export async function replaceWorkflowSteps(
     _workflow_id: workflowId,
     _steps: steps.map((s) => ({
       step_order: s.stepOrder,
-      approver_role: s.approverRole ?? "",
-      approver_user_id: s.approverUserId ?? "",
+      approver_kind: s.approverKind,
+      approver_role: s.approverKind === "role" ? s.approverRole ?? "" : "",
+      approver_user_id: s.approverKind === "user" ? s.approverUserId ?? "" : "",
     })),
   })
   if (error) {
