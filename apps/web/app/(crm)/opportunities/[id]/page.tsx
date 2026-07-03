@@ -10,6 +10,11 @@ import {
 import { getStageHistoryForOpportunity } from "@/lib/data/opportunity-stage-history"
 import { getActivitiesForOpportunity } from "@/lib/data/activities"
 import {
+  getApprovalHistoryForOpportunity,
+  approvalStatusLabel,
+  summarizeApprovalStatus,
+} from "@/lib/data/approvals"
+import {
   updateOpportunityAction,
   updateOpportunityStageAction,
   createActivityAction,
@@ -27,7 +32,7 @@ export default async function OpportunityDetailPage({
   const { id } = await params
 
   const ctx = { user, source: "web" as const }
-  const [opportunity, businessUnits, activities, splits, teamMembers, stageHistory, userOptions] =
+  const [opportunity, businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals] =
     await Promise.all([
       getOpportunityById(ctx, id),
       getBusinessUnitOptions(ctx),
@@ -36,11 +41,14 @@ export default async function OpportunityDetailPage({
       getOpportunityTeamMembers(ctx, id),
       getStageHistoryForOpportunity(ctx, id),
       getUserOptions(ctx),
+      getApprovalHistoryForOpportunity(ctx, id),
     ])
 
   if (!opportunity) {
     notFound()
   }
+
+  const approvalStatus = approvalStatusLabel(summarizeApprovalStatus(approvals))
 
   return (
     <OpportunityDetailWrapper
@@ -54,6 +62,8 @@ export default async function OpportunityDetailPage({
       teamMembers={teamMembers}
       stageHistory={stageHistory}
       userOptions={userOptions}
+      approvals={approvals}
+      approvalStatus={approvalStatus}
       updateSplitsAction={updateOpportunitySplitsAction}
       updateTeamAction={updateOpportunityTeamMembersAction}
     />

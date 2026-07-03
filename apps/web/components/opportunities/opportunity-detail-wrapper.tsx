@@ -2,12 +2,13 @@
 
 import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Pencil, SendHorizontal, Calendar, GitBranch } from "lucide-react"
+import { Pencil, SendHorizontal, Calendar, GitBranch, FolderOpen, Mail } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsList, TabsTab, TabsPanel } from "@/components/ui/tabs"
 import {
   Collapsible,
   CollapsibleTrigger,
@@ -19,6 +20,7 @@ import { ActivityComposer } from "@/components/opportunities/activity-composer"
 import { OpportunitySplitsEditor } from "@/components/opportunities/opportunity-splits-editor"
 import { OpportunityTeamEditor } from "@/components/opportunities/opportunity-team-editor"
 import { StageHistoryTimeline } from "@/components/opportunities/stage-history-timeline"
+import { ApprovalHistory } from "@/components/opportunities/approval-history"
 import type { EntityOption } from "@/components/entity-combobox"
 import type {
   OpportunityRecord,
@@ -33,6 +35,7 @@ import type {
 } from "@/lib/data/opportunities.types"
 import type { StageHistoryRecord } from "@/lib/data/opportunity-stage-history"
 import type { ActivityRecord } from "@/lib/data/activities"
+import type { ApprovalInstanceRecord } from "@/lib/data/approvals"
 import { getStageLabel, SERVICE_TYPE_LABELS, PROPERTY_TYPE_LABELS } from "@/lib/data/opportunities.types"
 import { NON_TERMINAL_STAGES, TERMINAL_STAGES } from "@/lib/opportunity"
 import type { DealStage } from "@/lib/opportunity"
@@ -62,6 +65,8 @@ interface OpportunityDetailWrapperProps {
   teamMembers?: OpportunityTeamMember[]
   stageHistory?: StageHistoryRecord[]
   userOptions?: UserOption[]
+  approvals?: ApprovalInstanceRecord[]
+  approvalStatus?: string
   updateSplitsAction?: (id: string, input: unknown) => Promise<void>
   updateTeamAction?: (id: string, input: unknown) => Promise<void>
 }
@@ -121,6 +126,23 @@ function RelatedListCard({ title, emptyMessage }: { title: string; emptyMessage:
   )
 }
 
+// Honest empty state for a tab whose backing integration isn't built yet
+// (Files → Google Drive, Email → Gmail). See docs/ROADMAP.md.
+function IntegrationTabEmptyState({
+  icon: Icon,
+  message,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  message: string
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2 py-8 text-center">
+      <Icon className="size-8 text-muted-foreground" />
+      <p className="max-w-[220px] text-xs text-muted-foreground">{message}</p>
+    </div>
+  )
+}
+
 export function OpportunityDetailWrapper({
   opportunity,
   businessUnits,
@@ -134,11 +156,16 @@ export function OpportunityDetailWrapper({
   teamMembers = [],
   stageHistory = [],
   userOptions = [],
+  approvals = [],
+  approvalStatus = "Not submitted",
   updateSplitsAction,
   updateTeamAction,
 }: OpportunityDetailWrapperProps) {
   const router = useRouter()
   const [updatingStage, setUpdatingStage] = useState(false)
+
+  const noteActivities = activities.filter((a) => a.type === "note")
+  const callActivities = activities.filter((a) => a.type === "call")
 
   const handleSaveSplits = useCallback(
     async (next: OpportunitySplitInput[]) => {
@@ -244,7 +271,7 @@ export function OpportunityDetailWrapper({
             <Field label="Amount" value={formattedAmount} />
             <Field label="Service Period" value={`${formatDate(opportunity.servicePeriodStart)} \u2013 ${formatDate(opportunity.servicePeriodEnd)}`} />
             <Field label="Owner" value={opportunity.ownerName ?? "Unassigned"} />
-            <Field label="Approval Status" value="\u2014" />
+            <Field label="Approval Status" value={approvalStatus} />
           </dl>
         </CardContent>
       </Card>
@@ -371,7 +398,7 @@ export function OpportunityDetailWrapper({
             {/* ── System Information Section ─────────────────────────────────── */}
             <CollapsibleSection title="System Information" defaultOpen={false}>
               <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
-                <Field label="Approval Status" value="\u2014" />
+                <Field label="Approval Status" value={approvalStatus} />
                 <Field label="Last Stage Change" value="\u2014" />
                 <Field label="Last Stage Change Date" value="\u2014" />
                 <Field label="Created By" value={formatDate(opportunity.createdAt)} />
@@ -384,28 +411,74 @@ export function OpportunityDetailWrapper({
         </div>
 
         {/* Right Panel */}
-        <div className="w-full shrink-0 space-y-4 lg:w-72">
-          <RelatedListCard title="Products" emptyMessage="No products added yet." />
-          <RelatedListCard title="Files" emptyMessage="No files uploaded yet." />
-          <RelatedListCard title="Notes" emptyMessage="No notes yet." />
-
-          {/* Activity Timeline inline in the right panel */}
+        <div className="w-full shrink-0 space-y-4 lg:w-80">
+          {/* Communications: Notes / Activity / Call / Email / Files tabs */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Activity</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <ActivityComposer
-                revalidateId={opportunity.id}
-                scope={{ opportunityId: opportunity.id, accountId: opportunity.accountId }}
-                createAction={createActivityAction}
-                onCreated={() => router.refresh()}
-              />
-              <ActivityTimeline activities={activities} />
+            <CardContent className="pt-4">
+              <Tabs defaultValue="activity">
+                <TabsList className="w-full justify-start overflow-x-auto">
+                  <TabsTab value="activity">Activity</TabsTab>
+                  <TabsTab value="notes">Notes</TabsTab>
+                  <TabsTab value="calls">Calls</TabsTab>
+                  <TabsTab value="files">Files</TabsTab>
+                  <TabsTab value="email">Email</TabsTab>
+                </TabsList>
+
+                <TabsPanel value="activity" className="space-y-3">
+                  <ActivityComposer
+                    revalidateId={opportunity.id}
+                    scope={{ opportunityId: opportunity.id, accountId: opportunity.accountId }}
+                    createAction={createActivityAction}
+                    onCreated={() => router.refresh()}
+                  />
+                  <ActivityTimeline activities={activities} />
+                </TabsPanel>
+
+                <TabsPanel value="notes">
+                  {noteActivities.length > 0 ? (
+                    <ActivityTimeline activities={noteActivities} />
+                  ) : (
+                    <p className="py-6 text-center text-xs text-muted-foreground">
+                      No notes yet. Add one from the Activity tab.
+                    </p>
+                  )}
+                </TabsPanel>
+
+                <TabsPanel value="calls">
+                  {callActivities.length > 0 ? (
+                    <ActivityTimeline activities={callActivities} />
+                  ) : (
+                    <p className="py-6 text-center text-xs text-muted-foreground">
+                      No calls logged yet. Log one from the Activity tab.
+                    </p>
+                  )}
+                </TabsPanel>
+
+                <TabsPanel value="files">
+                  <IntegrationTabEmptyState
+                    icon={FolderOpen}
+                    message="Connect Google Drive to attach and view files on this opportunity."
+                  />
+                </TabsPanel>
+
+                <TabsPanel value="email">
+                  <IntegrationTabEmptyState
+                    icon={Mail}
+                    message="Connect Gmail to send and log email from the CRM."
+                  />
+                </TabsPanel>
+              </Tabs>
             </CardContent>
           </Card>
 
-          <RelatedListCard title="Approval History" emptyMessage="No approval history yet." />
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Approval History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ApprovalHistory instances={approvals} />
+            </CardContent>
+          </Card>
 
           {updateTeamAction ? (
             <OpportunityTeamEditor
