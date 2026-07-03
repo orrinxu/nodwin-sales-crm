@@ -342,6 +342,7 @@ export function AccountForm({
                     setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
                   }
                   errors={{}}
+                  hideHeading
                 />
               </CollapsibleSection>
             )}
@@ -375,6 +376,7 @@ export function AccountForm({
                     setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
                   }
                   errors={{}}
+                  hideHeading
                 />
               )}
             </CollapsibleSection>
