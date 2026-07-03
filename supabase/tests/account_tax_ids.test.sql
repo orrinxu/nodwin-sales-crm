@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(13);
+SELECT plan(20);
 
 INSERT INTO auth.users (id, email, raw_user_meta_data)
 VALUES
@@ -121,19 +121,86 @@ SELECT lives_ok(
   'admin can insert a tax_id_type'
 );
 
--- ── Backfill logic ───────────────────────────────────────────────────────────
--- 13. The backfill statement maps a custom_data GSTIN onto a structured row.
+-- ── Atomic replace RPC ───────────────────────────────────────────────────────
+-- 13. Owner can replace their account's tax ids via the RPC (replaces the set).
+SELECT tests.as_user('owner@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT lives_ok(
+  $$SELECT public.replace_account_tax_ids('aca00001-0001-0001-0001-000000000001', '[{"tax_type":"IN_PAN","value":"AAAAA2222A"}]'::jsonb)$$,
+  'owner can replace tax ids via the RPC'
+);
+-- 14. The replace swapped the set (prior AE_TRN row from test 10 is gone).
+SELECT results_eq(
+  $$SELECT tax_type, value FROM public.account_tax_ids WHERE account_id = 'aca00001-0001-0001-0001-000000000001' ORDER BY tax_type$$,
+  $$VALUES ('IN_PAN'::text, 'AAAAA2222A'::text)$$,
+  'RPC replaced the whole set (last-write-wins)'
+);
+
+-- 15. Non-owner cannot replace another account's tax ids via the RPC.
+SELECT tests.as_user('other@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT throws_ok(
+  $$SELECT public.replace_account_tax_ids('aca00001-0001-0001-0001-000000000001', '[{"tax_type":"IN_GSTIN","value":"22ZZZZZ0000Z1Z5"}]'::jsonb)$$,
+  '42501', NULL, 'non-owner cannot replace another account tax ids via the RPC'
+);
+
+-- 16. ATOMICITY: an insert failure (bad tax_type FK) rolls back the delete, so
+--     the prior tax ids survive — the core data-loss fix.
+SELECT tests.as_user('owner@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT throws_ok(
+  $$SELECT public.replace_account_tax_ids('aca00001-0001-0001-0001-000000000001', '[{"tax_type":"NOT_A_TYPE","value":"x"}]'::jsonb)$$,
+  '23503', NULL, 'RPC with an invalid tax_type fails (FK violation)'
+);
+SELECT results_eq(
+  $$SELECT tax_type, value FROM public.account_tax_ids WHERE account_id = 'aca00001-0001-0001-0001-000000000001' ORDER BY tax_type$$,
+  $$VALUES ('IN_PAN'::text, 'AAAAA2222A'::text)$$,
+  'atomic: prior tax ids survive a failed RPC (delete rolled back)'
+);
+
+-- ── One-time backfill ────────────────────────────────────────────────────────
 SELECT tests.as_service_role();
 SET LOCAL ROLE postgres;
+
+-- A fresh account with two legacy tax custom fields and no structured rows yet.
+INSERT INTO public.accounts (id, name, account_owner_user_id, created_by, custom_data)
+VALUES ('acc00003-0003-0003-0003-000000000003', 'Gamma C', 'bb000002-0002-0002-0002-000000000002', 'bb000002-0002-0002-0002-000000000002', '{"tax_gst_in":"22CCCCC0000C1Z5","tax_pan_in":"CCCCC3333C"}')
+ON CONFLICT (id) DO NOTHING;
+
+-- Run the REAL backfill statement (the exact one from the migration).
 INSERT INTO public.account_tax_ids (account_id, tax_type, value)
-SELECT a.id, 'IN_GSTIN', btrim(a.custom_data->>'tax_gst_in')
+SELECT a.id, m.tax_type, btrim(a.custom_data->>m.cf_key)
 FROM public.accounts a
-WHERE a.id = 'aca00001-0001-0001-0001-000000000001'
-  AND a.custom_data ? 'tax_gst_in'
+CROSS JOIN (VALUES ('tax_gst_in','IN_GSTIN'),('tax_pan_in','IN_PAN'),('tax_vat_eu','EU_VAT')) AS m(cf_key, tax_type)
+WHERE a.custom_data ? m.cf_key AND btrim(coalesce(a.custom_data->>m.cf_key,'')) <> ''
+  AND NOT EXISTS (SELECT 1 FROM public.account_tax_ids ati WHERE ati.account_id = a.id)
 ON CONFLICT (account_id, tax_type, value) DO NOTHING;
-SELECT isnt_empty(
-  $$SELECT id FROM public.account_tax_ids WHERE account_id = 'aca00001-0001-0001-0001-000000000001' AND tax_type = 'IN_GSTIN' AND value = '22AAAAA0000A1Z5'$$,
-  'backfill maps custom_data tax_gst_in onto an IN_GSTIN row'
+
+-- 17. Both custom fields were mapped onto structured rows.
+SELECT is(
+  (SELECT count(*)::int FROM public.account_tax_ids WHERE account_id = 'acc00003-0003-0003-0003-000000000003'),
+  2, 'backfill maps tax_gst_in->IN_GSTIN and tax_pan_in->IN_PAN'
+);
+
+-- 18. Re-running the SAME backfill statement adds nothing (guard + ON CONFLICT).
+INSERT INTO public.account_tax_ids (account_id, tax_type, value)
+SELECT a.id, m.tax_type, btrim(a.custom_data->>m.cf_key)
+FROM public.accounts a
+CROSS JOIN (VALUES ('tax_gst_in','IN_GSTIN'),('tax_pan_in','IN_PAN'),('tax_vat_eu','EU_VAT')) AS m(cf_key, tax_type)
+WHERE a.custom_data ? m.cf_key AND btrim(coalesce(a.custom_data->>m.cf_key,'')) <> ''
+  AND NOT EXISTS (SELECT 1 FROM public.account_tax_ids ati WHERE ati.account_id = a.id)
+ON CONFLICT (account_id, tax_type, value) DO NOTHING;
+SELECT is(
+  (SELECT count(*)::int FROM public.account_tax_ids WHERE account_id = 'acc00003-0003-0003-0003-000000000003'),
+  2, 're-running the backfill adds nothing (guarded run-once)'
+);
+
+-- 19. The ambiguous MENA field is NOT auto-mapped (left for manual reconciliation).
+UPDATE public.accounts SET custom_data = custom_data || '{"tax_trn_mena":"100000000000003"}'::jsonb
+  WHERE id = 'acc00003-0003-0003-0003-000000000003';
+SELECT is(
+  (SELECT count(*)::int FROM public.account_tax_ids WHERE account_id = 'acc00003-0003-0003-0003-000000000003' AND tax_type = 'AE_TRN'),
+  0, 'tax_trn_mena is not auto-mapped to AE_TRN'
 );
 
 SELECT * FROM finish();

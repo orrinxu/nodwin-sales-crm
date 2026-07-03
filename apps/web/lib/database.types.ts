@@ -2522,6 +2522,7 @@ export type Database = {
       }
     }
     Functions: {
+      can_write_account: { Args: { _account_id: string }; Returns: boolean }
       check_ai_caps: {
         Args: { p_estimated_cost: number; p_user_id: string }
         Returns: {
@@ -2620,6 +2621,10 @@ export type Database = {
       }
       recompute_visibility_for_user: {
         Args: { _user_id: string }
+        Returns: undefined
+      }
+      replace_account_tax_ids: {
+        Args: { _account_id: string; _tax_ids: Json }
         Returns: undefined
       }
       user_is_step_approver_for_instance: {

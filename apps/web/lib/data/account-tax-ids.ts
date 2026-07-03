@@ -65,6 +65,9 @@ export async function getTaxIdTypes(
 }
 
 // An account's tax IDs. RLS scopes the read to accounts the caller can see.
+// NOTE: returns ALL stored rows, including any whose tax_type has since been
+// deactivated. The Ticket 3 form MUST render such rows (even though the type
+// picker only lists active types) so a save doesn't silently drop them.
 export async function getTaxIdsForAccount(
   ctx: AccountTaxIdsCallContext,
   accountId: string,
@@ -92,50 +95,27 @@ export async function getTaxIdsForAccount(
   })
 }
 
-// Replaces the account's tax IDs with the supplied set (delete-then-insert).
-// RLS enforces that the caller may write the parent account; duplicates within
-// the payload are collapsed (the UNIQUE constraint would otherwise reject them).
+// Replaces the account's tax IDs with the supplied set. Delegates to the
+// replace_account_tax_ids RPC, which does the delete + insert in ONE transaction
+// (a two-call delete-then-insert risks wiping the account's tax IDs if the insert
+// fails after the delete commits), authorises via can_write_account, and locks
+// the account row for last-write-wins under concurrent saves. Dedupe of the
+// payload is handled inside the RPC (ON CONFLICT DO NOTHING).
 export async function setTaxIdsForAccount(
   ctx: AccountTaxIdsCallContext,
   accountId: string,
   input: z.input<typeof setAccountTaxIdsSchema>,
 ): Promise<void> {
+  void ctx
   const { taxIds } = setAccountTaxIdsSchema.parse(input)
   const supabase = await createServerClient()
 
-  const { error: deleteError } = await supabase
-    .from("account_tax_ids")
-    .delete()
-    .eq("account_id", accountId)
+  const { error } = await supabase.rpc("replace_account_tax_ids", {
+    _account_id: accountId,
+    _tax_ids: taxIds.map((t) => ({ tax_type: t.taxType, value: t.value.trim() })),
+  })
 
-  if (deleteError) {
-    throw new Error(`Failed to update tax ids: ${deleteError.message}`)
-  }
-
-  if (taxIds.length === 0) return
-
-  // Collapse exact duplicates from the payload.
-  const seen = new Set<string>()
-  const rows = taxIds
-    .filter((t) => {
-      const key = `${t.taxType}::${t.value.trim()}`
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-    .map((t) => ({
-      account_id: accountId,
-      tax_type: t.taxType,
-      value: t.value.trim(),
-      created_by: ctx.user.id,
-      updated_by: ctx.user.id,
-    }))
-
-  const { error: insertError } = await supabase
-    .from("account_tax_ids")
-    .insert(rows as never)
-
-  if (insertError) {
-    throw new Error(`Failed to save tax ids: ${insertError.message}`)
+  if (error) {
+    throw new Error(`Failed to save tax ids: ${error.message}`)
   }
 }

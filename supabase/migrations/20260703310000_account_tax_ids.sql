@@ -60,66 +60,45 @@ CREATE TRIGGER account_tax_ids_audit_fields_trigger
   BEFORE INSERT OR UPDATE ON public.account_tax_ids
   FOR EACH ROW EXECUTE FUNCTION public.set_account_tax_ids_audit_fields();
 
+-- ── Account-write helper (single source of truth for the "mirror" rule) ──────
+-- SECURITY DEFINER so it reads accounts regardless of RLS, applying the same
+-- rule as accounts_update_own_or_admin explicitly. Used by every account_tax_ids
+-- policy and the replace RPC, so the rule can never drift across the 6 clauses.
+CREATE OR REPLACE FUNCTION public.can_write_account(_account_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT public.current_user_role() = 'admin'
+    OR EXISTS (
+      SELECT 1 FROM public.accounts a
+      WHERE a.id = _account_id
+        AND (a.account_owner_user_id = auth.uid() OR a.created_by = auth.uid())
+    );
+$$;
+REVOKE ALL ON FUNCTION public.can_write_account(uuid) FROM public;
+GRANT EXECUTE ON FUNCTION public.can_write_account(uuid) TO authenticated;
+
 -- ── RLS: mirror the parent account (admin OR owner OR creator) ────────────────
 ALTER TABLE public.account_tax_ids ENABLE ROW LEVEL SECURITY;
 
--- A single predicate expressed inline per policy: the caller may act on the tax
--- row iff they are admin OR own/created the parent account.
 DROP POLICY IF EXISTS "account_tax_ids_select_via_account" ON public.account_tax_ids;
 CREATE POLICY "account_tax_ids_select_via_account"
   ON public.account_tax_ids FOR SELECT TO authenticated
-  USING (
-    public.current_user_role() = 'admin'
-    OR EXISTS (
-      SELECT 1 FROM public.accounts a
-      WHERE a.id = account_tax_ids.account_id
-        AND (a.account_owner_user_id = auth.uid() OR a.created_by = auth.uid())
-    )
-  );
+  USING (public.can_write_account(account_id));
 
 DROP POLICY IF EXISTS "account_tax_ids_insert_via_account" ON public.account_tax_ids;
 CREATE POLICY "account_tax_ids_insert_via_account"
   ON public.account_tax_ids FOR INSERT TO authenticated
-  WITH CHECK (
-    public.current_user_role() = 'admin'
-    OR EXISTS (
-      SELECT 1 FROM public.accounts a
-      WHERE a.id = account_tax_ids.account_id
-        AND (a.account_owner_user_id = auth.uid() OR a.created_by = auth.uid())
-    )
-  );
+  WITH CHECK (public.can_write_account(account_id));
 
 DROP POLICY IF EXISTS "account_tax_ids_update_via_account" ON public.account_tax_ids;
 CREATE POLICY "account_tax_ids_update_via_account"
   ON public.account_tax_ids FOR UPDATE TO authenticated
-  USING (
-    public.current_user_role() = 'admin'
-    OR EXISTS (
-      SELECT 1 FROM public.accounts a
-      WHERE a.id = account_tax_ids.account_id
-        AND (a.account_owner_user_id = auth.uid() OR a.created_by = auth.uid())
-    )
-  )
-  WITH CHECK (
-    public.current_user_role() = 'admin'
-    OR EXISTS (
-      SELECT 1 FROM public.accounts a
-      WHERE a.id = account_tax_ids.account_id
-        AND (a.account_owner_user_id = auth.uid() OR a.created_by = auth.uid())
-    )
-  );
+  USING (public.can_write_account(account_id))
+  WITH CHECK (public.can_write_account(account_id));
 
 DROP POLICY IF EXISTS "account_tax_ids_delete_via_account" ON public.account_tax_ids;
 CREATE POLICY "account_tax_ids_delete_via_account"
   ON public.account_tax_ids FOR DELETE TO authenticated
-  USING (
-    public.current_user_role() = 'admin'
-    OR EXISTS (
-      SELECT 1 FROM public.accounts a
-      WHERE a.id = account_tax_ids.account_id
-        AND (a.account_owner_user_id = auth.uid() OR a.created_by = auth.uid())
-    )
-  );
+  USING (public.can_write_account(account_id));
 
 DROP POLICY IF EXISTS "account_tax_ids_service_role_all" ON public.account_tax_ids;
 CREATE POLICY "account_tax_ids_service_role_all"
@@ -127,26 +106,68 @@ CREATE POLICY "account_tax_ids_service_role_all"
 
 SELECT audit.attach_trigger('public.account_tax_ids');
 
--- ── Backfill from custom_data (idempotent) ───────────────────────────────────
--- Reverse (down-migration, documented in the PR): delete the backfilled rows —
+-- ── Atomic replace RPC (the web write path) ──────────────────────────────────
+-- Doing DELETE + INSERT as two supabase-js calls is NOT atomic: if the insert
+-- fails after the delete commits, the account is left with zero tax IDs (silent
+-- data loss). This SECURITY DEFINER function does both in ONE transaction,
+-- authorises via can_write_account, and locks the account row so concurrent
+-- replaces are last-write-wins instead of merging to a union.
+CREATE OR REPLACE FUNCTION public.replace_account_tax_ids(_account_id uuid, _tax_ids jsonb)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  _uid uuid := auth.uid();
+BEGIN
+  IF NOT public.can_write_account(_account_id) THEN
+    RAISE EXCEPTION 'not authorised to modify tax ids for account %', _account_id
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  -- Serialise concurrent replaces on the same account (last-write-wins).
+  PERFORM 1 FROM public.accounts WHERE id = _account_id FOR UPDATE;
+
+  DELETE FROM public.account_tax_ids WHERE account_id = _account_id;
+
+  INSERT INTO public.account_tax_ids (account_id, tax_type, value, created_by, updated_by)
+  SELECT _account_id, elem->>'tax_type', btrim(elem->>'value'), _uid, _uid
+  FROM jsonb_array_elements(coalesce(_tax_ids, '[]'::jsonb)) AS elem
+  WHERE btrim(coalesce(elem->>'value', '')) <> ''
+  ON CONFLICT (account_id, tax_type, value) DO NOTHING;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.replace_account_tax_ids(uuid, jsonb) FROM public;
+GRANT EXECUTE ON FUNCTION public.replace_account_tax_ids(uuid, jsonb) TO authenticated;
+
+-- ── One-time backfill from custom_data ───────────────────────────────────────
+-- This is a one-time data migration, NOT a resurrect-safe idempotent op: it only
+-- touches accounts that have NO structured tax IDs yet, so replaying it never
+-- re-adds a value a user later deleted via the form on an account that still has
+-- other tax IDs. (The source custom_data is intentionally left in place.)
+--
+-- tax_trn_mena is deliberately NOT auto-mapped: it was a region-wide MENA TRN, so
+-- mapping it to a single country (e.g. AE) would mislabel Saudi/Qatari/etc.
+-- values. Those need manual reconciliation once Finance confirms the per-country
+-- MENA tax-type taxonomy (the seed is provisional).
+--
+-- Reverse (down-migration) — delete the backfilled rows (btrim to match the
+-- forward insert exactly):
 --   DELETE FROM public.account_tax_ids ati USING public.accounts a
 --   WHERE ati.account_id = a.id AND (
---     (ati.tax_type='IN_GSTIN' AND ati.value = a.custom_data->>'tax_gst_in') OR
---     (ati.tax_type='IN_PAN'   AND ati.value = a.custom_data->>'tax_pan_in') OR
---     (ati.tax_type='EU_VAT'   AND ati.value = a.custom_data->>'tax_vat_eu') OR
---     (ati.tax_type='AE_TRN'   AND ati.value = a.custom_data->>'tax_trn_mena'));
--- The tax_* custom fields are intentionally left in place; Ticket 3 stops
--- rendering them and a later cleanup removes the definitions.
+--     (ati.tax_type='IN_GSTIN' AND ati.value = btrim(a.custom_data->>'tax_gst_in')) OR
+--     (ati.tax_type='IN_PAN'   AND ati.value = btrim(a.custom_data->>'tax_pan_in')) OR
+--     (ati.tax_type='EU_VAT'   AND ati.value = btrim(a.custom_data->>'tax_vat_eu')));
+-- The tax_* custom fields are left in place; Ticket 3 stops rendering them.
 
 INSERT INTO public.account_tax_ids (account_id, tax_type, value)
 SELECT a.id, m.tax_type, btrim(a.custom_data->>m.cf_key)
 FROM public.accounts a
 CROSS JOIN (VALUES
-  ('tax_gst_in',   'IN_GSTIN'),
-  ('tax_pan_in',   'IN_PAN'),
-  ('tax_vat_eu',   'EU_VAT'),
-  ('tax_trn_mena', 'AE_TRN')
+  ('tax_gst_in', 'IN_GSTIN'),
+  ('tax_pan_in', 'IN_PAN'),
+  ('tax_vat_eu', 'EU_VAT')
 ) AS m(cf_key, tax_type)
 WHERE a.custom_data ? m.cf_key
   AND btrim(coalesce(a.custom_data->>m.cf_key, '')) <> ''
+  AND NOT EXISTS (
+    SELECT 1 FROM public.account_tax_ids ati WHERE ati.account_id = a.id
+  )
 ON CONFLICT (account_id, tax_type, value) DO NOTHING;
