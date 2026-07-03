@@ -2724,6 +2724,10 @@ export type Database = {
         Args: { _opportunity_id: string; _rows: Json }
         Returns: undefined
       }
+      replace_workflow_steps: {
+        Args: { _steps: Json; _workflow_id: string }
+        Returns: undefined
+      }
       submit_opportunity_for_approval: {
         Args: { _opportunity_id: string }
         Returns: string
