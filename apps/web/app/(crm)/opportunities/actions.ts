@@ -29,6 +29,7 @@ import {
   recordApprovalDecision,
   reassignApprovalStep,
   cancelApprovalInstance,
+  notifyCurrentApprover,
   type ApprovalDecisionType,
 } from "@/lib/data/approvals"
 import { z } from "zod"
@@ -57,6 +58,7 @@ export async function submitOpportunityForApprovalAction(opportunityId: string) 
   const id = z.string().uuid().parse(opportunityId)
   const ctx = { user, source: "web" as const }
   await submitOpportunityForApproval(ctx, id)
+  await notifyCurrentApprover(id)
   revalidatePath(`/opportunities/${id}`)
 }
 
@@ -72,6 +74,8 @@ export async function recordApprovalDecisionAction(opportunityId: string, input:
   const { stepId, decision, comment } = decisionSchema.parse(input)
   const ctx = { user, source: "web" as const }
   await recordApprovalDecision(ctx, stepId, decision as ApprovalDecisionType, comment || null)
+  // Notify the next approver if the chain advanced (no-op if it resolved).
+  await notifyCurrentApprover(id)
   revalidatePath(`/opportunities/${id}`)
 }
 
@@ -87,6 +91,7 @@ export async function reassignApprovalStepAction(
     .parse(input)
   const ctx = { user, source: "web" as const }
   await reassignApprovalStep(ctx, stepId, newUserId)
+  await notifyCurrentApprover(id)
   revalidatePath(`/opportunities/${id}`)
 }
 
