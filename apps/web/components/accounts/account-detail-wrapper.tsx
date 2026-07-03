@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Pencil, Globe, MapPin, Briefcase, Mail, FileText } from "lucide-react"
+import { useState } from "react"
+import { Pencil, Globe, MapPin, Briefcase, Mail, FileText, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,12 +11,14 @@ import { Badge } from "@/components/ui/badge"
 import { AccountForm, TAX_CF_KEYS } from "@/components/accounts/account-form"
 import { CustomFieldsDisplay } from "@/components/contacts/custom-fields-display"
 import { AccountTaxIdsDisplay } from "@/components/accounts/account-tax-ids-display"
+import { AttachContactsDialog } from "@/components/accounts/attach-contacts-dialog"
 import { ActivityComposer } from "@/components/opportunities/activity-composer"
 import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
 import { RelationshipTree } from "@/components/accounts/relationship-tree"
 import { getStageLabel } from "@/lib/data/opportunities.types"
 import { Money } from "@/lib/money"
-import type { AccountRecord, AccountUpdateInput, AccountRelationshipGraph, AccountOpportunity, AccountDocument, AccountRelationshipKind } from "@/lib/data/accounts"
+import type { AccountRecord, AccountUpdateInput, AccountRelationshipGraph, AccountOpportunity, AccountDocument, AccountRelationshipKind, AccountContact } from "@/lib/data/accounts"
+import type { ContactPickerOption } from "@/lib/data/contacts"
 import type { ActivityRecord } from "@/lib/data/activities"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import type { TaxIdType, AccountTaxId } from "@/lib/data/account-tax-ids"
@@ -28,7 +31,7 @@ interface AccountDetailWrapperProps {
   taxIdTypes: TaxIdType[]
   taxIds: AccountTaxId[]
   relationshipGraph: AccountRelationshipGraph | null
-  contacts: { id: string; fullName: string; title: string | null; email: string | null }[]
+  contacts: AccountContact[]
   opportunities: AccountOpportunity[]
   documents: AccountDocument[]
   ownerName: string | null
@@ -37,10 +40,15 @@ interface AccountDetailWrapperProps {
   currentUserId?: string
   activities: ActivityRecord[]
   parentRelationship?: { toAccountId: string; kind: AccountRelationshipKind } | null
+  canManageContacts: boolean
+  attachableContacts: ContactPickerOption[]
   updateAction: (id: string, input: AccountUpdateInput) => Promise<AccountRecord>
   saveTaxIdsAction: (accountId: string, input: { taxIds: TaxIdRow[] }) => Promise<void>
   createActivityAction: (accountId: string, input: unknown) => Promise<ActivityRecord>
   saveRelationshipAction?: (data: { parentAccountId: string; kind: AccountRelationshipKind }) => Promise<void>
+  attachContactsAction: (accountId: string, input: { contactIds: string[] }) => Promise<void>
+  detachContactAction: (accountId: string, contactId: string) => Promise<void>
+  createContactAction: (accountId: string, input: unknown) => Promise<unknown>
 }
 
 export function AccountDetailWrapper({
@@ -58,12 +66,30 @@ export function AccountDetailWrapper({
   currentUserId,
   activities,
   parentRelationship,
+  canManageContacts,
+  attachableContacts,
   updateAction,
   saveTaxIdsAction,
   createActivityAction,
   saveRelationshipAction,
+  attachContactsAction,
+  detachContactAction,
+  createContactAction,
 }: AccountDetailWrapperProps) {
   const router = useRouter()
+  const [detachingId, setDetachingId] = useState<string | null>(null)
+
+  async function handleDetach(contactId: string) {
+    setDetachingId(contactId)
+    try {
+      await detachContactAction(account.id, contactId)
+      router.refresh()
+    } catch {
+      // surfaced by a full reload; keep the row on failure
+    } finally {
+      setDetachingId(null)
+    }
+  }
 
   // The legacy tax_* custom fields are superseded by structured tax IDs — hide
   // them from the read-view so tax data isn't shown twice (and the stale
@@ -251,40 +277,73 @@ export function AccountDetailWrapper({
           customData={account.customData}
         />
 
-        {contacts.length > 0 && (
+        {(contacts.length > 0 || canManageContacts) && (
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle>Contacts ({contacts.length})</CardTitle>
+              {canManageContacts && (
+                <AttachContactsDialog
+                  accountId={account.id}
+                  attachableContacts={attachableContacts}
+                  attachAction={attachContactsAction}
+                  createAction={createContactAction}
+                  onDone={() => router.refresh()}
+                />
+              )}
             </CardHeader>
             <CardContent>
-              <div className="divide-y divide-border">
-                {contacts.map((contact) => (
-                  <div
-                    key={contact.id}
-                    className="flex items-center justify-between py-2 first:pt-0 last:pb-0"
-                  >
-                    <div>
-                      <Link
-                        href={`/contacts/${contact.id}`}
-                        className="text-sm font-medium text-primary hover:underline"
-                      >
-                        {contact.fullName}
-                      </Link>
-                      {contact.title && (
-                        <p className="text-xs text-muted-foreground">{contact.title}</p>
-                      )}
+              {contacts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No contacts attached yet. Use &ldquo;Attach&rdquo; to link existing contacts or create a new one.
+                </p>
+              ) : (
+                <div className="divide-y divide-border">
+                  {contacts.map((contact) => (
+                    <div
+                      key={contact.id}
+                      className="flex items-center justify-between gap-2 py-2 first:pt-0 last:pb-0"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`/contacts/${contact.id}`}
+                            className="text-sm font-medium text-primary hover:underline"
+                          >
+                            {contact.fullName}
+                          </Link>
+                          {contact.relation === "primary" && (
+                            <Badge variant="secondary" className="text-xs">Primary</Badge>
+                          )}
+                        </div>
+                        {contact.title && (
+                          <p className="text-xs text-muted-foreground">{contact.title}</p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {contact.email && (
+                          <a
+                            href={`mailto:${contact.email}`}
+                            className="text-xs text-muted-foreground hover:text-primary"
+                          >
+                            {contact.email}
+                          </a>
+                        )}
+                        {canManageContacts && contact.relation === "linked" && (
+                          <button
+                            type="button"
+                            onClick={() => handleDetach(contact.id)}
+                            disabled={detachingId === contact.id}
+                            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-50"
+                            aria-label={`Detach ${contact.fullName}`}
+                          >
+                            <X className="size-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    {contact.email && (
-                      <a
-                        href={`mailto:${contact.email}`}
-                        className="text-xs text-muted-foreground hover:text-primary"
-                      >
-                        {contact.email}
-                      </a>
-                    )}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -375,7 +434,7 @@ export function AccountDetailWrapper({
 
         {hasRelationships && <RelationshipTree graph={relationshipGraph} />}
 
-        {contacts.length === 0 && opportunities.length === 0 && documents.length === 0 && !hasRelationships && (
+        {contacts.length === 0 && opportunities.length === 0 && documents.length === 0 && !hasRelationships && !canManageContacts && (
           <Card>
             <CardContent className="py-6">
               <p className="text-center text-sm text-muted-foreground">

@@ -321,10 +321,21 @@ export async function getAccountRelationships(
   }))
 }
 
+// A contact shown on an account, tagged by HOW it relates: "primary" (its
+// primary_account_id is this account) or "linked" (a contact_account_links row).
+// The UI badges "primary" and offers detach only on "linked".
+export interface AccountContact {
+  id: string
+  fullName: string
+  title: string | null
+  email: string | null
+  relation: "primary" | "linked"
+}
+
 export async function getContactsForAccount(
   ctx: AccountCallContext,
   accountId: string,
-): Promise<Pick<ContactRecord, "id" | "fullName" | "title" | "email">[]> {
+): Promise<AccountContact[]> {
   const supabase = await createServerClient()
 
   const { data: primary, error: primaryError } = await supabase
@@ -346,14 +357,16 @@ export async function getContactsForAccount(
   }
 
   const seen = new Set<string>()
-  const result: { id: string; fullName: string; title: string | null; email: string | null }[] = []
+  const result: AccountContact[] = []
 
+  // Primary wins over a link if a contact is both.
   for (const c of (primary ?? []) as Record<string, unknown>[]) {
     result.push({
       id: c.id as string,
       fullName: c.full_name as string,
       title: (c.title as string) ?? null,
       email: (c.email as string) ?? null,
+      relation: "primary",
     })
     seen.add(c.id as string)
   }
@@ -366,12 +379,53 @@ export async function getContactsForAccount(
         fullName: contact.full_name as string,
         title: (contact.title as string) ?? null,
         email: (contact.email as string) ?? null,
+        relation: "linked",
       })
       seen.add(contact.id as string)
     }
   }
 
   return result
+}
+
+// Attach existing contacts to an account via the junction table. Idempotent
+// (ON CONFLICT DO NOTHING on the unique contact_id+account_id pair). RLS on
+// contact_account_links restricts INSERT to admins.
+export async function attachContactsToAccount(
+  ctx: AccountCallContext,
+  accountId: string,
+  contactIds: string[],
+): Promise<void> {
+  void ctx
+  const ids = Array.from(new Set(contactIds.filter(Boolean)))
+  if (ids.length === 0) return
+  const supabase = await createServerClient()
+  const rows = ids.map((contactId) => ({ account_id: accountId, contact_id: contactId }))
+  const { error } = await supabase
+    .from("contact_account_links")
+    .upsert(rows as never, { onConflict: "contact_id,account_id", ignoreDuplicates: true })
+  if (error) {
+    throw new Error(`Failed to attach contacts: ${error.message}`)
+  }
+}
+
+// Remove a contact's link to an account (junction row only — never touches
+// primary_account_id). RLS restricts DELETE to admins.
+export async function detachContactFromAccount(
+  ctx: AccountCallContext,
+  accountId: string,
+  contactId: string,
+): Promise<void> {
+  void ctx
+  const supabase = await createServerClient()
+  const { error } = await supabase
+    .from("contact_account_links")
+    .delete()
+    .eq("account_id", accountId)
+    .eq("contact_id", contactId)
+  if (error) {
+    throw new Error(`Failed to detach contact: ${error.message}`)
+  }
 }
 
 export async function getOpportunitiesForAccount(
