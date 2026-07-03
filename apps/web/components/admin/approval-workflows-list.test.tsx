@@ -16,8 +16,8 @@ const workflows: AdminApprovalWorkflow[] = [
     entityName: "Nodwin India",
     active: true,
     steps: [
-      { stepOrder: 1, approverRole: "sales_manager", approverUserId: null, approverName: null },
-      { stepOrder: 2, approverRole: "finance", approverUserId: null, approverName: null },
+      { stepOrder: 1, approverKind: "role", approverRole: "sales_manager", approverUserId: null, approverName: null },
+      { stepOrder: 2, approverKind: "role", approverRole: "finance", approverUserId: null, approverName: null },
     ],
   },
 ]
@@ -56,6 +56,17 @@ describe("ApprovalWorkflowsList", () => {
     expect(screen.getByText("Org-wide default")).toBeInTheDocument()
   })
 
+  it("summarizes a submitter's-manager step", () => {
+    setup([
+      {
+        ...workflows[0],
+        id: "wf-3",
+        steps: [{ stepOrder: 1, approverKind: "manager", approverRole: null, approverUserId: null, approverName: null }],
+      },
+    ])
+    expect(screen.getByText("Submitter's manager")).toBeInTheDocument()
+  })
+
   it("creates a workflow with a role step", async () => {
     const { createAction, updateAction, replaceStepsAction } = setup([])
     fireEvent.click(screen.getByRole("button", { name: "New Workflow" }))
@@ -63,7 +74,7 @@ describe("ApprovalWorkflowsList", () => {
 
     fireEvent.change(screen.getByLabelText(/Name/), { target: { value: "My Flow" } })
     fireEvent.click(screen.getByRole("button", { name: "Add step" }))
-    // default new step is role=sales_manager
+    // a new step defaults to the submitter's-manager kind
     fireEvent.click(screen.getByRole("button", { name: "Create Workflow" }))
 
     // Created INACTIVE first (so a mid-save failure can't leave an active,
@@ -74,7 +85,7 @@ describe("ApprovalWorkflowsList", () => {
       ),
     )
     expect(replaceStepsAction).toHaveBeenCalledWith("new-id", {
-      steps: [{ stepOrder: 1, approverRole: "sales_manager", approverUserId: null }],
+      steps: [{ stepOrder: 1, approverKind: "manager", approverRole: null, approverUserId: null }],
     })
     expect(updateAction).toHaveBeenCalledWith("new-id", { active: true })
   })

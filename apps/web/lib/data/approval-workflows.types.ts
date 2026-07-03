@@ -17,8 +17,13 @@ export const APPROVER_ROLE_OPTIONS = [
 // path today; add others here as their submit paths land (avoids inert config).
 export const WORKFLOW_ENTITY_TYPES = ["opportunity"] as const
 
+// How a step's approver is resolved: the submitter's own manager (at submit
+// time), a specific person (e.g. CFO/COO/CEO), or an entity-scoped role.
+export type ApproverKind = "manager" | "user" | "role"
+
 export interface AdminWorkflowStep {
   stepOrder: number
+  approverKind: ApproverKind
   approverRole: string | null
   approverUserId: string | null
   approverName: string | null
