@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Pencil, SendHorizontal, Calendar, GitBranch, FolderOpen, Mail } from "lucide-react"
+import { Pencil, SendHorizontal, Calendar, GitBranch, FolderOpen, Mail, AlertTriangle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,9 +20,7 @@ import { ActivityComposer } from "@/components/opportunities/activity-composer"
 import { OpportunitySplitsEditor } from "@/components/opportunities/opportunity-splits-editor"
 import { OpportunityTeamEditor } from "@/components/opportunities/opportunity-team-editor"
 import { StageHistoryTimeline } from "@/components/opportunities/stage-history-timeline"
-import { ApprovalHistory } from "@/components/opportunities/approval-history"
-import { ApprovalDecisionBox } from "@/components/opportunities/approval-decision-box"
-import { ApprovalAdminControls } from "@/components/opportunities/approval-admin-controls"
+import { ApprovalCard } from "@/components/opportunities/approval-card"
 import type { EntityOption } from "@/components/entity-combobox"
 import type {
   OpportunityRecord,
@@ -37,7 +35,7 @@ import type {
 } from "@/lib/data/opportunities.types"
 import type { StageHistoryRecord } from "@/lib/data/opportunity-stage-history"
 import type { ActivityRecord } from "@/lib/data/activities"
-import type { ApprovalInstanceRecord } from "@/lib/data/approvals"
+import type { ApprovalInstanceRecord, EnforceGateStatus } from "@/lib/data/approvals"
 import { getStageLabel, SERVICE_TYPE_LABELS, PROPERTY_TYPE_LABELS } from "@/lib/data/opportunities.types"
 import { NON_TERMINAL_STAGES, TERMINAL_STAGES } from "@/lib/opportunity"
 import type { DealStage } from "@/lib/opportunity"
@@ -68,6 +66,7 @@ interface OpportunityDetailWrapperProps {
   stageHistory?: StageHistoryRecord[]
   userOptions?: UserOption[]
   approvals?: ApprovalInstanceRecord[]
+  enforceGateStatus?: EnforceGateStatus
   approvalStatus?: string
   canSubmitApproval?: boolean
   actionableStepId?: string | null
@@ -167,6 +166,7 @@ export function OpportunityDetailWrapper({
   stageHistory = [],
   userOptions = [],
   approvals = [],
+  enforceGateStatus,
   approvalStatus = "Not submitted",
   canSubmitApproval = false,
   actionableStepId = null,
@@ -365,6 +365,25 @@ export function OpportunityDetailWrapper({
         </CardContent>
       </Card>
 
+      {/* ── Enforce Gate Banner ──────────────────────────────────────────────── */}
+      {enforceGateStatus?.isBlocked && !isTerminal && (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                Approval required before advancing
+              </p>
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                {enforceGateStatus.blockingWorkflows.length === 1
+                  ? `The "${enforceGateStatus.blockingWorkflows[0].name}" workflow must be approved before this opportunity can move past the current stage.`
+                  : `The following approval workflows must be approved before this opportunity can move past the current stage: ${enforceGateStatus.blockingWorkflows.map((w) => `"${w.name}"`).join(", ")}.`}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Stage Path ───────────────────────────────────────────────────────── */}
       <Card className="mb-6">
         <CardContent className="py-4">
@@ -560,31 +579,18 @@ export function OpportunityDetailWrapper({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Approval History</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ApprovalHistory instances={approvals} />
-              {actionableStepId && recordDecisionAction && (
-                <ApprovalDecisionBox
-                  stepId={actionableStepId}
-                  pending={approvalPending}
-                  onDecide={handleDecision}
-                />
-              )}
-              {canAdminApprovals && pendingApprovalInstanceId && reassignApprovalAction && cancelApprovalAction && (
-                <ApprovalAdminControls
-                  stepId={actionableStepId}
-                  instanceId={pendingApprovalInstanceId}
-                  users={userOptions}
-                  pending={approvalPending}
-                  onReassign={handleReassign}
-                  onCancel={handleCancel}
-                />
-              )}
-            </CardContent>
-          </Card>
+          <ApprovalCard
+            approvals={approvals}
+            approvalStatus={approvalStatus}
+            actionableStepId={actionableStepId}
+            pendingInstanceId={pendingApprovalInstanceId}
+            canAdmin={canAdminApprovals}
+            userOptions={userOptions}
+            pending={approvalPending}
+            onDecide={handleDecision}
+            onReassign={handleReassign}
+            onCancel={handleCancel}
+          />
 
           {updateTeamAction ? (
             <OpportunityTeamEditor
