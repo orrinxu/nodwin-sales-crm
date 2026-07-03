@@ -8,6 +8,7 @@ import type { ActivityRecord, ActivityType } from "./activities"
 import { lookupRate, convertWithRate } from "@/lib/money/convert"
 import type { RawRate } from "@/lib/money/convert"
 import { getDisplayCurrency } from "@/lib/data/user-preferences"
+import { resolveOrgReportingCurrency } from "@/lib/data/organisation-settings"
 
 export interface DashboardContext {
   user: AuthenticatedUser
@@ -42,18 +43,20 @@ export interface RecentDealRecord {
   closeDate: string | null
 }
 
-// The org-wide default reporting currency (fallback when a user has no
-// display-currency preference).
+// The org-wide static default reporting currency. Kept as the ultimate constant
+// fallback; the real org default now comes from reporting_currency_settings via
+// resolveOrgReportingCurrency (which falls back to this value).
 export function getReportingCurrency(): string {
   return "USD"
 }
 
-// The currency dashboards/reports should render in for this user: their
-// display_currency preference if set, otherwise the org default. All rollups
-// funnel through here, so the preference propagates to every converted total.
+// The currency dashboards/reports should render in for this user, two-tier:
+//   per-user display_currency  ??  (per-entity override ?? group default ?? USD)
+// All rollups funnel through here, so both the user preference and the org
+// admin setting propagate to every converted total.
 export async function resolveReportingCurrency(ctx: DashboardContext): Promise<string> {
   const preferred = await getDisplayCurrency(ctx)
-  return preferred ?? getReportingCurrency()
+  return preferred ?? (await resolveOrgReportingCurrency(ctx))
 }
 
 async function getCurrencyScaleMap(currencies: Iterable<string>): Promise<Map<string, number>> {

@@ -8,6 +8,7 @@ const mockOrder = vi.fn()
 const mockLimit = vi.fn()
 const mockIn = vi.fn()
 const mockEq = vi.fn()
+const mockIs = vi.fn()
 const mockMaybeSingle = vi.fn()
 
 // Any authenticated user; getReportData now resolves the reporting currency
@@ -28,14 +29,17 @@ function buildQueryBuilder() {
     order: mockOrder,
     in: mockIn,
     eq: mockEq,
+    is: mockIs,
   })
   mockOrder.mockReturnValue({
     limit: mockLimit,
   })
   mockLimit.mockResolvedValue({ data: [], error: null })
   mockIn.mockResolvedValue({ data: [], error: null })
-  // user_preferences lookup (getDisplayCurrency) → no row → fall back to USD.
+  // Reporting-currency resolution (getDisplayCurrency + resolveOrgReportingCurrency):
+  // user_preferences / users / reporting_currency_settings all → no row → USD.
   mockEq.mockReturnValue({ maybeSingle: mockMaybeSingle })
+  mockIs.mockReturnValue({ maybeSingle: mockMaybeSingle })
   mockMaybeSingle.mockResolvedValue({ data: null, error: null })
   return { select: mockSelect, order: mockOrder, limit: mockLimit, in: mockIn }
 }
