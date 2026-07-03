@@ -27,6 +27,7 @@ function makeProps(extra = {}) {
   return {
     users,
     currentUserId: "u-admin",
+    canManageRoles: true,
     entities: [{ id: "e1", name: "Nodwin India" }],
     businessUnits: [{ id: "b1", name: "East Asia" }],
     updateAction: vi.fn().mockResolvedValue(undefined),
@@ -63,5 +64,21 @@ describe("UsersList", () => {
     await waitFor(() => {
       expect(props.updateAction).toHaveBeenCalledWith("u-rep", expect.objectContaining({ role: "sales_rep" }))
     })
+  })
+
+  it("omits role/manager/entity from the payload for an entity admin (canManageRoles=false)", async () => {
+    const props = makeProps({ canManageRoles: false })
+    render(<UsersList {...props} />)
+    await userEvent.click(screen.getByRole("button", { name: "Edit Charlie Rep" }))
+    await userEvent.click(await screen.findByRole("button", { name: "Save" }))
+    await waitFor(() => {
+      expect(props.updateAction).toHaveBeenCalled()
+    })
+    const payload = props.updateAction.mock.calls[0][1] as Record<string, unknown>
+    expect("role" in payload).toBe(false)
+    expect("primaryEntityId" in payload).toBe(false)
+    expect("managerUserId" in payload).toBe(false)
+    // Still allowed to edit name / BU / active.
+    expect("active" in payload).toBe(true)
   })
 })
