@@ -58,6 +58,54 @@ export type Database = {
           },
         ]
       }
+      account_tax_ids: {
+        Row: {
+          account_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          tax_type: string
+          updated_at: string
+          updated_by: string | null
+          value: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          tax_type: string
+          updated_at?: string
+          updated_by?: string | null
+          value: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          tax_type?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_tax_ids_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_tax_ids_tax_type_fkey"
+            columns: ["tax_type"]
+            isOneToOne: false
+            referencedRelation: "tax_id_types"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       accounts: {
         Row: {
           account_owner_user_id: string | null
@@ -2130,6 +2178,45 @@ export type Database = {
         }
         Relationships: []
       }
+      tax_id_types: {
+        Row: {
+          active: boolean
+          code: string
+          country_iso: string
+          created_at: string
+          created_by: string | null
+          display_order: number
+          format_regex: string | null
+          label: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          country_iso: string
+          created_at?: string
+          created_by?: string | null
+          display_order?: number
+          format_regex?: string | null
+          label: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          country_iso?: string
+          created_at?: string
+          created_by?: string | null
+          display_order?: number
+          format_regex?: string | null
+          label?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       user_notification_overrides: {
         Row: {
           channel: Database["public"]["Enums"]["notification_channel"]
@@ -2435,6 +2522,7 @@ export type Database = {
       }
     }
     Functions: {
+      can_write_account: { Args: { _account_id: string }; Returns: boolean }
       check_ai_caps: {
         Args: { p_estimated_cost: number; p_user_id: string }
         Returns: {
@@ -2533,6 +2621,10 @@ export type Database = {
       }
       recompute_visibility_for_user: {
         Args: { _user_id: string }
+        Returns: undefined
+      }
+      replace_account_tax_ids: {
+        Args: { _account_id: string; _tax_ids: Json }
         Returns: undefined
       }
       user_is_step_approver_for_instance: {
