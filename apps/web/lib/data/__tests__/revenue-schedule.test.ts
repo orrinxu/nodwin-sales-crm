@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}))
 
 const mockSingle = vi.fn()
 const mockFrom = vi.fn()
+const mockRpc = vi.fn()
 
 function buildMockChain() {
   const mockEqInner = vi.fn().mockReturnValue({ single: mockSingle });
@@ -22,6 +23,7 @@ function buildMockChain() {
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(() => ({
     from: mockFrom,
+    rpc: mockRpc,
   })),
 }))
 
@@ -337,8 +339,7 @@ describe("saveCustomSchedule", () => {
     ).rejects.toThrow("Schedule months sum")
   })
 
-  it("upserts successfully when months sum matches", async () => {
-    const mockInsert = vi.fn()
+  it("replaces the schedule via the atomic RPC when months sum matches", async () => {
     mockFrom.mockImplementation((table: string) => {
       if (table === "opportunities") {
         const select = vi.fn().mockReturnValue({
@@ -348,16 +349,10 @@ describe("saveCustomSchedule", () => {
         })
         return { select }
       }
-      if (table === "opportunity_revenue_schedule") {
-        const del = vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ error: null }),
-        })
-        return { delete: del, insert: mockInsert }
-      }
       return {}
     })
 
-    mockInsert.mockResolvedValue({ error: null })
+    mockRpc.mockResolvedValue({ error: null })
 
     const { saveCustomSchedule } = await import("../revenue-schedule")
 
@@ -369,14 +364,18 @@ describe("saveCustomSchedule", () => {
       ], defaultCtx),
     ).resolves.toBeUndefined()
 
-    expect(mockInsert).toHaveBeenCalledWith([
-      { opportunity_id: "opp-1", month: "2026-01-01", amount: "100.00" },
-      { opportunity_id: "opp-1", month: "2026-02-01", amount: "100.00" },
-      { opportunity_id: "opp-1", month: "2026-03-01", amount: "100.00" },
-    ])
+    // Single atomic call — no separate delete/insert round-trips.
+    expect(mockRpc).toHaveBeenCalledWith("replace_revenue_schedule", {
+      _opportunity_id: "opp-1",
+      _rows: [
+        { month: "2026-01-01", amount: "100.00" },
+        { month: "2026-02-01", amount: "100.00" },
+        { month: "2026-03-01", amount: "100.00" },
+      ],
+    })
   })
 
-  it("clears schedule when empty months array passed", async () => {
+  it("clears schedule when empty months array passed (RPC with empty rows)", async () => {
     mockFrom.mockImplementation((table: string) => {
       if (table === "opportunities") {
         const select = vi.fn().mockReturnValue({
@@ -386,20 +385,43 @@ describe("saveCustomSchedule", () => {
         })
         return { select }
       }
-      if (table === "opportunity_revenue_schedule") {
-        const del = vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ error: null }),
-        })
-        return { delete: del }
-      }
       return {}
     })
+
+    mockRpc.mockResolvedValue({ error: null })
 
     const { saveCustomSchedule } = await import("../revenue-schedule")
 
     await expect(
       saveCustomSchedule("opp-1", [], defaultCtx),
     ).resolves.toBeUndefined()
+
+    expect(mockRpc).toHaveBeenCalledWith("replace_revenue_schedule", {
+      _opportunity_id: "opp-1",
+      _rows: [],
+    })
+  })
+
+  it("throws when the atomic RPC returns an error", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "opportunities") {
+        const select = vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { amount: 100.00, currency: "USD" }, error: null }),
+          }),
+        })
+        return { select }
+      }
+      return {}
+    })
+
+    mockRpc.mockResolvedValue({ error: { message: "insufficient_privilege" } })
+
+    const { saveCustomSchedule } = await import("../revenue-schedule")
+
+    await expect(
+      saveCustomSchedule("opp-1", [{ month: "2026-01-01", amount: "100.00" }], defaultCtx),
+    ).rejects.toThrow("Failed to save revenue schedule")
   })
 
   it("rejects when opportunity is not found", async () => {
