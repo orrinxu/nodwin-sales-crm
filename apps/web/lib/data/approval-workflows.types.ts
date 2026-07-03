@@ -13,8 +13,9 @@ export const APPROVER_ROLE_OPTIONS = [
   "admin",
 ] as const
 
-// Entity types an approval workflow can target (Phase 1 wires 'opportunity').
-export const WORKFLOW_ENTITY_TYPES = ["opportunity", "account", "contact"] as const
+// Entity types an approval workflow can target. Only 'opportunity' has a submit
+// path today; add others here as their submit paths land (avoids inert config).
+export const WORKFLOW_ENTITY_TYPES = ["opportunity"] as const
 
 export interface AdminWorkflowStep {
   stepOrder: number

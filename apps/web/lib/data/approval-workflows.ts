@@ -146,6 +146,14 @@ export async function deleteApprovalWorkflow(
   const supabase = await createServerClient()
   const { error } = await supabase.from("approval_workflows").delete().eq("id", id)
   if (error) {
+    // approval_instances.workflow_id is ON DELETE RESTRICT, so a workflow that
+    // has ever been used can't be deleted — surface that as guidance, not a raw
+    // FK-violation string. Retire it via the Active toggle instead.
+    if (error.code === "23503") {
+      throw new Error(
+        "This workflow is in use by existing approvals and can't be deleted. Set it inactive instead.",
+      )
+    }
     throw new Error(`Failed to delete workflow: ${error.message}`)
   }
 }

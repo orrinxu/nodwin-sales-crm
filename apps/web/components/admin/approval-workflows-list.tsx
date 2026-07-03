@@ -165,14 +165,18 @@ export function ApprovalWorkflowsList({
         entityId: entityId || null,
         active,
       }
-      let workflowId: string
       if (editing) {
         await updateAction(editing.id, input)
-        workflowId = editing.id
+        // The steps replace is self-atomic; a failure leaves prior steps intact.
+        await replaceStepsAction(editing.id, { steps: cleanSteps })
       } else {
-        workflowId = await createAction(input)
+        // Create INACTIVE first, then add steps, then activate — so a mid-save
+        // failure can't leave an active, step-less workflow (which would
+        // auto-approve on submit). A partial failure leaves a harmless inactive row.
+        const workflowId = await createAction({ ...input, active: false })
+        await replaceStepsAction(workflowId, { steps: cleanSteps })
+        if (active) await updateAction(workflowId, { active: true })
       }
-      await replaceStepsAction(workflowId, { steps: cleanSteps })
       setOpen(false)
       router.refresh()
     } catch (e) {
@@ -381,8 +385,9 @@ export function ApprovalWorkflowsList({
           <DialogHeader>
             <DialogTitle>Delete Workflow</DialogTitle>
             <DialogDescription>
-              Delete &ldquo;{deleteTarget?.name}&rdquo;? Its steps are removed. In-flight approvals
-              already created from it are unaffected. This cannot be undone.
+              Delete &ldquo;{deleteTarget?.name}&rdquo; and its steps? A workflow that has ever been
+              used by an approval can&apos;t be deleted — set it <strong>inactive</strong> instead.
+              This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

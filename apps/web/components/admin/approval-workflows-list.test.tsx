@@ -57,7 +57,7 @@ describe("ApprovalWorkflowsList", () => {
   })
 
   it("creates a workflow with a role step", async () => {
-    const { createAction, replaceStepsAction } = setup([])
+    const { createAction, updateAction, replaceStepsAction } = setup([])
     fireEvent.click(screen.getByRole("button", { name: "New Workflow" }))
     await waitFor(() => expect(screen.getByRole("button", { name: "Create Workflow" })).toBeInTheDocument())
 
@@ -66,13 +66,16 @@ describe("ApprovalWorkflowsList", () => {
     // default new step is role=sales_manager
     fireEvent.click(screen.getByRole("button", { name: "Create Workflow" }))
 
+    // Created INACTIVE first (so a mid-save failure can't leave an active,
+    // step-less workflow), then activated after steps save.
     await waitFor(() =>
       expect(createAction).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "My Flow", entityType: "opportunity", entityId: null, active: true }),
+        expect.objectContaining({ name: "My Flow", entityType: "opportunity", entityId: null, active: false }),
       ),
     )
     expect(replaceStepsAction).toHaveBeenCalledWith("new-id", {
       steps: [{ stepOrder: 1, approverRole: "sales_manager", approverUserId: null }],
     })
+    expect(updateAction).toHaveBeenCalledWith("new-id", { active: true })
   })
 })
