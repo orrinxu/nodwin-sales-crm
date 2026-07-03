@@ -22,6 +22,15 @@
 ALTER TABLE public.approval_workflow_steps
   ADD COLUMN IF NOT EXISTS approver_kind text NOT NULL DEFAULT 'role';
 
+-- Backfill kind from the existing columns BEFORE the kind-aware CHECK is added.
+-- Phase 2 permitted user-only steps (approver_user_id set, approver_role NULL);
+-- the DEFAULT 'role' would mislabel those and violate the new CHECK, aborting the
+-- migration. Role takes precedence if somehow both are set.
+UPDATE public.approval_workflow_steps SET approver_kind = 'role'
+  WHERE approver_role IS NOT NULL;
+UPDATE public.approval_workflow_steps SET approver_kind = 'user'
+  WHERE approver_role IS NULL AND approver_user_id IS NOT NULL;
+
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -54,6 +63,17 @@ END $$;
 -- entity firewalling is a cheap column compare (not a repeated 2-join lookup).
 ALTER TABLE public.approval_instances
   ADD COLUMN IF NOT EXISTS business_entity_id uuid REFERENCES public.entities(id);
+
+-- Backfill existing opportunity approval instances so in-flight approvals created
+-- before this migration are firewalled (not left NULL → fail-open). Instances
+-- whose opportunity's business_unit has no entity stay NULL and fail CLOSED below.
+UPDATE public.approval_instances i
+SET business_entity_id = bu.entity_id
+FROM public.opportunities o
+JOIN public.business_units bu ON bu.id = o.sales_unit_id
+WHERE i.entity_type = 'opportunity'
+  AND i.entity_id = o.id
+  AND i.business_entity_id IS NULL;
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 2. Switch the org-wide default workflow to "submitter's manager"
@@ -208,10 +228,9 @@ BEGIN
     OR (
       _approver_role IS NOT NULL
       AND public.current_user_role() = _approver_role
-      AND (
-        _business_entity IS NULL
-        OR _business_entity = (SELECT primary_entity_id FROM public.users WHERE id = _uid)
-      )
+      -- Firewall: role approver must belong to the opp's entity. Fails CLOSED if
+      -- the instance has no business entity (only admin/named approver can act).
+      AND _business_entity = (SELECT primary_entity_id FROM public.users WHERE id = _uid)
     )
     OR public.current_user_role() = 'admin'
   ) IS NOT TRUE THEN
@@ -272,10 +291,8 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
           OR (
             s.approver_role IS NOT NULL
             AND public.current_user_role() = s.approver_role
-            AND (
-              i.business_entity_id IS NULL
-              OR i.business_entity_id = (SELECT primary_entity_id FROM public.users WHERE id = auth.uid())
-            )
+            -- Firewall (fails closed on NULL business entity — see decision RPC).
+            AND i.business_entity_id = (SELECT primary_entity_id FROM public.users WHERE id = auth.uid())
           )
         )
     );

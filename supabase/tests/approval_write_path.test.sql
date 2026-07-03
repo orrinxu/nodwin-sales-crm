@@ -10,7 +10,7 @@
 
 BEGIN;
 
-SELECT plan(19);
+SELECT plan(21);
 
 INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
   ('aa000000-0000-0000-0000-0000000000a1', 'admin@nodwin.com', '{"full_name":"Admin"}'),
@@ -221,6 +221,32 @@ SET LOCAL ROLE postgres;
 SELECT is(
   (SELECT status::text FROM public.approval_instances WHERE entity_id = '03000000-0000-0000-0000-000000000003'),
   'approved', 'admin approval resolves the escalated instance'
+);
+
+-- ── Firewall fails CLOSED when the instance has no business entity ───────────
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+INSERT INTO public.approval_instances (id, workflow_id, entity_type, entity_id, business_entity_id, status, triggered_by_user_id)
+VALUES ('0f000000-0000-0000-0000-00000000000f',
+  (SELECT id FROM public.approval_workflows WHERE entity_type = 'opportunity' AND entity_id IS NULL LIMIT 1),
+  'opportunity', '01000000-0000-0000-0000-000000000001', NULL, 'pending', 'bb000000-0000-0000-0000-0000000000b1');
+INSERT INTO public.approval_steps (id, instance_id, step_order, approver_role, status)
+VALUES ('0f000000-0000-0000-0000-0000000000ff', '0f000000-0000-0000-0000-00000000000f', 1, 'sales_manager', 'pending');
+
+-- 16. A role holder cannot decide a role step whose instance has NO business
+--     entity (firewall fails closed).
+SELECT tests.as_user('mgr2@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT throws_ok(
+  $$SELECT public.record_approval_decision('0f000000-0000-0000-0000-0000000000ff', 'approved')$$,
+  '42501', NULL, 'role approver denied on a no-business-entity instance (fails closed)'
+);
+-- 17. Admin can still decide it.
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT lives_ok(
+  $$SELECT public.record_approval_decision('0f000000-0000-0000-0000-0000000000ff', 'approved')$$,
+  'admin can still decide a no-business-entity step'
 );
 
 SELECT * FROM finish();
