@@ -1,9 +1,11 @@
 "use client"
 
+import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Pencil } from "lucide-react"
+import { Pencil, Mail, Phone } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ContactForm } from "@/components/contacts/contact-form"
 import type { ContactRecord, ContactCreateInput, AccountOption } from "@/lib/data/contacts"
@@ -17,22 +19,52 @@ interface ContactDetailWrapperProps {
   contact: ContactRecord
   accounts: AccountOption[]
   linkedAccountIds: string[]
+  ownerName?: string | null
   fieldDefinitions: FieldDefinition[]
   activities: ActivityRecord[]
   updateAction: (id: string, input: Partial<ContactCreateInput>) => Promise<ContactRecord>
   createActivityAction: (contactId: string, input: unknown) => Promise<ActivityRecord>
 }
 
+const SOCIAL_LABELS: Record<string, string> = {
+  wechat: "WeChat",
+  linkedin: "LinkedIn",
+  twitter: "Twitter",
+  x: "X",
+  telegram: "Telegram",
+  whatsapp: "WhatsApp",
+}
+
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="grid gap-1">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="text-sm font-medium">{value}</dd>
+    </div>
+  )
+}
+
 export function ContactDetailWrapper({
   contact,
   accounts,
   linkedAccountIds,
+  ownerName,
   fieldDefinitions,
   activities,
   updateAction,
   createActivityAction,
 }: ContactDetailWrapperProps) {
   const router = useRouter()
+
+  const accountName = (id: string) => accounts.find((a) => a.id === id)?.name ?? id
+  const primaryAccount = contact.primaryAccountId
+    ? accounts.find((a) => a.id === contact.primaryAccountId) ?? null
+    : null
+  // Additional account links, excluding the primary (shown separately).
+  const otherLinkedAccountIds = linkedAccountIds.filter(
+    (id) => id !== contact.primaryAccountId,
+  )
+  const socialEntries = Object.entries(contact.socials).filter(([, v]) => v)
 
   return (
     <div className="relative">
@@ -66,6 +98,97 @@ export function ContactDetailWrapper({
             </p>
           </div>
         </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <dl className="grid grid-cols-2 gap-4">
+              <Field
+                label="Email"
+                value={
+                  contact.email ? (
+                    <a
+                      href={`mailto:${contact.email}`}
+                      className="inline-flex items-center gap-1 text-primary hover:underline"
+                    >
+                      <Mail className="size-3" />
+                      {contact.email}
+                    </a>
+                  ) : (
+                    "—"
+                  )
+                }
+              />
+              <Field
+                label="Phone"
+                value={
+                  contact.phone ? (
+                    <a
+                      href={`tel:${contact.phone}`}
+                      className="inline-flex items-center gap-1 text-primary hover:underline"
+                    >
+                      <Phone className="size-3" />
+                      {contact.phone}
+                    </a>
+                  ) : (
+                    "—"
+                  )
+                }
+              />
+              <Field label="Title" value={contact.title ?? "—"} />
+              <Field
+                label="Primary Account"
+                value={
+                  primaryAccount ? (
+                    <Link
+                      href={`/accounts/${primaryAccount.id}`}
+                      className="text-primary hover:underline"
+                    >
+                      {primaryAccount.name}
+                    </Link>
+                  ) : (
+                    "—"
+                  )
+                }
+              />
+              <Field label="Owner" value={ownerName ?? "Unassigned"} />
+            </dl>
+
+            {otherLinkedAccountIds.length > 0 && (
+              <div className="grid gap-1">
+                <dt className="text-xs text-muted-foreground">Also linked to</dt>
+                <dd className="flex flex-wrap gap-1.5">
+                  {otherLinkedAccountIds.map((id) => (
+                    <Link key={id} href={`/accounts/${id}`}>
+                      <Badge variant="outline" className="hover:bg-accent">
+                        {accountName(id)}
+                      </Badge>
+                    </Link>
+                  ))}
+                </dd>
+              </div>
+            )}
+
+            {socialEntries.length > 0 && (
+              <div className="grid gap-1">
+                <dt className="text-xs text-muted-foreground">Social</dt>
+                <dd className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                  {socialEntries.map(([key, value]) => (
+                    <span key={key}>
+                      <span className="text-muted-foreground">
+                        {/* eslint-disable-next-line security/detect-object-injection -- static label map, key falls back to itself */}
+                        {SOCIAL_LABELS[key.toLowerCase()] ?? key}:
+                      </span>{" "}
+                      {value}
+                    </span>
+                  ))}
+                </dd>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <CustomFieldsDisplay
           fieldDefinitions={fieldDefinitions}
           customData={contact.customData}
