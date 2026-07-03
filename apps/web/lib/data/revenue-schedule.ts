@@ -147,28 +147,23 @@ export async function saveCustomSchedule(
     )
   }
 
-  const { error: deleteError } = await supabase
-    .from("opportunity_revenue_schedule")
-    .delete()
-    .eq("opportunity_id", opportunityId)
-
-  if (deleteError) {
-    throw new Error(`Failed to replace revenue schedule: ${deleteError.message}`)
-  }
-
-  if (parsed.months.length === 0) return
-
+  // Replace the whole schedule atomically. Doing DELETE + INSERT as two
+  // supabase-js calls is NOT atomic: if the insert fails after the delete
+  // commits, the opportunity is left with zero schedule rows — silent data loss
+  // (GH #148). replace_revenue_schedule does both in ONE transaction, authorises
+  // via can_access_opportunity_schedule, and locks the opportunity row so
+  // concurrent replaces are last-write-wins. An empty array clears the schedule.
   const rows = parsed.months.map((m) => ({
-    opportunity_id: opportunityId,
     month: m.month,
     amount: Money.fromAmount(m.amount, currency).toAmount(),
   }))
 
-  const { error: insertError } = await supabase
-    .from("opportunity_revenue_schedule")
-    .insert(rows as never)
+  const { error } = await supabase.rpc("replace_revenue_schedule", {
+    _opportunity_id: opportunityId,
+    _rows: rows,
+  })
 
-  if (insertError) {
-    throw new Error(`Failed to insert revenue schedule: ${insertError.message}`)
+  if (error) {
+    throw new Error(`Failed to save revenue schedule: ${error.message}`)
   }
 }

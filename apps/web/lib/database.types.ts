@@ -2522,6 +2522,10 @@ export type Database = {
       }
     }
     Functions: {
+      can_access_opportunity_schedule: {
+        Args: { _opportunity_id: string }
+        Returns: boolean
+      }
       can_read_account: { Args: { _account_id: string }; Returns: boolean }
       can_write_account: { Args: { _account_id: string }; Returns: boolean }
       check_ai_caps: {
@@ -2626,6 +2630,10 @@ export type Database = {
       }
       replace_account_tax_ids: {
         Args: { _account_id: string; _tax_ids: Json }
+        Returns: undefined
+      }
+      replace_revenue_schedule: {
+        Args: { _opportunity_id: string; _rows: Json }
         Returns: undefined
       }
       user_is_step_approver_for_instance: {
