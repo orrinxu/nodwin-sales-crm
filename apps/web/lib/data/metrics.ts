@@ -7,6 +7,7 @@ import { getStageLabel } from "@/lib/data/opportunities.types"
 import type { ActivityRecord, ActivityType } from "./activities"
 import { lookupRate, convertWithRate } from "@/lib/money/convert"
 import type { RawRate } from "@/lib/money/convert"
+import { getDisplayCurrency } from "@/lib/data/user-preferences"
 
 export interface DashboardContext {
   user: AuthenticatedUser
@@ -41,8 +42,18 @@ export interface RecentDealRecord {
   closeDate: string | null
 }
 
+// The org-wide default reporting currency (fallback when a user has no
+// display-currency preference).
 export function getReportingCurrency(): string {
   return "USD"
+}
+
+// The currency dashboards/reports should render in for this user: their
+// display_currency preference if set, otherwise the org default. All rollups
+// funnel through here, so the preference propagates to every converted total.
+export async function resolveReportingCurrency(ctx: DashboardContext): Promise<string> {
+  const preferred = await getDisplayCurrency(ctx)
+  return preferred ?? getReportingCurrency()
 }
 
 async function getCurrencyScaleMap(currencies: Iterable<string>): Promise<Map<string, number>> {
@@ -168,7 +179,7 @@ export async function getPipelineMetrics(ctx: DashboardContext): Promise<Pipelin
     throw new Error(`Failed to load pipeline metrics: ${error.message}`)
   }
 
-  const reportingCurrency = getReportingCurrency()
+  const reportingCurrency = await resolveReportingCurrency(ctx)
   const { converted: deals, unconvertibleCount } = await fetchAndConvert(
     opportunities,
     reportingCurrency,
@@ -229,7 +240,7 @@ export async function getPipelineSummary(ctx: DashboardContext): Promise<{
     throw new Error(`Failed to load pipeline summary: ${error.message}`)
   }
 
-  const reportingCurrency = getReportingCurrency()
+  const reportingCurrency = await resolveReportingCurrency(ctx)
   const { converted: deals, unconvertibleCount } = await fetchAndConvert(
     opportunities,
     reportingCurrency,

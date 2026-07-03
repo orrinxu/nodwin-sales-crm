@@ -7,8 +7,8 @@ export const metadata = {
 }
 
 export default async function ReportsPage() {
-  await requireUser()
-  const reportData = await getReportData()
+  const user = await requireUser()
+  const reportData = await getReportData({ user, source: "web" })
 
   return <ReportsView data={reportData} />
 }

@@ -43,6 +43,7 @@ interface OpportunityBoardProps {
   searchContactsAction?: (query: string, accountId?: string) => Promise<EntityOption[]>
   searchUsersAction?: (query: string) => Promise<EntityOption[]>
   createContactQuickAction?: (input: { fullName: string; email?: string; accountId?: string }) => Promise<EntityOption>
+  defaultCurrency?: string
 }
 
 export function OpportunityBoard({
@@ -56,6 +57,7 @@ export function OpportunityBoard({
   searchContactsAction,
   searchUsersAction,
   createContactQuickAction,
+  defaultCurrency,
 }: OpportunityBoardProps) {
   const router = useRouter()
   const [activeOpportunity, setActiveOpportunity] =
@@ -143,6 +145,7 @@ export function OpportunityBoard({
             searchContactsAction={searchContactsAction}
             searchUsersAction={searchUsersAction}
             createContactQuickAction={createContactQuickAction}
+            defaultCurrency={defaultCurrency}
           />
         </div>
 

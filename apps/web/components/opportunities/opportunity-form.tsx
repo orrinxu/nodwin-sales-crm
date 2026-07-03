@@ -166,6 +166,9 @@ interface OpportunityFormProps {
   searchUsersAction?: (query: string) => Promise<EntityOption[]>
   createContactQuickAction?: (input: { fullName: string; email?: string; accountId?: string }) => Promise<EntityOption>
   currentUserId?: string
+  // Pre-fills the currency on a NEW deal (from the user's entry_currency_default
+  // preference). Ignored when editing — a saved deal keeps its own currency.
+  defaultCurrency?: string
 }
 
 export function OpportunityForm({
@@ -183,6 +186,7 @@ export function OpportunityForm({
   searchUsersAction,
   createContactQuickAction,
   currentUserId,
+  defaultCurrency,
 }: OpportunityFormProps) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
@@ -218,7 +222,7 @@ export function OpportunityForm({
       ownerUserId: opportunity?.ownerUserId ?? currentUserId ?? "",
       stage: opportunity?.stage ?? "qualify",
       amount: opportunity ? String(opportunity.amount) : undefined,
-      currency: opportunity?.currency ?? "USD",
+      currency: opportunity?.currency ?? defaultCurrency ?? "USD",
       closeDate: opportunity?.closeDate ?? "",
       probabilityPct: opportunity?.probabilityPct ?? getDefaultStageProbability(opportunity?.stage ?? "qualify"),
       description: opportunity?.description ?? "",
@@ -355,7 +359,7 @@ export function OpportunityForm({
         ownerUserId: currentUserId ?? "",
         stage: "qualify",
         amount: undefined,
-        currency: "USD",
+        currency: defaultCurrency ?? "USD",
         closeDate: "",
         probabilityPct: 10,
         description: "",

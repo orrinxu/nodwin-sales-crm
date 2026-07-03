@@ -24,6 +24,7 @@ interface OpportunitiesViewProps {
   searchContactsAction?: (query: string, accountId?: string) => Promise<EntityOption[]>
   searchUsersAction?: (query: string) => Promise<EntityOption[]>
   createContactQuickAction?: (input: { fullName: string; email?: string; accountId?: string }) => Promise<EntityOption>
+  defaultCurrency?: string
 }
 
 type ViewMode = "kanban" | "table"
@@ -41,6 +42,7 @@ export function OpportunitiesView({
   searchContactsAction,
   searchUsersAction,
   createContactQuickAction,
+  defaultCurrency,
 }: OpportunitiesViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("kanban")
 
@@ -99,6 +101,7 @@ export function OpportunitiesView({
           searchContactsAction={searchContactsAction}
           searchUsersAction={searchUsersAction}
           createContactQuickAction={createContactQuickAction}
+          defaultCurrency={defaultCurrency}
         />
       ) : (
         <div className="flex-1 p-4 lg:p-6">

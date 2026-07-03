@@ -12,7 +12,10 @@ export interface AuthenticatedUser {
 }
 
 const LOCAL_PREVIEW_ADMIN: AuthenticatedUser = {
-  id: "a0000000001-0001-0001-0001-000000000001",
+  // Matches the seeded alice.admin user. The previous value was a malformed
+  // UUID (an extra digit group), which broke any query that filters a uuid
+  // column by the current user id (e.g. user_preferences). Local-preview only.
+  id: "a0000001-0001-0001-0001-000000000001",
   email: "alice.admin@nodwin-test.example",
   role: "admin",
 }

@@ -183,7 +183,7 @@ function UserSection({ user }: SidebarProps) {
           <ChevronDown className="size-4 text-muted-foreground" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuItem disabled>Settings</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push("/settings")}>Settings</DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-destructive"
