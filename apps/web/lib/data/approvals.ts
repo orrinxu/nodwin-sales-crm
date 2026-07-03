@@ -23,6 +23,7 @@ export interface ApprovalStepRecord {
   id: string
   stepOrder: number
   approverRole: string | null
+  approverUserId: string | null
   approverName: string | null
   status: ApprovalStepStatus
   dueBy: string | null
@@ -106,6 +107,7 @@ function toStepRecord(data: Record<string, unknown>): ApprovalStepRecord {
     id: data.id as string,
     stepOrder: data.step_order as number,
     approverRole: (data.approver_role as string) ?? null,
+    approverUserId: (data.approver_user_id as string) ?? null,
     approverName: approver?.full_name ?? null,
     status: data.status as ApprovalStepStatus,
     dueBy: (data.due_by as string) ?? null,
@@ -153,4 +155,108 @@ export async function getApprovalHistoryForOpportunity(
   }
 
   return (data ?? []).map((r) => toInstanceRecord(r as Record<string, unknown>))
+}
+
+// ── Write path (ORR-604) ─────────────────────────────────────────────────────
+// Both writes go through SECURITY DEFINER RPCs: approval_instances/steps are
+// admin-only under RLS, so the RPCs perform the writes with explicit
+// authorisation (see 20260703340000).
+
+export async function submitOpportunityForApproval(
+  ctx: ApprovalCallContext,
+  opportunityId: string,
+): Promise<string> {
+  void ctx
+  const supabase = await createServerClient()
+  const { data, error } = await supabase.rpc("submit_opportunity_for_approval", {
+    _opportunity_id: opportunityId,
+  })
+  if (error) {
+    throw new Error(`Failed to submit for approval: ${error.message}`)
+  }
+  return data as string
+}
+
+export async function recordApprovalDecision(
+  ctx: ApprovalCallContext,
+  stepId: string,
+  decision: ApprovalDecisionType,
+  comment?: string | null,
+): Promise<void> {
+  void ctx
+  const supabase = await createServerClient()
+  const { error } = await supabase.rpc("record_approval_decision", {
+    _step_id: stepId,
+    _decision: decision,
+    _comment: comment ?? undefined,
+  })
+  if (error) {
+    throw new Error(`Failed to record decision: ${error.message}`)
+  }
+}
+
+export interface ApprovalActionState {
+  // May the current user submit this opportunity for approval right now?
+  canSubmit: boolean
+  // The id of the step the current user can decide right now (else null).
+  actionableStepId: string | null
+}
+
+// Resolves what the current viewer can DO with an opportunity's approval:
+// submit it (if not already pending and they can manage it), or decide the
+// current pending step (if they are its approver by id/role, or an admin).
+export async function getApprovalActionState(
+  ctx: ApprovalCallContext,
+  opportunityId: string,
+): Promise<ApprovalActionState> {
+  const supabase = await createServerClient()
+
+  const { data: inst, error: instErr } = await supabase
+    .from("approval_instances")
+    .select("id, status")
+    .eq("entity_type", "opportunity")
+    .eq("entity_id", opportunityId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (instErr) {
+    throw new Error(`Failed to resolve approval state: ${instErr.message}`)
+  }
+
+  const isPending = inst?.status === "pending"
+
+  if (!isPending) {
+    const { data: canManage } = await supabase.rpc("can_manage_opportunity", {
+      _opportunity_id: opportunityId,
+    })
+    return { canSubmit: !!canManage, actionableStepId: null }
+  }
+
+  // Pending: find the current (lowest-order) pending step and whether this user
+  // may decide it.
+  const { data: steps, error: stepErr } = await supabase
+    .from("approval_steps")
+    .select("id, approver_role, approver_user_id")
+    .eq("instance_id", (inst as { id: string }).id)
+    .eq("status", "pending")
+    .order("step_order", { ascending: true })
+    .limit(1)
+
+  if (stepErr) {
+    throw new Error(`Failed to resolve approval step: ${stepErr.message}`)
+  }
+
+  const current = steps?.[0] as { id: string; approver_role: string | null; approver_user_id: string | null } | undefined
+  let actionableStepId: string | null = null
+  if (current) {
+    const role = ctx.user.role
+    const canDecide =
+      current.approver_user_id === ctx.user.id ||
+      (!!current.approver_role && current.approver_role === role) ||
+      role === "admin"
+    if (canDecide) actionableStepId = current.id
+  }
+
+  return { canSubmit: false, actionableStepId }
 }

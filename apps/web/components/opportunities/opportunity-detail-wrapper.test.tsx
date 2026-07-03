@@ -358,5 +358,24 @@ describe("OpportunityDetailWrapper", () => {
       expect(screen.getByText("Set Revenue Schedule")).toBeDisabled()
       expect(screen.getByText("Create Jira Issue")).toBeDisabled()
     })
+
+    it("enables Submit for Approval when the user may submit", () => {
+      render(
+        <OpportunityDetailWrapper {...defaultProps} canSubmitApproval submitApprovalAction={vi.fn()} />,
+      )
+      expect(screen.getByText("Submit for Approval")).not.toBeDisabled()
+    })
+
+    it("shows the approve/reject box for the actionable approver", () => {
+      render(
+        <OpportunityDetailWrapper
+          {...defaultProps}
+          actionableStepId="step-1"
+          recordDecisionAction={vi.fn()}
+        />,
+      )
+      expect(screen.getByText("This approval is waiting on you.")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument()
+    })
   })
 })

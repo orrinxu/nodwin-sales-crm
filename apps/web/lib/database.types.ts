@@ -612,11 +612,71 @@ export type Database = {
           },
         ]
       }
+      approval_workflow_steps: {
+        Row: {
+          approver_role: Database["public"]["Enums"]["user_role"] | null
+          approver_user_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          step_order: number
+          updated_at: string
+          updated_by: string | null
+          workflow_id: string
+        }
+        Insert: {
+          approver_role?: Database["public"]["Enums"]["user_role"] | null
+          approver_user_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          step_order: number
+          updated_at?: string
+          updated_by?: string | null
+          workflow_id: string
+        }
+        Update: {
+          approver_role?: Database["public"]["Enums"]["user_role"] | null
+          approver_user_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          step_order?: number
+          updated_at?: string
+          updated_by?: string | null
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approval_workflow_steps_approver_user_id_fkey"
+            columns: ["approver_user_id"]
+            isOneToOne: false
+            referencedRelation: "ai_usage_daily_rollup"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "approval_workflow_steps_approver_user_id_fkey"
+            columns: ["approver_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "approval_workflow_steps_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "approval_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       approval_workflows: {
         Row: {
+          active: boolean
           created_at: string
           created_by: string | null
           description: string | null
+          entity_id: string | null
           entity_type: string
           id: string
           name: string
@@ -624,9 +684,11 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          active?: boolean
           created_at?: string
           created_by?: string | null
           description?: string | null
+          entity_id?: string | null
           entity_type: string
           id?: string
           name: string
@@ -634,16 +696,26 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          active?: boolean
           created_at?: string
           created_by?: string | null
           description?: string | null
+          entity_id?: string | null
           entity_type?: string
           id?: string
           name?: string
           updated_at?: string
           updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "approval_workflows_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       audit_log: {
         Row: {
@@ -2526,7 +2598,15 @@ export type Database = {
         Args: { _opportunity_id: string }
         Returns: boolean
       }
+      can_manage_opportunity: {
+        Args: { _opportunity_id: string }
+        Returns: boolean
+      }
       can_read_account: { Args: { _account_id: string }; Returns: boolean }
+      can_read_approval_instance: {
+        Args: { _instance_id: string }
+        Returns: boolean
+      }
       can_write_account: { Args: { _account_id: string }; Returns: boolean }
       check_ai_caps: {
         Args: { p_estimated_cost: number; p_user_id: string }
@@ -2628,6 +2708,14 @@ export type Database = {
         Args: { _user_id: string }
         Returns: undefined
       }
+      record_approval_decision: {
+        Args: {
+          _comment?: string
+          _decision: Database["public"]["Enums"]["approval_decision_type"]
+          _step_id: string
+        }
+        Returns: undefined
+      }
       replace_account_tax_ids: {
         Args: { _account_id: string; _tax_ids: Json }
         Returns: undefined
@@ -2635,6 +2723,10 @@ export type Database = {
       replace_revenue_schedule: {
         Args: { _opportunity_id: string; _rows: Json }
         Returns: undefined
+      }
+      submit_opportunity_for_approval: {
+        Args: { _opportunity_id: string }
+        Returns: string
       }
       user_is_step_approver_for_instance: {
         Args: { _instance_id: string; _user_id: string }

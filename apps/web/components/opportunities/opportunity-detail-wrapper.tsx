@@ -21,6 +21,7 @@ import { OpportunitySplitsEditor } from "@/components/opportunities/opportunity-
 import { OpportunityTeamEditor } from "@/components/opportunities/opportunity-team-editor"
 import { StageHistoryTimeline } from "@/components/opportunities/stage-history-timeline"
 import { ApprovalHistory } from "@/components/opportunities/approval-history"
+import { ApprovalDecisionBox } from "@/components/opportunities/approval-decision-box"
 import type { EntityOption } from "@/components/entity-combobox"
 import type {
   OpportunityRecord,
@@ -67,6 +68,10 @@ interface OpportunityDetailWrapperProps {
   userOptions?: UserOption[]
   approvals?: ApprovalInstanceRecord[]
   approvalStatus?: string
+  canSubmitApproval?: boolean
+  actionableStepId?: string | null
+  submitApprovalAction?: (opportunityId: string) => Promise<void>
+  recordDecisionAction?: (opportunityId: string, input: { stepId: string; decision: "approved" | "rejected"; comment?: string }) => Promise<void>
   updateSplitsAction?: (id: string, input: unknown) => Promise<void>
   updateTeamAction?: (id: string, input: unknown) => Promise<void>
 }
@@ -158,11 +163,41 @@ export function OpportunityDetailWrapper({
   userOptions = [],
   approvals = [],
   approvalStatus = "Not submitted",
+  canSubmitApproval = false,
+  actionableStepId = null,
+  submitApprovalAction,
+  recordDecisionAction,
   updateSplitsAction,
   updateTeamAction,
 }: OpportunityDetailWrapperProps) {
   const router = useRouter()
   const [updatingStage, setUpdatingStage] = useState(false)
+  const [approvalPending, setApprovalPending] = useState(false)
+
+  const handleSubmitApproval = useCallback(async () => {
+    if (!submitApprovalAction) return
+    setApprovalPending(true)
+    try {
+      await submitApprovalAction(opportunity.id)
+      router.refresh()
+    } finally {
+      setApprovalPending(false)
+    }
+  }, [submitApprovalAction, opportunity.id, router])
+
+  const handleDecision = useCallback(
+    async (stepId: string, decision: "approved" | "rejected", comment: string) => {
+      if (!recordDecisionAction) return
+      setApprovalPending(true)
+      try {
+        await recordDecisionAction(opportunity.id, { stepId, decision, comment: comment || undefined })
+        router.refresh()
+      } finally {
+        setApprovalPending(false)
+      }
+    },
+    [recordDecisionAction, opportunity.id, router],
+  )
 
   const noteActivities = activities.filter((a) => a.type === "note")
   const callActivities = activities.filter((a) => a.type === "call")
@@ -248,10 +283,27 @@ export function OpportunityDetailWrapper({
               </Button>
             }
           />
-          <Button variant="outline" size="sm" disabled title="Coming soon">
-            <SendHorizontal className="size-4" />
-            Submit for Approval
-          </Button>
+          {canSubmitApproval ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSubmitApproval}
+              disabled={approvalPending}
+            >
+              <SendHorizontal className="size-4" />
+              {approvalPending ? "Submitting..." : "Submit for Approval"}
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              title={approvalStatus === "Pending" ? "Approval in progress" : "Not available"}
+            >
+              <SendHorizontal className="size-4" />
+              Submit for Approval
+            </Button>
+          )}
           <Button variant="outline" size="sm" disabled title="Coming soon">
             <Calendar className="size-4" />
             Set Revenue Schedule
@@ -477,6 +529,13 @@ export function OpportunityDetailWrapper({
             </CardHeader>
             <CardContent>
               <ApprovalHistory instances={approvals} />
+              {actionableStepId && recordDecisionAction && (
+                <ApprovalDecisionBox
+                  stepId={actionableStepId}
+                  pending={approvalPending}
+                  onDecide={handleDecision}
+                />
+              )}
             </CardContent>
           </Card>
 
