@@ -7,20 +7,24 @@
 
 BEGIN;
 
-SELECT plan(42);
+SELECT plan(46);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
 INSERT INTO auth.users (id, email, raw_user_meta_data)
 VALUES
   ('77777777-7777-7777-7777-777777777777', 'admin@nodwin.com', '{"full_name":"Admin User"}'),
-  ('88888888-8888-8888-8888-888888888888', 'rep@nodwin.com',   '{"full_name":"Sales Rep"}')
+  ('88888888-8888-8888-8888-888888888888', 'rep@nodwin.com',   '{"full_name":"Sales Rep"}'),
+  ('99999999-9999-9999-9999-999999999999', 'array_approver@nodwin.com', '{"full_name":"Array Approver"}'),
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'outsider@nodwin.com', '{"full_name":"Outsider"}')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.users (id, email, full_name, primary_role, primary_entity_id)
 VALUES
   ('77777777-7777-7777-7777-777777777777', 'admin@nodwin.com', 'Admin User', 'admin',     'e0000001-0001-0001-0001-000000000001'),
-  ('88888888-8888-8888-8888-888888888888', 'rep@nodwin.com',   'Sales Rep',  'sales_rep', 'e0000001-0001-0001-0001-000000000001')
+  ('88888888-8888-8888-8888-888888888888', 'rep@nodwin.com',   'Sales Rep',  'sales_rep', 'e0000001-0001-0001-0001-000000000001'),
+  ('99999999-9999-9999-9999-999999999999', 'array_approver@nodwin.com', 'Array Approver', 'sales_manager', 'e0000001-0001-0001-0001-000000000001'),
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'outsider@nodwin.com', 'Outsider', 'sales_rep', 'e0000001-0001-0001-0001-000000000001')
 ON CONFLICT (id) DO UPDATE SET
   full_name         = EXCLUDED.full_name,
   primary_role      = EXCLUDED.primary_role,
@@ -42,6 +46,10 @@ VALUES ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-1111111
 
 INSERT INTO public.approval_steps (id, instance_id, step_order, approver_user_ids, mode)
 VALUES ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 1, ARRAY['88888888-8888-8888-8888-888888888888']::uuid[], 'any_one');
+
+-- Isolation step: array_approver is in user_ids[] but NOT the instance triggerer
+INSERT INTO public.approval_steps (id, instance_id, step_order, approver_user_ids, mode)
+VALUES ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 2, ARRAY['99999999-9999-9999-9999-999999999999']::uuid[], 'any_one');
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 1. Schema — approval_step_mode enum exists
@@ -199,7 +207,42 @@ SELECT isnt_empty(
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 15. Constraint — duplicate step_order in same workflow is rejected
+-- 15. RLS isolation: user in approver_user_ids[] but NOT instance triggerer
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- array_approver (99999999) is in step dddddddd's approver_user_ids[] but is
+-- NOT the instance triggerer (that is rep@nodwin.com, 88888888). These tests
+-- prove the array-based RLS path works independently of triggerer/admin paths.
+
+-- 15a. Array-only approver can SELECT their step
+SELECT tests.as_user('array_approver@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.approval_steps WHERE id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'$$,
+  'array-only user can SELECT step (not triggerer)'
+);
+
+-- 15b. Array-only approver can SELECT the instance
+SELECT isnt_empty(
+  $$SELECT id FROM public.approval_instances WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'$$,
+  'array-only user can SELECT instance (not triggerer)'
+);
+
+-- 15c. Outsider cannot SELECT the step
+SELECT tests.as_user('outsider@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.approval_steps WHERE id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'$$,
+  'outsider cannot SELECT step (neither triggerer nor in array)'
+);
+
+-- 15d. Outsider cannot SELECT the instance
+SELECT is_empty(
+  $$SELECT id FROM public.approval_instances WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'$$,
+  'outsider cannot SELECT instance (neither triggerer nor in array)'
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 16. Constraint — duplicate step_order in same workflow is rejected
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 SELECT tests.as_user('admin@nodwin.com');
@@ -212,7 +255,7 @@ SELECT throws_ok(
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 16. Constraint — step with NULL approver AND NULL approver_user_ids is rejected
+-- 17. Constraint — step with NULL approver AND NULL approver_user_ids is rejected
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 SELECT tests.as_user('admin@nodwin.com');
