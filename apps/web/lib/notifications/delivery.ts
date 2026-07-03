@@ -193,35 +193,68 @@ export async function sendEmailNotification(
   }
 
   const email = (userData as { email: string }).email
+  await deliverEmail(email, subject, bodyHtml, bodyText)
+}
 
-  if (!env.RESEND_API_KEY) {
+// Send one email via the admin-configured transport (SMTP or Resend), falling
+// back to the RESEND_API_KEY env var if no active transport is configured, and
+// to log-only if nothing is set.
+async function deliverEmail(
+  to: string,
+  subject: string,
+  bodyHtml: string,
+  bodyText: string,
+): Promise<void> {
+  const { getEmailTransportForSending } = await import("../data/email-transport")
+  const transport = await getEmailTransportForSending()
+
+  const fromAddress = transport?.fromAddress || `notifications@${env.RESEND_DOMAIN ?? "crm.nodwin.com"}`
+  const fromName = transport?.fromName || "Nodwin CRM"
+  const from = `${fromName} <${fromAddress}>`
+
+  const provider = transport?.active ? transport.provider : "resend"
+
+  if (provider === "smtp" && transport?.smtpHost) {
+    const nodemailer = await import("nodemailer")
+    const smtp = nodemailer.createTransport({
+      host: transport.smtpHost,
+      port: transport.smtpPort ?? 587,
+      secure: transport.smtpSecure,
+      auth: transport.smtpUsername
+        ? { user: transport.smtpUsername, pass: transport.smtpPassword ?? "" }
+        : undefined,
+    })
+    await smtp.sendMail({ from, to, subject, html: bodyHtml, text: bodyText })
+    return
+  }
+
+  const apiKey = transport?.resendApiKey || env.RESEND_API_KEY
+  if (!apiKey) {
     console.warn(
-      "[notifications] RESEND_API_KEY not configured; email notification queued as log only",
+      "[notifications] no email transport configured (no SMTP host, no Resend key); email is log-only",
     )
     return
   }
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: `Nodwin CRM <notifications@${env.RESEND_DOMAIN ?? "crm.nodwin.com"}>`,
-      to: [email],
-      subject,
-      html: bodyHtml,
-      text: bodyText,
-    }),
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from, to: [to], subject, html: bodyHtml, text: bodyText }),
   })
-
   if (!response.ok) {
     const errorBody = await response.text()
-    throw new Error(
-      `Failed to send email notification via Resend: ${response.status} ${errorBody}`,
-    )
+    throw new Error(`Failed to send email via Resend: ${response.status} ${errorBody}`)
   }
+}
+
+// Send a test email to verify the configured transport (admin "send test" button).
+export async function sendTestEmail(toEmail: string): Promise<void> {
+  await deliverEmail(
+    toEmail,
+    "Nodwin CRM — test email",
+    "<p>This is a test email from Nodwin CRM. Your email transport is working. ✅</p>",
+    "This is a test email from Nodwin CRM. Your email transport is working.",
+  )
 }
 
 export async function sendSlackNotification(
