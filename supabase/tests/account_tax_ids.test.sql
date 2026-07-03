@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(20);
+SELECT plan(22);
 
 INSERT INTO auth.users (id, email, raw_user_meta_data)
 VALUES
@@ -201,6 +201,31 @@ UPDATE public.accounts SET custom_data = custom_data || '{"tax_trn_mena":"100000
 SELECT is(
   (SELECT count(*)::int FROM public.account_tax_ids WHERE account_id = 'acc00003-0003-0003-0003-000000000003' AND tax_type = 'AE_TRN'),
   0, 'tax_trn_mena is not auto-mapped to AE_TRN'
+);
+
+-- ── #149: SELECT mirrors the parent READ rule (soft-deleted account) ─────────
+-- Account A still holds one tax id (IN_PAN 'AAAAA2222A' from the RPC replace).
+-- Soft-delete it, then the owner must no longer see its tax ids (read mirrors
+-- accounts_select_scoped), while admin still can.
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+UPDATE public.accounts SET deleted_at = now()
+  WHERE id = 'aca00001-0001-0001-0001-000000000001';
+
+-- 20. Owner can no longer read a soft-deleted account's tax ids.
+SELECT tests.as_user('owner@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.account_tax_ids WHERE account_id = 'aca00001-0001-0001-0001-000000000001'$$,
+  'owner cannot read tax ids of a soft-deleted account (SELECT mirrors parent read)'
+);
+
+-- 21. Admin still reads a soft-deleted account's tax ids.
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.account_tax_ids WHERE account_id = 'aca00001-0001-0001-0001-000000000001'$$,
+  'admin still reads tax ids of a soft-deleted account'
 );
 
 SELECT * FROM finish();
