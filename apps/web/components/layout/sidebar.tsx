@@ -55,6 +55,7 @@ const navigation = [
 
 const adminItems = [
   { name: "Organisation", href: "/admin/organisation", icon: Landmark },
+  { name: "Users & Roles", href: "/admin/users", icon: Users },
   { name: "Custom Fields", href: "/admin/field-definitions", icon: Sliders },
   { name: "Entities", href: "/admin/entities", icon: Globe },
   { name: "Business Units", href: "/admin/business-units", icon: Briefcase },
