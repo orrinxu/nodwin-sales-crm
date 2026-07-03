@@ -102,6 +102,36 @@ describe("updateOpportunity", () => {
     expect(mockUpdate).toHaveBeenCalledWith({ stage: "closed_won" })
   })
 
+  it("blocks BULK Closed Won when an opp lacks an approved approval (3c gate)", async () => {
+    const updateIn = vi.fn().mockResolvedValue({ error: null })
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [{ id: "opp-1", stage: "negotiate" }], error: null }) }),
+      update: vi.fn().mockReturnValue({ in: updateIn }),
+    })
+    mockRpc.mockResolvedValue({ data: false, error: null })
+
+    const { bulkUpdateOpportunityStage } = await import("../opportunities")
+    await expect(
+      bulkUpdateOpportunityStage(defaultCtx, { ids: ["opp-1"], stage: "closed_won" }),
+    ).rejects.toThrow("approved approval")
+    expect(updateIn).not.toHaveBeenCalled()
+  })
+
+  it("allows BULK Closed Won when all opps are approved (3c gate)", async () => {
+    const updateIn = vi.fn().mockResolvedValue({ error: null })
+    const updateFn = vi.fn().mockReturnValue({ in: updateIn })
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [{ id: "opp-1", stage: "negotiate" }], error: null }) }),
+      update: updateFn,
+    })
+    mockRpc.mockResolvedValue({ data: true, error: null })
+
+    const { bulkUpdateOpportunityStage } = await import("../opportunities")
+    await bulkUpdateOpportunityStage(defaultCtx, { ids: ["opp-1"], stage: "closed_won" })
+    expect(updateFn).toHaveBeenCalledWith({ stage: "closed_won" })
+    expect(updateIn).toHaveBeenCalledWith("id", ["opp-1"])
+  })
+
   it("updates multiple fields", async () => {
     mockSingle
       .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })

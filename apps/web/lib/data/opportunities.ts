@@ -650,6 +650,21 @@ export async function bulkUpdateOpportunityStage(
   const parsed = bulkStageUpdateSchema.parse(input)
   const supabase = await createServerClient()
 
+  // 3c gate: bulk-moving opportunities to Closed Won requires each transitioning
+  // opp to have an approved approval. Fail closed BEFORE any write.
+  if (parsed.stage === "closed_won") {
+    const { data: rows, error: fetchError } = await supabase
+      .from("opportunities")
+      .select("id, stage")
+      .in("id", parsed.ids)
+    if (fetchError) {
+      throw new Error(`Failed to load opportunities for bulk stage update: ${fetchError.message}`)
+    }
+    for (const row of (rows ?? []) as { id: string; stage: string }[]) {
+      await assertClosedWonApprovalGate(supabase, row.id, row.stage, "closed_won")
+    }
+  }
+
   const { error } = await supabase
     .from("opportunities")
     .update({ stage: parsed.stage })
