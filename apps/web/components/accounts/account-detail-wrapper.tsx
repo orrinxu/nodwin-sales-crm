@@ -11,9 +11,10 @@ import { AccountForm } from "@/components/accounts/account-form"
 import { CustomFieldsDisplay } from "@/components/contacts/custom-fields-display"
 import { ActivityComposer } from "@/components/opportunities/activity-composer"
 import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
+import { RelationshipTree } from "@/components/accounts/relationship-tree"
 import { getStageLabel } from "@/lib/data/opportunities.types"
 import { Money } from "@/lib/money"
-import type { AccountRecord, AccountUpdateInput, AccountRelationship, AccountOpportunity, AccountDocument, AccountRelationshipKind } from "@/lib/data/accounts"
+import type { AccountRecord, AccountUpdateInput, AccountRelationshipGraph, AccountOpportunity, AccountDocument, AccountRelationshipKind } from "@/lib/data/accounts"
 import type { ActivityRecord } from "@/lib/data/activities"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import type { EntityOption } from "@/components/entity-combobox"
@@ -21,7 +22,7 @@ import type { EntityOption } from "@/components/entity-combobox"
 interface AccountDetailWrapperProps {
   account: AccountRecord
   fieldDefinitions: FieldDefinition[]
-  relationships: AccountRelationship[]
+  relationshipGraph: AccountRelationshipGraph | null
   contacts: { id: string; fullName: string; title: string | null; email: string | null }[]
   opportunities: AccountOpportunity[]
   documents: AccountDocument[]
@@ -36,18 +37,10 @@ interface AccountDetailWrapperProps {
   saveRelationshipAction?: (data: { parentAccountId: string; kind: AccountRelationshipKind }) => Promise<void>
 }
 
-const RELATIONSHIP_LABELS: Record<string, string> = {
-  subsidiary_of: "Subsidiary of",
-  procurement_via: "Procurement via",
-  partner_with: "Partner with",
-  parent_of: "Parent of",
-  sister_company: "Sister company",
-}
-
 export function AccountDetailWrapper({
   account,
   fieldDefinitions,
-  relationships,
+  relationshipGraph,
   contacts,
   opportunities,
   documents,
@@ -62,6 +55,8 @@ export function AccountDetailWrapper({
   saveRelationshipAction,
 }: AccountDetailWrapperProps) {
   const router = useRouter()
+
+  const hasRelationships = (relationshipGraph?.root.children.length ?? 0) > 0
 
   const formattedWebsite = account.website
     ? (() => {
@@ -357,37 +352,9 @@ export function AccountDetailWrapper({
           </Card>
         )}
 
-        {relationships.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Related Accounts ({relationships.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="divide-y divide-border">
-                {relationships.map((rel) => (
-                  <div
-                    key={rel.id}
-                    className="flex items-center justify-between py-2 first:pt-0 last:pb-0"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        {RELATIONSHIP_LABELS[rel.kind] ?? rel.kind}
-                      </Badge>
-                      <span className="text-sm">{rel.toAccountName}</span>
-                    </div>
-                    {rel.notes && (
-                      <span className="text-xs text-muted-foreground max-w-[40%] truncate">
-                        {rel.notes}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {hasRelationships && <RelationshipTree graph={relationshipGraph} />}
 
-        {contacts.length === 0 && opportunities.length === 0 && documents.length === 0 && relationships.length === 0 && (
+        {contacts.length === 0 && opportunities.length === 0 && documents.length === 0 && !hasRelationships && (
           <Card>
             <CardContent className="py-6">
               <p className="text-center text-sm text-muted-foreground">
