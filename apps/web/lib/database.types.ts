@@ -2245,6 +2245,83 @@ export type Database = {
           },
         ]
       }
+      user_preferences: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          date_format: string
+          display_currency: string | null
+          entry_currency_default: string | null
+          id: string
+          job_title: string | null
+          number_format: string
+          theme: string
+          timezone: string | null
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          date_format?: string
+          display_currency?: string | null
+          entry_currency_default?: string | null
+          id?: string
+          job_title?: string | null
+          number_format?: string
+          theme?: string
+          timezone?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          date_format?: string
+          display_currency?: string | null
+          entry_currency_default?: string | null
+          id?: string
+          job_title?: string | null
+          number_format?: string
+          theme?: string
+          timezone?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_preferences_display_currency_fkey"
+            columns: ["display_currency"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "user_preferences_entry_currency_default_fkey"
+            columns: ["entry_currency_default"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "user_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "ai_usage_daily_rollup"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "user_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           active: boolean

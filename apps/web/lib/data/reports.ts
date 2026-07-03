@@ -3,7 +3,7 @@ import { createServerClient } from "@/lib/supabase/server"
 import { DEAL_STAGES, isTerminalStage } from "@/lib/opportunity"
 import type { DealStage } from "@/lib/opportunity"
 import { getStageLabel } from "@/lib/data/opportunities.types"
-import { getReportingCurrency, fetchAndConvert } from "@/lib/data/metrics"
+import { fetchAndConvert, resolveReportingCurrency, type DashboardContext } from "@/lib/data/metrics"
 
 export interface PipelineByStage {
   stage: string
@@ -57,7 +57,7 @@ export interface PipelineSummary {
   totalCount: number
 }
 
-export async function getReportData(): Promise<ReportData> {
+export async function getReportData(ctx: DashboardContext): Promise<ReportData> {
   const supabase = await createServerClient()
 
   const { data: opportunities, error } = await supabase
@@ -79,7 +79,7 @@ export async function getReportData(): Promise<ReportData> {
     throw new Error(`Failed to load report data: ${error.message}`)
   }
 
-  const reportingCurrency = getReportingCurrency()
+  const reportingCurrency = await resolveReportingCurrency(ctx)
   const raw = (opportunities ?? []) as unknown as Array<{
     id: string
     name: string

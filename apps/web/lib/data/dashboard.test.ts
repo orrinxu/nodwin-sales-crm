@@ -61,6 +61,14 @@ function buildQuery(returnData: unknown[] | null, error?: { message: string }) {
     if (table === "currencies") {
       return { select: mockCurrenciesSelect }
     }
+    if (table === "user_preferences") {
+      // getDisplayCurrency: no row → reporting currency falls back to USD.
+      return {
+        select: () => ({
+          eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+        }),
+      }
+    }
     return { select: mockSelect }
   })
 }
@@ -75,6 +83,14 @@ function buildOrderLimitQuery(returnData: unknown[] | null, error?: { message: s
   mockFrom.mockImplementation((table: string) => {
     if (table === "currencies") {
       return { select: mockCurrenciesSelect }
+    }
+    if (table === "user_preferences") {
+      // getDisplayCurrency: no row → reporting currency falls back to USD.
+      return {
+        select: () => ({
+          eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+        }),
+      }
     }
     return { select: mockSelect }
   })

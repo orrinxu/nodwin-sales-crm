@@ -7,6 +7,12 @@ const mockSelect = vi.fn()
 const mockOrder = vi.fn()
 const mockLimit = vi.fn()
 const mockIn = vi.fn()
+const mockEq = vi.fn()
+const mockMaybeSingle = vi.fn()
+
+// Any authenticated user; getReportData now resolves the reporting currency
+// from this user's display_currency preference (defaults to USD when unset).
+const ctx = { user: { id: "u1", email: "u1@nodwin.com", role: "admin" }, source: "web" as const }
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(() => ({
@@ -21,12 +27,16 @@ function buildQueryBuilder() {
   mockSelect.mockReturnValue({
     order: mockOrder,
     in: mockIn,
+    eq: mockEq,
   })
   mockOrder.mockReturnValue({
     limit: mockLimit,
   })
   mockLimit.mockResolvedValue({ data: [], error: null })
   mockIn.mockResolvedValue({ data: [], error: null })
+  // user_preferences lookup (getDisplayCurrency) → no row → fall back to USD.
+  mockEq.mockReturnValue({ maybeSingle: mockMaybeSingle })
+  mockMaybeSingle.mockResolvedValue({ data: null, error: null })
   return { select: mockSelect, order: mockOrder, limit: mockLimit, in: mockIn }
 }
 
@@ -57,7 +67,7 @@ describe("getReportData", () => {
     })
 
     const { getReportData } = await import("../reports")
-    const result = await getReportData()
+    const result = await getReportData(ctx)
 
     expect(result.pipelineByStage).toHaveLength(5)
     const qualify = result.pipelineByStage.find((s) => s.stage === "qualify")
@@ -77,7 +87,7 @@ describe("getReportData", () => {
     mockLimit.mockResolvedValue({ data: [], error: null })
 
     const { getReportData } = await import("../reports")
-    const result = await getReportData()
+    const result = await getReportData(ctx)
 
     expect(result.pipelineByStage).toHaveLength(5)
     expect(result.totalPipeline).toBe(0)
@@ -109,7 +119,7 @@ describe("getReportData", () => {
     })
 
     const { getReportData } = await import("../reports")
-    const result = await getReportData()
+    const result = await getReportData(ctx)
 
     expect(result.winRate).toBe(33)
     expect(result.totalWon).toBe(50000)
@@ -136,7 +146,7 @@ describe("getReportData", () => {
     })
 
     const { getReportData } = await import("../reports")
-    const result = await getReportData()
+    const result = await getReportData(ctx)
 
     expect(result.topAccounts[0].name).toBe("Acme")
     expect(result.topAccounts[0].amount).toBe(130000)
