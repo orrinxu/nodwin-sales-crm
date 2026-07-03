@@ -45,6 +45,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   group_sales_lead: "Group Sales Lead",
   finance: "Finance",
   ops: "Ops",
+  entity_admin: "Entity Admin",
   admin: "Admin",
   exec: "Exec",
   external_partner: "External Partner",

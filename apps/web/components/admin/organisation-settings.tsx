@@ -39,6 +39,8 @@ interface OrganisationSettingsProps {
   currencies: CurrencyOption[]
   entities: EntityOption[]
   defaultCurrency: string
+  // Super Admin only — an Entity Admin sees the group default read-only.
+  canEditGroupDefault: boolean
   setGroupAction: (input: { currencyCode: string | null }) => Promise<void>
   setEntityAction: (input: { entityId: string; currencyCode: string }) => Promise<void>
   removeEntityAction: (entityId: string) => Promise<void>
@@ -57,6 +59,7 @@ export function OrganisationSettings({
   currencies,
   entities,
   defaultCurrency,
+  canEditGroupDefault,
   setGroupAction,
   setEntityAction,
   removeEntityAction,
@@ -145,22 +148,29 @@ export function OrganisationSettings({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Group-wide default */}
+          {/* Group-wide default — Super Admin edits; Entity Admin sees it read-only. */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Group default</label>
-            <div className="flex flex-wrap items-center gap-2">
-              <Select value={groupValue} onValueChange={(v) => setGroupValue(v ?? GROUP_UNSET)}>
-                <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={GROUP_UNSET}>Not set — defaults to {defaultCurrency}</SelectItem>
-                  {currencies.map((c) => (
-                    <SelectItem key={c.code} value={c.code}>{c.code} — {c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button size="sm" onClick={saveGroup} disabled={groupState === "saving"}>Save</Button>
-              <Saved state={groupState} />
-            </div>
+            {canEditGroupDefault ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={groupValue} onValueChange={(v) => setGroupValue(v ?? GROUP_UNSET)}>
+                  <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={GROUP_UNSET}>Not set — defaults to {defaultCurrency}</SelectItem>
+                    {currencies.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>{c.code} — {c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" onClick={saveGroup} disabled={groupState === "saving"}>Save</Button>
+                <Saved state={groupState} />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {overview.groupDefault ?? defaultCurrency}{" "}
+                <span className="text-xs">(set by a group admin)</span>
+              </p>
+            )}
           </div>
 
           {/* Per-entity overrides */}

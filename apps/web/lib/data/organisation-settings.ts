@@ -109,7 +109,22 @@ export async function resolveOrgReportingCurrency(
   return (group?.currency_code as string) ?? DEFAULT_REPORTING_CURRENCY
 }
 
-// ── Writes (Super Admin only via RLS; entity-scoped writes land in a later ticket) ──
+// The caller's own entity (used to scope an Entity Admin's view to their entity).
+export async function getCurrentUserEntityId(
+  ctx: OrgSettingsCallContext,
+): Promise<string | null> {
+  const supabase = await createServerClient()
+  const { data } = await supabase
+    .from("users")
+    .select("primary_entity_id")
+    .eq("id", ctx.user.id)
+    .maybeSingle()
+  return (data?.primary_entity_id as string) ?? null
+}
+
+// ── Writes: Super Admin any row (incl. group-wide); Entity Admin own entity only ──
+// (enforced by reporting_currency_settings RLS — see 20260703210000). Group-wide
+// mutations are additionally gated to Super Admin at the action layer.
 
 // Manual upsert of the single group-wide row (entity_id IS NULL). A partial
 // unique index guarantees at most one such row; onConflict can't target a
