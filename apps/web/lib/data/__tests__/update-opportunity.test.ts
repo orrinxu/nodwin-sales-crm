@@ -264,6 +264,7 @@ describe("updateOpportunity", () => {
 describe("enforce_gate (Phase 4)", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.resetModules()
     buildQueryBuilder()
     mockFrom.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder, update: mockUpdate })
     mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
