@@ -225,6 +225,78 @@ export async function cancelApprovalInstance(
   }
 }
 
+// Notify whoever now owns the current pending step of an opportunity's approval
+// (after a submit, an advance, or a reassignment). Resolves the approver: a named
+// user directly, or — for a role step — every holder of that role in the
+// opportunity's business entity (the firewalled set). Best-effort; never throws.
+export async function notifyCurrentApprover(opportunityId: string): Promise<void> {
+  try {
+    const supabase = await createServerClient()
+
+    const { data: inst } = await supabase
+      .from("approval_instances")
+      .select("id, business_entity_id, status")
+      .eq("entity_type", "opportunity")
+      .eq("entity_id", opportunityId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const instance = inst as { id: string; business_entity_id: string | null; status: string } | null
+    if (!instance || instance.status !== "pending") return
+
+    const { data: steps } = await supabase
+      .from("approval_steps")
+      .select("step_order, approver_user_id, approver_role, status")
+      .eq("instance_id", instance.id)
+      .order("step_order", { ascending: true })
+
+    const stepRows = (steps ?? []) as { step_order: number; approver_user_id: string | null; approver_role: string | null; status: string }[]
+    if (stepRows.length === 0) return
+    const current = stepRows.find((s) => s.status === "pending")
+    if (!current) return
+
+    const { data: opp } = await supabase
+      .from("opportunities")
+      .select("name")
+      .eq("id", opportunityId)
+      .maybeSingle()
+    const opportunityName = (opp as { name: string } | null)?.name ?? "Opportunity"
+
+    let approverIds: string[] = []
+    if (current.approver_user_id) {
+      approverIds = [current.approver_user_id]
+    } else if (current.approver_role && instance.business_entity_id) {
+      const { data: holders } = await supabase
+        .from("users")
+        .select("id")
+        .eq("primary_role", current.approver_role as never)
+        .eq("primary_entity_id", instance.business_entity_id)
+      approverIds = ((holders ?? []) as { id: string }[]).map((h) => h.id)
+    }
+
+    if (approverIds.length === 0) return
+
+    const { notifyApprovalRequested } = await import("../notifications/triggers")
+    await Promise.allSettled(
+      approverIds.map((id) =>
+        notifyApprovalRequested({
+          approverUserId: id,
+          opportunityName,
+          opportunityId,
+          stepNumber: current.step_order,
+          totalSteps: stepRows.length,
+          entityId: instance.business_entity_id ?? undefined,
+        }),
+      ),
+    )
+  } catch (err) {
+    console.error(
+      `[approvals] notifyCurrentApprover failed: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
+}
+
 export interface ApprovalActionState {
   // May the current user submit this opportunity for approval right now?
   canSubmit: boolean
