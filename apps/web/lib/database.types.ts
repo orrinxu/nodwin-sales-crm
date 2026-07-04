@@ -2981,6 +2981,27 @@ export type Database = {
         Args: { _steps: Json; _workflow_id: string }
         Returns: undefined
       }
+      search_document_chunks: {
+        Args: {
+          _match_count?: number
+          _min_similarity?: number
+          _model: string
+          _query: string
+        }
+        Returns: {
+          account_id: string
+          category: Database["public"]["Enums"]["document_category"]
+          chunk_index: number
+          content: string
+          document_id: string
+          drive_file_id: string
+          id: string
+          opportunity_id: string
+          page_ref: string
+          similarity: number
+          visibility_tier: Database["public"]["Enums"]["visibility_tier"]
+        }[]
+      }
       submit_opportunity_for_approval: {
         Args: { _opportunity_id: string }
         Returns: string
