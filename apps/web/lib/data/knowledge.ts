@@ -1,6 +1,7 @@
 import "server-only"
 import { createServerClient } from "@/lib/supabase/server"
 import { createEmbedder, type Embedder } from "@/lib/ai/embeddings"
+import { generateAnswer, type RagAnswer, type RagDeps } from "@/lib/ai/rag"
 import type { Database } from "@/lib/database.types"
 
 // ORR-621 cross-deal knowledge retrieval (READ-ONLY over the ORR-620 index).
@@ -96,4 +97,24 @@ export async function search(
   }))
 
   return { chunks, model }
+}
+
+export interface KnowledgeAnswer extends RagAnswer {
+  /** The embedding model the query + chunks were matched on (provenance). */
+  embeddingModel: string | null
+}
+
+/**
+ * Full RAG turn: tier-filtered retrieval → grounded, cited answer. The tier
+ * filter runs in the DB (see `search`); generation is self-hosted and refuses
+ * to answer when the filtered set is empty.
+ */
+export async function answer(
+  ctx: KnowledgeCallContext,
+  input: KnowledgeSearchInput,
+  deps: { embedder?: Embedder } & RagDeps = {},
+): Promise<KnowledgeAnswer> {
+  const { chunks, model } = await search(ctx, input, deps)
+  const generated = await generateAnswer(ctx.user.id, input.query, chunks, deps)
+  return { ...generated, embeddingModel: model }
 }
