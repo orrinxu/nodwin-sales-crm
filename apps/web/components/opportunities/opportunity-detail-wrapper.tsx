@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Pencil, SendHorizontal, Calendar, GitBranch, FolderOpen, Mail, TriangleAlert } from "lucide-react"
+import { Pencil, SendHorizontal, Calendar, FolderOpen, Mail, TriangleAlert } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -344,10 +344,6 @@ export function OpportunityDetailWrapper({
           <Button variant="outline" size="sm" disabled title="Coming soon">
             <Calendar className="size-4" />
             Set Revenue Schedule
-          </Button>
-          <Button variant="outline" size="sm" disabled title="Coming soon">
-            <GitBranch className="size-4" />
-            Create Jira Issue
           </Button>
         </div>
       </div>

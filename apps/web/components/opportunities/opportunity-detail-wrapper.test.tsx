@@ -356,7 +356,6 @@ describe("OpportunityDetailWrapper", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
       expect(screen.getByText("Submit for Approval")).toBeDisabled()
       expect(screen.getByText("Set Revenue Schedule")).toBeDisabled()
-      expect(screen.getByText("Create Jira Issue")).toBeDisabled()
     })
 
     it("enables Submit for Approval when the user may submit", () => {
