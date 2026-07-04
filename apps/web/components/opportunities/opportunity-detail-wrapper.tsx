@@ -72,7 +72,7 @@ interface OpportunityDetailWrapperProps {
   pendingApprovalInstanceId?: string | null
   canAdminApprovals?: boolean
   submitApprovalAction?: (opportunityId: string) => Promise<void>
-  recordDecisionAction?: (opportunityId: string, input: { stepId: string; decision: "approved" | "rejected"; comment?: string }) => Promise<void>
+  recordDecisionAction?: (opportunityId: string, input: { stepId: string; decision: "approved" | "rejected" | "skipped"; comment?: string }) => Promise<void>
   reassignApprovalAction?: (opportunityId: string, input: { stepId: string; newUserId: string }) => Promise<void>
   cancelApprovalAction?: (opportunityId: string, instanceId: string) => Promise<void>
   updateSplitsAction?: (id: string, input: unknown) => Promise<void>
@@ -195,7 +195,7 @@ export function OpportunityDetailWrapper({
   }, [submitApprovalAction, opportunity.id, router])
 
   const handleDecision = useCallback(
-    async (stepId: string, decision: "approved" | "rejected", comment: string) => {
+    async (stepId: string, decision: "approved" | "rejected" | "skipped", comment: string) => {
       if (!recordDecisionAction) return
       setApprovalPending(true)
       try {

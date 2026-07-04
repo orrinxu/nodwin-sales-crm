@@ -24,6 +24,10 @@ const approvedInstance: ApprovalInstanceRecord = {
       approverRole: null,
       approverUserId: null,
       approverName: "Alice Admin",
+      approverUserIds: null,
+      approverNames: null,
+      mode: null,
+      name: null,
       status: "approved",
       dueBy: null,
       decisions: [
@@ -35,6 +39,30 @@ const approvedInstance: ApprovalInstanceRecord = {
           decidedByName: "Alice Admin",
         },
       ],
+    },
+  ],
+}
+
+const multiApproverInstance: ApprovalInstanceRecord = {
+  id: "inst-2",
+  workflowName: "Multi-step Workflow",
+  status: "pending",
+  triggeredByName: "Bob Owner",
+  createdAt: "2026-06-10T00:00:00Z",
+  steps: [
+    {
+      id: "step-1",
+      stepOrder: 0,
+      approverRole: null,
+      approverUserId: null,
+      approverName: null,
+      approverUserIds: ["u-1", "u-2"],
+      approverNames: ["Jane Doe", "Ravi Kumar"],
+      mode: "any_one",
+      name: "Initial Review",
+      status: "pending",
+      dueBy: null,
+      decisions: [],
     },
   ],
 }
@@ -118,6 +146,7 @@ describe("ApprovalCard", () => {
     expect(screen.getByText("This approval is waiting on you.")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument()
   })
 
   it("shows ApprovalAdminControls when canAdmin and pendingInstanceId are set", () => {
@@ -203,5 +232,26 @@ describe("ApprovalCard", () => {
       expect(screen.getByText(status)).toBeInTheDocument()
       unmount()
     }
+  })
+
+  it("renders multi-approver instance step display", () => {
+    render(
+      <ApprovalCard
+        approvals={[multiApproverInstance]}
+        approvalStatus="Pending"
+        actionableStepId={null}
+        pendingInstanceId={null}
+        canAdmin={false}
+        userOptions={[]}
+        pending={false}
+        onDecide={vi.fn()}
+        onReassign={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(screen.getByText("Multi-step Workflow")).toBeInTheDocument()
+    expect(screen.getByText("Initial Review")).toBeInTheDocument()
+    expect(screen.getByText("Jane Doe, Ravi Kumar")).toBeInTheDocument()
+    expect(screen.getByText("Any one")).toBeInTheDocument()
   })
 })

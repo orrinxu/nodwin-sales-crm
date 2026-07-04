@@ -1,13 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { Check, X } from "lucide-react"
+import { Check, SkipForward, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 interface ApprovalDecisionBoxProps {
   stepId: string
   pending: boolean
-  onDecide: (stepId: string, decision: "approved" | "rejected", comment: string) => void
+  onDecide: (stepId: string, decision: "approved" | "rejected" | "skipped", comment: string) => void
 }
 
 // Shown to the approver whose turn it is on the current pending step.
@@ -32,6 +32,10 @@ export function ApprovalDecisionBox({ stepId, pending, onDecide }: ApprovalDecis
         <Button size="sm" variant="outline" onClick={() => onDecide(stepId, "rejected", comment)} disabled={pending}>
           <X className="size-4" />
           Reject
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => onDecide(stepId, "skipped", comment)} disabled={pending}>
+          <SkipForward className="size-4" />
+          Skip
         </Button>
       </div>
     </div>

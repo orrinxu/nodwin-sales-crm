@@ -16,7 +16,7 @@ interface ApprovalCardProps {
   canAdmin: boolean
   userOptions: UserOption[]
   pending: boolean
-  onDecide: (stepId: string, decision: "approved" | "rejected", comment: string) => void
+  onDecide: (stepId: string, decision: "approved" | "rejected" | "skipped", comment: string) => void
   onReassign: (stepId: string, userId: string) => void
   onCancel: (instanceId: string) => void
 }
