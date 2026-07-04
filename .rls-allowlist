@@ -106,6 +106,12 @@
 # org-level config tables. SELECT for all authenticated, write for admin.
 .*admin_b_users_roles_access.*:USING \(true\)
 
+# ── ai_settings ────────────────────────────────────────────────────────────────
+# AI settings is a per-entity configuration table. All authenticated users need
+# read access to discover AI configuration (provider, model, features). Write
+# access is admin-only.
+.*ai_settings.*:USING \(true\)
+
 # ── data_management ────────────────────────────────────────────────────────────
 # finance_export_config is a per-entity configuration table. All authenticated
 # users need read access to discover export configuration. Write is admin-only.
