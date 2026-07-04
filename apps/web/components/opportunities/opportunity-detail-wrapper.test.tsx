@@ -229,7 +229,7 @@ describe("OpportunityDetailWrapper", () => {
       expect(screen.getByRole("tab", { name: "Files" })).toBeInTheDocument()
       expect(screen.getByRole("tab", { name: "Email" })).toBeInTheDocument()
       // Related cards
-      expect(screen.getByText("Approval History")).toBeInTheDocument()
+      expect(screen.getByText("Approval")).toBeInTheDocument()
       expect(screen.getByText("Opportunity Team")).toBeInTheDocument()
       expect(screen.getByText("Opportunity Splits")).toBeInTheDocument()
       expect(screen.getByText("Stage History")).toBeInTheDocument()
