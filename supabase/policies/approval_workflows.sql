@@ -173,15 +173,23 @@ CREATE POLICY "approval_decisions_insert_approver_or_admin"
   FOR INSERT
   TO authenticated
   WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.approval_steps
-      WHERE id = step_id
-        AND (
-          approver_user_id = auth.uid()
-          OR auth.uid() = ANY (COALESCE(approver_user_ids, ARRAY[]::uuid[]))
-        )
+    (SELECT status FROM public.approval_steps WHERE id = step_id) = 'pending'
+    AND (
+      EXISTS (
+        SELECT 1 FROM public.approval_steps
+        WHERE id = step_id
+          AND (
+            approver_user_id = auth.uid()
+            OR auth.uid() = ANY (COALESCE(approver_user_ids, ARRAY[]::uuid[]))
+          )
+      )
+      OR public.current_user_role() = 'admin'
     )
-    OR public.current_user_role() = 'admin'
+    AND NOT EXISTS (
+      SELECT 1 FROM public.approval_decisions d
+      WHERE d.step_id = step_id
+        AND d.decided_by_user_id = auth.uid()
+    )
   );
 
 DROP POLICY IF EXISTS "approval_decisions_update_admin" ON public.approval_decisions;
