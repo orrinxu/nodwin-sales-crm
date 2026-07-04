@@ -1071,6 +1071,108 @@ export type Database = {
         }
         Relationships: []
       }
+      document_chunks: {
+        Row: {
+          account_id: string | null
+          category: Database["public"]["Enums"]["document_category"] | null
+          chunk_index: number
+          content: string
+          created_at: string
+          created_by: string | null
+          document_id: string
+          drive_file_id: string
+          embedding: string | null
+          embedding_dim: number
+          embedding_model: string
+          id: string
+          ingested_at: string
+          opportunity_id: string | null
+          page_ref: string | null
+          updated_at: string
+          updated_by: string | null
+          uploaded_by: string | null
+          visibility_tier: Database["public"]["Enums"]["visibility_tier"]
+        }
+        Insert: {
+          account_id?: string | null
+          category?: Database["public"]["Enums"]["document_category"] | null
+          chunk_index: number
+          content: string
+          created_at?: string
+          created_by?: string | null
+          document_id: string
+          drive_file_id: string
+          embedding?: string | null
+          embedding_dim: number
+          embedding_model: string
+          id?: string
+          ingested_at?: string
+          opportunity_id?: string | null
+          page_ref?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          uploaded_by?: string | null
+          visibility_tier: Database["public"]["Enums"]["visibility_tier"]
+        }
+        Update: {
+          account_id?: string | null
+          category?: Database["public"]["Enums"]["document_category"] | null
+          chunk_index?: number
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          document_id?: string
+          drive_file_id?: string
+          embedding?: string | null
+          embedding_dim?: number
+          embedding_model?: string
+          id?: string
+          ingested_at?: string
+          opportunity_id?: string | null
+          page_ref?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          uploaded_by?: string | null
+          visibility_tier?: Database["public"]["Enums"]["visibility_tier"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_chunks_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_chunks_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_chunks_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "ai_usage_daily_rollup"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "document_chunks_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           account_id: string | null
@@ -1080,10 +1182,15 @@ export type Database = {
           drive_file_id: string
           drive_folder_id: string
           id: string
+          index_attempts: number
+          index_error: string | null
+          index_status: Database["public"]["Enums"]["document_index_status"]
+          indexed_at: string | null
           link_url: string | null
           mime_type: string
           name: string
           opportunity_id: string | null
+          reindex_requested_at: string | null
           updated_at: string
           updated_by: string | null
           uploaded_at: string
@@ -1097,10 +1204,15 @@ export type Database = {
           drive_file_id: string
           drive_folder_id: string
           id?: string
+          index_attempts?: number
+          index_error?: string | null
+          index_status?: Database["public"]["Enums"]["document_index_status"]
+          indexed_at?: string | null
           link_url?: string | null
           mime_type: string
           name: string
           opportunity_id?: string | null
+          reindex_requested_at?: string | null
           updated_at?: string
           updated_by?: string | null
           uploaded_at?: string
@@ -1114,10 +1226,15 @@ export type Database = {
           drive_file_id?: string
           drive_folder_id?: string
           id?: string
+          index_attempts?: number
+          index_error?: string | null
+          index_status?: Database["public"]["Enums"]["document_index_status"]
+          indexed_at?: string | null
           link_url?: string | null
           mime_type?: string
           name?: string
           opportunity_id?: string | null
+          reindex_requested_at?: string | null
           updated_at?: string
           updated_by?: string | null
           uploaded_at?: string
@@ -2929,6 +3046,7 @@ export type Database = {
         | "invoice"
         | "presentation"
         | "other"
+      document_index_status: "pending" | "indexed" | "failed"
       field_data_type:
         | "text"
         | "rich_text"
@@ -3171,6 +3289,7 @@ export const Constants = {
         "presentation",
         "other",
       ],
+      document_index_status: ["pending", "indexed", "failed"],
       field_data_type: [
         "text",
         "rich_text",
