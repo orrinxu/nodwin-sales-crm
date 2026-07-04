@@ -454,11 +454,14 @@ export type Database = {
           entity_id: string
           entity_type: string
           id: string
+          opportunity_id: string | null
           status: Database["public"]["Enums"]["approval_status"]
+          trigger_stage: Database["public"]["Enums"]["deal_stage"] | null
           triggered_by_user_id: string | null
           updated_at: string
           updated_by: string | null
           workflow_id: string
+          workflow_snapshot: Json | null
         }
         Insert: {
           business_entity_id?: string | null
@@ -467,11 +470,14 @@ export type Database = {
           entity_id: string
           entity_type: string
           id?: string
+          opportunity_id?: string | null
           status?: Database["public"]["Enums"]["approval_status"]
+          trigger_stage?: Database["public"]["Enums"]["deal_stage"] | null
           triggered_by_user_id?: string | null
           updated_at?: string
           updated_by?: string | null
           workflow_id: string
+          workflow_snapshot?: Json | null
         }
         Update: {
           business_entity_id?: string | null
@@ -480,11 +486,14 @@ export type Database = {
           entity_id?: string
           entity_type?: string
           id?: string
+          opportunity_id?: string | null
           status?: Database["public"]["Enums"]["approval_status"]
+          trigger_stage?: Database["public"]["Enums"]["deal_stage"] | null
           triggered_by_user_id?: string | null
           updated_at?: string
           updated_by?: string | null
           workflow_id?: string
+          workflow_snapshot?: Json | null
         }
         Relationships: [
           {
@@ -492,6 +501,13 @@ export type Database = {
             columns: ["business_entity_id"]
             isOneToOne: false
             referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "approval_instances_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
             referencedColumns: ["id"]
           },
           {
@@ -521,11 +537,13 @@ export type Database = {
         Row: {
           approver_role: Database["public"]["Enums"]["user_role"] | null
           approver_user_id: string | null
+          approver_user_ids: string[] | null
           created_at: string
           created_by: string | null
           due_by: string | null
           id: string
           instance_id: string
+          mode: Database["public"]["Enums"]["approval_step_mode"] | null
           status: Database["public"]["Enums"]["approval_step_status"]
           step_order: number
           updated_at: string
@@ -534,11 +552,13 @@ export type Database = {
         Insert: {
           approver_role?: Database["public"]["Enums"]["user_role"] | null
           approver_user_id?: string | null
+          approver_user_ids?: string[] | null
           created_at?: string
           created_by?: string | null
           due_by?: string | null
           id?: string
           instance_id: string
+          mode?: Database["public"]["Enums"]["approval_step_mode"] | null
           status?: Database["public"]["Enums"]["approval_step_status"]
           step_order: number
           updated_at?: string
@@ -547,11 +567,13 @@ export type Database = {
         Update: {
           approver_role?: Database["public"]["Enums"]["user_role"] | null
           approver_user_id?: string | null
+          approver_user_ids?: string[] | null
           created_at?: string
           created_by?: string | null
           due_by?: string | null
           id?: string
           instance_id?: string
+          mode?: Database["public"]["Enums"]["approval_step_mode"] | null
           status?: Database["public"]["Enums"]["approval_step_status"]
           step_order?: number
           updated_at?: string
@@ -627,9 +649,12 @@ export type Database = {
           approver_kind: string
           approver_role: Database["public"]["Enums"]["user_role"] | null
           approver_user_id: string | null
+          approver_user_ids: string[] | null
           created_at: string
           created_by: string | null
           id: string
+          mode: Database["public"]["Enums"]["approval_step_mode"] | null
+          name: string | null
           step_order: number
           updated_at: string
           updated_by: string | null
@@ -639,9 +664,12 @@ export type Database = {
           approver_kind?: string
           approver_role?: Database["public"]["Enums"]["user_role"] | null
           approver_user_id?: string | null
+          approver_user_ids?: string[] | null
           created_at?: string
           created_by?: string | null
           id?: string
+          mode?: Database["public"]["Enums"]["approval_step_mode"] | null
+          name?: string | null
           step_order: number
           updated_at?: string
           updated_by?: string | null
@@ -651,9 +679,12 @@ export type Database = {
           approver_kind?: string
           approver_role?: Database["public"]["Enums"]["user_role"] | null
           approver_user_id?: string | null
+          approver_user_ids?: string[] | null
           created_at?: string
           created_by?: string | null
           id?: string
+          mode?: Database["public"]["Enums"]["approval_step_mode"] | null
+          name?: string | null
           step_order?: number
           updated_at?: string
           updated_by?: string | null
@@ -686,41 +717,57 @@ export type Database = {
       approval_workflows: {
         Row: {
           active: boolean
+          applies_to_entity_id: string | null
           created_at: string
           created_by: string | null
           description: string | null
+          enforce_gate: boolean
           entity_id: string | null
           entity_type: string
           id: string
           name: string
+          trigger_stage: Database["public"]["Enums"]["deal_stage"] | null
           updated_at: string
           updated_by: string | null
         }
         Insert: {
           active?: boolean
+          applies_to_entity_id?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
+          enforce_gate?: boolean
           entity_id?: string | null
           entity_type: string
           id?: string
           name: string
+          trigger_stage?: Database["public"]["Enums"]["deal_stage"] | null
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
           active?: boolean
+          applies_to_entity_id?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
+          enforce_gate?: boolean
           entity_id?: string | null
           entity_type?: string
           id?: string
           name?: string
+          trigger_stage?: Database["public"]["Enums"]["deal_stage"] | null
           updated_at?: string
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "approval_workflows_applies_to_entity_id_fkey"
+            columns: ["applies_to_entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "approval_workflows_entity_id_fkey"
             columns: ["entity_id"]
@@ -2855,6 +2902,7 @@ export type Database = {
         | "openai_compatible"
       approval_decision_type: "approved" | "rejected" | "skipped"
       approval_status: "pending" | "approved" | "rejected" | "cancelled"
+      approval_step_mode: "any_one" | "all_required"
       approval_step_status: "pending" | "approved" | "rejected" | "skipped"
       business_unit_kind: "sales" | "revenue_recognition" | "ops" | "shared"
       deal_stage:
@@ -3094,6 +3142,7 @@ export const Constants = {
       ],
       approval_decision_type: ["approved", "rejected", "skipped"],
       approval_status: ["pending", "approved", "rejected", "cancelled"],
+      approval_step_mode: ["any_one", "all_required"],
       approval_step_status: ["pending", "approved", "rejected", "skipped"],
       business_unit_kind: ["sales", "revenue_recognition", "ops", "shared"],
       deal_stage: [
