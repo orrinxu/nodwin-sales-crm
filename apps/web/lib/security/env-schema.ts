@@ -15,6 +15,13 @@ export const envSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   RESEND_DOMAIN: z.string().optional(),
   SLACK_BOT_TOKEN: z.string().optional(),
+  // ORR-620 document ingestion. All optional so the app boots with the seam
+  // unwired — point EMBEDDINGS_* at a llama.cpp (OpenAI-compatible) server to
+  // enable embedding. INGESTION_CRON_SECRET gates the worker drain route.
+  EMBEDDINGS_BASE_URL: z.string().url().optional(),
+  EMBEDDINGS_MODEL: z.string().optional(),
+  EMBEDDINGS_API_KEY: z.string().optional(),
+  INGESTION_CRON_SECRET: z.string().optional(),
   APP_URL: z.string().url().default("http://localhost:3000"),
   NEXT_PUBLIC_APP_NAME: z.string().min(1).default("Nodwin CRM"),
   NEXT_PUBLIC_API_URL: z.string().url(),
