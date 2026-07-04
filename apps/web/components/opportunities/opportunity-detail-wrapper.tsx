@@ -20,9 +20,7 @@ import { ActivityComposer } from "@/components/opportunities/activity-composer"
 import { OpportunitySplitsEditor } from "@/components/opportunities/opportunity-splits-editor"
 import { OpportunityTeamEditor } from "@/components/opportunities/opportunity-team-editor"
 import { StageHistoryTimeline } from "@/components/opportunities/stage-history-timeline"
-import { ApprovalHistory } from "@/components/opportunities/approval-history"
-import { ApprovalDecisionBox } from "@/components/opportunities/approval-decision-box"
-import { ApprovalAdminControls } from "@/components/opportunities/approval-admin-controls"
+import { ApprovalCard } from "@/components/opportunities/approval-card"
 import type { EntityOption } from "@/components/entity-combobox"
 import type {
   OpportunityRecord,
@@ -588,31 +586,20 @@ export function OpportunityDetailWrapper({
             </CardContent>
           </Card>
 
-          <Card id="approval-history-section">
-            <CardHeader>
-              <CardTitle className="text-sm">Approval History</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ApprovalHistory instances={approvals} />
-              {actionableStepId && recordDecisionAction && (
-                <ApprovalDecisionBox
-                  stepId={actionableStepId}
-                  pending={approvalPending}
-                  onDecide={handleDecision}
-                />
-              )}
-              {canAdminApprovals && pendingApprovalInstanceId && reassignApprovalAction && cancelApprovalAction && (
-                <ApprovalAdminControls
-                  stepId={actionableStepId}
-                  instanceId={pendingApprovalInstanceId}
-                  users={userOptions}
-                  pending={approvalPending}
-                  onReassign={handleReassign}
-                  onCancel={handleCancel}
-                />
-              )}
-            </CardContent>
-          </Card>
+          <div id="approval-history-section">
+            <ApprovalCard
+              approvals={approvals}
+              approvalStatus={approvalStatus}
+              actionableStepId={actionableStepId}
+              pendingInstanceId={pendingApprovalInstanceId}
+              canAdmin={canAdminApprovals}
+              userOptions={userOptions}
+              pending={approvalPending}
+              onDecide={handleDecision}
+              onReassign={handleReassign}
+              onCancel={handleCancel}
+            />
+          </div>
 
           {updateTeamAction ? (
             <OpportunityTeamEditor
