@@ -47,6 +47,9 @@ export interface KnowledgeSearchResult {
 export const KNOWLEDGE_DEFAULTS = {
   matchCount: 8,
   minSimilarity: 0.25,
+  // Hard ceiling on caller-supplied match_count — there is no ANN index yet
+  // (exact sequential scan), so this bounds scan-amplification.
+  maxMatchCount: 50,
 }
 
 /**
@@ -76,7 +79,10 @@ export async function search(
   const { data, error } = await supabase.rpc("search_document_chunks", {
     _query: `[${queryVector.join(",")}]`,
     _model: model,
-    _match_count: input.matchCount ?? KNOWLEDGE_DEFAULTS.matchCount,
+    _match_count: Math.max(
+      1,
+      Math.min(input.matchCount ?? KNOWLEDGE_DEFAULTS.matchCount, KNOWLEDGE_DEFAULTS.maxMatchCount),
+    ),
     _min_similarity: input.minSimilarity ?? KNOWLEDGE_DEFAULTS.minSimilarity,
   })
 
