@@ -264,6 +264,11 @@ describe("updateOpportunity", () => {
 describe("enforce_gate (Phase 4)", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // clearAllMocks does not drain queued mockResolvedValueOnce values. The
+    // "blocks" test throws at the gate before consuming its second queued
+    // single() result, so without a reset that leftover leaks into the next
+    // test and shifts every subsequent single() by one.
+    mockSingle.mockReset()
     vi.resetModules()
     buildQueryBuilder()
     mockFrom.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder, update: mockUpdate })
