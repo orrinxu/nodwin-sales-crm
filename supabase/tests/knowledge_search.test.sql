@@ -2,14 +2,15 @@
 -- pgTAP acceptance tests for public.search_document_chunks (ORR-621).
 -- HIGH-RISK FILE -- see AGENTS.md §6.
 --
--- THE test that matters: a user not entitled to a deal gets ZERO Restricted /
--- Confidential chunks from search, while Standard chunks are org-open to all.
+-- THE test that matters: a user not entitled to a deal gets ZERO chunks from
+-- search — including Standard, which is NOT org-open (docs/SOW.md §3.2). All
+-- tiers are gated on opportunity_visibility membership.
 --
 -- Run with: supabase test db
 
 BEGIN;
 
-SELECT plan(8);
+SELECT plan(7);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -56,26 +57,21 @@ VALUES
   ('d0000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000a2', 'restricted',   'drive-r', 0, 'restricted content',   '[1,0,0]', 'test-model', 3),
   ('d0000000-0000-0000-0000-0000000000a3', '00000000-0000-0000-0000-0000000000a3', 'confidential', 'drive-c', 0, 'confidential content', '[1,0,0]', 'test-model', 3);
 
--- ══ THE ACCEPTANCE TEST: outsider gets Standard only, never Restricted/Confidential ══
+-- ══ THE ACCEPTANCE TEST: a non-entitled user gets ZERO chunks of ANY tier ══
+-- The outsider is a member of none of the three opportunities. Standard is NOT
+-- org-open (docs/SOW.md §3.2), so search returns nothing at all for them.
 SELECT tests.as_user('outsider@nodwin.com');
 SET LOCAL ROLE authenticated;
 
 SELECT is_empty(
+  $$ SELECT id FROM public.search_document_chunks('[1,0,0]'::vector, 'test-model', 10, 0) $$,
+  'ACCEPTANCE: non-entitled user gets ZERO chunks (incl. Standard — it is not org-open)'
+);
+
+SELECT is_empty(
   $$ SELECT id FROM public.search_document_chunks('[1,0,0]'::vector, 'test-model', 10, 0)
      WHERE visibility_tier IN ('restricted','confidential') $$,
-  'ACCEPTANCE: non-entitled user gets ZERO restricted/confidential chunks'
-);
-
-SELECT isnt_empty(
-  $$ SELECT id FROM public.search_document_chunks('[1,0,0]'::vector, 'test-model', 10, 0)
-     WHERE drive_file_id = 'drive-s' $$,
-  'non-entitled user still gets the Standard (org-open) chunk'
-);
-
-SELECT results_eq(
-  $$ SELECT count(*)::int FROM public.search_document_chunks('[1,0,0]'::vector, 'test-model', 10, 0) $$,
-  $$ VALUES (1) $$,
-  'non-entitled user gets exactly 1 result (the Standard chunk)'
+  'non-entitled user specifically gets ZERO restricted/confidential chunks'
 );
 
 -- ══ Entitled owner sees all three (Standard + their two memberships) ══
