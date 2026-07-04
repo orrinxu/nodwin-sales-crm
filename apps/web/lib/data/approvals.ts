@@ -7,7 +7,6 @@ import type {
   ApprovalStep,
   ApprovalContext,
   StepApproval,
-  StepAction,
 } from "@/lib/workflows/approval"
 import {
   getApprovalStepState,
@@ -111,8 +110,10 @@ export function hydrateMachineContext(
       for (const approverId of approverIds) {
         if (d.decidedByName) {
           if (d.decision === "approved") {
+            // eslint-disable-next-line security/detect-object-injection -- approverId comes from DB array, not user input
             votes[approverId] = { approved: true, rejected: false }
           } else if (d.decision === "rejected") {
+            // eslint-disable-next-line security/detect-object-injection -- approverId comes from DB array, not user input
             votes[approverId] = { approved: false, rejected: true }
           }
         }
@@ -128,6 +129,7 @@ export function hydrateMachineContext(
 
   const currentStepIndex = instance.steps.findIndex((s) => s.status === "pending")
   const currentStepNumber = currentStepIndex >= 0
+    // eslint-disable-next-line security/detect-object-injection -- array index from findIndex, known bounds
     ? instance.steps[currentStepIndex].stepOrder
     : instance.steps.length
 
@@ -148,8 +150,10 @@ function buildApproverListForStep(
   }
   if (step.approverUserIds) {
     for (let i = 0; i < step.approverUserIds.length; i++) {
+      // eslint-disable-next-line security/detect-object-injection -- loop variable over known array length
       const uid = step.approverUserIds[i]
       if (!list.some((a) => a.id === uid)) {
+        // eslint-disable-next-line security/detect-object-injection -- loop variable over known array length
         const name = step.approverNames?.[i] ?? uid
         list.push({ id: uid, name })
       }

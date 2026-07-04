@@ -8,9 +8,10 @@ import {
 } from "../approvals"
 
 function makeStep(overrides: Partial<ApprovalStepRecord> & { stepOrder: number }): ApprovalStepRecord {
+  const { stepOrder, ...rest } = overrides
   return {
-    id: `step-${overrides.stepOrder}`,
-    stepOrder: overrides.stepOrder,
+    id: `step-${stepOrder}`,
+    stepOrder,
     approverRole: null,
     approverUserId: null,
     approverName: null,
@@ -21,7 +22,7 @@ function makeStep(overrides: Partial<ApprovalStepRecord> & { stepOrder: number }
     status: "pending",
     dueBy: null,
     decisions: [],
-    ...overrides,
+    ...rest,
   }
 }
 
