@@ -544,6 +544,7 @@ export type Database = {
           id: string
           instance_id: string
           mode: Database["public"]["Enums"]["approval_step_mode"] | null
+          name: string | null
           status: Database["public"]["Enums"]["approval_step_status"]
           step_order: number
           updated_at: string
@@ -559,6 +560,7 @@ export type Database = {
           id?: string
           instance_id: string
           mode?: Database["public"]["Enums"]["approval_step_mode"] | null
+          name?: string | null
           status?: Database["public"]["Enums"]["approval_step_status"]
           step_order: number
           updated_at?: string
@@ -574,6 +576,7 @@ export type Database = {
           id?: string
           instance_id?: string
           mode?: Database["public"]["Enums"]["approval_step_mode"] | null
+          name?: string | null
           status?: Database["public"]["Enums"]["approval_step_status"]
           step_order?: number
           updated_at?: string

@@ -28,6 +28,10 @@ describe("ApprovalHistory", () => {
             approverRole: null,
             approverUserId: null,
             approverName: "Alice Admin",
+            approverUserIds: null,
+            approverNames: null,
+            mode: null,
+            name: null,
             status: "approved",
             dueBy: null,
             decisions: [
@@ -50,5 +54,120 @@ describe("ApprovalHistory", () => {
     expect(screen.getByText(/Submitted by Charlie Rep/)).toBeInTheDocument()
     expect(screen.getByText("Alice Admin")).toBeInTheDocument()
     expect(screen.getByText(/Looks good/)).toBeInTheDocument()
+  })
+
+  it("renders multi-approver step with mode indicator", () => {
+    const instances: ApprovalInstanceRecord[] = [
+      {
+        id: "inst-2",
+        workflowName: "Multi-step Workflow",
+        status: "pending",
+        triggeredByName: "Bob Owner",
+        createdAt: "2026-06-10T00:00:00Z",
+        steps: [
+          {
+            id: "step-1",
+            stepOrder: 0,
+            approverRole: null,
+            approverUserId: null,
+            approverName: null,
+            approverUserIds: ["u-1", "u-2", "u-3"],
+            approverNames: ["Jane Doe", "Ravi Kumar", "Mike Chen"],
+            mode: "any_one",
+            name: "Initial Review",
+            status: "pending",
+            dueBy: null,
+            decisions: [],
+          },
+        ],
+      },
+    ]
+
+    render(<ApprovalHistory instances={instances} />)
+
+    expect(screen.getByText("Initial Review")).toBeInTheDocument()
+    expect(screen.getByText("Jane Doe, Ravi Kumar, Mike Chen")).toBeInTheDocument()
+    expect(screen.getByText("Any one")).toBeInTheDocument()
+  })
+
+  it("renders all_required mode with approver count fallback when names not resolved", () => {
+    const instances: ApprovalInstanceRecord[] = [
+      {
+        id: "inst-3",
+        workflowName: "Full Board",
+        status: "pending",
+        triggeredByName: "CEO",
+        createdAt: "2026-06-15T00:00:00Z",
+        steps: [
+          {
+            id: "step-1",
+            stepOrder: 0,
+            approverRole: null,
+            approverUserId: null,
+            approverName: null,
+            approverUserIds: ["u-a", "u-b"],
+            approverNames: null,
+            mode: "all_required",
+            name: "Board Approval",
+            status: "pending",
+            dueBy: null,
+            decisions: [],
+          },
+        ],
+      },
+    ]
+
+    render(<ApprovalHistory instances={instances} />)
+
+    expect(screen.getByText("Board Approval")).toBeInTheDocument()
+    expect(screen.getByText("2 approvers")).toBeInTheDocument()
+    expect(screen.getByText("All required")).toBeInTheDocument()
+  })
+
+  it("renders step with name from template, falling back to approver/role/order", () => {
+    const instances: ApprovalInstanceRecord[] = [
+      {
+        id: "inst-4",
+        workflowName: "Simple",
+        status: "pending",
+        triggeredByName: "User",
+        createdAt: "2026-07-01T00:00:00Z",
+        steps: [
+          {
+            id: "step-a",
+            stepOrder: 0,
+            approverRole: "admin",
+            approverUserId: null,
+            approverName: null,
+            approverUserIds: null,
+            approverNames: null,
+            mode: null,
+            name: null,
+            status: "pending",
+            dueBy: null,
+            decisions: [],
+          },
+          {
+            id: "step-b",
+            stepOrder: 1,
+            approverRole: null,
+            approverUserId: null,
+            approverName: null,
+            approverUserIds: null,
+            approverNames: null,
+            mode: null,
+            name: null,
+            status: "pending",
+            dueBy: null,
+            decisions: [],
+          },
+        ],
+      },
+    ]
+
+    render(<ApprovalHistory instances={instances} />)
+
+    expect(screen.getByText("admin")).toBeInTheDocument()
+    expect(screen.getByText("Step 2")).toBeInTheDocument()
   })
 })

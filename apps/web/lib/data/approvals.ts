@@ -3,6 +3,15 @@ import { createServerClient } from "@/lib/supabase/server"
 import type { AuthenticatedUser } from "@/lib/security/auth"
 import { getNextStage } from "@/lib/opportunity"
 import type { DealStage } from "@/lib/opportunity"
+import type {
+  ApprovalStep,
+  ApprovalContext,
+  StepApproval,
+} from "@/lib/workflows/approval"
+import {
+  getApprovalStepState,
+  checkCanTransitionToApproved,
+} from "@/lib/workflows/approval"
 
 export interface ApprovalCallContext {
   user: AuthenticatedUser
@@ -27,6 +36,10 @@ export interface ApprovalStepRecord {
   approverRole: string | null
   approverUserId: string | null
   approverName: string | null
+  approverUserIds: string[] | null
+  approverNames: string[] | null
+  mode: string | null
+  name: string | null
   status: ApprovalStepStatus
   dueBy: string | null
   decisions: ApprovalDecisionRecord[]
@@ -65,6 +78,108 @@ export function summarizeApprovalStatus(
   return instances[0]?.status ?? "not_submitted"
 }
 
+// ── xState bridge (ORR-641) ───────────────────────────────────────────────────
+
+// Build an xState ApprovalContext from the latest approval instance for an
+// opportunity. Returns null if no pending/completed instance exists.
+export function hydrateMachineContext(
+  instances: ApprovalInstanceRecord[],
+): ApprovalContext | null {
+  const instance = instances[0]
+  if (!instance) return null
+
+  // Map DB step_order (1-based, contiguous) to the step id the machine expects.
+  // The machine uses step id (1, 2, …) matching the step_order.
+  const steps: ApprovalStep[] = instance.steps.map((s) => ({
+    id: s.stepOrder,
+    stepNumber: s.stepOrder,
+    approvers: buildApproverListForStep(s),
+    mode: (s.mode === "any_one" ? "any_one" : "all_required") as "any_one" | "all_required",
+  }))
+
+  const stepApprovals: Record<number, StepApproval> = {}
+  for (const s of instance.steps) {
+    const decisions = s.decisions ?? []
+    const votes: Record<string, { approved: boolean; rejected: boolean }> = {}
+    let approved = false
+    let rejected = false
+    let skipped = false
+
+    for (const d of decisions) {
+      const approverIds = s.approverUserIds ?? (s.approverUserId ? [s.approverUserId] : [])
+      for (const approverId of approverIds) {
+        if (d.decidedByName) {
+          if (d.decision === "approved") {
+            // eslint-disable-next-line security/detect-object-injection -- approverId comes from DB array, not user input
+            votes[approverId] = { approved: true, rejected: false }
+          } else if (d.decision === "rejected") {
+            // eslint-disable-next-line security/detect-object-injection -- approverId comes from DB array, not user input
+            votes[approverId] = { approved: false, rejected: true }
+          }
+        }
+      }
+    }
+
+    if (s.status === "approved") approved = true
+    else if (s.status === "rejected") rejected = true
+    else if (s.status === "skipped") skipped = true
+
+    stepApprovals[s.stepOrder] = { approved, rejected, skipped, votes }
+  }
+
+  const currentStepIndex = instance.steps.findIndex((s) => s.status === "pending")
+  const currentStepNumber = currentStepIndex >= 0
+    // eslint-disable-next-line security/detect-object-injection -- array index from findIndex, known bounds
+    ? instance.steps[currentStepIndex].stepOrder
+    : instance.steps.length
+
+  return {
+    steps,
+    stepApprovals,
+    currentStepIndex: currentStepNumber,
+    reason: undefined,
+  }
+}
+
+function buildApproverListForStep(
+  step: ApprovalStepRecord,
+): { id: string; name: string }[] {
+  const list: { id: string; name: string }[] = []
+  if (step.approverUserId) {
+    list.push({ id: step.approverUserId, name: step.approverName ?? step.approverUserId })
+  }
+  if (step.approverUserIds) {
+    for (let i = 0; i < step.approverUserIds.length; i++) {
+      // eslint-disable-next-line security/detect-object-injection -- loop variable over known array length
+      const uid = step.approverUserIds[i]
+      if (!list.some((a) => a.id === uid)) {
+        // eslint-disable-next-line security/detect-object-injection -- loop variable over known array length
+        const name = step.approverNames?.[i] ?? uid
+        list.push({ id: uid, name })
+      }
+    }
+  }
+  return list
+}
+
+// Compute per-step UI state from a hydrated machine context.
+export function computeApprovalStepStates(
+  context: ApprovalContext,
+): Record<number, { stepState: "pending" | "approved" | "rejected" | "skipped"; canApprove: boolean; canReject: boolean; canSkip: boolean }> {
+  const result: Record<number, ReturnType<typeof getApprovalStepState>> = {}
+  for (const step of context.steps) {
+    result[step.id] = getApprovalStepState(step.id, context.stepApprovals)
+  }
+  return result
+}
+
+// Check whether the approval is fully resolved (all steps approved).
+export function isApprovalFullyApproved(
+  context: ApprovalContext,
+): boolean {
+  return checkCanTransitionToApproved(context.stepApprovals)
+}
+
 const APPROVAL_SELECT = `
   id,
   workflow_id,
@@ -78,6 +193,9 @@ const APPROVAL_SELECT = `
     step_order,
     approver_role,
     approver_user_id,
+    approver_user_ids,
+    mode,
+    name,
     status,
     due_by,
     approver:approver_user_id ( full_name ),
@@ -105,12 +223,17 @@ function toDecisionRecord(data: Record<string, unknown>): ApprovalDecisionRecord
 function toStepRecord(data: Record<string, unknown>): ApprovalStepRecord {
   const approver = data.approver as { full_name: string } | null
   const decisions = (data.decisions ?? []) as Record<string, unknown>[]
+  const approverUserIds = (data.approver_user_ids as string[] | null) ?? null
   return {
     id: data.id as string,
     stepOrder: data.step_order as number,
     approverRole: (data.approver_role as string) ?? null,
     approverUserId: (data.approver_user_id as string) ?? null,
     approverName: approver?.full_name ?? null,
+    approverUserIds,
+    approverNames: null, // resolved in getApprovalHistoryForOpportunity
+    mode: (data.mode as string) ?? null,
+    name: (data.name as string) ?? null,
     status: data.status as ApprovalStepStatus,
     dueBy: (data.due_by as string) ?? null,
     decisions: decisions
@@ -156,7 +279,44 @@ export async function getApprovalHistoryForOpportunity(
     throw new Error(`Failed to load approval history: ${error.message}`)
   }
 
-  return (data ?? []).map((r) => toInstanceRecord(r as Record<string, unknown>))
+  const instances = (data ?? []).map((r) => toInstanceRecord(r as Record<string, unknown>))
+
+  // Resolve multi-approver names: collect all unique user IDs from all steps
+  // then batch-lookup names and attach to each step record.
+  const allUserIds = new Set<string>()
+  for (const inst of instances) {
+    for (const step of inst.steps) {
+      if (step.approverUserIds) {
+        for (const uid of step.approverUserIds) {
+          allUserIds.add(uid)
+        }
+      }
+    }
+  }
+
+  if (allUserIds.size > 0) {
+    const { data: users } = await supabase
+      .from("users")
+      .select("id, full_name")
+      .in("id", Array.from(allUserIds))
+
+    const nameMap = new Map<string, string>()
+    for (const u of (users ?? []) as { id: string; full_name: string | null }[]) {
+      if (u.full_name) nameMap.set(u.id, u.full_name)
+    }
+
+    for (const inst of instances) {
+      for (const step of inst.steps) {
+        if (step.approverUserIds) {
+          step.approverNames = step.approverUserIds.map(
+            (uid) => nameMap.get(uid) ?? uid,
+          )
+        }
+      }
+    }
+  }
+
+  return instances
 }
 
 // ── Write path (ORR-604) ─────────────────────────────────────────────────────
@@ -249,11 +409,12 @@ export async function notifyCurrentApprover(opportunityId: string): Promise<void
 
     const { data: steps } = await supabase
       .from("approval_steps")
-      .select("step_order, approver_user_id, approver_role, status")
+      .select("step_order, approver_user_id, approver_user_ids, approver_role, status")
       .eq("instance_id", instance.id)
       .order("step_order", { ascending: true })
 
-    const stepRows = (steps ?? []) as { step_order: number; approver_user_id: string | null; approver_role: string | null; status: string }[]
+    type StepRow = { step_order: number; approver_user_id: string | null; approver_user_ids: string[] | null; approver_role: string | null; status: string }
+    const stepRows = (steps ?? []) as StepRow[]
     if (stepRows.length === 0) return
     const current = stepRows.find((s) => s.status === "pending")
     if (!current) return
@@ -266,7 +427,9 @@ export async function notifyCurrentApprover(opportunityId: string): Promise<void
     const opportunityName = (opp as { name: string } | null)?.name ?? "Opportunity"
 
     let approverIds: string[] = []
-    if (current.approver_user_id) {
+    if (current.approver_user_ids && current.approver_user_ids.length > 0) {
+      approverIds = current.approver_user_ids
+    } else if (current.approver_user_id) {
       approverIds = [current.approver_user_id]
     } else if (current.approver_role && instance.business_entity_id) {
       const { data: holders } = await supabase
@@ -345,7 +508,7 @@ export async function getApprovalActionState(
   // may decide it.
   const { data: steps, error: stepErr } = await supabase
     .from("approval_steps")
-    .select("id, approver_role, approver_user_id")
+    .select("id, approver_role, approver_user_id, approver_user_ids")
     .eq("instance_id", (inst as { id: string }).id)
     .eq("status", "pending")
     .order("step_order", { ascending: true })
@@ -355,12 +518,16 @@ export async function getApprovalActionState(
     throw new Error(`Failed to resolve approval step: ${stepErr.message}`)
   }
 
-  const current = steps?.[0] as { id: string; approver_role: string | null; approver_user_id: string | null } | undefined
+  const current = steps?.[0] as { id: string; approver_role: string | null; approver_user_id: string | null; approver_user_ids: string[] | null } | undefined
   let actionableStepId: string | null = null
   if (current) {
     const role = ctx.user.role
+    const isInMultiApprovers =
+      Array.isArray(current.approver_user_ids) &&
+      current.approver_user_ids.includes(ctx.user.id)
     const canDecide =
       current.approver_user_id === ctx.user.id ||
+      isInMultiApprovers ||
       (!!current.approver_role && current.approver_role === role) ||
       role === "admin"
     if (canDecide) actionableStepId = current.id

@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge"
+import { Users } from "lucide-react"
 import type {
   ApprovalInstanceRecord,
   ApprovalInstanceStatus,
@@ -6,7 +7,7 @@ import type {
 } from "@/lib/data/approvals"
 
 function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "—"
+  if (!dateStr) return "\u2014"
   return new Date(dateStr).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
@@ -46,6 +47,17 @@ function stepBadgeVariant(
   }
 }
 
+function modeLabel(mode: string | null): string {
+  switch (mode) {
+    case "any_one":
+      return "Any one"
+    case "all_required":
+      return "All required"
+    default:
+      return ""
+  }
+}
+
 interface ApprovalHistoryProps {
   instances: ApprovalInstanceRecord[]
 }
@@ -73,7 +85,7 @@ export function ApprovalHistory({ instances }: ApprovalHistoryProps) {
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {instance.triggeredByName
-              ? `Submitted by ${instance.triggeredByName} · ${formatDate(instance.createdAt)}`
+              ? `Submitted by ${instance.triggeredByName} \u00b7 ${formatDate(instance.createdAt)}`
               : `Submitted ${formatDate(instance.createdAt)}`}
           </p>
 
@@ -83,18 +95,31 @@ export function ApprovalHistory({ instances }: ApprovalHistoryProps) {
                 <li key={step.id} className="border-l-2 border-border pl-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium">
-                      {step.approverName ?? step.approverRole ?? `Step ${step.stepOrder + 1}`}
+                      {step.name ?? step.approverName ?? step.approverRole ?? `Step ${step.stepOrder + 1}`}
                     </span>
                     <Badge variant={stepBadgeVariant(step.status)} className="text-[10px] capitalize">
                       {step.status}
                     </Badge>
                   </div>
+                  {step.approverUserIds && step.approverUserIds.length > 0 && (
+                    <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <Users className="size-3" />
+                      <span>
+                        {step.approverNames?.join(", ") ?? `${step.approverUserIds.length} approver${step.approverUserIds.length !== 1 ? "s" : ""}`}
+                      </span>
+                      {step.mode && (
+                        <Badge variant="outline" className="text-[10px]">
+                          {modeLabel(step.mode)}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
                   {step.decisions.map((decision) => (
                     <p key={decision.id} className="mt-1 text-[11px] text-muted-foreground">
                       <span className="capitalize">{decision.decision}</span>
                       {decision.decidedByName ? ` by ${decision.decidedByName}` : ""}
-                      {` · ${formatDate(decision.createdAt)}`}
-                      {decision.comment ? ` — ${decision.comment}` : ""}
+                      {` \u00b7 ${formatDate(decision.createdAt)}`}
+                      {decision.comment ? ` \u2014 ${decision.comment}` : ""}
                     </p>
                   ))}
                 </li>

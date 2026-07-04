@@ -19,9 +19,17 @@ describe("ApprovalDecisionBox", () => {
     expect(onDecide).toHaveBeenCalledWith("step-2", "rejected", "")
   })
 
+  it("skips (empty comment allowed)", () => {
+    const onDecide = vi.fn()
+    render(<ApprovalDecisionBox stepId="step-3" pending={false} onDecide={onDecide} />)
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }))
+    expect(onDecide).toHaveBeenCalledWith("step-3", "skipped", "")
+  })
+
   it("disables the buttons while a decision is pending", () => {
-    render(<ApprovalDecisionBox stepId="step-3" pending onDecide={vi.fn()} />)
+    render(<ApprovalDecisionBox stepId="step-4" pending onDecide={vi.fn()} />)
     expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Skip" })).toBeDisabled()
   })
 })
