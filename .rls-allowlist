@@ -119,6 +119,13 @@
 # org-level config tables. SELECT for all authenticated, write for admin.
 .*admin_b_users_roles_access.*:USING \(true\)
 
+# ── approval_workflow_steps ─────────────────────────────────────────────────────
+# Template table for approval workflow steps. All authenticated users need
+# read access to discover workflow structures. Write access is admin-only.
+# Same pattern as business_units / entities.
+.*approval_template_layer.*:USING \(true\)
+.*approval_workflows\.sql:USING \(true\)
+
 # ── data_management ────────────────────────────────────────────────────────────
 # finance_export_config is a per-entity configuration table. All authenticated
 # users need read access to discover export configuration. Write is admin-only.
