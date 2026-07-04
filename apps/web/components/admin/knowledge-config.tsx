@@ -23,6 +23,7 @@ import { Separator } from "@/components/ui/separator"
 import {
   updateAISettingsAction,
   getIngestionStatsAction,
+  runIngestionAction,
 } from "@/app/(crm)/admin/knowledge/actions"
 import type { AISettings, IngestionStats } from "@/lib/data/knowledge-admin"
 
@@ -135,7 +136,7 @@ export function KnowledgeConfig({ settings, stats }: Props) {
   async function runIngestion() {
     setRunning(true)
     try {
-      await fetch("/api/knowledge/ingest", { method: "POST" })
+      await runIngestionAction(10)
       const fresh = await getIngestionStatsAction()
       setLastStats(fresh)
       router.refresh()
