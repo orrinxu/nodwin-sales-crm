@@ -21,6 +21,7 @@ import {
   ClipboardCheck,
   Mail,
   Sparkles,
+  Brain,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -68,6 +69,7 @@ const adminItems = [
   { name: "Email", href: "/admin/email", icon: Mail },
   { name: "Data Management", href: "/admin/data-management", icon: Database },
   { name: "Allowed Domains", href: "/admin/allowed-domains", icon: ShieldCheck },
+  { name: "Knowledge", href: "/admin/knowledge", icon: Brain },
 ]
 
 interface SidebarProps {
