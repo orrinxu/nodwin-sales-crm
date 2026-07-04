@@ -2,7 +2,7 @@ import "server-only"
 import { NextRequest, NextResponse } from "next/server"
 import { requireUser } from "@/lib/security/auth"
 import { UnauthorisedError, ForbiddenError } from "@/lib/security/errors"
-import { answer } from "@/lib/data/knowledge"
+import { answer, KNOWLEDGE_MAX_MATCH_COUNT } from "@/lib/data/knowledge"
 
 // ORR-621 cross-deal knowledge search. Single-shot Q&A: question in → grounded,
 // cited answer out. Runs as source: 'web' (user query path — never 'system').
@@ -21,11 +21,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing 'query'." }, { status: 400 })
     }
 
+    const rawMatchCount = typeof body?.matchCount === "number" ? body.matchCount : undefined
+    const matchCount = rawMatchCount !== undefined ? Math.min(Math.max(0, rawMatchCount), KNOWLEDGE_MAX_MATCH_COUNT) : undefined
+
     const result = await answer(
       { user: { id: user.id, email: user.email ?? "", role: user.role ?? "" }, source: "web" },
       {
         query,
-        matchCount: typeof body?.matchCount === "number" ? body.matchCount : undefined,
+        matchCount,
         minSimilarity: typeof body?.minSimilarity === "number" ? body.minSimilarity : undefined,
       },
     )

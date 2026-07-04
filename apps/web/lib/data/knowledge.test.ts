@@ -7,7 +7,7 @@ vi.mock("@/lib/supabase/server", () => ({
   createServerClient: async () => ({ rpc }),
 }))
 
-import { search } from "./knowledge"
+import { search, KNOWLEDGE_MAX_MATCH_COUNT } from "./knowledge"
 import type { Embedder } from "@/lib/ai/embeddings"
 
 const fakeEmbedder: Embedder = {
@@ -67,5 +67,23 @@ describe("knowledge.search", () => {
   it("propagates RPC errors", async () => {
     rpc.mockResolvedValue({ data: null, error: { message: "boom" } })
     await expect(search(webCtx, { query: "q" }, { embedder: fakeEmbedder })).rejects.toThrow(/Knowledge search failed: boom/)
+  })
+
+  it("caps matchCount at KNOWLEDGE_MAX_MATCH_COUNT", async () => {
+    rpc.mockResolvedValue({ data: [], error: null })
+    await search(webCtx, { query: "q", matchCount: 999999 }, { embedder: fakeEmbedder })
+
+    expect(rpc).toHaveBeenCalledWith("search_document_chunks", expect.objectContaining({
+      _match_count: KNOWLEDGE_MAX_MATCH_COUNT,
+    }))
+  })
+
+  it("clamps negative matchCount to 0", async () => {
+    rpc.mockResolvedValue({ data: [], error: null })
+    await search(webCtx, { query: "q", matchCount: -5 }, { embedder: fakeEmbedder })
+
+    expect(rpc).toHaveBeenCalledWith("search_document_chunks", expect.objectContaining({
+      _match_count: 0,
+    }))
   })
 })

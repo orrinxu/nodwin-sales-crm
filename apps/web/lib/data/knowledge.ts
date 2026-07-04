@@ -49,6 +49,8 @@ export const KNOWLEDGE_DEFAULTS = {
   minSimilarity: 0.25,
 }
 
+export const KNOWLEDGE_MAX_MATCH_COUNT = 50
+
 /**
  * Embed the query with the SAME model as ingestion, then run the tier-filtered
  * vector search. The tier + entitlement filter lives inside the DB function —
@@ -73,10 +75,14 @@ export async function search(
   if (!queryVector || queryVector.length === 0) return { chunks: [], model }
 
   const supabase = await createServerClient()
+  const matchCount = Math.min(
+    Math.max(0, input.matchCount ?? KNOWLEDGE_DEFAULTS.matchCount),
+    KNOWLEDGE_MAX_MATCH_COUNT,
+  )
   const { data, error } = await supabase.rpc("search_document_chunks", {
     _query: `[${queryVector.join(",")}]`,
     _model: model,
-    _match_count: input.matchCount ?? KNOWLEDGE_DEFAULTS.matchCount,
+    _match_count: matchCount,
     _min_similarity: input.minSimilarity ?? KNOWLEDGE_DEFAULTS.minSimilarity,
   })
 
