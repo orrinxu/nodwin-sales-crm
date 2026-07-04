@@ -1,4 +1,4 @@
--- supabase/migrations/20260705000000_fix_submit_rpc_multi_approver.sql
+-- supabase/migrations/20260704050000_fix_submit_rpc_multi_approver.sql
 -- HIGH-RISK FILE — see AGENTS.md §6 (approval subsystem + RLS-bypassing RPCs).
 --
 -- ORR-638 Fix submit RPC — materialize multi-approver + snapshot.
