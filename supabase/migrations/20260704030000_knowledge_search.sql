@@ -10,15 +10,19 @@
 --   * The tier filter is applied INSIDE the query (WHERE), never as a post-filter
 --     on an already-fetched top-K. SECURITY DEFINER runs the vector scan with
 --     definer rights so it can read all chunks, but the WHERE clause enforces:
---       returnable iff  tier = 'standard'  (org-open)
---                       OR the caller is entitled to that opportunity.
---   * Entitlement REUSES the canonical `opportunity_visibility` membership table
+--       returnable iff the caller is entitled to the chunk's opportunity.
+--   * ALL tiers (including Standard) are gated on membership. Per docs/SOW.md
+--     §3.2, Standard is NOT org-open — its audience is a scoped, same-entity set
+--     (owner + team + manager chain + same-entity managers + Group Sales Lead +
+--     Admin), which the recompute trigger materializes into opportunity_visibility.
+--   * Entitlement REUSES that canonical `opportunity_visibility` membership table
 --     (the same materialized, trigger-maintained table the opportunities /
 --     documents / document_chunks RLS all use) — NOT a copied access rule. Since
---     the recompute trigger writes the owner into opportunity_visibility,
---     membership ⊆ canonical-access, so this can only under-return, never leak.
+--     membership ⊆ canonical-access, this can only under-return, never leak.
 --   * Entitlement is pinned to auth.uid() (the real caller). The function takes
 --     NO user-id argument — a caller cannot ask for another user's results.
+--   * Account-only chunks (opportunity_id IS NULL) are not returned by search —
+--     a deliberate fail-closed under-return (they have no opportunity_visibility).
 --
 -- CORRECTNESS:
 --   * The query must be embedded with the SAME model as the chunks. We filter
@@ -61,13 +65,10 @@ AS $$
     WHERE dc.embedding IS NOT NULL
       AND dc.embedding_model = _model
       AND dc.embedding_dim = vector_dims(_query)
-      AND (
-        dc.visibility_tier = 'standard'
-        OR EXISTS (
-          SELECT 1 FROM public.opportunity_visibility ov
-          WHERE ov.opportunity_id = dc.opportunity_id
-            AND ov.user_id = auth.uid()
-        )
+      AND EXISTS (
+        SELECT 1 FROM public.opportunity_visibility ov
+        WHERE ov.opportunity_id = dc.opportunity_id
+          AND ov.user_id = auth.uid()
       )
   )
   SELECT
