@@ -2,7 +2,7 @@ import "server-only"
 import { z } from "zod"
 import { createServerClient } from "@/lib/supabase/server"
 import type { AuthenticatedUser } from "@/lib/security/auth"
-import { DEAL_STAGES, type DealStage } from "@/lib/opportunity"
+import { DEAL_STAGES, STAGE_ORDER, type DealStage } from "@/lib/opportunity"
 import {
   insertStageHistoryEntry,
   determineStageEvent,
@@ -498,6 +498,27 @@ async function assertClosedWonApprovalGate(
   }
 }
 
+async function assertEnforceGateApproval(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  opportunityId: string,
+  fromStage: string,
+  toStage: string,
+): Promise<void> {
+  if (STAGE_ORDER[toStage as DealStage] <= STAGE_ORDER[fromStage as DealStage]) return
+  const { data, error } = await supabase.rpc("opportunity_check_enforce_gate", {
+    _opportunity_id: opportunityId,
+    _to_stage: toStage as DealStage,
+  })
+  if (error) {
+    throw new Error(`Failed to check approval gate: ${error.message}`)
+  }
+  if (!data) {
+    throw new Error(
+      "This stage advance requires an approved approval. Please submit and obtain approval before continuing.",
+    )
+  }
+}
+
 export async function updateOpportunity(
   ctx: OpportunityCallContext,
   id: string,
@@ -511,6 +532,7 @@ export async function updateOpportunity(
 
   if (parsed.stage !== undefined) {
     await assertClosedWonApprovalGate(supabase, id, existing.stage, parsed.stage)
+    await assertEnforceGateApproval(supabase, id, existing.stage, parsed.stage)
   }
 
   const dbData: Record<string, unknown> = {}
@@ -592,6 +614,7 @@ export async function updateOpportunityStage(
 
   if (existing.stage !== parsed.stage) {
     await assertClosedWonApprovalGate(supabase, id, existing.stage, parsed.stage)
+    await assertEnforceGateApproval(supabase, id, existing.stage, parsed.stage)
 
     const event = determineStageEvent(existing.stage, parsed.stage)
 
@@ -650,19 +673,18 @@ export async function bulkUpdateOpportunityStage(
   const parsed = bulkStageUpdateSchema.parse(input)
   const supabase = await createServerClient()
 
-  // 3c gate: bulk-moving opportunities to Closed Won requires each transitioning
-  // opp to have an approved approval. Fail closed BEFORE any write.
-  if (parsed.stage === "closed_won") {
-    const { data: rows, error: fetchError } = await supabase
-      .from("opportunities")
-      .select("id, stage")
-      .in("id", parsed.ids)
-    if (fetchError) {
-      throw new Error(`Failed to load opportunities for bulk stage update: ${fetchError.message}`)
-    }
-    for (const row of (rows ?? []) as { id: string; stage: string }[]) {
-      await assertClosedWonApprovalGate(supabase, row.id, row.stage, "closed_won")
-    }
+  const { data: rows, error: fetchError } = await supabase
+    .from("opportunities")
+    .select("id, stage")
+    .in("id", parsed.ids)
+  if (fetchError) {
+    throw new Error(`Failed to load opportunities for bulk stage update: ${fetchError.message}`)
+  }
+
+  for (const row of (rows ?? []) as { id: string; stage: string }[]) {
+    if (row.stage === parsed.stage) continue
+    await assertClosedWonApprovalGate(supabase, row.id, row.stage, parsed.stage)
+    await assertEnforceGateApproval(supabase, row.id, row.stage, parsed.stage)
   }
 
   const { error } = await supabase

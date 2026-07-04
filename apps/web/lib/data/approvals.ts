@@ -1,6 +1,8 @@
 import "server-only"
 import { createServerClient } from "@/lib/supabase/server"
 import type { AuthenticatedUser } from "@/lib/security/auth"
+import { getNextStage } from "@/lib/opportunity"
+import type { DealStage } from "@/lib/opportunity"
 
 export interface ApprovalCallContext {
   user: AuthenticatedUser
@@ -365,4 +367,29 @@ export async function getApprovalActionState(
   }
 
   return { canSubmit: false, actionableStepId, pendingInstanceId }
+}
+
+export interface EnforceGateStatus {
+  isBlocked: boolean
+}
+
+export async function getEnforceGateStatus(
+  ctx: ApprovalCallContext,
+  opportunityId: string,
+  currentStage: string,
+): Promise<EnforceGateStatus> {
+  void ctx
+  const nextStage = getNextStage(currentStage as DealStage)
+  if (!nextStage) return { isBlocked: false }
+
+  const supabase = await createServerClient()
+  const { data: isClear, error } = await supabase.rpc("opportunity_check_enforce_gate", {
+    _opportunity_id: opportunityId,
+    _to_stage: nextStage,
+  })
+  if (error) {
+    console.error("Failed to check enforce gate:", error.message)
+    return { isBlocked: false }
+  }
+  return { isBlocked: !isClear }
 }

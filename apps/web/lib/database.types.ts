@@ -2817,6 +2817,13 @@ export type Database = {
         }
         Returns: boolean
       }
+      opportunity_check_enforce_gate: {
+        Args: {
+          _opportunity_id: string
+          _to_stage: Database["public"]["Enums"]["deal_stage"]
+        }
+        Returns: boolean
+      }
       opportunity_has_approved_approval: {
         Args: { _opportunity_id: string }
         Returns: boolean

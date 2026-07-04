@@ -26,7 +26,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import type { AdminApprovalWorkflow } from "@/lib/data/approval-workflows.types"
-import { APPROVER_ROLE_OPTIONS, WORKFLOW_ENTITY_TYPES } from "@/lib/data/approval-workflows.types"
+import {
+  APPROVER_ROLE_OPTIONS,
+  WORKFLOW_ENTITY_TYPES,
+  DEAL_STAGE_OPTIONS,
+  APPROVAL_STEP_MODE_OPTIONS,
+} from "@/lib/data/approval-workflows.types"
+import type { ApprovalStepMode } from "@/lib/data/approval-workflows.types"
 
 interface Option {
   id: string
@@ -37,6 +43,9 @@ interface StepDraft {
   kind: "manager" | "role" | "user"
   approverRole: string
   approverUserId: string
+  approverUserIds: string[]
+  name: string
+  mode: ApprovalStepMode
 }
 
 interface ApprovalWorkflowsListProps {
@@ -80,14 +89,31 @@ export function ApprovalWorkflowsList({
   const [entityId, setEntityId] = useState("")
   const [entityType, setEntityType] = useState<string>("opportunity")
   const [active, setActive] = useState(true)
+  const [appliesToEntityId, setAppliesToEntityId] = useState("")
+  const [triggerStage, setTriggerStage] = useState("")
+  const [enforceGate, setEnforceGate] = useState(false)
   const [steps, setSteps] = useState<StepDraft[]>([])
 
-  const userName = (id: string) => userOptions.find((u) => u.id === id)?.name ?? "Unknown user"
-
-  function stepApproverLabel(s: { approverKind: string; approverName: string | null; approverRole: string | null }): string {
-    if (s.approverKind === "manager") return "Submitter's manager"
-    if (s.approverKind === "user") return s.approverName ?? "Specific user"
-    return s.approverRole ? titleCase(s.approverRole) : "?"
+  function stepApproverLabel(s: {
+    approverKind: string
+    approverName: string | null
+    approverRole: string | null
+    approverUserIds: string[] | null
+    name: string | null
+  }): string {
+    const label = s.name ?? null
+    if (s.approverKind === "manager") return label ? `${label} (Manager)` : "Submitter's manager"
+    if (s.approverKind === "user") {
+      if (s.approverUserIds && s.approverUserIds.length > 1) {
+        const count = s.approverUserIds.length
+        const base = s.approverName ?? `${count} users`
+        return label ? `${label} (${base})` : base
+      }
+      const base = s.approverName ?? "Specific user"
+      return label ? `${label} (${base})` : base
+    }
+    const base = s.approverRole ? titleCase(s.approverRole) : "?"
+    return label ? `${label} (${base})` : base
   }
 
   function stepLabel(workflow: AdminApprovalWorkflow): string {
@@ -102,6 +128,9 @@ export function ApprovalWorkflowsList({
     setEntityId("")
     setEntityType("opportunity")
     setActive(true)
+    setAppliesToEntityId("")
+    setTriggerStage("")
+    setEnforceGate(false)
     setSteps([])
     setError(null)
     setOpen(true)
@@ -114,11 +143,17 @@ export function ApprovalWorkflowsList({
     setEntityId(w.entityId ?? "")
     setEntityType(w.entityType)
     setActive(w.active)
+    setAppliesToEntityId(w.appliesToEntityId ?? "")
+    setTriggerStage(w.triggerStage ?? "")
+    setEnforceGate(w.enforceGate)
     setSteps(
       w.steps.map((s) => ({
         kind: s.approverKind,
         approverRole: s.approverRole ?? "",
         approverUserId: s.approverUserId ?? "",
+        approverUserIds: s.approverUserIds ?? [],
+        name: s.name ?? "",
+        mode: s.mode,
       })),
     )
     setError(null)
@@ -129,7 +164,10 @@ export function ApprovalWorkflowsList({
     setSteps((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)))
   }
   function addStep() {
-    setSteps((prev) => [...prev, { kind: "manager", approverRole: "", approverUserId: "" }])
+    setSteps((prev) => [
+      ...prev,
+      { kind: "manager", approverRole: "", approverUserId: "", approverUserIds: [], name: "", mode: "all_required" },
+    ])
   }
   function removeStep(index: number) {
     setSteps((prev) => prev.filter((_, i) => i !== index))
@@ -144,22 +182,44 @@ export function ApprovalWorkflowsList({
       return next
     })
   }
+  function toggleUser(index: number, userId: string) {
+    setSteps((prev) =>
+      prev.map((s, i) => {
+        if (i !== index) return s
+        const has = s.approverUserIds.includes(userId)
+        return {
+          ...s,
+          approverUserIds: has
+            ? s.approverUserIds.filter((id) => id !== userId)
+            : [...s.approverUserIds, userId],
+        }
+      }),
+    )
+  }
 
   async function handleSave() {
     if (name.trim() === "") {
       setError("Name is required")
       return
     }
-    // Drop incomplete steps (a role/user step with nothing chosen). Manager
-    // steps are always complete.
     const cleanSteps = steps
-      .filter((s) => s.kind === "manager" || (s.kind === "role" ? s.approverRole : s.approverUserId))
-      .map((s, i) => ({
-        stepOrder: i + 1,
-        approverKind: s.kind,
-        approverRole: s.kind === "role" ? s.approverRole : null,
-        approverUserId: s.kind === "user" ? s.approverUserId : null,
-      }))
+      .filter(
+        (s) =>
+          s.kind === "manager" ||
+          (s.kind === "role" ? s.approverRole : s.approverUserIds.length > 0 || s.approverUserId),
+      )
+      .map((s, i) => {
+        const hasMultiUser = s.approverUserIds.length > 1
+        return {
+          stepOrder: i + 1,
+          approverKind: s.kind,
+          approverRole: s.kind === "role" ? s.approverRole : null,
+          approverUserId: s.kind === "user" && !hasMultiUser ? (s.approverUserId || s.approverUserIds[0] || null) : null,
+          approverUserIds: s.kind === "user" && hasMultiUser ? s.approverUserIds : null,
+          name: s.name.trim() || null,
+          mode: s.approverUserIds.length > 1 ? s.mode : "all_required",
+        }
+      })
 
     setPending(true)
     setError(null)
@@ -169,11 +229,13 @@ export function ApprovalWorkflowsList({
         description: description.trim() || null,
         entityType,
         entityId: entityId || null,
+        appliesToEntityId: appliesToEntityId || null,
+        triggerStage: triggerStage || null,
+        enforceGate,
         active,
       }
       if (editing) {
         await updateAction(editing.id, input)
-        // The steps replace is self-atomic; a failure leaves prior steps intact.
         await replaceStepsAction(editing.id, { steps: cleanSteps })
       } else {
         // Create INACTIVE first, then add steps, then activate — so a mid-save
@@ -240,6 +302,16 @@ export function ApprovalWorkflowsList({
                     <Badge variant="outline" className="text-xs">
                       {w.entityName ?? "Org-wide default"}
                     </Badge>
+                    {w.triggerStage && (
+                      <Badge variant="outline" className="text-xs border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400">
+                        {titleCase(w.triggerStage)}
+                      </Badge>
+                    )}
+                    {w.enforceGate && (
+                      <Badge variant="outline" className="text-xs border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-400">
+                        Gate
+                      </Badge>
+                    )}
                     {!w.active && <Badge variant="outline" className="text-xs text-muted-foreground">Inactive</Badge>}
                   </div>
                   <p className="mt-1 truncate text-xs text-muted-foreground">{stepLabel(w)}</p>
@@ -303,10 +375,44 @@ export function ApprovalWorkflowsList({
               </div>
             </div>
 
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-              Active
-            </label>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-1.5">
+                <Label htmlFor="wf-sow-entity">Scope (SOW entity)</Label>
+                <select id="wf-sow-entity" className={SELECT_CLASS} value={appliesToEntityId} onChange={(e) => setAppliesToEntityId(e.target.value)}>
+                  <option value="">All entities</option>
+                  {entityOptions.map((e) => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="wf-trigger-stage">Trigger stage</Label>
+                <select id="wf-trigger-stage" className={SELECT_CLASS} value={triggerStage} onChange={(e) => setTriggerStage(e.target.value)}>
+                  <option value="">Manual only</option>
+                  {DEAL_STAGE_OPTIONS.map((s) => (
+                    <option key={s} value={s}>{titleCase(s)}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+                Active
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={enforceGate} onChange={(e) => setEnforceGate(e.target.checked)} />
+                <span>Enforce gate</span>
+              </label>
+            </div>
+
+            {enforceGate && !triggerStage && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                An enforce-gate workflow should have a trigger stage so the gate can block stage
+                transitions.
+              </p>
+            )}
 
             <div className="grid gap-2 border-t pt-3">
               <div className="flex items-center justify-between">
@@ -324,56 +430,93 @@ export function ApprovalWorkflowsList({
               )}
 
               {steps.map((s, i) => (
-                <div key={i} className="flex items-center gap-2 rounded-lg border p-2">
-                  <span className="w-5 shrink-0 text-center text-xs text-muted-foreground">{i + 1}</span>
-                  <select
-                    className={SELECT_CLASS}
-                    value={s.kind}
-                    onChange={(e) => updateStep(i, { kind: e.target.value as "manager" | "role" | "user" })}
-                    aria-label={`Step ${i + 1} approver type`}
-                  >
-                    <option value="manager">Submitter&apos;s manager</option>
-                    <option value="role">By role</option>
-                    <option value="user">Specific user</option>
-                  </select>
-                  {s.kind === "manager" ? (
-                    <span className="flex-1 text-xs text-muted-foreground">
-                      Routed to the submitter&apos;s manager (falls back to an admin if none).
-                    </span>
-                  ) : s.kind === "role" ? (
+                <div key={i} className="rounded-lg border p-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 shrink-0 text-center text-xs text-muted-foreground">{i + 1}</span>
                     <select
-                      className={`${SELECT_CLASS} flex-1`}
-                      value={s.approverRole}
-                      onChange={(e) => updateStep(i, { approverRole: e.target.value })}
-                      aria-label={`Step ${i + 1} role`}
+                      className={SELECT_CLASS}
+                      value={s.kind}
+                      onChange={(e) => updateStep(i, { kind: e.target.value as "manager" | "role" | "user" })}
+                      aria-label={`Step ${i + 1} approver type`}
                     >
-                      <option value="">Select role...</option>
-                      {APPROVER_ROLE_OPTIONS.map((r) => (
-                        <option key={r} value={r}>{titleCase(r)}</option>
-                      ))}
+                      <option value="manager">Submitter&apos;s manager</option>
+                      <option value="role">By role</option>
+                      <option value="user">Specific user(s)</option>
                     </select>
-                  ) : (
-                    <select
-                      className={`${SELECT_CLASS} flex-1`}
-                      value={s.approverUserId}
-                      onChange={(e) => updateStep(i, { approverUserId: e.target.value })}
-                      aria-label={`Step ${i + 1} user`}
-                    >
-                      <option value="">Select user...</option>
-                      {userOptions.map((u) => (
-                        <option key={u.id} value={u.id}>{u.name}</option>
-                      ))}
-                    </select>
+                    {s.kind === "manager" ? (
+                      <span className="flex-1 text-xs text-muted-foreground">
+                        Routed to the submitter&apos;s manager (falls back to an admin if none).
+                      </span>
+                    ) : s.kind === "role" ? (
+                      <select
+                        className={`${SELECT_CLASS} flex-1`}
+                        value={s.approverRole}
+                        onChange={(e) => updateStep(i, { approverRole: e.target.value })}
+                        aria-label={`Step ${i + 1} role`}
+                      >
+                        <option value="">Select role...</option>
+                        {APPROVER_ROLE_OPTIONS.map((r) => (
+                          <option key={r} value={r}>{titleCase(r)}</option>
+                        ))}
+                      </select>
+                    ) : null}
+                  </div>
+
+                  {s.kind === "user" && (
+                    <div className="ml-7 space-y-1.5">
+                      <div className="border rounded-md max-h-32 overflow-y-auto p-1">
+                        {userOptions.length === 0 && (
+                          <p className="p-1 text-xs text-muted-foreground">No users available</p>
+                        )}
+                        {userOptions.map((u) => (
+                          <label
+                            key={u.id}
+                            className="flex items-center gap-2 px-1 py-0.5 rounded hover:bg-muted text-xs cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={s.approverUserIds.includes(u.id)}
+                              onChange={() => toggleUser(i, u.id)}
+                            />
+                            {u.name}
+                          </label>
+                        ))}
+                      </div>
+                      {s.approverUserIds.length > 1 && (
+                        <select
+                          className={SELECT_CLASS}
+                          value={s.mode}
+                          onChange={(e) => updateStep(i, { mode: e.target.value as ApprovalStepMode })}
+                          aria-label={`Step ${i + 1} approval mode`}
+                        >
+                          {APPROVAL_STEP_MODE_OPTIONS.map((m) => (
+                            <option key={m} value={m}>
+                              {m === "any_one" ? "Any one can approve" : "All must approve"}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
                   )}
-                  <button type="button" onClick={() => moveStep(i, -1)} disabled={i === 0} className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted disabled:opacity-30" aria-label={`Move step ${i + 1} up`}>
-                    <ArrowUp className="size-4" />
-                  </button>
-                  <button type="button" onClick={() => moveStep(i, 1)} disabled={i === steps.length - 1} className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted disabled:opacity-30" aria-label={`Move step ${i + 1} down`}>
-                    <ArrowDown className="size-4" />
-                  </button>
-                  <button type="button" onClick={() => removeStep(i)} className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive" aria-label={`Remove step ${i + 1}`}>
-                    <X className="size-4" />
-                  </button>
+
+                  <div className="ml-7 flex items-center gap-2">
+                    <Input
+                      className="h-7 text-xs"
+                      value={s.name}
+                      onChange={(e) => updateStep(i, { name: e.target.value })}
+                      placeholder="Step label (optional)"
+                      aria-label={`Step ${i + 1} label`}
+                    />
+                    <button type="button" onClick={() => moveStep(i, -1)} disabled={i === 0} className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted disabled:opacity-30" aria-label={`Move step ${i + 1} up`}>
+                      <ArrowUp className="size-4" />
+                    </button>
+                    <button type="button" onClick={() => moveStep(i, 1)} disabled={i === steps.length - 1} className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted disabled:opacity-30" aria-label={`Move step ${i + 1} down`}>
+                      <ArrowDown className="size-4" />
+                    </button>
+                    <button type="button" onClick={() => removeStep(i)} className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive" aria-label={`Remove step ${i + 1}`}>
+                      <X className="size-4" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

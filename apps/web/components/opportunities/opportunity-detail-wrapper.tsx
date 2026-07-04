@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Pencil, SendHorizontal, Calendar, GitBranch, FolderOpen, Mail } from "lucide-react"
+import { Pencil, SendHorizontal, Calendar, GitBranch, FolderOpen, Mail, TriangleAlert } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -37,7 +37,7 @@ import type {
 } from "@/lib/data/opportunities.types"
 import type { StageHistoryRecord } from "@/lib/data/opportunity-stage-history"
 import type { ActivityRecord } from "@/lib/data/activities"
-import type { ApprovalInstanceRecord } from "@/lib/data/approvals"
+import type { ApprovalInstanceRecord, EnforceGateStatus } from "@/lib/data/approvals"
 import { getStageLabel, SERVICE_TYPE_LABELS, PROPERTY_TYPE_LABELS } from "@/lib/data/opportunities.types"
 import { NON_TERMINAL_STAGES, TERMINAL_STAGES } from "@/lib/opportunity"
 import type { DealStage } from "@/lib/opportunity"
@@ -79,6 +79,7 @@ interface OpportunityDetailWrapperProps {
   cancelApprovalAction?: (opportunityId: string, instanceId: string) => Promise<void>
   updateSplitsAction?: (id: string, input: unknown) => Promise<void>
   updateTeamAction?: (id: string, input: unknown) => Promise<void>
+  enforceGateStatus?: EnforceGateStatus
 }
 
 function formatDate(dateStr: string | null): string {
@@ -178,6 +179,7 @@ export function OpportunityDetailWrapper({
   cancelApprovalAction,
   updateSplitsAction,
   updateTeamAction,
+  enforceGateStatus = { isBlocked: false },
 }: OpportunityDetailWrapperProps) {
   const router = useRouter()
   const [updatingStage, setUpdatingStage] = useState(false)
@@ -410,6 +412,32 @@ export function OpportunityDetailWrapper({
         </CardContent>
       </Card>
 
+      {enforceGateStatus.isBlocked && (
+        <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
+          <TriangleAlert className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+              Approval required to advance past this stage
+            </p>
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              This stage requires an approved approval before you can move forward.
+              Scroll down to the{" "}
+              <button
+                type="button"
+                className="underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-100"
+                onClick={() => {
+                  const el = document.getElementById("approval-history-section")
+                  if (el) el.scrollIntoView({ behavior: "smooth" })
+                }}
+              >
+                Approval History
+              </button>{" "}
+              section to review or submit.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── Main Content: Left + Right Columns ───────────────────────────────── */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         {/* Left Panel */}
@@ -560,7 +588,7 @@ export function OpportunityDetailWrapper({
             </CardContent>
           </Card>
 
-          <Card>
+          <Card id="approval-history-section">
             <CardHeader>
               <CardTitle className="text-sm">Approval History</CardTitle>
             </CardHeader>
