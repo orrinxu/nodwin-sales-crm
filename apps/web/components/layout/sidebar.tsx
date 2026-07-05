@@ -66,7 +66,7 @@ const adminItems = [
   { name: "Relationship Types", href: "/admin/relationship-types", icon: LinkIcon },
   { name: "Approval Workflows", href: "/admin/approval-workflows", icon: ClipboardCheck },
   { name: "Email", href: "/admin/email", icon: Mail },
-  { name: "Knowledge / AI", href: "/admin/knowledge", icon: Sparkles },
+  { name: "AI", href: "/admin/ai", icon: Sparkles },
   { name: "Data Management", href: "/admin/data-management", icon: Database },
   { name: "Allowed Domains", href: "/admin/allowed-domains", icon: ShieldCheck },
 ]

@@ -1,9 +1,8 @@
-import type { ProviderAdapter } from "../types"
+import type { AdapterConfig, ProviderAdapter } from "../types"
 
-export function createDeepseekAdapter(
-  model = process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
-): ProviderAdapter {
-  const apiKey = process.env.DEEPSEEK_API_KEY
+export function createDeepseekAdapter(config: AdapterConfig = {}): ProviderAdapter {
+  const model = config.model ?? process.env.DEEPSEEK_MODEL ?? "deepseek-chat"
+  const apiKey = config.apiKey ?? process.env.DEEPSEEK_API_KEY
 
   return {
     async call(prompt: string, systemPrompt?: string) {

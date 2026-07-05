@@ -134,6 +134,18 @@ export interface ProviderAdapter {
   }>
 }
 
+/**
+ * Uniform per-provider config injected into an adapter factory. Any field left
+ * undefined falls back to the provider's env var (ORR-635: DB ai_providers wins,
+ * env is the fallback). `baseUrl` only applies to endpoint-based providers
+ * (openai_compatible, ollama_local).
+ */
+export interface AdapterConfig {
+  model?: string
+  apiKey?: string
+  baseUrl?: string
+}
+
 export const DEFAULT_USER_SOFT_CAP = Money.fromAmount(3, "USD")
 export const DEFAULT_USER_HARD_CAP = Money.fromAmount(5, "USD")
 export const DEFAULT_TEAM_HARD_CAP_PER_USER = Money.fromAmount(5, "USD")

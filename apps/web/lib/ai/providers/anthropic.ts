@@ -1,9 +1,8 @@
-import type { ProviderAdapter } from "../types"
+import type { AdapterConfig, ProviderAdapter } from "../types"
 
-export function createAnthropicAdapter(
-  model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
-): ProviderAdapter {
-  const apiKey = process.env.ANTHROPIC_API_KEY
+export function createAnthropicAdapter(config: AdapterConfig = {}): ProviderAdapter {
+  const model = config.model ?? process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6"
+  const apiKey = config.apiKey ?? process.env.ANTHROPIC_API_KEY
 
   return {
     async call(prompt: string, systemPrompt?: string) {

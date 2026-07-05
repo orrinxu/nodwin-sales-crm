@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import type { AiSettingsSafe, IngestionStatusCounts } from "@/lib/data/ai-settings"
-import type { RunIngestionResult } from "@/app/(crm)/admin/knowledge/actions"
+import type { RunIngestionResult } from "@/app/(crm)/admin/ai/actions"
 
 interface Props {
   settings: AiSettingsSafe

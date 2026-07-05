@@ -2,17 +2,26 @@
 
 import { revalidatePath } from "next/cache"
 import { requireUser, requireRole } from "@/lib/security/auth"
+import { updateAiProviders } from "@/lib/data/ai-providers"
 import { updateAiSettings, resolveAiConfig } from "@/lib/data/ai-settings"
 import { runIngestionBatch } from "@/lib/ingestion/worker"
 import { createDriveClient } from "@/lib/integrations/drive"
 import { createEmbedder } from "@/lib/ai/embeddings"
+
+export async function saveAiProvidersAction(input: unknown) {
+  const user = await requireUser()
+  requireRole(user, "admin")
+  const ctx = { user, source: "web" as const }
+  await updateAiProviders(ctx, input as never)
+  revalidatePath("/admin/ai")
+}
 
 export async function saveAiSettingsAction(input: unknown) {
   const user = await requireUser()
   requireRole(user, "admin")
   const ctx = { user, source: "web" as const }
   await updateAiSettings(ctx, input as never)
-  revalidatePath("/admin/knowledge")
+  revalidatePath("/admin/ai")
 }
 
 export interface RunIngestionResult {
@@ -38,7 +47,7 @@ export async function runIngestionNowAction(): Promise<RunIngestionResult> {
     { drive: createDriveClient(), embedder: createEmbedder(cfg.embeddings) },
     20,
   )
-  revalidatePath("/admin/knowledge")
+  revalidatePath("/admin/ai")
   return {
     processed: summary.processed,
     indexed: summary.results.filter((r) => r.status === "indexed").length,
