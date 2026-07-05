@@ -2588,6 +2588,33 @@ export type Database = {
         }
         Relationships: []
       }
+      stuck_deal_settings: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          stage: string
+          threshold_days: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          stage: string
+          threshold_days: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          stage?: string
+          threshold_days?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       tax_id_types: {
         Row: {
           active: boolean
