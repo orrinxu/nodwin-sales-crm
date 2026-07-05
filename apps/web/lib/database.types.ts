@@ -3012,19 +3012,6 @@ export type Database = {
           total_prompt_tokens: number
         }[]
       }
-      has_policy: {
-        Args: {
-          description?: string
-          policy_name: string
-          schema_name: string
-          table_name: string
-        }
-        Returns: string
-      }
-      has_rls: {
-        Args: { description?: string; schema_name: string; table_name: string }
-        Returns: string
-      }
       is_email_domain_allowed: { Args: { _email: string }; Returns: boolean }
       job_pipeline_health_snapshot: { Args: never; Returns: undefined }
       money_add: {
