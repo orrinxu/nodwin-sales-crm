@@ -2976,6 +2976,14 @@ export type Database = {
         Args: { _account_id: string; _tax_ids: Json }
         Returns: undefined
       }
+      replace_opportunity_splits: {
+        Args: { _opportunity_id: string; _rows: Json }
+        Returns: undefined
+      }
+      replace_opportunity_team_members: {
+        Args: { _opportunity_id: string; _rows: Json }
+        Returns: undefined
+      }
       replace_revenue_schedule: {
         Args: { _opportunity_id: string; _rows: Json }
         Returns: undefined
