@@ -334,6 +334,107 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_providers: {
+        Row: {
+          api_key: string | null
+          base_url: string | null
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          model: string | null
+          priority: number
+          provider: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          api_key?: string | null
+          base_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          model?: string | null
+          priority?: number
+          provider: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          api_key?: string | null
+          base_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          model?: string | null
+          priority?: number
+          provider?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      ai_settings: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          embeddings_api_key: string | null
+          embeddings_base_url: string | null
+          embeddings_model: string | null
+          generation_api_key: string | null
+          generation_base_url: string | null
+          generation_model: string | null
+          id: string
+          ingestion_enabled: boolean
+          is_singleton: boolean
+          primary_provider: string | null
+          search_enabled: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          embeddings_api_key?: string | null
+          embeddings_base_url?: string | null
+          embeddings_model?: string | null
+          generation_api_key?: string | null
+          generation_base_url?: string | null
+          generation_model?: string | null
+          id?: string
+          ingestion_enabled?: boolean
+          is_singleton?: boolean
+          primary_provider?: string | null
+          search_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          embeddings_api_key?: string | null
+          embeddings_base_url?: string | null
+          embeddings_model?: string | null
+          generation_api_key?: string | null
+          generation_base_url?: string | null
+          generation_model?: string | null
+          id?: string
+          ingestion_enabled?: boolean
+          is_singleton?: boolean
+          primary_provider?: string | null
+          search_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_settings_primary_provider_fkey"
+            columns: ["primary_provider"]
+            isOneToOne: false
+            referencedRelation: "ai_providers"
+            referencedColumns: ["provider"]
+          },
+        ]
+      }
       ai_usage: {
         Row: {
           completion_tokens: number

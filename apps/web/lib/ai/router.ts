@@ -11,8 +11,6 @@ export interface AiCallDeps {
   usageLogger?: UsageLogger
 }
 
-const DEFAULT_PROVIDER_PRIORITY: AiProvider[] = ["claude", "gemini", "kimi", "deepseek", "openai_compatible", "ollama_local"]
-
 function pickAdapters(
   _feature: string,
   adapters: Map<string, ProviderAdapter>,
@@ -28,11 +26,11 @@ function pickAdapters(
     return chain
   }
 
-  for (const provider of DEFAULT_PROVIDER_PRIORITY) {
-    const adapter = adapters.get(provider)
-    if (adapter) {
-      chain.push({ provider, adapter })
-    }
+  // Map insertion order IS the fallback order — the DB-resolved chain (ORR-635)
+  // inserts primary first, then priority; createAdaptersFromEnv inserts in its
+  // own fixed order. The router honors whatever order it was handed.
+  for (const [provider, adapter] of adapters) {
+    chain.push({ provider: provider as AiProvider, adapter })
   }
 
   return chain

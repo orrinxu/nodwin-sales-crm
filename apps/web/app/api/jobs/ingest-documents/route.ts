@@ -4,6 +4,7 @@ import { timingSafeEqual } from "node:crypto"
 import { env } from "@/lib/security/env"
 import { createDriveClient } from "@/lib/integrations/drive"
 import { createEmbedder } from "@/lib/ai/embeddings"
+import { resolveAiConfig } from "@/lib/data/ai-settings"
 import { runIngestionBatch } from "@/lib/ingestion/worker"
 
 // ORR-620 ingestion worker drain. Intended to be invoked by a scheduler
@@ -45,8 +46,12 @@ export async function POST(request: NextRequest) {
   const limit = Math.min(Number(searchParams.get("limit")) || 10, 50)
 
   try {
+    const cfg = await resolveAiConfig()
+    if (!cfg.ingestionEnabled) {
+      return NextResponse.json({ skipped: true, reason: "ingestion disabled by admin", processed: 0, results: [] })
+    }
     const summary = await runIngestionBatch(
-      { drive: createDriveClient(), embedder: createEmbedder() },
+      { drive: createDriveClient(), embedder: createEmbedder(cfg.embeddings) },
       limit,
     )
     return NextResponse.json(summary)

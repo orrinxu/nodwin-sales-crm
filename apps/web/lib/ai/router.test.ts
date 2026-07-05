@@ -164,6 +164,29 @@ describe("aiCall", () => {
     expect(logger.calls[0].status).toBe("fallback")
   })
 
+  it("falls back in map insertion order when the first provider throws", async () => {
+    const failing: ProviderAdapter = { async call() { throw new Error("boom") } }
+    const logger = mockLogger()
+    // Insertion order = intended fallback order (ORR-635 DB chain: primary first).
+    const result = await aiCall(
+      { ...defaultParams },
+      {
+        adapters: new Map<string, ProviderAdapter>([
+          ["gemini", failing],
+          ["claude", stubAdapter("second")],
+        ]),
+        capSource: mockCapSource(),
+        usageLogger: logger,
+      },
+    )
+
+    expect(result.ok).toBe(true)
+    expect(result.data).toBe("second")
+    expect(result.provider).toBe("claude")
+    expect(logger.calls).toHaveLength(1)
+    expect(logger.calls[0].provider).toBe("claude")
+  })
+
   it("returns service_unavailable on hard cap even with adapters available", async () => {
     const result = await aiCall(
       { ...defaultParams, estimatedCost: mockMoney(1.00) },

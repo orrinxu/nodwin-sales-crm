@@ -1,9 +1,8 @@
-import type { ProviderAdapter } from "../types"
+import type { AdapterConfig, ProviderAdapter } from "../types"
 
-export function createMoonshotAdapter(
-  model = process.env.MOONSHOT_MODEL ?? "moonshot-v1-8k",
-): ProviderAdapter {
-  const apiKey = process.env.MOONSHOT_API_KEY
+export function createMoonshotAdapter(config: AdapterConfig = {}): ProviderAdapter {
+  const model = config.model ?? process.env.MOONSHOT_MODEL ?? "moonshot-v1-8k"
+  const apiKey = config.apiKey ?? process.env.MOONSHOT_API_KEY
 
   return {
     async call(prompt: string, systemPrompt?: string) {

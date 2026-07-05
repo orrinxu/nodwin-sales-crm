@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { createAdaptersFromEnv } from "./index"
+import { createAdaptersFromEnv, createAdaptersFromChain } from "./index"
 import { createAnthropicAdapter } from "./anthropic"
 import { createGeminiAdapter } from "./gemini"
 import { createDeepseekAdapter } from "./deepseek"
@@ -64,6 +64,51 @@ describe("createAdaptersFromEnv", () => {
     expect(adapters.has("kimi")).toBe(true)
     expect(adapters.has("ollama_local")).toBe(true)
     expect(adapters.has("openai_compatible")).toBe(true)
+  })
+})
+
+describe("createAdaptersFromChain", () => {
+  it("builds only the listed providers, preserving order (= router fallback order)", () => {
+    const adapters = createAdaptersFromChain([
+      { provider: "ollama_local", baseUrl: "http://h:11434", model: "q", apiKey: null },
+      { provider: "claude", baseUrl: null, model: "claude-x", apiKey: "k" },
+    ])
+    expect([...adapters.keys()]).toEqual(["ollama_local", "claude"])
+    expect(adapters.has("gemini")).toBe(false)
+  })
+
+  it("injects DB config so an adapter works with no env vars set", async () => {
+    delete process.env.OPENAI_COMPATIBLE_BASE_URL
+    delete process.env.OPENAI_COMPATIBLE_API_KEY
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      new Response(
+        JSON.stringify({ model: "db-model", choices: [{ message: { content: "hi" } }], usage: {} }),
+        { status: 200 },
+      ),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+    try {
+      const adapters = createAdaptersFromChain([
+        { provider: "openai_compatible", baseUrl: "http://192.168.1.9:8080/v1", model: "db-model", apiKey: "db-key" },
+      ])
+      const result = await adapters.get("openai_compatible")!.call("hello")
+      expect(result.text).toBe("hi")
+      // baseUrl + bearer key came from the chain config, not env.
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(url).toBe("http://192.168.1.9:8080/v1/chat/completions")
+      expect(init!.headers).toMatchObject({ Authorization: "Bearer db-key" })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it("skips unknown providers without throwing", () => {
+    const adapters = createAdaptersFromChain([
+      // @ts-expect-error deliberately invalid provider name
+      { provider: "not_a_provider", baseUrl: null, model: null, apiKey: null },
+      { provider: "claude", baseUrl: null, model: null, apiKey: "k" },
+    ])
+    expect([...adapters.keys()]).toEqual(["claude"])
   })
 })
 

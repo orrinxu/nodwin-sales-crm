@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto"
 import { aiCall } from "./router"
 import { createOpenAICompatibleAdapter } from "./providers/openai-compatible"
 import { Money } from "../money"
+import { resolveAiConfig } from "../data/ai-settings"
 import type { KnowledgeChunk } from "../data/knowledge"
 
 // ORR-621 RAG generation. Answers are grounded ONLY in the tier-filtered chunks
@@ -90,8 +91,20 @@ async function selfHostedComplete(
   prompt: string,
   userId: string,
 ): Promise<{ text: string; model: string | null }> {
-  // Force self-hosted by giving the router ONLY the openai_compatible adapter.
-  // estimatedCost 0 — self-hosted has no per-token cost, so no cap gating.
+  // Resolve the self-hosted generation endpoint from ai_settings (DB-then-env).
+  const gen = (await resolveAiConfig()).generation
+  if (!gen.baseUrl || !gen.model) {
+    throw new Error(
+      "RAG generation is not configured — set the generation endpoint + model in Admin → Knowledge (self-hosted llama.cpp), or the GENERATION_* env vars.",
+    )
+  }
+  // Force self-hosted by giving the router ONLY the openai_compatible adapter,
+  // built from the resolved config. estimatedCost 0 — self-hosted, no cap gating.
+  const adapter = createOpenAICompatibleAdapter({
+    baseUrl: gen.baseUrl,
+    model: gen.model,
+    apiKey: gen.apiKey ?? undefined,
+  })
   const result = await aiCall(
     {
       feature: "search",
@@ -103,12 +116,10 @@ async function selfHostedComplete(
       estimateCompletionTokens: 0,
       requestId: `rag-${randomUUID()}`,
     },
-    { adapters: new Map([["openai_compatible", createOpenAICompatibleAdapter()]]) },
+    { adapters: new Map([["openai_compatible", adapter]]) },
   )
   if (!result.ok) {
-    throw new Error(
-      `RAG generation failed (${result.reason ?? "unknown"}). Is OPENAI_COMPATIBLE_BASE_URL wired to a self-hosted llama.cpp completion server?`,
-    )
+    throw new Error(`RAG generation failed (${result.reason ?? "unknown"}).`)
   }
   return { text: result.data ?? "", model: result.model ?? null }
 }
