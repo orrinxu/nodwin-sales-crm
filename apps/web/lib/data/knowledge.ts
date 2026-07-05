@@ -2,6 +2,7 @@ import "server-only"
 import { createServerClient } from "@/lib/supabase/server"
 import { createEmbedder, type Embedder } from "@/lib/ai/embeddings"
 import { generateAnswer, type RagAnswer, type RagDeps } from "@/lib/ai/rag"
+import { resolveAiConfig } from "@/lib/data/ai-settings"
 import type { Database } from "@/lib/database.types"
 
 // ORR-621 cross-deal knowledge retrieval (READ-ONLY over the ORR-620 index).
@@ -70,7 +71,16 @@ export async function search(
   const query = input.query.trim()
   if (query.length === 0) return { chunks: [], model: null }
 
-  const embedder = deps.embedder ?? createEmbedder()
+  // Resolve embeddings config (DB-then-env) + honor the search toggle. Skipped
+  // entirely when an embedder is injected (tests).
+  let embedder = deps.embedder
+  if (!embedder) {
+    const cfg = await resolveAiConfig()
+    if (!cfg.searchEnabled) {
+      throw new Error("Knowledge search is disabled by an administrator.")
+    }
+    embedder = createEmbedder(cfg.embeddings)
+  }
   const { vectors, model } = await embedder.embed([query])
   const queryVector = vectors[0]
   if (!queryVector || queryVector.length === 0) return { chunks: [], model }

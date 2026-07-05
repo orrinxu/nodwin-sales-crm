@@ -22,6 +22,10 @@ export const envSchema = z.object({
   EMBEDDINGS_MODEL: z.string().optional(),
   EMBEDDINGS_API_KEY: z.string().optional(),
   INGESTION_CRON_SECRET: z.string().optional(),
+  // ORR-634 self-hosted RAG generation fallback (DB ai_settings wins over these).
+  GENERATION_BASE_URL: z.string().url().optional(),
+  GENERATION_MODEL: z.string().optional(),
+  GENERATION_API_KEY: z.string().optional(),
   APP_URL: z.string().url().default("http://localhost:3000"),
   NEXT_PUBLIC_APP_NAME: z.string().min(1).default("Nodwin CRM"),
   NEXT_PUBLIC_API_URL: z.string().url(),

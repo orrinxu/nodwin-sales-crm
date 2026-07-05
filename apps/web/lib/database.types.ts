@@ -334,6 +334,54 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_settings: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          embeddings_api_key: string | null
+          embeddings_base_url: string | null
+          embeddings_model: string | null
+          generation_api_key: string | null
+          generation_base_url: string | null
+          generation_model: string | null
+          id: string
+          ingestion_enabled: boolean
+          search_enabled: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          embeddings_api_key?: string | null
+          embeddings_base_url?: string | null
+          embeddings_model?: string | null
+          generation_api_key?: string | null
+          generation_base_url?: string | null
+          generation_model?: string | null
+          id?: string
+          ingestion_enabled?: boolean
+          search_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          embeddings_api_key?: string | null
+          embeddings_base_url?: string | null
+          embeddings_model?: string | null
+          generation_api_key?: string | null
+          generation_base_url?: string | null
+          generation_model?: string | null
+          id?: string
+          ingestion_enabled?: boolean
+          search_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       ai_usage: {
         Row: {
           completion_tokens: number
