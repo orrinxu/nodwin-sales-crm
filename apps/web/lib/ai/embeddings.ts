@@ -25,16 +25,29 @@ interface OpenAIEmbeddingResponse {
   model?: string
 }
 
+/** Resolved endpoint config (from ai_settings DB-then-env). */
+export interface EmbedderConfig {
+  baseUrl: string | null
+  model: string | null
+  apiKey: string | null
+}
+
 /**
- * Default embedder: an OpenAI-compatible `/embeddings` client. Throws a clear
- * "not configured" error until EMBEDDINGS_BASE_URL is wired — the seam is
- * present, nothing is plugged in yet.
+ * Default embedder: an OpenAI-compatible `/embeddings` client. Pass a resolved
+ * config (ORR-634 ai_settings, DB-then-env); with no arg it falls back to the
+ * EMBEDDINGS_* env vars directly (legacy / tests). Throws a clear "not
+ * configured" error until an endpoint + model are set.
  */
-export function createEmbedder(): Embedder {
+export function createEmbedder(config?: EmbedderConfig): Embedder {
+  const src: EmbedderConfig = config ?? {
+    baseUrl: env.EMBEDDINGS_BASE_URL ?? null,
+    model: env.EMBEDDINGS_MODEL ?? null,
+    apiKey: env.EMBEDDINGS_API_KEY ?? null,
+  }
   return {
     async embed(texts: string[]): Promise<EmbeddingResult> {
-      const baseUrl = env.EMBEDDINGS_BASE_URL?.replace(/\/+$/, "")
-      const model = env.EMBEDDINGS_MODEL
+      const baseUrl = src.baseUrl?.replace(/\/+$/, "")
+      const model = src.model
       if (!baseUrl || !model) {
         throw new Error(
           "Embeddings are not configured — set EMBEDDINGS_BASE_URL and EMBEDDINGS_MODEL " +
@@ -47,7 +60,7 @@ export function createEmbedder(): Embedder {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(env.EMBEDDINGS_API_KEY ? { Authorization: `Bearer ${env.EMBEDDINGS_API_KEY}` } : {}),
+          ...(src.apiKey ? { Authorization: `Bearer ${src.apiKey}` } : {}),
         },
         body: JSON.stringify({ model, input: texts }),
       })
