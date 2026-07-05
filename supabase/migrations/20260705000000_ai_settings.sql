@@ -13,6 +13,10 @@
 
 CREATE TABLE IF NOT EXISTS public.ai_settings (
   id                  uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- Singleton guard: exactly one config row. is_singleton is always true and
+  -- unique, so a second INSERT (e.g. a concurrent race) is rejected rather than
+  -- silently creating a duplicate the readers' "latest row" logic would mask.
+  is_singleton        boolean     NOT NULL DEFAULT true,
   -- Embeddings — ingestion AND query must use the same model.
   embeddings_base_url text,
   embeddings_model    text,
@@ -27,7 +31,9 @@ CREATE TABLE IF NOT EXISTS public.ai_settings (
   created_at          timestamptz NOT NULL DEFAULT now(),
   updated_at          timestamptz NOT NULL DEFAULT now(),
   created_by          uuid,
-  updated_by          uuid
+  updated_by          uuid,
+  CONSTRAINT ai_settings_singleton_unique CHECK (is_singleton),
+  UNIQUE (is_singleton)
 );
 
 COMMENT ON TABLE public.ai_settings IS
