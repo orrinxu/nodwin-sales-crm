@@ -441,7 +441,7 @@ export function FieldDefinitionsList({
           <h1 className="text-2xl font-semibold tracking-tight">
             Custom Fields
           </h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             Manage custom field definitions across all entity types.
           </p>
         </div>

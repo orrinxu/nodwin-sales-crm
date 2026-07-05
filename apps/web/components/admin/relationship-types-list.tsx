@@ -534,7 +534,8 @@ export function RelationshipTypesList({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Relationship Types</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage relationship types used between accounts.
+            Define the relationship types used to link accounts (for example parent, subsidiary,
+            or partner). These appear as options when connecting one account to another.
           </p>
         </div>
         <CreateRelationshipTypeDialog createAction={createAction} />

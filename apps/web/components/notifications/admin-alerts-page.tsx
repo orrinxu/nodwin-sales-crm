@@ -278,7 +278,7 @@ export function AdminAlertsPage({
       <div className="flex items-center justify-between border-b px-6 py-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Alerts &amp; Notifications</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             {total} total alert{total !== 1 ? "s" : ""} &middot; {unreadCount} unread
           </p>
         </div>

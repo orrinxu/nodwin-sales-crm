@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { Activity } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,11 +40,9 @@ export function DealHealthForm({ rows, saveAction }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="flex flex-1 flex-col gap-4 p-6">
       <div>
-        <h1 className="flex items-center gap-2 text-xl font-semibold">
-          <Activity className="size-5 text-muted-foreground" /> Deal health
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Deal Health</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           A deal shows on the dashboard&rsquo;s <strong>Stuck Deals</strong> widget when its
           days-since-last-activity reaches the threshold for its stage. Set the per-stage limits
@@ -54,7 +51,7 @@ export function DealHealthForm({ rows, saveAction }: Props) {
         </p>
       </div>
 
-      <form onSubmit={onSave}>
+      <form onSubmit={onSave} className="max-w-2xl">
         <Card>
           <CardHeader><CardTitle className="text-sm">Staleness thresholds (days since last activity)</CardTitle></CardHeader>
           <CardContent className="space-y-3">
