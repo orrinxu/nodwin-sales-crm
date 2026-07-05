@@ -9,7 +9,7 @@ vi.mock("server-only", () => ({}))
 const mockCreateAction = vi.fn()
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
 })
 
 describe("FieldDefinitionDialog", () => {

@@ -60,7 +60,7 @@ const mockDbOpportunity = {
 
 describe("updateOpportunity", () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     buildQueryBuilder()
     mockFrom.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder, update: mockUpdate })
     mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
@@ -263,7 +263,7 @@ describe("updateOpportunity", () => {
 
 describe("enforce_gate (Phase 4)", () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     // clearAllMocks does not drain queued mockResolvedValueOnce values. The
     // "blocks" test throws at the gate before consuming its second queued
     // single() result, so without a reset that leftover leaks into the next
