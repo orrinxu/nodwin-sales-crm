@@ -6,20 +6,23 @@ import {
   getRecentActivities,
 } from "@/lib/data/metrics"
 import type { PipelineMetrics, PipelineStageSummary } from "@/lib/data/metrics"
+import { getStuckDeals } from "@/lib/data/stuck-deals"
 import { MetricsCards } from "@/components/dashboard/metrics-cards"
 import { PipelineChart } from "@/components/dashboard/pipeline-chart"
 import { ActivityTimeline } from "@/components/dashboard/activity-timeline"
 import { RecentDeals } from "@/components/dashboard/recent-deals"
+import { StuckDeals } from "@/components/dashboard/stuck-deals"
 
 export default async function DashboardPage() {
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
 
-  const [pipelineMetrics, pipelineSummary, deals, activities] = await Promise.all([
+  const [pipelineMetrics, pipelineSummary, deals, activities, stuck] = await Promise.all([
     getPipelineMetrics(ctx),
     getPipelineSummary(ctx),
     getRecentDeals(ctx),
     getRecentActivities(ctx),
+    getStuckDeals(ctx),
   ])
 
   // Use the same resolved currency the metrics were converted into, so the
@@ -41,6 +44,23 @@ export default async function DashboardPage() {
       </div>
 
       <MetricsCards metrics={pipelineMetrics} />
+
+      <StuckDeals
+        totalAtRisk={fmt.format(stuck.totalValueAtRisk)}
+        unconvertibleCount={stuck.unconvertibleCount}
+        deals={stuck.deals.map((d) => ({
+          id: d.id,
+          name: d.name,
+          company: d.company,
+          stageLabel: d.stageLabel,
+          amount: fmt.format(d.amount),
+          daysSinceLastActivity: d.daysSinceLastActivity,
+          thresholdDays: d.thresholdDays,
+          hasActivity: d.hasActivity,
+          reasons: d.reasons,
+          closeDate: d.closeDate,
+        }))}
+      />
 
       <PipelineChart stages={pipelineSummary.stages} currency={currency} />
 

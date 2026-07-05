@@ -21,6 +21,7 @@ import {
   ClipboardCheck,
   Mail,
   Sparkles,
+  Activity,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -67,6 +68,7 @@ const adminItems = [
   { name: "Approval Workflows", href: "/admin/approval-workflows", icon: ClipboardCheck },
   { name: "Email", href: "/admin/email", icon: Mail },
   { name: "AI", href: "/admin/ai", icon: Sparkles },
+  { name: "Deal Health", href: "/admin/deal-health", icon: Activity },
   { name: "Data Management", href: "/admin/data-management", icon: Database },
   { name: "Allowed Domains", href: "/admin/allowed-domains", icon: ShieldCheck },
 ]

@@ -2588,6 +2588,33 @@ export type Database = {
         }
         Relationships: []
       }
+      stuck_deal_settings: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          stage: string
+          threshold_days: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          stage: string
+          threshold_days: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          stage?: string
+          threshold_days?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       tax_id_types: {
         Row: {
           active: boolean
@@ -3112,6 +3139,13 @@ export type Database = {
           page_ref: string
           similarity: number
           visibility_tier: Database["public"]["Enums"]["visibility_tier"]
+        }[]
+      }
+      stuck_deal_last_activity: {
+        Args: { opp_ids: string[] }
+        Returns: {
+          last_activity_at: string
+          opportunity_id: string
         }[]
       }
       submit_opportunity_for_approval: {
