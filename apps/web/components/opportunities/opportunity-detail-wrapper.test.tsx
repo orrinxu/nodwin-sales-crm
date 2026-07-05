@@ -1,6 +1,6 @@
 /// <reference types="@testing-library/jest-dom/vitest" />
 import { describe, it, expect, vi } from "vitest"
-import { render, screen } from "@testing-library/react"
+import { render, screen, fireEvent } from "@testing-library/react"
 import { OpportunityDetailWrapper } from "./opportunity-detail-wrapper"
 import type { OpportunityRecord, BusinessUnitOption } from "@/lib/data/opportunities.types"
 import { NON_TERMINAL_STAGES } from "@/lib/opportunity"
@@ -281,6 +281,18 @@ describe("OpportunityDetailWrapper", () => {
       render(<OpportunityDetailWrapper {...defaultProps} actionableStepId="step-1" recordDecisionAction={vi.fn()} />)
       expect(screen.getByText("This approval is waiting on you.")).toBeInTheDocument()
       expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument()
+    })
+
+    it("an empty-field 'Add' affordance fires the shared Edit trigger", () => {
+      // Guards our ref wiring: openEdit → editTriggerRef.current.click() must
+      // reach the Edit control (base-ui then toggles the sheet open).
+      render(<OpportunityDetailWrapper {...defaultProps} opportunity={makeOpportunity({ primaryContactId: null })} />)
+      const editButton = screen.getByText("Edit").closest("button")
+      expect(editButton).not.toBeNull()
+      const clickSpy = vi.fn()
+      editButton!.addEventListener("click", clickSpy)
+      fireEvent.click(screen.getAllByText("Add")[0])
+      expect(clickSpy).toHaveBeenCalledTimes(1)
     })
   })
 })

@@ -6,7 +6,6 @@ import { Pencil, SendHorizontal, Calendar, FolderOpen, Mail, TriangleAlert, Chec
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTab, TabsPanel } from "@/components/ui/tabs"
 import {
@@ -116,14 +115,16 @@ function StatCell({
   value,
   sub,
   valueClassName,
+  className,
 }: {
   label: string
   value: React.ReactNode
   sub?: React.ReactNode
   valueClassName?: string
+  className?: string
 }) {
   return (
-    <div className="flex flex-col gap-1 bg-card px-4 py-3">
+    <div className={cn("flex flex-col gap-1 bg-card px-4 py-3", className)}>
       <span className={T.eyebrow}>{label}</span>
       <span className={cn(T.statValue, valueClassName)}>{value}</span>
       {sub ? <span className="text-[11.5px] text-muted-foreground">{sub}</span> : null}
@@ -451,7 +452,6 @@ export function OpportunityDetailWrapper({
 
   const serviceTypeValue =
     opportunity.serviceType && opportunity.serviceType.length > 0
-      // eslint-disable-next-line security/detect-object-injection -- controlled ServiceType union, not user input
       ? opportunity.serviceType.map((t) => SERVICE_TYPE_LABELS[t as ServiceType] ?? t).join(", ")
       : null
   const propertyTypeValue = opportunity.propertyType
@@ -504,7 +504,9 @@ export function OpportunityDetailWrapper({
 
       {/* ── Hairline stat strip ───────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border md:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
-        <StatCell label="Amount" value={formattedAmount} valueClassName={T.statAmount} sub={formattedBarter ? `+ ${formattedBarter} barter` : undefined} />
+        {/* Amount spans both mobile columns so the 5 cells tile evenly (no stray
+            border-colored slot on a 2-col mobile grid). */}
+        <StatCell label="Amount" value={formattedAmount} valueClassName={T.statAmount} className="col-span-2 md:col-span-1" />
         <StatCell label="Account" value={opportunity.accountName ?? "—"} />
         <StatCell label="Owner" value={opportunity.ownerName ?? "Unassigned"} />
         <StatCell label="Service period" value={servicePeriod ?? <span className="text-muted-foreground">Not set</span>} />
