@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { numberFormatLocale } from "./format"
+import { numberFormatLocale, formatPreferenceDate, formatPreferenceDateTime } from "./format"
 
 describe("numberFormatLocale", () => {
   it("maps 'international' to en-US grouping (thousands/millions)", () => {
@@ -24,5 +24,33 @@ describe("numberFormatLocale", () => {
     const ind = new Intl.NumberFormat(numberFormatLocale("indian"), { notation: "compact" })
     expect(intl.format(1_200_000)).toBe("1.2M")
     expect(ind.format(1_200_000)).toBe("12L")
+  })
+})
+
+describe("formatPreferenceDate", () => {
+  // Local-constructed so the assertion is timezone-independent.
+  const d = new Date(2026, 6, 3) // 3 July 2026
+
+  it("iso → 2026-07-03", () => expect(formatPreferenceDate(d, "iso")).toBe("2026-07-03"))
+  it("us → Jul 3, 2026", () => expect(formatPreferenceDate(d, "us")).toBe("Jul 3, 2026"))
+  it("international → 3 Jul 2026", () => expect(formatPreferenceDate(d, "international")).toBe("3 Jul 2026"))
+  it("defaults to iso for null/undefined preference", () => {
+    expect(formatPreferenceDate(d, undefined)).toBe("2026-07-03")
+  })
+  it("returns the fallback for a null/invalid date", () => {
+    expect(formatPreferenceDate(null, "iso", "TBD")).toBe("TBD")
+    expect(formatPreferenceDate("not-a-date", "iso", "—")).toBe("—")
+  })
+})
+
+describe("formatPreferenceDateTime", () => {
+  const dt = new Date(2026, 6, 3, 14, 30)
+  it("prepends the preference-formatted date, then a time", () => {
+    expect(formatPreferenceDateTime(dt, "iso")).toMatch(/^2026-07-03, /)
+    expect(formatPreferenceDateTime(dt, "us")).toMatch(/^Jul 3, 2026, /)
+    expect(formatPreferenceDateTime(dt, "international")).toMatch(/^3 Jul 2026, /)
+  })
+  it("returns the fallback for a null date", () => {
+    expect(formatPreferenceDateTime(null, "iso", "—")).toBe("—")
   })
 })

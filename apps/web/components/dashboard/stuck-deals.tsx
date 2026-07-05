@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { AlertTriangle, Clock, CalendarX, Building2, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { formatPreferenceDate, type DateFormatPreference } from "@/lib/format"
 import Link from "next/link"
 
 export type StuckReason = "stale" | "overdue"
@@ -27,15 +28,11 @@ export interface StuckDealView {
 interface Props {
   deals: StuckDealView[]
   totalAtRisk: string
+  dateFormat: DateFormatPreference
   unconvertibleCount?: number
 }
 
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "—"
-  return new Date(dateString).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-}
-
-export function StuckDeals({ deals, totalAtRisk, unconvertibleCount = 0 }: Props) {
+export function StuckDeals({ deals, totalAtRisk, dateFormat, unconvertibleCount = 0 }: Props) {
   return (
     <Card>
       <CardHeader className="flex-row items-start justify-between gap-3">
@@ -100,7 +97,7 @@ export function StuckDeals({ deals, totalAtRisk, unconvertibleCount = 0 }: Props
                       </span>
                       {deal.reasons.includes("overdue") && (
                         <span className="flex items-center gap-1 text-destructive">
-                          <CalendarX className="size-3" /> close {formatDate(deal.closeDate)}
+                          <CalendarX className="size-3" /> close {formatPreferenceDate(deal.closeDate, dateFormat, "—")}
                         </span>
                       )}
                     </div>

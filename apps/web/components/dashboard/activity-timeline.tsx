@@ -11,6 +11,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
+import { formatPreferenceDateTime, type DateFormatPreference } from "@/lib/format"
 
 interface Activity {
   id: string
@@ -44,24 +45,19 @@ const activityColors: Record<string, string> = {
 
 interface ActivityTimelineProps {
   activities: Activity[]
+  dateFormat: DateFormatPreference
   maxItems?: number
 }
 
 export function ActivityTimeline({
   activities,
+  dateFormat,
   maxItems = 6,
 }: ActivityTimelineProps) {
   const display = activities.slice(0, maxItems)
 
   function formatTime(dateString: string) {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "short",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    })
+    return formatPreferenceDateTime(dateString, dateFormat)
   }
 
   return (
