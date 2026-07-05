@@ -146,6 +146,26 @@ export async function getDisplayCurrency(
   return (data?.display_currency as string) ?? null
 }
 
+// Resolves just the number-format preference (used by the dashboard number
+// formatters). Cheap single-column read; defaults to "international".
+export async function getNumberFormat(
+  ctx: UserPreferencesCallContext,
+): Promise<NumberFormat> {
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("user_preferences")
+    .select("number_format")
+    .eq("user_id", ctx.user.id)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(`Failed to load number format: ${error.message}`)
+  }
+
+  return (data?.number_format as NumberFormat) ?? "international"
+}
+
 // Upserts the caller's preferences row (keyed on user_id). Only the provided
 // fields are changed. RLS + the audit trigger enforce ownership and stamps.
 export async function upsertUserPreferences(

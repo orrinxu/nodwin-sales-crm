@@ -25,8 +25,8 @@ function getStageColor(stage: string): string {
   return CHART_COLORS.default
 }
 
-function formatChartCurrency(value: number, currency: string): string {
-  const formatter = new Intl.NumberFormat("en-IN", {
+function formatChartCurrency(value: number, currency: string, locale: string): string {
+  const formatter = new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
     maximumFractionDigits: 0,
@@ -39,10 +39,12 @@ function CustomTooltip({
   active,
   payload,
   currency,
+  locale,
 }: {
   active?: boolean
   payload?: Array<{ payload: PipelineStageSummary }>
   currency: string
+  locale: string
 }) {
   if (!active || !payload?.length) return null
   const d = payload[0].payload
@@ -50,7 +52,7 @@ function CustomTooltip({
     <div className="rounded-lg border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md">
       <p className="font-medium">{d.label}</p>
       <p>{d.count} opportunities</p>
-      <p>{formatChartCurrency(d.amount, currency)}</p>
+      <p>{formatChartCurrency(d.amount, currency, locale)}</p>
     </div>
   )
 }
@@ -58,9 +60,10 @@ function CustomTooltip({
 interface PipelineChartProps {
   stages: PipelineStageSummary[]
   currency: string
+  locale: string
 }
 
-export function PipelineChart({ stages, currency }: PipelineChartProps) {
+export function PipelineChart({ stages, currency, locale }: PipelineChartProps) {
   const chartData = stages.map((s) => ({
     label: s.label,
     count: s.count,
@@ -89,7 +92,7 @@ export function PipelineChart({ stages, currency }: PipelineChartProps) {
                 allowDecimals={false}
               />
               <Tooltip
-                content={<CustomTooltip currency={currency} />}
+                content={<CustomTooltip currency={currency} locale={locale} />}
               />
               <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                 {chartData.map((entry) => (
@@ -115,11 +118,11 @@ export function PipelineChart({ stages, currency }: PipelineChartProps) {
               <YAxis
                 tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                 tickFormatter={(v: number) =>
-                  formatChartCurrency(v, currency)
+                  formatChartCurrency(v, currency, locale)
                 }
               />
               <Tooltip
-                content={<CustomTooltip currency={currency} />}
+                content={<CustomTooltip currency={currency} locale={locale} />}
               />
               <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
                 {chartData.map((entry) => (
