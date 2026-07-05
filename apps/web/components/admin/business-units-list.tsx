@@ -611,7 +611,8 @@ export function BusinessUnitsList({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Business Units</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage business units within your entities.
+            Manage the sales and support units within each entity. Business units drive deal
+            splits, team assignment, and reporting rollups.
           </p>
         </div>
         <CreateBusinessUnitDialog entities={entities} createAction={createAction} />

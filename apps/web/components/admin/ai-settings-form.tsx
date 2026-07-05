@@ -73,11 +73,11 @@ export function AiSettingsForm({ settings, counts, saveAction, runIngestionActio
   const keyPlaceholder = (has: boolean) => (has ? "•••••••• (leave blank to keep)" : "API key (optional)")
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="space-y-6">
       <div>
-        <h1 className="flex items-center gap-2 text-xl font-semibold">
-          <Sparkles className="size-5 text-muted-foreground" /> Knowledge / AI
-        </h1>
+        <h2 className="flex items-center gap-2 text-lg font-semibold">
+          <Sparkles className="size-5 text-muted-foreground" /> Knowledge &amp; RAG
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Configure the self-hosted embedding and generation endpoints for document ingestion and
           knowledge search. Values set here override environment defaults.

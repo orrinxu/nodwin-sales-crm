@@ -702,7 +702,8 @@ export function EntitiesList({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Entities</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage legal entities in your organization.
+            Manage the legal entities in your organisation. Each entity owns its own users,
+            business units, approval chain, and reporting currency.
           </p>
         </div>
         <CreateEntityDialog createAction={createAction} />

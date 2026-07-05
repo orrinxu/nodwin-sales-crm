@@ -1,4 +1,3 @@
-import { Sparkles } from "lucide-react"
 import { requireUser, requireRole } from "@/lib/security/auth"
 import { getAiProviders } from "@/lib/data/ai-providers"
 import { getAiSettings, getIngestionStatusCounts } from "@/lib/data/ai-settings"
@@ -23,27 +22,27 @@ export default async function AdminAiPage() {
   ])
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
+    <div className="flex flex-1 flex-col gap-4 p-6">
       <div>
-        <h1 className="flex items-center gap-2 text-xl font-semibold">
-          <Sparkles className="size-5 text-muted-foreground" /> AI configuration
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight">AI</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Select AI providers and wire self-hosted endpoints (IP&nbsp;/&nbsp;port), then configure
           the knowledge&nbsp;/&nbsp;RAG endpoints used for document ingestion and search.
         </p>
       </div>
 
-      <AiProvidersForm data={providers} saveAction={saveAiProvidersAction} />
+      <div className="max-w-3xl space-y-8">
+        <AiProvidersForm data={providers} saveAction={saveAiProvidersAction} />
 
-      <Separator />
+        <Separator />
 
-      <AiSettingsForm
-        settings={settings}
-        counts={counts}
-        saveAction={saveAiSettingsAction}
-        runIngestionAction={runIngestionNowAction}
-      />
+        <AiSettingsForm
+          settings={settings}
+          counts={counts}
+          saveAction={saveAiSettingsAction}
+          runIngestionAction={runIngestionNowAction}
+        />
+      </div>
     </div>
   )
 }
