@@ -109,9 +109,13 @@ CREATE POLICY "audit_log_select_authenticated"
       AND public.opportunity_is_confidential(row_id)
     )
     AND NOT (
+      -- Exactly the audited tables that carry an opportunity_id in their row JSON
+      -- (activities.subject/body, documents metadata, revenue amounts, etc.).
       table_name IN (
+        'activities',
+        'approval_instances',
+        'documents',
         'opportunity_revenue_schedule',
-        'opportunity_stage_history',
         'opportunity_splits',
         'opportunity_team_members'
       )

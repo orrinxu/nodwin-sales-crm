@@ -9,7 +9,7 @@
 
 BEGIN;
 
-SELECT plan(12);
+SELECT plan(14);
 
 INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
   ('11111111-1111-1111-1111-111111111111', 'owner@nodwin.com', '{"full_name":"Owner"}'),
@@ -50,7 +50,9 @@ INSERT INTO public.opportunity_stage_history (opportunity_id, from_stage, to_sta
 INSERT INTO public.audit_log (table_name, row_id, operation, actor_source, new_data) VALUES
   ('opportunities', '00000000-0000-0000-0000-0000000000a1', 'UPDATE', 'system', '{"amount":100}'),
   ('opportunities', '00000000-0000-0000-0000-0000000000a2', 'UPDATE', 'system', '{"amount":999}'),
-  ('opportunity_revenue_schedule', gen_random_uuid(), 'UPDATE', 'system', '{"opportunity_id":"00000000-0000-0000-0000-0000000000a2","amount":500}');
+  ('opportunity_revenue_schedule', gen_random_uuid(), 'UPDATE', 'system', '{"opportunity_id":"00000000-0000-0000-0000-0000000000a2","amount":500}'),
+  ('activities', gen_random_uuid(), 'INSERT', 'system', '{"opportunity_id":"00000000-0000-0000-0000-0000000000a2","subject":"Confidential call","body":"secret note text"}'),
+  ('documents', gen_random_uuid(), 'INSERT', 'system', '{"opportunity_id":"00000000-0000-0000-0000-0000000000a2","name":"Secret Deck.pdf"}');
 
 -- ══ Admin (non-member) is fenced out of the CONFIDENTIAL deal everywhere ══
 SELECT tests.as_user('admin@nodwin.com');
@@ -64,6 +66,10 @@ SELECT is_empty($$ SELECT id FROM public.audit_log WHERE table_name='opportuniti
   'SEC-2: admin cannot read Confidential opportunity audit rows');
 SELECT is_empty($$ SELECT id FROM public.audit_log WHERE table_name='opportunity_revenue_schedule' AND new_data->>'opportunity_id'='00000000-0000-0000-0000-0000000000a2' $$,
   'SEC-2: admin cannot read Confidential revenue-schedule audit rows');
+SELECT is_empty($$ SELECT id FROM public.audit_log WHERE table_name='activities' AND new_data->>'opportunity_id'='00000000-0000-0000-0000-0000000000a2' $$,
+  'SEC-2: admin cannot read Confidential activity audit rows (note body)');
+SELECT is_empty($$ SELECT id FROM public.audit_log WHERE table_name='documents' AND new_data->>'opportunity_id'='00000000-0000-0000-0000-0000000000a2' $$,
+  'SEC-2: admin cannot read Confidential document audit rows');
 SELECT is_empty($$ UPDATE public.opportunities SET name='hacked' WHERE id='00000000-0000-0000-0000-0000000000a2' RETURNING id $$,
   'SEC-3: admin cannot UPDATE a Confidential opportunity');
 SELECT is_empty($$ DELETE FROM public.opportunities WHERE id='00000000-0000-0000-0000-0000000000a2' RETURNING id $$,
