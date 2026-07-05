@@ -6,10 +6,11 @@ import { cn } from "@/lib/utils"
 
 interface MetricsCardsProps {
   metrics: PipelineMetrics
+  locale: string
 }
 
-function fmt(value: number, currency: string): string {
-  const formatter = new Intl.NumberFormat("en-IN", {
+function fmt(value: number, currency: string, locale: string): string {
+  const formatter = new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
     maximumFractionDigits: 0,
@@ -17,11 +18,11 @@ function fmt(value: number, currency: string): string {
   return formatter.format(value)
 }
 
-export function MetricsCards({ metrics }: MetricsCardsProps) {
+export function MetricsCards({ metrics, locale }: MetricsCardsProps) {
   const cards = [
     {
       label: "Pipeline Value",
-      value: fmt(metrics.pipelineValue, metrics.currency),
+      value: fmt(metrics.pipelineValue, metrics.currency, locale),
       icon: DollarSign,
     },
     {
@@ -43,7 +44,7 @@ export function MetricsCards({ metrics }: MetricsCardsProps) {
     },
     {
       label: "Avg Deal Size",
-      value: fmt(metrics.avgDealSize, metrics.currency),
+      value: fmt(metrics.avgDealSize, metrics.currency, locale),
       icon: TrendingUp,
     },
   ]

@@ -7,6 +7,8 @@ import {
 } from "@/lib/data/metrics"
 import type { PipelineMetrics, PipelineStageSummary } from "@/lib/data/metrics"
 import { getStuckDeals } from "@/lib/data/stuck-deals"
+import { getNumberFormat } from "@/lib/data/user-preferences"
+import { numberFormatLocale } from "@/lib/format"
 import { MetricsCards } from "@/components/dashboard/metrics-cards"
 import { PipelineChart } from "@/components/dashboard/pipeline-chart"
 import { ActivityTimeline } from "@/components/dashboard/activity-timeline"
@@ -17,18 +19,21 @@ export default async function DashboardPage() {
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
 
-  const [pipelineMetrics, pipelineSummary, deals, activities, stuck] = await Promise.all([
+  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, numberFormat] = await Promise.all([
     getPipelineMetrics(ctx),
     getPipelineSummary(ctx),
     getRecentDeals(ctx),
     getRecentActivities(ctx),
     getStuckDeals(ctx),
+    getNumberFormat(ctx),
   ])
 
   // Use the same resolved currency the metrics were converted into, so the
-  // pipeline chart and recent-deal amounts match the metric cards.
+  // pipeline chart and recent-deal amounts match the metric cards. Digit grouping
+  // (thousands vs lakh/crore) follows the user's number-format preference.
   const currency = pipelineMetrics.currency
-  const fmt = new Intl.NumberFormat("en-IN", {
+  const locale = numberFormatLocale(numberFormat)
+  const fmt = new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
     maximumFractionDigits: 0,
@@ -43,7 +48,7 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <MetricsCards metrics={pipelineMetrics} />
+      <MetricsCards metrics={pipelineMetrics} locale={locale} />
 
       <StuckDeals
         totalAtRisk={fmt.format(stuck.totalValueAtRisk)}
@@ -62,7 +67,7 @@ export default async function DashboardPage() {
         }))}
       />
 
-      <PipelineChart stages={pipelineSummary.stages} currency={currency} />
+      <PipelineChart stages={pipelineSummary.stages} currency={currency} locale={locale} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <ActivityTimeline activities={activities.map((a) => ({
