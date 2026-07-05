@@ -31,7 +31,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }))
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
   mockFrom.mockReturnValue(buildMockChain())
 })
 

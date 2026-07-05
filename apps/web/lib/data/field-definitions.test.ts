@@ -21,7 +21,7 @@ function buildMockChain() {
 const mockFrom = vi.fn()
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
   mockFrom.mockReturnValue(buildMockChain())
 })
 

@@ -148,7 +148,7 @@ describe("fromDbRecord", () => {
 
 describe("getStageHistoryForOpportunity", () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     buildQueryBuilder()
     mockFrom.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder, in: mockIn })
   })
@@ -214,7 +214,7 @@ describe("getStageHistoryForOpportunity", () => {
 
 describe("insertStageHistoryEntry", () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     mockFrom.mockReturnValue({ insert: mockInsert })
     mockInsert.mockResolvedValue({ error: null })
   })

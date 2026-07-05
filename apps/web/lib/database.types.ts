@@ -190,7 +190,7 @@ export type Database = {
           type: string
           updated_at: string
           updated_by: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           account_id?: string | null
@@ -206,7 +206,7 @@ export type Database = {
           type: string
           updated_at?: string
           updated_by?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           account_id?: string | null
@@ -222,7 +222,7 @@ export type Database = {
           type?: string
           updated_at?: string
           updated_by?: string | null
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -348,7 +348,7 @@ export type Database = {
           request_id: string
           started_at: string
           status: Database["public"]["Enums"]["ai_call_status"]
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           completion_tokens?: number
@@ -363,7 +363,7 @@ export type Database = {
           request_id: string
           started_at: string
           status?: Database["public"]["Enums"]["ai_call_status"]
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           completion_tokens?: number
@@ -378,7 +378,7 @@ export type Database = {
           request_id?: string
           started_at?: string
           status?: Database["public"]["Enums"]["ai_call_status"]
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -1197,7 +1197,7 @@ export type Database = {
           updated_at: string
           updated_by: string | null
           uploaded_at: string
-          uploaded_by: string
+          uploaded_by: string | null
         }
         Insert: {
           account_id?: string | null
@@ -1219,7 +1219,7 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           uploaded_at?: string
-          uploaded_by: string
+          uploaded_by?: string | null
         }
         Update: {
           account_id?: string | null
@@ -1241,7 +1241,7 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           uploaded_at?: string
-          uploaded_by?: string
+          uploaded_by?: string | null
         }
         Relationships: [
           {
@@ -2974,6 +2974,14 @@ export type Database = {
       }
       replace_account_tax_ids: {
         Args: { _account_id: string; _tax_ids: Json }
+        Returns: undefined
+      }
+      replace_opportunity_splits: {
+        Args: { _opportunity_id: string; _rows: Json }
+        Returns: undefined
+      }
+      replace_opportunity_team_members: {
+        Args: { _opportunity_id: string; _rows: Json }
         Returns: undefined
       }
       replace_revenue_schedule: {

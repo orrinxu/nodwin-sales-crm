@@ -308,10 +308,18 @@ SELECT bag_eq(
 );
 
 -- ── 20. Splits sum trigger enforced ───────────────────────────────────────────
+-- The sum trigger is now DEFERRABLE INITIALLY DEFERRED (to allow atomic replace),
+-- so a non-100 total is rejected at the constraint check. Force it immediate
+-- inside the tested block so the violation surfaces synchronously.
 SELECT tests.as_service_role();
 SET LOCAL ROLE postgres;
 SELECT throws_ok(
-  $$INSERT INTO public.opportunity_splits (opportunity_id, sales_unit_id, pct) VALUES ('00000000-0000-0000-0000-000000000001', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 10)$$,
+  $sql$DO $blk$
+BEGIN
+  SET CONSTRAINTS public.opportunity_splits_sum_trigger IMMEDIATE;
+  INSERT INTO public.opportunity_splits (opportunity_id, sales_unit_id, pct)
+    VALUES ('00000000-0000-0000-0000-000000000001', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 10);
+END $blk$$sql$,
   'P0001',
   NULL,
   'splits sum trigger rejects non-100 total'

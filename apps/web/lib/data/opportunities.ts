@@ -780,31 +780,21 @@ export async function updateOpportunitySplits(
   const parsed = opportunitySplitsUpdateSchema.parse(input)
   const supabase = await createServerClient()
 
-  const { error: deleteError } = await supabase
-    .from("opportunity_splits")
-    .delete()
-    .eq("opportunity_id", opportunityId)
+  // Atomic replace (delete + insert in one transaction) — a partial failure must
+  // never leave the deal with zero splits (which also drops split-unit-manager
+  // visibility). See replace_opportunity_splits.
+  const { error } = await supabase.rpc("replace_opportunity_splits", {
+    _opportunity_id: opportunityId,
+    _rows: parsed.splits.map((s) => ({
+      sales_unit_id: s.salesUnitId,
+      user_id: s.userId ?? null,
+      pct: s.pct,
+      notes: s.notes ?? null,
+    })),
+  })
 
-  if (deleteError) {
-    throw new Error(`Failed to replace opportunity splits: ${deleteError.message}`)
-  }
-
-  if (parsed.splits.length === 0) return
-
-  const { error: insertError } = await supabase
-    .from("opportunity_splits")
-    .insert(
-      parsed.splits.map((s) => ({
-        opportunity_id: opportunityId,
-        sales_unit_id: s.salesUnitId,
-        user_id: s.userId ?? null,
-        pct: s.pct,
-        notes: s.notes ?? null,
-      })),
-    )
-
-  if (insertError) {
-    throw new Error(`Failed to insert opportunity splits: ${insertError.message}`)
+  if (error) {
+    throw new Error(`Failed to replace opportunity splits: ${error.message}`)
   }
 }
 
@@ -869,30 +859,19 @@ export async function updateOpportunityTeamMembers(
   const parsed = opportunityTeamUpdateSchema.parse(input)
   const supabase = await createServerClient()
 
-  const { error: deleteError } = await supabase
-    .from("opportunity_team_members")
-    .delete()
-    .eq("opportunity_id", opportunityId)
+  // Atomic replace — a partial failure must never empty the team (which also
+  // drops team + manager visibility). added_by is stamped from auth.uid() inside
+  // the RPC. See replace_opportunity_team_members.
+  const { error } = await supabase.rpc("replace_opportunity_team_members", {
+    _opportunity_id: opportunityId,
+    _rows: parsed.members.map((m) => ({
+      user_id: m.userId,
+      role: m.role,
+    })),
+  })
 
-  if (deleteError) {
-    throw new Error(`Failed to replace opportunity team members: ${deleteError.message}`)
-  }
-
-  if (parsed.members.length === 0) return
-
-  const { error: insertError } = await supabase
-    .from("opportunity_team_members")
-    .insert(
-      parsed.members.map((m) => ({
-        opportunity_id: opportunityId,
-        user_id: m.userId,
-        role: m.role,
-        added_by: ctx.user.id,
-      })),
-    )
-
-  if (insertError) {
-    throw new Error(`Failed to insert opportunity team members: ${insertError.message}`)
+  if (error) {
+    throw new Error(`Failed to replace opportunity team members: ${error.message}`)
   }
 }
 
