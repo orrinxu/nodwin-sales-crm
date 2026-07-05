@@ -80,7 +80,7 @@ describe("createAdaptersFromChain", () => {
   it("injects DB config so an adapter works with no env vars set", async () => {
     delete process.env.OPENAI_COMPATIBLE_BASE_URL
     delete process.env.OPENAI_COMPATIBLE_API_KEY
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
       new Response(
         JSON.stringify({ model: "db-model", choices: [{ message: { content: "hi" } }], usage: {} }),
         { status: 200 },
@@ -96,7 +96,7 @@ describe("createAdaptersFromChain", () => {
       // baseUrl + bearer key came from the chain config, not env.
       const [url, init] = fetchMock.mock.calls[0]
       expect(url).toBe("http://192.168.1.9:8080/v1/chat/completions")
-      expect((init as RequestInit).headers).toMatchObject({ Authorization: "Bearer db-key" })
+      expect(init!.headers).toMatchObject({ Authorization: "Bearer db-key" })
     } finally {
       vi.unstubAllGlobals()
     }

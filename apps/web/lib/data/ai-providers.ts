@@ -105,6 +105,11 @@ export async function resolveProviderChain(): Promise<ResolvedProvider[]> {
     }
   }
 
+  // Any provider that resolves to a usable config (DB row merged with env), in
+  // the default priority order — this is the env/DB fallback set.
+  const usableChain = () =>
+    AI_PROVIDER_NAMES.map(resolveOne).filter((r) => isUsable(r.provider, r.baseUrl, r.apiKey))
+
   const enabled = AI_PROVIDER_NAMES.filter((p) => byName.get(p)?.enabled)
   let chain: AiProviderName[]
   if (enabled.length > 0) {
@@ -114,7 +119,15 @@ export async function resolveProviderChain(): Promise<ResolvedProvider[]> {
   } else {
     chain = AI_PROVIDER_NAMES.filter((p) => { const e = envFor(p); return !!(e.apiKey || e.baseUrl) })
   }
-  return chain.map(resolveOne).filter((r) => isUsable(r.provider, r.baseUrl, r.apiKey))
+
+  const resolved = chain.map(resolveOne).filter((r) => isUsable(r.provider, r.baseUrl, r.apiKey))
+  // Availability guard: if the admin enabled providers but none are usable
+  // (missing key/endpoint), don't take AI fully offline — fall back to any
+  // env/DB-usable provider rather than returning an empty chain (CTO MEDIUM).
+  if (resolved.length === 0 && enabled.length > 0) {
+    return usableChain()
+  }
+  return resolved
 }
 
 // ── Admin UI (masked) ─────────────────────────────────────────────────────────

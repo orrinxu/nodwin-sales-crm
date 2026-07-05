@@ -88,6 +88,11 @@ export function AiProvidersForm({ data, saveAction }: Props) {
           back down the enabled providers by priority. Self-hosted providers need an endpoint
           (IP&nbsp;/&nbsp;port); values here override environment defaults.
         </p>
+        <p className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-muted-foreground">
+          These settings configure the general AI router and take effect for each generative AI
+          feature as it is switched on. Knowledge search &amp; RAG answers use the dedicated
+          self-hosted generation endpoint configured below — not this chain.
+        </p>
       </div>
 
       <form onSubmit={onSave} className="space-y-6">
