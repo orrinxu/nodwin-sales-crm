@@ -7,7 +7,7 @@ import {
 } from "@/lib/data/metrics"
 import type { PipelineMetrics, PipelineStageSummary } from "@/lib/data/metrics"
 import { getStuckDeals } from "@/lib/data/stuck-deals"
-import { getNumberFormat } from "@/lib/data/user-preferences"
+import { getNumberFormat, getDateFormat } from "@/lib/data/user-preferences"
 import { numberFormatLocale } from "@/lib/format"
 import { MetricsCards } from "@/components/dashboard/metrics-cards"
 import { PipelineChart } from "@/components/dashboard/pipeline-chart"
@@ -19,13 +19,14 @@ export default async function DashboardPage() {
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
 
-  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, numberFormat] = await Promise.all([
+  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, numberFormat, dateFormat] = await Promise.all([
     getPipelineMetrics(ctx),
     getPipelineSummary(ctx),
     getRecentDeals(ctx),
     getRecentActivities(ctx),
     getStuckDeals(ctx),
     getNumberFormat(ctx),
+    getDateFormat(ctx),
   ])
 
   // Use the same resolved currency the metrics were converted into, so the
@@ -53,6 +54,7 @@ export default async function DashboardPage() {
       <StuckDeals
         totalAtRisk={fmt.format(stuck.totalValueAtRisk)}
         unconvertibleCount={stuck.unconvertibleCount}
+        dateFormat={dateFormat}
         deals={stuck.deals.map((d) => ({
           id: d.id,
           name: d.name,
@@ -70,16 +72,20 @@ export default async function DashboardPage() {
       <PipelineChart stages={pipelineSummary.stages} currency={currency} locale={locale} />
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <ActivityTimeline activities={activities.map((a) => ({
-          id: a.id,
-          type: a.type,
-          subject: a.subject,
-          body: a.body,
-          userName: a.userName,
-          createdAt: a.createdAt,
-          opportunityName: a.opportunityName,
-        }))} />
+        <ActivityTimeline
+          dateFormat={dateFormat}
+          activities={activities.map((a) => ({
+            id: a.id,
+            type: a.type,
+            subject: a.subject,
+            body: a.body,
+            userName: a.userName,
+            createdAt: a.createdAt,
+            opportunityName: a.opportunityName,
+          }))}
+        />
         <RecentDeals
+          dateFormat={dateFormat}
           deals={deals.map((d) => ({
             id: d.id,
             name: d.name,

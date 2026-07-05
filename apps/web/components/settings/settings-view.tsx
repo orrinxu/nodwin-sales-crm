@@ -265,7 +265,7 @@ function LocalizationSection({
         </div>
 
         <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-          Timezone, number, and date formats are saved to your account but not yet applied across every view — display formatting is being centralised in a follow-up.
+          Number and date formats apply to your dashboard. Timezone and remaining views are being migrated to these preferences.
         </p>
 
         {error && <p className="text-sm text-destructive">{error}</p>}

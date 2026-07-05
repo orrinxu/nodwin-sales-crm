@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ArrowRight, Calendar, Building2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { formatPreferenceDate, type DateFormatPreference } from "@/lib/format"
 import Link from "next/link"
 
 interface Deal {
@@ -27,20 +28,11 @@ interface Deal {
 
 interface RecentDealsProps {
   deals: Deal[]
+  dateFormat: DateFormatPreference
   maxItems?: number
 }
 
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "TBD"
-  const date = new Date(dateString)
-  return date.toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  })
-}
-
-export function RecentDeals({ deals, maxItems = 5 }: RecentDealsProps) {
+export function RecentDeals({ deals, dateFormat, maxItems = 5 }: RecentDealsProps) {
   const sorted = [...deals]
     .sort((a, b) => {
       if (!a.closeDate) return 1
@@ -98,7 +90,7 @@ export function RecentDeals({ deals, maxItems = 5 }: RecentDealsProps) {
                     )}
                     <span className="flex items-center gap-1">
                       <Calendar className="size-3" />
-                      {formatDate(deal.closeDate)}
+                      {formatPreferenceDate(deal.closeDate, dateFormat, "TBD")}
                     </span>
                   </div>
                 </div>

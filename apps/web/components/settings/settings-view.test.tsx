@@ -88,6 +88,6 @@ describe("SettingsView", () => {
   it("flags Slack as coming soon and shows the localization note", () => {
     render(<SettingsView {...makeProps()} />)
     expect(screen.getByText(/Slack delivery is coming soon/)).toBeInTheDocument()
-    expect(screen.getByText(/not yet applied across every view/)).toBeInTheDocument()
+    expect(screen.getByText(/Number and date formats apply to your dashboard/)).toBeInTheDocument()
   })
 })

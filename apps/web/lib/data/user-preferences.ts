@@ -166,6 +166,26 @@ export async function getNumberFormat(
   return (data?.number_format as NumberFormat) ?? "international"
 }
 
+// Resolves just the date-format preference (used by the dashboard date
+// formatters). Cheap single-column read; defaults to "iso".
+export async function getDateFormat(
+  ctx: UserPreferencesCallContext,
+): Promise<DateFormat> {
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("user_preferences")
+    .select("date_format")
+    .eq("user_id", ctx.user.id)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(`Failed to load date format: ${error.message}`)
+  }
+
+  return (data?.date_format as DateFormat) ?? "iso"
+}
+
 // Upserts the caller's preferences row (keyed on user_id). Only the provided
 // fields are changed. RLS + the audit trigger enforce ownership and stamps.
 export async function upsertUserPreferences(
