@@ -27,6 +27,7 @@ export interface StuckDealView {
 interface Props {
   deals: StuckDealView[]
   totalAtRisk: string
+  unconvertibleCount?: number
 }
 
 function formatDate(dateString: string | null): string {
@@ -34,7 +35,7 @@ function formatDate(dateString: string | null): string {
   return new Date(dateString).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
 }
 
-export function StuckDeals({ deals, totalAtRisk }: Props) {
+export function StuckDeals({ deals, totalAtRisk, unconvertibleCount = 0 }: Props) {
   return (
     <Card>
       <CardHeader className="flex-row items-start justify-between gap-3">
@@ -109,6 +110,12 @@ export function StuckDeals({ deals, totalAtRisk }: Props) {
               ))}
             </div>
           </ScrollArea>
+        )}
+        {unconvertibleCount > 0 && (
+          <p className="border-t border-border px-6 py-2 text-xs text-muted-foreground">
+            {unconvertibleCount} deal{unconvertibleCount === 1 ? "" : "s"} excluded from value at risk
+            (no exchange rate to the reporting currency).
+          </p>
         )}
       </CardContent>
     </Card>

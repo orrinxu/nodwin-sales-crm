@@ -35,6 +35,9 @@ export interface StuckDealsResult {
   deals: StuckDeal[]
   currency: string
   totalValueAtRisk: number
+  /** Deals excluded from value-at-risk because their currency has no FX rate to
+   *  the reporting currency (surfaced, not silently hidden — CTO review M2). */
+  unconvertibleCount: number
 }
 
 const DAY_MS = 86_400_000
@@ -58,7 +61,10 @@ type OpenOppRaw = {
 export async function getStuckDeals(ctx: DashboardContext): Promise<StuckDealsResult> {
   const supabase = await createServerClient()
 
-  // Open deals only (RLS scopes to the viewer's entitled set).
+  // Open deals only (RLS scopes to the viewer's entitled set). Bounded by
+  // PostgREST max_rows (1000) — an org with >1000 open deals would omit some,
+  // accepted for v1 (the existing reports read caps at 500). Revisit with
+  // pagination if that ceiling is ever approached.
   const { data: openDeals, error } = await supabase
     .from("opportunities")
     .select("id, name, stage, amount, currency, close_date, created_at, account:account_id ( name )")
@@ -69,31 +75,29 @@ export async function getStuckDeals(ctx: DashboardContext): Promise<StuckDealsRe
   const rows = (openDeals ?? []) as unknown as OpenOppRaw[]
   if (rows.length === 0) {
     const currency = await resolveReportingCurrency(ctx)
-    return { deals: [], currency, totalValueAtRisk: 0 }
+    return { deals: [], currency, totalValueAtRisk: 0, unconvertibleCount: 0 }
   }
 
-  // MAX(created_at) per opportunity, aggregated in-app from a single scoped query.
-  // (activities RLS keys on the same opportunity_visibility as opportunities, so
-  // no visible deal can have a hidden activity that would mis-age it.)
+  // MAX(created_at) per opportunity via a server-side aggregate — one row per
+  // opportunity (bounded by deal count, NOT activity count), so it can't be
+  // truncated by max_rows the way a raw activity SELECT would be (CTO review H1).
+  // The RPC is SECURITY INVOKER, so activities RLS still applies — a visible deal
+  // can never have a hidden activity that mis-ages it.
   const ids = rows.map((r) => r.id)
-  const { data: activityRows, error: actErr } = await supabase
-    .from("activities")
-    .select("opportunity_id, created_at")
-    .in("opportunity_id", ids)
+  const { data: activityRows, error: actErr } = await supabase.rpc("stuck_deal_last_activity", {
+    opp_ids: ids,
+  })
   if (actErr) throw new Error(`Failed to load activity recency: ${actErr.message}`)
 
   const lastActivityByOpp = new Map<string, number>()
   for (const a of activityRows ?? []) {
-    const oppId = a.opportunity_id as string | null
-    if (!oppId) continue
-    const t = new Date(a.created_at as string).getTime()
-    const prev = lastActivityByOpp.get(oppId)
-    if (prev === undefined || t > prev) lastActivityByOpp.set(oppId, t)
+    if (!a.opportunity_id || !a.last_activity_at) continue
+    lastActivityByOpp.set(a.opportunity_id, new Date(a.last_activity_at).getTime())
   }
 
   const thresholds: StuckThresholds = await resolveStuckThresholds()
   const reportingCurrency = await resolveReportingCurrency(ctx)
-  const { converted } = await fetchAndConvert(rows, reportingCurrency)
+  const { converted, unconvertibleCount } = await fetchAndConvert(rows, reportingCurrency)
 
   const now = Date.now()
   const today = new Date(now).toISOString().slice(0, 10)
@@ -133,5 +137,5 @@ export async function getStuckDeals(ctx: DashboardContext): Promise<StuckDealsRe
   deals.sort((a, b) => b.amount - a.amount)
 
   const totalValueAtRisk = deals.reduce((sum, d) => sum + d.amount, 0)
-  return { deals, currency: reportingCurrency, totalValueAtRisk }
+  return { deals, currency: reportingCurrency, totalValueAtRisk, unconvertibleCount }
 }

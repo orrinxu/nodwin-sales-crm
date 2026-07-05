@@ -117,10 +117,14 @@ export async function updateStuckDealSettings(
   const supabase = (await createServerClient()) as unknown as Db
 
   for (const t of parsed.thresholds) {
+    // Upsert (not update) so a stage whose row was ever deleted is recreated
+    // rather than silently no-op'ing to a false "Saved" (CTO review M4).
     const { error } = await supabase
       .from("stuck_deal_settings")
-      .update({ threshold_days: t.thresholdDays, updated_by: ctx.user.id })
-      .eq("stage", t.stage)
+      .upsert(
+        { stage: t.stage, threshold_days: t.thresholdDays, updated_by: ctx.user.id },
+        { onConflict: "stage" },
+      )
     if (error) throw new Error(`Failed to update threshold for ${t.stage}: ${error.message}`)
   }
 }

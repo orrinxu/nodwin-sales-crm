@@ -47,6 +47,7 @@ export default async function DashboardPage() {
 
       <StuckDeals
         totalAtRisk={fmt.format(stuck.totalValueAtRisk)}
+        unconvertibleCount={stuck.unconvertibleCount}
         deals={stuck.deals.map((d) => ({
           id: d.id,
           name: d.name,

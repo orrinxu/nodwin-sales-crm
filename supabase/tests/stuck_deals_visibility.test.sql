@@ -8,7 +8,7 @@
 
 BEGIN;
 
-SELECT plan(7);
+SELECT plan(8);
 
 -- ── Fixtures ──────────────────────────────────────────────────────────────────
 INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
@@ -63,6 +63,14 @@ SELECT isnt_empty(
 SELECT is_empty(
   $$ SELECT created_at FROM public.activities WHERE opportunity_id = '0b000000-0000-0000-0000-00000000000b' $$,
   'Rep A cannot read activities for the confidential deal they are not on (no mis-aging leak)');
+
+-- The staleness-aggregate RPC (SECURITY INVOKER) must inherit the same RLS: asked
+-- about both deals, Rep A only gets a row back for their own visible deal.
+SELECT results_eq(
+  $$ SELECT opportunity_id FROM public.stuck_deal_last_activity(
+       ARRAY['0a000000-0000-0000-0000-00000000000a','0b000000-0000-0000-0000-00000000000b']::uuid[]) ORDER BY opportunity_id $$,
+  $$ VALUES ('0a000000-0000-0000-0000-00000000000a'::uuid) $$,
+  'stuck_deal_last_activity RPC returns recency only for deals the caller can see');
 
 -- ── Rep B: sees own confidential deal ───────────────────────────────────────────
 SELECT tests.as_user('repb@nodwin.com');

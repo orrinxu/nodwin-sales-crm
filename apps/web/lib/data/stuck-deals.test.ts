@@ -9,28 +9,47 @@ const { store } = vi.hoisted(() => ({
   },
 }))
 
-// Fake RLS-bound client: from(table).select(...).in(...) is thenable → {data}.
+// Fake RLS-bound client: from("opportunities").select(...).in(...) is thenable;
+// rpc("stuck_deal_last_activity", {opp_ids}) returns MAX(created_at) per opp
+// (mirrors the server-side aggregate, scoped to the requested ids).
 class QB {
-  constructor(private table: string) {}
   select() { return this }
   in() { return this }
   then<T>(onF: (v: { data: unknown; error: null }) => T) {
-    const data = this.table === "opportunities" ? store.opportunities : store.activities
-    return Promise.resolve({ data, error: null }).then(onF)
+    return Promise.resolve({ data: store.opportunities, error: null }).then(onF)
+  }
+}
+async function rpc(_fn: string, args: { opp_ids: string[] }) {
+  const maxByOpp = new Map<string, string>()
+  for (const a of store.activities) {
+    const oppId = a.opportunity_id as string
+    const createdAt = a.created_at as string
+    if (!args.opp_ids.includes(oppId)) continue
+    const prev = maxByOpp.get(oppId)
+    if (prev === undefined || createdAt > prev) maxByOpp.set(oppId, createdAt)
+  }
+  return {
+    data: [...maxByOpp].map(([opportunity_id, last_activity_at]) => ({ opportunity_id, last_activity_at })),
+    error: null,
   }
 }
 vi.mock("@/lib/supabase/server", () => ({
-  createServerClient: async () => ({ from: (t: string) => new QB(t) }),
+  createServerClient: async () => ({ from: () => new QB(), rpc }),
 }))
 
 // Stub the currency machinery — this test is about stuck/overdue logic, not FX.
+// Deals in currency "XXX" model an unconvertible deal (no FX rate) → dropped + counted.
 vi.mock("./metrics", () => ({
   resolveReportingCurrency: async () => "USD",
-  // pass rows through unchanged (amount already a number, single currency)
-  fetchAndConvert: async (data: Array<{ amount: number | null }>) => ({
-    converted: (data ?? []).map((d) => ({ ...d, amount: Number(d.amount ?? 0), currency: "USD" })),
-    unconvertibleCount: 0,
-  }),
+  fetchAndConvert: async (data: Array<{ amount: number | null; currency: string }>) => {
+    const converted: Array<Record<string, unknown>> = []
+    let unconvertibleCount = 0
+    for (const d of data ?? []) {
+      if (d.currency === "XXX") { unconvertibleCount++; continue }
+      converted.push({ ...d, amount: Number(d.amount ?? 0), currency: "USD" })
+    }
+    return { converted, unconvertibleCount }
+  },
 }))
 
 vi.mock("./stuck-deal-settings", () => ({
@@ -124,6 +143,20 @@ describe("getStuckDeals", () => {
     const { deals, totalValueAtRisk } = await getStuckDeals(ctx)
     expect(deals.map((d) => d.id)).toEqual(["C", "E", "A", "D"])
     expect(totalValueAtRisk).toBe(2500)
+  })
+
+  it("drops unconvertible-currency deals from value-at-risk but reports the count", async () => {
+    store.opportunities = [
+      opp({ id: "A", stage: "qualify", amount: 500 }),
+      opp({ id: "X", stage: "qualify", amount: 9999, currency: "XXX" }), // no FX rate
+    ]
+    store.activities = [
+      { opportunity_id: "A", created_at: daysAgo(30) },
+      { opportunity_id: "X", created_at: daysAgo(30) },
+    ]
+    const { deals, unconvertibleCount } = await getStuckDeals(ctx)
+    expect(deals.map((d) => d.id)).toEqual(["A"]) // X dropped, not silently lost
+    expect(unconvertibleCount).toBe(1)
   })
 
   it("returns an empty result when there are no open deals", async () => {

@@ -18,6 +18,10 @@ class QB {
   private patch: Record<string, unknown> = {}
   select() { return this }
   update(patch: Record<string, unknown>) { this.op = "update"; this.patch = patch; return this }
+  upsert(row: Record<string, unknown>) {
+    store.updates.push({ patch: row, stage: row.stage })
+    return Promise.resolve({ error: null })
+  }
   eq(_col: string, val: unknown) {
     if (this.op === "update") { store.updates.push({ patch: this.patch, stage: val }); return Promise.resolve({ error: null }) }
     return this

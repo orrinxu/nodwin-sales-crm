@@ -3141,6 +3141,13 @@ export type Database = {
           visibility_tier: Database["public"]["Enums"]["visibility_tier"]
         }[]
       }
+      stuck_deal_last_activity: {
+        Args: { opp_ids: string[] }
+        Returns: {
+          last_activity_at: string
+          opportunity_id: string
+        }[]
+      }
       submit_opportunity_for_approval: {
         Args: { _opportunity_id: string }
         Returns: string
