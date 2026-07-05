@@ -346,6 +346,7 @@ export type Database = {
           generation_model: string | null
           id: string
           ingestion_enabled: boolean
+          is_singleton: boolean
           search_enabled: boolean
           updated_at: string
           updated_by: string | null
@@ -361,6 +362,7 @@ export type Database = {
           generation_model?: string | null
           id?: string
           ingestion_enabled?: boolean
+          is_singleton?: boolean
           search_enabled?: boolean
           updated_at?: string
           updated_by?: string | null
@@ -376,6 +378,7 @@ export type Database = {
           generation_model?: string | null
           id?: string
           ingestion_enabled?: boolean
+          is_singleton?: boolean
           search_enabled?: boolean
           updated_at?: string
           updated_by?: string | null
