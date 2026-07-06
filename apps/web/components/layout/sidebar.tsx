@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import {
   LayoutDashboard,
   Kanban,
+  Target,
   Users,
   Building2,
   History,
@@ -49,7 +50,10 @@ import { useState } from "react"
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Pipeline", href: "/opportunities", icon: Kanban },
+  // Pipeline = the current user's own deals (personal board). Opportunities =
+  // all deals across the group the user can access.
+  { name: "Pipeline", href: "/pipeline", icon: Kanban },
+  { name: "Opportunities", href: "/opportunities", icon: Target },
 
   { name: "Accounts", href: "/accounts", icon: Building2 },
   { name: "Contacts", href: "/contacts", icon: Users },
