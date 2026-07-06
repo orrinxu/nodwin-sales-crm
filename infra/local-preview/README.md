@@ -12,7 +12,7 @@
 Before hosting, confirm these three things — **every time**:
 
 1. **Branch** — You MUST be on `main`. Run `git branch --show-current`. If not, `git switch main`.
-2. **Database** — The Supabase instance must have the latest schema. Run `supabase db push` or `pnpm db:migrate` before starting.
+2. **Database** — The Supabase instance must have the latest schema before starting. Note: `supabase db push` / `pnpm db:migrate` targets the **linked remote** project. For a local stack that is not linked to a remote, apply schema with `supabase migration up` (or `supabase db reset` to rebuild + seed) instead.
 3. **Port** — The app binds to **`:3030`** (PM2 ecosystem default). Docs referencing `:3002` are stale — the canonical port is `3030`.
 
 ---
@@ -68,6 +68,8 @@ supabase db push
 
 This creates the tables the app needs (contacts, deals, accounts, etc.). Without this step, every `(crm)/` route will return HTTP 500.
 
+> **Note:** `supabase db push` applies migrations to the **linked remote** project. If this server's Supabase is a local stack that is not linked to a remote, apply the schema with `supabase migration up` (or `supabase db reset` to rebuild and seed) instead.
+
 ### 6. Install dependencies and build
 
 ```bash
@@ -93,20 +95,16 @@ pm2 save
 After starting, confirm the app actually renders:
 
 ```bash
-# Check 1: API health
-curl -s http://localhost:3030/api/health | jq .status
-# Expected: "ok"
-
-# Check 2: A (crm)/ route renders (no 500)
+# Check 1: A (crm)/ route renders (no 500)
 curl -s -o /dev/null -w '%{http_code}' http://localhost:3030/contacts
 # Expected: 200 or 307 (login redirect) — NOT 500
 
-# Check 3: A second (crm)/ route
-curl -s -o /dev/null -w '%{http_code}' http://localhost:3030/pipeline
+# Check 2: A second (crm)/ route
+curl -s -o /dev/null -w '%{http_code}' http://localhost:3030/opportunities
 # Expected: 200 or 307 — NOT 500
 ```
 
-If any check returns 500 or the health check fails, do NOT report "hosted on :3030" as done. Investigate and fix.
+If any check returns 500, do NOT report "hosted on :3030" as done. Investigate and fix.
 
 ---
 

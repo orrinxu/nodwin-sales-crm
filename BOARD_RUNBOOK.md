@@ -109,12 +109,12 @@ If something is broken in production:
 2. **Read `docs/runbook-incident.md`** for the specific kind of incident.
 3. **Decide: roll back, hotfix, or wait?** Rollback is usually safest. Hotfix only if the rollback would lose data. Wait only if the impact is small and you have time to investigate.
 4. **Communicate.** Slack the affected sales team. Be honest about what happened and ETA to fix.
-5. **After resolving, write a post-mortem.** A short one. Add to `docs/post-mortems/`. Update `AGENTS.md` if a rule needs to be tightened.
+5. **After resolving, write a post-mortem.** A short one. Add to `docs/forensics/`. Update `AGENTS.md` if a rule needs to be tightened.
 
 For the most likely incidents:
 - **RLS leak** (someone sees data they shouldn't): immediately disable affected feature, then investigate. Do not allow the agent to "fix and continue." Pull in security auditor if it's a real leak.
-- **AI cost runaway**: hit the kill switch in `lib/ai/router.ts` (set company-cap to $0). Diagnose. Reset cap when fixed.
-- **Inbound email pipeline accepting forged emails**: disable the inbound email feature entirely (toggle in admin panel) until investigated.
+- **AI cost runaway**: hit the kill switch by setting the company-scope cap to $0 in the `ai_daily_caps` table (`scope_kind='company'`, via the admin panel). Diagnose. Reset cap when fixed.
+- **Inbound email pipeline accepting forged emails**: disable at the Postmark inbound config until investigated. (Note: the inbound handler is not yet route-mounted — it's unwired library code — so there is no admin-panel toggle.)
 - **P&L sheet has wrong numbers**: pull the broken sheets, notify Finance, investigate root cause.
 
 ---

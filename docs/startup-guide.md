@@ -12,7 +12,7 @@
 | **Docker Desktop** (or Docker Engine) | 24+ | https://docs.docker.com/get-docker/ |
 | **Node.js** | 20+ | https://nodejs.org |
 | **pnpm** | 10+ | `npm i -g pnpm` |
-| **Supabase CLI** | 1.x | `brew install supabase/tap/supabase` or `npm i -g supabase` |
+| **Supabase CLI** | 2.x | `brew install supabase/tap/supabase` or `npm i -g supabase` |
 
 **Docker must be running** before any Supabase commands will work. The Supabase local stack runs entirely in containers.
 
@@ -47,9 +47,9 @@ cp apps/web/.env.example apps/web/.env.local
 | `SUPABASE_ANON_KEY` | Printed by `pnpm supabase:start` (see Step 3) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Same as anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Printed by `pnpm supabase:start` |
-| `GOOGLE_OAUTH_CLIENT_ID` | From Google Cloud Console |
-| `GOOGLE_OAUTH_CLIENT_SECRET` | From Google Cloud Console |
-| `RESEND_API_KEY` | From Resend dashboard (or Postmark equivalent) |
+| `POSTMARK_WEBHOOK_SECRET` | Any non-empty placeholder for local dev |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:3001/api` |
+| `RESEND_API_KEY` | Optional — from Resend dashboard; leave blank locally (magic links land in Inbucket) |
 
 For local development without AI features, `ANTHROPIC_API_KEY` and others can be left blank — the app will boot with the Ollama fallback (if running locally) or gracefully degrade.
 
@@ -83,23 +83,31 @@ Copy the **anon key** and **service_role key** into `apps/web/.env.local`.
 
 ## Step 4: Run migrations
 
+> **Heads up:** `pnpm db:migrate` runs `supabase db push`, which targets the **linked remote** Supabase project, **not** your local stack. Do not use it to set up your local database — it will try to push to the cloud project you linked.
+
+For a **local** database, apply migrations with either of:
+
 ```bash
-pnpm db:migrate
+supabase migration up     # apply pending migrations to the local stack
+# or
+pnpm db:reset             # nuke local DB, re-apply ALL migrations, and seed (see Step 5)
 ```
 
-Applies all SQL migrations in `supabase/migrations/` to your local database. The migrations are ordered (numbered files) and run sequentially.
+The migrations in `supabase/migrations/` are ordered (numbered files) and run sequentially. For most first-time local setups, skip straight to `pnpm db:reset` in Step 5 — it applies every migration and loads the seed in one command.
 
 ---
 
 ## Step 5: Seed sandbox data
 
 ```bash
-pnpm db:seed
+pnpm db:reset
 ```
 
-Loads test data from `supabase/seed/seed-test-data.sql` (and `supabase/seed/sandbox.sql` if present). This creates sample accounts, contacts, opportunities, and users so you can explore the app without creating everything from scratch.
+Use `pnpm db:reset` to get seeded sample data. It runs `supabase db reset`, which re-applies every migration and then loads the seed defined in `config.toml` (`[db.seed] sql_paths` → `supabase/seed/sandbox.sql`, ~35 KB). This creates sample accounts, contacts, opportunities, and users so you can explore the app without creating everything from scratch.
 
-> **Never run seed against a production or staging Supabase project.** The seed data includes fake but plausible-looking records that would pollute real pipelines.
+> **Note:** `pnpm db:seed` runs `supabase db query --local --file supabase/seed/seed-test-data.sql`, but that file is an empty placeholder — it seeds nothing. The real sample data lives in `supabase/seed/sandbox.sql` and is loaded by `supabase db reset`, so prefer `pnpm db:reset`.
+
+> **Never run the seed against a production Supabase project.** The seed data includes fake but plausible-looking records that would pollute real pipelines.
 
 ---
 
@@ -138,10 +146,9 @@ pnpm dev              # Dev server (frontend + supabase if running)
 pnpm lint             # ESLint
 pnpm typecheck        # TypeScript no-emit check
 pnpm test             # Vitest unit + integration
-pnpm test:e2e         # Playwright (slow; run before merging significant features)
-pnpm db:migrate       # Apply pending migrations
-pnpm db:reset         # Nuke local DB + re-apply all migrations + seed
-pnpm db:seed          # Load sandbox test data
+pnpm db:migrate       # Push migrations to the LINKED REMOTE (not local — use db:reset locally)
+pnpm db:reset         # Nuke local DB + re-apply all migrations + seed (sandbox.sql)
+pnpm db:seed          # (placeholder — its file is empty; use db:reset to seed locally)
 pnpm db:test          # Run RLS policy test suite (pgTAP)
 pnpm rls:check        # Check RLS coverage across all tables
 pnpm build            # Production build
@@ -155,7 +162,7 @@ pnpm build            # Production build
 |---|---|---|
 | `supabase:start` fails with "Cannot connect to Docker" | Docker is not running | Start Docker Desktop/Engine and retry |
 | `pnpm dev` fails with env validation error | Missing or incorrect env var | Check `apps/web/.env.local`; run `pnpm supabase:start` to get anon/service keys |
-| `pnpm db:migrate` fails | Supabase local stack not started | Run `pnpm supabase:start` first |
+| `pnpm db:migrate` fails | It targets the **linked remote** project — not needed for local setup | For local, use `pnpm db:reset`; to push to a remote, `supabase link` first |
 | Auth redirects to localhost | `APP_URL` not set in `.env.local` | Set `APP_URL=http://localhost:3000` |
 | Google OAuth returns "redirect_uri_mismatch" | Callback URL not registered in GCP, or app URL missing from Supabase Redirect URLs | Register `https://<project-ref>.supabase.co/auth/v1/callback` in GCP (see `docs/setup-guide.md` §2.1). Add app URL to Supabase **Authentication > Settings > Redirect URLs** |
 | Seed fails with "relation does not exist" | Migrations not yet applied | Run `pnpm db:migrate` before `pnpm db:seed` |
@@ -184,7 +191,7 @@ pnpm db:seed
 | Document | What it covers |
 |---|---|
 | `README.md` | Project overview, stack, architecture, daily commands |
-| `docs/deploy-vercel.md` | Vercel deployment for staging/sandbox/production |
+| `docs/deploy-vercel.md` | Vercel deployment for production |
 | `docs/security.md` | Threat model, RLS, pre-launch checklist |
 | `docs/integrations.md` | Auth, email, Slack, Google Workspace, AI, background jobs |
 | `docs/data-model.md` | Full schema reference (every table and field) |
