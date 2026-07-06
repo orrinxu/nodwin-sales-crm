@@ -6,6 +6,7 @@ import { LayoutGridIcon, ListIcon, KanbanIcon } from "lucide-react"
 
 import { type OpportunityRecord } from "@/lib/data/opportunities.types"
 import type { OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/opportunities.types"
+import type { StageTotals } from "@/lib/data/stage-totals"
 import type { AccountOption } from "@/lib/data/contacts"
 import type { EntityOption } from "@/components/entity-combobox"
 import { cn } from "@/lib/utils"
@@ -17,6 +18,8 @@ import { OpportunityForm } from "@/components/opportunities/opportunity-form"
 
 interface OpportunitiesViewProps {
   opportunities: OpportunityRecord[]
+  /** FX-normalised per-stage totals for the board columns (count / value / weighted). */
+  stageTotals?: StageTotals
   accounts: AccountOption[]
   businessUnits: BusinessUnitOption[]
   users?: EntityOption[]
@@ -48,6 +51,7 @@ type ViewMode = "kanban" | "table"
 
 export function OpportunitiesView({
   opportunities,
+  stageTotals,
   accounts,
   businessUnits,
   users,
@@ -139,6 +143,7 @@ export function OpportunitiesView({
       ) : viewMode === "kanban" ? (
         <OpportunityBoard
           opportunities={opportunities}
+          stageTotals={stageTotals}
           accounts={accounts}
           businessUnits={businessUnits}
           users={users}
