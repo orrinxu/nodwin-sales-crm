@@ -6,6 +6,7 @@ import {
 } from "@/lib/data/opportunities"
 import { getAccountOptions } from "@/lib/data/contacts"
 import { getUserPreferences } from "@/lib/data/user-preferences"
+import { getStageTotals } from "@/lib/data/stage-totals"
 import { OpportunitiesView } from "@/components/opportunities/opportunities-view"
 import type { EntityOption } from "@/components/entity-combobox"
 import {
@@ -42,6 +43,9 @@ export default async function PipelinePage() {
     name: u.fullName,
   }))
 
+  // FX-normalised per-stage board totals over the scoped ("mine") list.
+  const stageTotals = await getStageTotals(ctx, opportunities)
+
   // Entry default: explicit entry_currency_default, else "match display", else USD.
   const defaultCurrency =
     preferences.entryCurrencyDefault ?? preferences.displayCurrency ?? "USD"
@@ -49,6 +53,7 @@ export default async function PipelinePage() {
   return (
       <OpportunitiesView
         opportunities={opportunities}
+        stageTotals={stageTotals}
         accounts={accounts}
         businessUnits={businessUnits}
         users={users}
