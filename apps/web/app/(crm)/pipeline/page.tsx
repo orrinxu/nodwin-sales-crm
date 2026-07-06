@@ -17,14 +17,20 @@ import {
   searchContactsAction,
   searchUsersAction,
   createContactQuickAction,
-} from "./actions"
+} from "../opportunities/actions"
 
-export default async function OpportunitiesPage() {
+export const metadata = {
+  title: "Pipeline - Nodwin CRM",
+}
+
+export default async function PipelinePage() {
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
 
+  // Pipeline = the current user's OWN deals (owner_user_id = me). The "mine"
+  // scope is an additional narrowing filter on top of RLS.
   const [{ opportunities }, accounts, businessUnits, userOptions, preferences] = await Promise.all([
-    getOpportunities(ctx, { scope: "all" }),
+    getOpportunities(ctx, { scope: "mine" }),
     getAccountOptions(ctx),
     getBusinessUnitOptions(ctx),
     getUserOptions(ctx),
@@ -55,9 +61,14 @@ export default async function OpportunitiesPage() {
         searchUsersAction={searchUsersAction}
         createContactQuickAction={createContactQuickAction}
         defaultCurrency={defaultCurrency}
-        defaultView="table"
-        title="Opportunities"
-        description="All deals across the group you can access."
+        defaultView="board"
+        title="Pipeline"
+        description="Your deals — the ones you own. Drag between stages to update status."
+        emptyState={{
+          title: "You don't own any deals yet",
+          description:
+            "Deals you own show up here as your personal working board. Create one to get started.",
+        }}
       />
   )
 }
