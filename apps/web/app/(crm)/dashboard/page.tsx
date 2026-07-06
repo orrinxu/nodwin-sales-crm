@@ -7,6 +7,7 @@ import {
 } from "@/lib/data/metrics"
 import type { PipelineMetrics, PipelineStageSummary } from "@/lib/data/metrics"
 import { getStuckDeals } from "@/lib/data/stuck-deals"
+import { getNeedsAttention } from "@/lib/data/needs-attention"
 import { getNumberFormat, getDateFormat } from "@/lib/data/user-preferences"
 import { numberFormatLocale } from "@/lib/format"
 import { MetricsCards } from "@/components/dashboard/metrics-cards"
@@ -14,17 +15,19 @@ import { PipelineChart } from "@/components/dashboard/pipeline-chart"
 import { ActivityTimeline } from "@/components/dashboard/activity-timeline"
 import { RecentDeals } from "@/components/dashboard/recent-deals"
 import { StuckDeals } from "@/components/dashboard/stuck-deals"
+import { NeedsAttention } from "@/components/dashboard/needs-attention"
 
 export default async function DashboardPage() {
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
 
-  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, numberFormat, dateFormat] = await Promise.all([
+  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, needsAttention, numberFormat, dateFormat] = await Promise.all([
     getPipelineMetrics(ctx),
     getPipelineSummary(ctx),
     getRecentDeals(ctx),
     getRecentActivities(ctx),
     getStuckDeals(ctx),
+    getNeedsAttention(ctx),
     getNumberFormat(ctx),
     getDateFormat(ctx),
   ])
@@ -48,6 +51,13 @@ export default async function DashboardPage() {
           Sales overview, pipeline health, and recent activity
         </p>
       </div>
+
+      <NeedsAttention
+        stale={needsAttention.stale}
+        overdue={needsAttention.overdue}
+        approvals={needsAttention.approvals}
+        total={needsAttention.total}
+      />
 
       <MetricsCards metrics={pipelineMetrics} locale={locale} />
 
