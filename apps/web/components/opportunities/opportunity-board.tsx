@@ -22,6 +22,7 @@ import {
   type OpportunityRecord,
 } from "@/lib/data/opportunities.types"
 import type { OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/opportunities.types"
+import type { StageTotal, StageTotals } from "@/lib/data/stage-totals"
 import type { AccountOption } from "@/lib/data/contacts"
 import type { EntityOption } from "@/components/entity-combobox"
 import { OpportunityCard } from "@/components/opportunities/opportunity-card"
@@ -31,6 +32,8 @@ import { OpportunityQuickCreate } from "@/components/opportunities/opportunity-q
 
 interface OpportunityBoardProps {
   opportunities: OpportunityRecord[]
+  /** FX-normalised per-stage count / total / weighted, in the reporting currency. */
+  stageTotals?: StageTotals
   accounts: AccountOption[]
   businessUnits: BusinessUnitOption[]
   users?: EntityOption[]
@@ -48,6 +51,7 @@ interface OpportunityBoardProps {
 
 export function OpportunityBoard({
   opportunities,
+  stageTotals,
   accounts,
   businessUnits,
   users,
@@ -75,6 +79,12 @@ export function OpportunityBoard({
       list.push(opp)
     }
   }
+
+  // Build a Map keyed by stage so column lookups avoid a dynamic object-index
+  // sink. byStage is a plain (serialisable) record of the FX-normalised totals.
+  const totalsByStage = new Map<DealStage, StageTotal>(
+    Object.entries(stageTotals?.byStage ?? {}) as Array<[DealStage, StageTotal]>,
+  )
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -158,6 +168,8 @@ export function OpportunityBoard({
                 stage={stage}
                 label={getStageLabel(stage)}
                 opportunities={items}
+                stageTotal={totalsByStage.get(stage)}
+                currency={stageTotals?.currency}
               />
             )
           })}
