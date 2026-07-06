@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { LayoutGridIcon, ListIcon } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { LayoutGridIcon, ListIcon, KanbanIcon } from "lucide-react"
 
 import { type OpportunityRecord } from "@/lib/data/opportunities.types"
 import type { OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/opportunities.types"
@@ -9,8 +10,10 @@ import type { AccountOption } from "@/lib/data/contacts"
 import type { EntityOption } from "@/components/entity-combobox"
 import { cn } from "@/lib/utils"
 import { SectionHeader } from "@/components/primitives/section-header"
+import { EmptyState } from "@/components/primitives/empty-state"
 import { OpportunityBoard } from "@/components/opportunities/opportunity-board"
 import { OpportunityListTable } from "@/components/opportunities/opportunity-list-table"
+import { OpportunityForm } from "@/components/opportunities/opportunity-form"
 
 interface OpportunitiesViewProps {
   opportunities: OpportunityRecord[]
@@ -26,6 +29,19 @@ interface OpportunitiesViewProps {
   searchUsersAction?: (query: string) => Promise<EntityOption[]>
   createContactQuickAction?: (input: { fullName: string; email?: string; accountId?: string }) => Promise<EntityOption>
   defaultCurrency?: string
+  /** Which view to open on first render. Defaults to the board (kanban). */
+  defaultView?: "board" | "table"
+  /** Page header title. Defaults to "Opportunities". */
+  title?: string
+  /** Page header description. When omitted, a view-mode-aware default is used. */
+  description?: string
+  /**
+   * Dedicated empty-state copy (title + optional description). When provided AND
+   * there are no opportunities, a clean EmptyState — with the create action — is
+   * shown instead of the board/table. Used by the personal Pipeline board; the
+   * org-wide Opportunities list omits it and keeps its built-in empty rendering.
+   */
+  emptyState?: { title: string; description?: string }
 }
 
 type ViewMode = "kanban" | "table"
@@ -44,18 +60,28 @@ export function OpportunitiesView({
   searchUsersAction,
   createContactQuickAction,
   defaultCurrency,
+  defaultView = "board",
+  title = "Opportunities",
+  description,
+  emptyState,
 }: OpportunitiesViewProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>("kanban")
+  const router = useRouter()
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    defaultView === "table" ? "table" : "kanban",
+  )
+
+  const showEmptyState = emptyState != null && opportunities.length === 0
 
   return (
     <div className="flex flex-1 flex-col">
       <div className="border-b px-4 py-3 lg:px-6">
         <SectionHeader
-          title="Opportunities"
+          title={title}
           description={
-            viewMode === "kanban"
+            description ??
+            (viewMode === "kanban"
               ? "Drag opportunities between stages to update their pipeline status."
-              : "View and manage all opportunities in a table."
+              : "View and manage all opportunities in a table.")
           }
           actions={
             <div className="flex items-center rounded-lg border p-0.5">
@@ -88,7 +114,29 @@ export function OpportunitiesView({
         />
       </div>
 
-      {viewMode === "kanban" ? (
+      {showEmptyState ? (
+        <div className="flex flex-1 items-center justify-center p-4 lg:p-6">
+          <EmptyState
+            icon={KanbanIcon}
+            title={emptyState.title}
+            description={emptyState.description}
+            action={
+              <OpportunityForm
+                accounts={accounts}
+                businessUnits={businessUnits}
+                users={users}
+                createAction={createAction}
+                onSuccess={() => router.refresh()}
+                searchAccountsAction={searchAccountsAction}
+                searchContactsAction={searchContactsAction}
+                searchUsersAction={searchUsersAction}
+                createContactQuickAction={createContactQuickAction}
+                defaultCurrency={defaultCurrency}
+              />
+            }
+          />
+        </div>
+      ) : viewMode === "kanban" ? (
         <OpportunityBoard
           opportunities={opportunities}
           accounts={accounts}
