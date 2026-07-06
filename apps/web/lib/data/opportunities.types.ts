@@ -1,4 +1,5 @@
 import type { DealStage } from "@/lib/opportunity"
+import type { DealHealth } from "@/lib/opportunity/deal-health"
 
 export const PROJECT_TYPES = [
   "ip",
@@ -114,6 +115,12 @@ export interface OpportunityRecord {
   customData: Record<string, unknown>
   createdAt: string
   updatedAt: string
+  /**
+   * At-a-glance card health signals (overdue / stale). Attached in a batched pass
+   * by the pipeline data layer (see lib/data/deal-health.ts) for board / table
+   * rendering; `undefined` on records fetched elsewhere.
+   */
+  health?: DealHealth | null
 }
 
 export interface OpportunityListResult {
