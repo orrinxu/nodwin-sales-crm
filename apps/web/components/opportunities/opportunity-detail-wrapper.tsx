@@ -20,6 +20,8 @@ import { OpportunitySplitsEditor } from "@/components/opportunities/opportunity-
 import { OpportunityTeamEditor } from "@/components/opportunities/opportunity-team-editor"
 import { StageHistoryTimeline } from "@/components/opportunities/stage-history-timeline"
 import { ApprovalCard } from "@/components/opportunities/approval-card"
+import { DealCopilot } from "@/components/opportunities/deal-copilot"
+import type { DealCopilotResult } from "@/lib/ai/deal-copilot"
 import type { EntityOption } from "@/components/entity-combobox"
 import type {
   OpportunityRecord,
@@ -105,6 +107,10 @@ interface OpportunityDetailWrapperProps {
   updateSplitsAction?: (id: string, input: unknown) => Promise<void>
   updateTeamAction?: (id: string, input: unknown) => Promise<void>
   enforceGateStatus?: EnforceGateStatus
+  dealCopilotConfigured?: boolean
+  dealCopilotSummaryAction?: (opportunityId: string) => Promise<DealCopilotResult>
+  dealCopilotEmailAction?: (opportunityId: string) => Promise<DealCopilotResult>
+  dealCopilotNextBestActionAction?: (opportunityId: string) => Promise<DealCopilotResult>
 }
 
 // ── Small presentational primitives (module scope; stable identity) ─────────────
@@ -332,6 +338,10 @@ export function OpportunityDetailWrapper({
   updateSplitsAction,
   updateTeamAction,
   enforceGateStatus = { isBlocked: false },
+  dealCopilotConfigured = false,
+  dealCopilotSummaryAction,
+  dealCopilotEmailAction,
+  dealCopilotNextBestActionAction,
 }: OpportunityDetailWrapperProps) {
   const router = useRouter()
   const [updatingStage, setUpdatingStage] = useState(false)
@@ -614,6 +624,15 @@ export function OpportunityDetailWrapper({
 
         {/* Right rail */}
         <div className="w-full shrink-0 space-y-4 lg:w-[372px]">
+          {dealCopilotSummaryAction && dealCopilotEmailAction && dealCopilotNextBestActionAction && (
+            <DealCopilot
+              opportunityId={opportunity.id}
+              configured={dealCopilotConfigured}
+              summaryAction={dealCopilotSummaryAction}
+              emailAction={dealCopilotEmailAction}
+              nextBestActionAction={dealCopilotNextBestActionAction}
+            />
+          )}
           <Card>
             <CardContent className="pt-4">
               <Tabs defaultValue="activity">
