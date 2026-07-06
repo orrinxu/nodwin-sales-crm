@@ -3004,6 +3004,30 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      forecast_pipeline_agg: {
+        Args: {
+          p_next_quarter_end: string
+          p_this_quarter_end: string
+          p_this_quarter_start: string
+        }
+        Returns: {
+          currency: string
+          deal_count: number
+          gross_amount: number
+          period: string
+          stage: string
+          weighted_amount: number
+        }[]
+      }
+      forecast_revenue_curve_agg: {
+        Args: never
+        Returns: {
+          amount: number
+          currency: string
+          entry_count: number
+          month: string
+        }[]
+      }
       get_effective_user_caps: {
         Args: { p_user_id: string }
         Returns: {
@@ -3099,6 +3123,20 @@ export type Database = {
           _step_id: string
         }
         Returns: undefined
+      }
+      rep_scorecard_agg: {
+        Args: { p_period_end: string; p_period_start: string }
+        Returns: {
+          currency: string
+          cycle_days_sum: number
+          lost_count: number
+          open_amount: number
+          owner_name: string
+          owner_user_id: string
+          weighted_amount: number
+          won_amount: number
+          won_count: number
+        }[]
       }
       replace_account_tax_ids: {
         Args: { _account_id: string; _tax_ids: Json }
