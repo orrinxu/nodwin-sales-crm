@@ -17,35 +17,38 @@ interface StageHistoryTimelineProps {
   history: StageHistoryRecord[]
 }
 
+// Event colours map onto the FIXED semantic tokens (success/warning/info/
+// destructive) rather than hard-coded Tailwind palette literals, so the
+// timeline follows the design system and both themes.
 const eventConfig: Record<string, { icon: typeof ArrowUp; color: string; label: string }> = {
   ADVANCE: {
     icon: ArrowUp,
-    color: "text-blue-600 bg-blue-100",
+    color: "text-info bg-info/12",
     label: "Advanced",
   },
   MOVE_BACKWARD: {
     icon: ArrowDown,
-    color: "text-amber-600 bg-amber-100",
+    color: "text-warning bg-warning/15",
     label: "Moved Back",
   },
   CLOSE_WON: {
     icon: CheckCircle2,
-    color: "text-green-600 bg-green-100",
+    color: "text-success bg-success/12",
     label: "Closed Won",
   },
   CLOSE_LOST: {
     icon: XCircle,
-    color: "text-red-600 bg-red-100",
+    color: "text-destructive bg-destructive/12",
     label: "Closed Lost",
   },
   REOPEN: {
     icon: RotateCcw,
-    color: "text-purple-600 bg-purple-100",
+    color: "text-foreground bg-muted",
     label: "Reopened",
   },
   FORCE_STAGE: {
     icon: AlertTriangle,
-    color: "text-orange-600 bg-orange-100",
+    color: "text-warning bg-warning/15",
     label: "Forced",
   },
 }

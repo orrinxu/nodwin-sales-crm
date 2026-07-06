@@ -11,18 +11,10 @@ import {
   Cell,
 } from "recharts"
 import type { PipelineStageSummary } from "@/lib/data/metrics"
-
-const CHART_COLORS = {
-  active: "var(--chart-2)",
-  won: "#22c55e",
-  lost: "var(--destructive)",
-  default: "var(--chart-1)",
-}
+import { stageChartColor } from "@/components/primitives/chart-theme"
 
 function getStageColor(stage: string): string {
-  if (stage === "closed_won") return CHART_COLORS.won
-  if (stage === "closed_lost") return CHART_COLORS.lost
-  return CHART_COLORS.default
+  return stageChartColor(stage)
 }
 
 function formatChartCurrency(value: number, currency: string, locale: string): string {

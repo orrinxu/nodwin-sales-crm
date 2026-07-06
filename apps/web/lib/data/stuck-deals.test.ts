@@ -59,6 +59,7 @@ vi.mock("./stuck-deal-settings", () => ({
 }))
 
 import { getStuckDeals } from "./stuck-deals"
+import { getStageLabel } from "./opportunities.types"
 
 const ctx = { user: { id: "u1" } as never, source: "web" as const }
 
@@ -98,6 +99,14 @@ describe("getStuckDeals", () => {
     expect(deals[0].reasons).toEqual(["stale"])
     expect(deals[0].daysSinceLastActivity).toBe(30)
     expect(deals[0].hasActivity).toBe(true)
+  })
+
+  it("carries the stage key through (used by StageBadge in the widget)", async () => {
+    store.opportunities = [opp({ id: "A", stage: "negotiate", amount: 500 })]
+    store.activities = [{ opportunity_id: "A", created_at: daysAgo(30) }] // negotiate=7 → stale
+    const { deals } = await getStuckDeals(ctx)
+    expect(deals[0].stage).toBe("negotiate")
+    expect(deals[0].stageLabel).toBe(getStageLabel("negotiate"))
   })
 
   it("ages a zero-activity deal from created_at, never updated_at", async () => {

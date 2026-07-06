@@ -688,13 +688,27 @@ export function OpportunityDetailWrapper({
           </div>
 
           {updateTeamAction ? (
-            <OpportunityTeamEditor members={teamMembers} users={userOptions} onSave={handleSaveTeam} />
+            <Card>
+              <CardHeader>
+                <CardTitle className={T.cardHeading}>Opportunity Team</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <OpportunityTeamEditor members={teamMembers} users={userOptions} onSave={handleSaveTeam} />
+              </CardContent>
+            </Card>
           ) : (
             <RelatedListCard title="Opportunity Team" emptyMessage="No team members assigned." />
           )}
 
           {updateSplitsAction ? (
-            <OpportunitySplitsEditor splits={splits} businessUnits={businessUnits} users={userOptions} onSave={handleSaveSplits} />
+            <Card>
+              <CardHeader>
+                <CardTitle className={T.cardHeading}>Opportunity Splits</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <OpportunitySplitsEditor splits={splits} businessUnits={businessUnits} users={userOptions} onSave={handleSaveSplits} />
+              </CardContent>
+            </Card>
           ) : (
             <RelatedListCard title="Opportunity Splits" emptyMessage="No splits configured." />
           )}

@@ -67,35 +67,35 @@ export function ContactDetailWrapper({
   const socialEntries = Object.entries(contact.socials).filter(([, v]) => v)
 
   return (
-    <div className="relative">
-      <div className="absolute top-6 right-6 z-10">
-        <ContactForm
-          contact={contact}
-          accounts={accounts}
-          linkedAccountIds={linkedAccountIds}
-          fieldDefinitions={fieldDefinitions}
-          createAction={async () => { throw new Error("Not available") }}
-          updateAction={updateAction}
-          onSuccess={() => {
-            router.refresh()
-          }}
-          trigger={
-            <Button variant="outline" size="sm">
-              <Pencil className="size-4" />
-              Edit
-            </Button>
-          }
-        />
-      </div>
+    <div>
       <div className="flex flex-1 flex-col gap-6 p-6">
-        <div className="flex items-center gap-4">
-          <div>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
             <h1 className="text-2xl font-semibold tracking-tight">
               {contact.fullName}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {contact.title ?? "Contact"}
             </p>
+          </div>
+          <div className="shrink-0">
+            <ContactForm
+              contact={contact}
+              accounts={accounts}
+              linkedAccountIds={linkedAccountIds}
+              fieldDefinitions={fieldDefinitions}
+              createAction={async () => { throw new Error("Not available") }}
+              updateAction={updateAction}
+              onSuccess={() => {
+                router.refresh()
+              }}
+              trigger={
+                <Button variant="outline" size="sm">
+                  <Pencil className="size-4" />
+                  Edit
+                </Button>
+              }
+            />
           </div>
         </div>
         <Card>

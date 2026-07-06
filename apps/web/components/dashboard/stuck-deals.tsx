@@ -4,6 +4,8 @@ import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { StageBadge } from "@/components/primitives/stage-badge"
+import type { DealStage } from "@/lib/opportunity/stage"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { AlertTriangle, Clock, CalendarX, Building2, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -16,6 +18,7 @@ export interface StuckDealView {
   id: string
   name: string
   company: string | null
+  stage: DealStage
   stageLabel: string
   amount: string
   daysSinceLastActivity: number
@@ -70,7 +73,7 @@ export function StuckDeals({ deals, totalAtRisk, dateFormat, unconvertibleCount 
                   <div className="flex flex-col gap-1.5">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium">{deal.name}</span>
-                      <Badge variant="secondary" className="text-xs">{deal.stageLabel}</Badge>
+                      <StageBadge stage={deal.stage} label={deal.stageLabel} />
                       {deal.reasons.includes("overdue") && (
                         <Badge className="gap-1 bg-destructive/15 text-xs text-destructive">
                           <CalendarX className="size-3" /> Overdue

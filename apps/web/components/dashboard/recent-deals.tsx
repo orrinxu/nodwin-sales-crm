@@ -7,8 +7,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { StageBadge } from "@/components/primitives/stage-badge"
+import type { DealStage } from "@/lib/opportunity/stage"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ArrowRight, Calendar, Building2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -70,16 +71,10 @@ export function RecentDeals({ deals, dateFormat, maxItems = 5 }: RecentDealsProp
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{deal.name}</span>
-                    <Badge
-                      variant="secondary"
-                      className={cn(
-                        "text-xs",
-                        deal.stage === "closed_won" && "bg-emerald-100 text-emerald-700",
-                        deal.stage === "closed_lost" && "bg-destructive/15 text-destructive",
-                      )}
-                    >
-                      {deal.stageLabel}
-                    </Badge>
+                    <StageBadge
+                      stage={deal.stage as DealStage}
+                      label={deal.stageLabel}
+                    />
                   </div>
                   <div className="flex items-center gap-3 text-sm text-muted-foreground">
                     {deal.company && (
