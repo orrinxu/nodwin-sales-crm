@@ -37,7 +37,7 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 | Severity | Definition | Response Time | Examples |
 |---|---|---|---|
 | **Critical** | Data breach, service unavailable, data loss | Immediate (< 1 hour) | RLS misconfiguration leaks client data; Supabase production DB down; AI key compromise allows unbounded spend; inbound email forgery confirmed |
-| **High** | Feature broken for multiple users, AI cost spike | Within 4 hours | Gmail send failing for all users; Drive permission sync stuck; AI costs exceeding daily cap by >50%; single entity's data not loading |
+| **High** | Feature broken for multiple users, AI cost spike | Within 4 hours | AI costs exceeding daily cap by >50%; single entity's data not loading (*forward-looking, once built:* Gmail send failing for all users; Drive permission sync stuck) |
 | **Medium** | Single-user issue, cosmetic bug | Within 24 hours | Rep can't log activity; incorrect currency formatting; Slack notifications not delivering to one channel |
 | **Low** | Question, feature request, minor UI glitch | Next business day | Typo in UI text; slow kanban load on large pipelines; feature request |
 
@@ -96,7 +96,7 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
    FROM ai_usage WHERE created_at > now() - interval '1 hour'
    GROUP BY user_id, provider, model ORDER BY total_cost DESC;
    ```
-2. **Cut off the source** — disable the specific provider for that user via admin panel, or if the global cap is breached, set `AI_PROVIDER_DISABLED=true` environment variable (this routes all traffic to Ollama fallback).
+2. **Cut off the source** — disable the specific provider for that user via admin panel, or if the global cap is breached, force degraded/Ollama mode by setting the company-scope cap to $0: update the `ai_daily_caps` row where `scope_kind='company'` to a $0 daily cap (via the admin panel or SQL). This routes all traffic to the Ollama fallback.
 3. **Check for abuse** — do the `ai_usage` rows show a single automated agent or script? Check `mcp_calls` table if the MCP server is live.
 4. **Tighten caps** — reduce per-user daily cap, or switch the offending feature to a cheaper provider (DeepSeek / Ollama).
 5. **Notify** Orrin Xu of any cost overrun > $100.
@@ -109,9 +109,9 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 
 1. **Check `activities` table** — identify the suspect activity. Note the `created_at`, `user_id`, and `source_metadata`.
 2. **Verify DKIM pass/fail** — check the inbound email payload's DKIM status in the dead-letter table or the activity's raw metadata. If DKIM failed and the email was still accepted, this is a Critical bug in the inbound pipeline.
-3. **Check `inbound_dead_letter` table** — are there other recent entries from the same sender or with similar headers?
-4. **Revoke the inbound address** — set `users.inbound_token = null` for the affected user. Generate a new token.
-5. **Mitigate** — if DKIM verification is not working, disable the inbound webhook endpoint (comment out the route or set `INBOUND_EMAIL_DISABLED=true` env var).
+3. **Check `inbound_email_deadletter` table** — are there other recent entries from the same sender or with similar headers?
+4. **Revoke the inbound address** — sender matching keys off `users.crm_inbound_email`; clear or rotate the affected user's `crm_inbound_email` value so the old address no longer maps to them, then issue a new one.
+5. **Mitigate** — if DKIM verification is not working, stop accepting inbound mail at the source (disable the Postmark inbound config). Note the inbound handler (`lib/email/inbound.ts`) is library-only and is not mounted to any HTTP route, so there is no live endpoint to take down and no `INBOUND_EMAIL_DISABLED` env var.
 6. **Notify** Orrin Xu and the affected user's manager.
 
 ### P-5: API Key Leak (GitHub / Public Exposure)
@@ -133,8 +133,8 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 **Steps:**
 
 1. **Test webhook signature verification** — send a forged request to the webhook endpoint (e.g., with Postman) and confirm it's rejected with 401. Reference `lib/webhooks/verify.ts` and `lib/webhooks/postmark.test.ts`.
-2. **If signature verification is failing** — check that the `WEBHOOK_SIGNING_SECRET` env var matches the provider's secret. Check for expired or rotated secrets that haven't been updated.
-3. **If signature verification was bypassed** — this is Critical. Disable the webhook endpoint immediately by removing the route from `app/api/webhooks/` and deploy. Investigate the code path.
+2. **If signature verification is failing** — check that the `POSTMARK_WEBHOOK_SECRET` env var matches the provider's secret. Check for expired or rotated secrets that haven't been updated.
+3. **If signature verification was bypassed** — this is Critical. The verification/handler code lives in `lib/webhooks/postmark.ts` (verification helper in `lib/webhooks/verify.ts`) and `lib/email/inbound.ts`; note no HTTP route is mounted for these yet, so mitigation is at the code/config layer (or the Postmark inbound config) rather than removing a route. Investigate the code path.
 4. **Audit** any data changes made during the window the forged events were accepted.
 
 ### P-7: OAuth Token Theft / Suspicious Auth Activity
@@ -150,6 +150,8 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 5. **Notify** Orrin Xu.
 
 ### P-8: Google Workspace API Quota Exhaustion
+
+> **Forward-looking / not yet built.** The Google Workspace integration is not implemented: Drive is an unwired stub that throws "not configured", and there is no Gmail send path. Treat this procedure as a placeholder for when those features ship — the examples below do not apply to the current system.
 
 **Symptoms:** Drive file creation fails, Gmail send returns 403, Calendar events fail. Google Cloud Console shows quota exhausted.
 
@@ -168,7 +170,7 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 **Steps:**
 
 1. **Check Slack app status** (https://status.slack.com). If Slack is degraded, wait.
-2. **Check `@slack/bolt` client error logs** in Vercel logs. Common error: `token_revoked` — the Slack app token has been rotated and the env var needs updating.
+2. **Check Slack delivery logs** in Vercel logs. Slack delivery is a raw `fetch` to `chat.postMessage` with the `SLACK_BOT_TOKEN` in `lib/notifications/delivery.ts` (no `@slack/bolt` dependency); failures log the HTTP status. A revoked/rotated token typically surfaces as a non-200 status — update `SLACK_BOT_TOKEN` if so.
 3. **Re-install the Slack app** from the Slack API dashboard if the token cannot be recovered.
 4. **Check channel membership** — the bot may have been removed from a channel. Re-invite via `/invite @NodwinCRM`.
 

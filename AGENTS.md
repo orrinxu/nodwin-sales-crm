@@ -37,7 +37,7 @@ Currently the board is one person: the project lead. That will not change for v1
 These choices are decided. Do not propose alternatives without explicit board approval.
 
 - **Frontend:** Next.js (App Router) + React + TypeScript
-- **UI components:** shadcn/ui (Radix primitives + Tailwind CSS). When a UI need arises, look for an existing shadcn component first. Do not introduce a second component library.
+- **UI components:** shadcn/ui (built on `@base-ui/react` primitives) + Tailwind CSS v4 (CSS-first). When a UI need arises, look for an existing shadcn component first. Do not introduce a second component library.
 - **Styling:** Tailwind CSS. No CSS-in-JS. No styled-components. No CSS modules unless absolutely necessary.
 - **Backend:** Supabase (Postgres + Auth + Storage + Realtime + RLS)
 - **Auth:** Supabase Auth with Google OAuth provider only. No password auth. No magic links. No other social providers.
@@ -48,19 +48,21 @@ These choices are decided. Do not propose alternatives without explicit board ap
 - **Drag-and-drop:** dnd-kit (for the kanban)
 - **Charts:** Recharts (shadcn integrates with this)
 - **Icons:** Lucide
-- **Background jobs:** Inngest (preferred) or Trigger.dev
+- **Background jobs:** Currently handled by API job routes in `apps/web/app/api/jobs` plus Supabase functions / a `pg_cron` scaffold. Inngest is aspirational (not yet wired) — do not assume it exists.
 - **Transactional email:** Resend (preferred) or Postmark — with custom domain, SPF, DKIM, DMARC at p=quarantine. NEVER Supabase's default SMTP.
 - **Inbound email:** Postmark Inbound (preferred) or AWS SES Inbound
 - **Slack:** `@slack/bolt` library — never roll your own Slack interaction handler
 - **Google Workspace:** `googleapis` npm package
 - **AI:** routed through `lib/ai/router.ts`. Never call provider APIs directly from anywhere else.
 - **Tests:** Vitest for unit/integration, Playwright for E2E
-- **Lint:** ESLint with the rules in `.eslintrc.cjs` (do not weaken them)
+- **Lint:** ESLint with the rules in `apps/web/eslint.config.mjs` (flat config; plus the local `apps/web/eslint-plugin-custom`) — do not weaken them
 - **Package manager:** pnpm
 
 ---
 
 ## 4. Folder structure
+
+This is a **pnpm monorepo** (`pnpm-workspace.yaml` declares `apps/*` and `packages/*`). All app code lives under `apps/web/`; shared workspace packages live under `packages/`. The repo-level tooling (`supabase/`, `docs/`, `scripts/`, `.github/`) sits at the root.
 
 ```
 nodwin-crm/
@@ -69,26 +71,34 @@ nodwin-crm/
 ├── BOARD_RUNBOOK.md           ← human-in-the-loop reference
 ├── BUILD_TICKETS.md           ← ordered ticket sequence
 ├── CHANGELOG.md               ← human-readable record of significant changes
+├── pnpm-workspace.yaml        ← workspace globs: apps/*, packages/*
 ├── docs/
 │   ├── SOW.md                 ← strategic source of truth
 │   ├── data-model.md          ← schema reference
 │   ├── integrations.md        ← integration architecture
 │   ├── security.md            ← threat model and defences
 │   └── runbook-incident.md    ← what to do when things break
-├── app/                       ← Next.js App Router pages
-│   └── (crm)/                 ← authenticated CRM routes
-├── components/                ← React components
-│   └── ui/                    ← shadcn/ui components (do not modify these)
-├── lib/                       ← shared application code
-│   ├── money.ts               ← HIGH-RISK — see §6
-│   ├── ai/
-│   │   └── router.ts          ← HIGH-RISK — see §6
-│   ├── webhooks/              ← HIGH-RISK — see §6
-│   ├── email/
-│   │   └── inbound.ts         ← HIGH-RISK — see §6
-│   ├── security/              ← HIGH-RISK — see §6
-│   ├── data/                  ← typed Supabase queries
-│   └── ...
+├── scripts/                   ← repo automation (verify.sh, check-rls-coverage.sh, …)
+├── packages/                  ← shared workspace packages
+├── apps/
+│   └── web/                   ← the Next.js application (one workspace)
+│       ├── app/               ← Next.js App Router pages
+│       │   ├── (crm)/         ← authenticated CRM routes
+│       │   └── api/           ← API routes
+│       ├── components/        ← React components
+│       │   └── ui/            ← shadcn/ui components (do not modify these)
+│       ├── lib/               ← shared application code
+│       │   ├── money.ts       ← HIGH-RISK — see §6
+│       │   ├── ai/
+│       │   │   └── router.ts  ← HIGH-RISK — see §6
+│       │   ├── webhooks/      ← HIGH-RISK — see §6
+│       │   ├── email/
+│       │   │   └── inbound.ts ← HIGH-RISK — see §6
+│       │   ├── security/      ← HIGH-RISK — see §6
+│       │   ├── data/          ← typed Supabase queries
+│       │   └── ...
+│       ├── eslint.config.mjs  ← ESLint flat config
+│       └── eslint-plugin-custom/ ← local lint rules
 ├── supabase/
 │   ├── migrations/            ← HIGH-RISK — see §6
 │   ├── policies/              ← HIGH-RISK — see §6
@@ -179,7 +189,7 @@ The board may also configure Paperclip to require approval before any change to 
 - `supabase/migrations/**`
 - `supabase/policies/**`
 - `supabase/tests/**`
-- `.eslintrc.cjs`
+- `apps/web/eslint.config.mjs` (and `apps/web/eslint-plugin-custom/**`)
 - `.github/workflows/**`
 - `.env.example`
 - `package.json` (dependency changes — do not add libraries casually)

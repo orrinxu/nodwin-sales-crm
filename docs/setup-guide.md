@@ -3,19 +3,19 @@
 > How to configure authentication for the Nodwin CRM from scratch.
 > Covers Supabase Cloud project creation, Google OAuth credential setup, magic link configuration, and environment wiring.
 
-## Quick start — staging sandbox without a company domain
+## Quick start — a personal test setup without a company domain
 
-If you don't have a Nodwin Group domain or Google Workspace access yet, use this abbreviated path to get a working staging sandbox with your own personal accounts. Each step below is a simplified version of the full section listed in parentheses.
+If you don't have a Nodwin Group domain or Google Workspace access yet, use this abbreviated path to get a working personal test setup with your own personal accounts. Each step below is a simplified version of the full section listed in parentheses.
 
-1. **Supabase project** (§1) — create a **free-tier** Supabase Cloud project using your personal email, or use the local Supabase stack via `pnpm supabase:start` (Docker required). Free tier is sufficient for a dev sandbox.
+1. **Supabase project** (§1) — create a **free-tier** Supabase Cloud project using your personal email, or use the local Supabase stack via `pnpm supabase:start` (Docker required). Free tier is sufficient for a dev setup.
 2. **Google OAuth** (§2.1) — create a GCP project using your personal Gmail. Set the OAuth consent screen to **External** (not Internal). Add your personal email(s) as test users. When registering redirect URIs in GCP, use **only** `https://<project-ref>.supabase.co/auth/v1/callback` — Supabase is the OAuth broker, not the app. The app's own domains (Vercel URLs, localhost) belong in **Supabase's** Redirect URLs allowlist (under Authentication > Settings), not in GCP.
 3. **Supabase Auth** (§3) — enable the Google provider. In **Authentication > Settings**, add your app URL(s) to **Redirect URLs**. Skip the domain allowlist trigger during dev (see §3.2).
 4. **Magic link email** (§4) — use Supabase's built-in email sender for dev (skip custom SMTP). Or create a free Resend account and use their sandbox sender (`onboarding@resend.dev`) — no DNS setup needed.
 5. **Env vars** (§5) — use the Supabase project ref and anon key (from Cloud dashboard or from `pnpm supabase:start` output).
 6. **Local dev** (§6) — test on `http://localhost:3000`. Sign in with your personal Google account.
-7. **Vercel deploy** (§8) — deploy to a free Vercel account. Use a stable domain alias as your staging URL (see §2.1). Add the final URL to Supabase's Redirect URLs, not GCP.
+7. **Vercel deploy** (§8) — deploy to a free Vercel account. Use a stable domain alias as your app URL (see §2.1). Add the final URL to Supabase's Redirect URLs, not GCP.
 
-> **Everything below this point** describes the full production setup with Nodwin Group domains, Google Workspace, SPF/DKIM/DMARC, and the domain allowlist. For a dev/staging sandbox you can skip sections 2.1 (stable domain guidance still applies), 2.2, 3.2 (domain allowlist trigger), 4.3 (SPF/DKIM/DMARC), and the production Vercel domain setup in §8.
+> **Everything below this point** describes the full production setup with Nodwin Group domains, Google Workspace, SPF/DKIM/DMARC, and the domain allowlist. For a personal/dev setup you can skip sections 2.1 (stable domain guidance still applies), 2.2, 3.2 (domain allowlist trigger), 4.3 (SPF/DKIM/DMARC), and the production Vercel domain setup in §8.
 
 ---
 
@@ -34,7 +34,7 @@ If you don't have a Nodwin Group domain or Google Workspace access yet, use this
 
 ## 1. Create a Supabase Cloud project
 
-Two projects are needed (one per environment). Start with the production project; staging follows the same steps.
+A single managed **production** Supabase project is needed. There are no longer managed staging or sandbox environments — the only non-production instances are ephemeral per-PR previews, which run against the production configuration rather than a dedicated Supabase project.
 
 1. Go to [supabase.com](https://supabase.com) and sign in with the Nodwin Group Google Workspace account.
 2. Click **New project**.
@@ -45,8 +45,6 @@ Two projects are needed (one per environment). Start with the production project
    - **Pricing plan:** `Pro` (required for custom SMTP, larger DB size, and daily backups). For a dev sandbox, the **Free** tier is sufficient.
 4. Wait for the project to spin up (~2 minutes).
 5. Note the **Project URL**, **Project API keys** (anon + service_role), and **Project ID** from **Project Settings > General**.
-
-> **Repeat** for staging (`nodwin-crm-staging`). Each environment gets its own project and its own set of credentials.
 
 ---
 
@@ -91,7 +89,7 @@ Auth is restricted to Nodwin Group Google Workspace domains (e.g. `@nodwingroup.
 
 ### 2.2 Restrict by domain (optional but recommended)
 
-In the GCP OAuth consent screen settings, under **Test users**, you can add individual test accounts. Once the app is verified (internal apps don't need verification), only your Workspace domain users will be able to sign in. The Postgres trigger in §3.2 enforces the domain allowlist on the backend, so this GCP restriction is a defence-in-depth measure.
+In the GCP OAuth consent screen settings, under **Test users**, you can add individual test accounts. Once the app is verified (internal apps don't need verification), only your Workspace domain users will be able to sign in. The `auth_allowed_domains` table + Auth Hook in §3.2 enforces the domain allowlist on the backend, so this GCP restriction is a defence-in-depth measure.
 
 ---
 
@@ -104,38 +102,25 @@ In the GCP OAuth consent screen settings, under **Test users**, you can add indi
 3. Paste the **Client ID** and **Client Secret** from step 2.1.
 4. Save.
 
-### 3.2 Enforce domain allowlist via Postgres trigger
+### 3.2 Enforce domain allowlist via `auth_allowed_domains` + Auth Hook
 
-Supabase does not have a built-in dashboard setting to restrict sign-up by email domain. Instead, create a Postgres trigger on `auth.users` that rejects sign-ups from non-allowed domains.
+Supabase does not have a built-in dashboard setting to restrict sign-up by email domain. Domain enforcement is **table-driven**: the allowed domains live in the `public.auth_allowed_domains` table, and a Supabase **Auth Hook** Edge Function queries that table on every sign-up attempt and rejects emails whose domain is not present.
 
-Create a new migration file in `supabase/migrations/` (e.g. `supabase/migrations/20250508000001_domain_allowlist.sql`):
+The table and its seed rows already exist in the repo — see migration `supabase/migrations/20260504081413_auth_allowed_domains.sql`. It creates:
 
 ```sql
--- Restrict sign-ups to approved email domains
-CREATE OR REPLACE FUNCTION auth.check_email_domain()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-BEGIN
-  IF NEW.email NOT LIKE '%@nodwingroup.com'
-     AND NEW.email NOT LIKE '%@trinitygaming.in'
-     AND NEW.email NOT LIKE '%@maxlevel.gg'
-  THEN
-    RAISE EXCEPTION 'Email domain is not allowed: %', split_part(NEW.email, '@', 2);
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
-CREATE OR REPLACE TRIGGER on_auth_user_created
-  BEFORE INSERT ON auth.users
-  FOR EACH ROW
-  EXECUTE FUNCTION auth.check_email_domain();
+create table if not exists public.auth_allowed_domains (
+  id         uuid        primary key default gen_random_uuid(),
+  domain     text        not null unique,
+  created_at timestamptz not null default now()
+);
 ```
 
-> **Dev shortcut:** Skip deploying this migration during development. Without it, any email domain can sign up.
+RLS is enabled with `service_role`-only policies (the identity the auth-hook Edge Function runs as); `anon` and `authenticated` receive no policies and are blocked. The migration seeds the default permitted domains (`nodwin.com`, `trinitygaming.in`, `maxlevel.gg`).
+
+To change the allowlist, insert/delete rows in `public.auth_allowed_domains` (via a migration or as `service_role`) rather than editing any hand-rolled trigger. Make sure the Auth Hook is enabled and pointed at the sign-up validation Edge Function in **Authentication > Hooks**.
+
+> **Dev shortcut:** Leave the Auth Hook disabled during development so any email domain can sign up. The table is still applied by migrations, but without the hook wired up nothing enforces it.
 
 > **Warning — Site URL per environment:** Each Supabase project's **Site URL** (under **Authentication > Settings**) must point at its own environment's frontend. This URL is used as the redirect target in magic link emails. A staging Supabase project with Site URL set to `https://crm.nodwingroup.com` will send magic links that redirect users to production. Set:
 > - Staging project → `https://<your-stable-staging-domain>`
@@ -152,7 +137,7 @@ The CRM uses **magic link only** (no password). Users enter their work email, re
    - **Secure email change:** On (requires both old and new email confirmation).
 4. Save.
 
-There is no Supabase-level toggle to disable password-based sign-in. The application enforces magic-link-only at the UI layer by calling `signInWithOtp()` on the Supabase client (see `components/auth/magic-link-form.tsx`) rather than exposing a password form. To prevent server-side impersonation, also verify the email domain via the Postgres trigger in §3.2 and ensure the anon key is not abused in client code.
+There is no Supabase-level toggle to disable password-based sign-in. The application enforces magic-link-only at the UI layer by calling `signInWithOtp()` on the Supabase client (see `components/auth/magic-link-form.tsx`) rather than exposing a password form. To prevent server-side impersonation, also verify the email domain via the `auth_allowed_domains` Auth Hook in §3.2 and ensure the anon key is not abused in client code.
 
 ---
 
@@ -209,32 +194,40 @@ All auth-related environment variables are listed here. Copy these into `.env.lo
 
 ```bash
 # --- Supabase ---
+SUPABASE_URL=https://<project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_ANON_KEY=<anon-key-from-supabase-settings>
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key-from-supabase-settings>
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key-from-supabase-settings>
 
-# --- Google OAuth (server-side only) ---
-GOOGLE_OAUTH_CLIENT_SECRET=<google-oauth-client-secret>
+# --- Email (Postmark inbound webhook) ---
+POSTMARK_WEBHOOK_SECRET=<postmark-webhook-secret>
 
 # --- App ---
-NEXT_PUBLIC_APP_URL=http://localhost:3000  # change per environment
+APP_URL=http://localhost:3000  # OAuth callback base URL; change per environment
+NEXT_PUBLIC_APP_NAME=Nodwin CRM
+NEXT_PUBLIC_API_URL=http://localhost:3001/api  # change per environment
 ```
+
+> **Google OAuth client secret is Supabase-dashboard-side only.** The app never reads `GOOGLE_OAUTH_CLIENT_SECRET`; the Google client ID/secret are pasted into the Supabase Dashboard (Authentication > Providers > Google, see §3.1) where Supabase brokers the OAuth handshake. Do not add it to the app env block.
+
+> See `apps/web/.env.example` for the full, authoritative list (including optional AI-provider keys). The vars above are the auth/app essentials.
 
 > **What about `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID`?** When using Supabase as the OAuth broker (Google provider configured in Supabase dashboard), the frontend never reads the Google client ID directly — Supabase handles the OAuth handshake. This variable is not needed.
 >
 > If the app later makes direct Google API calls (Gmail, Drive, Calendar) from the frontend, the Google client ID would be reintroduced for a separate token exchange. That is a future concern.
 
-> **Security note:** `SUPABASE_SERVICE_ROLE_KEY` and `GOOGLE_OAUTH_CLIENT_SECRET` bypass RLS and can impersonate any user. Never expose them to the browser. They must only appear in server-side code or environment variables prefixed without `NEXT_PUBLIC_`.
+> **Security note:** `SUPABASE_SERVICE_ROLE_KEY` bypasses RLS and can impersonate any user. Never expose it to the browser — it must only appear in server-side code or environment variables prefixed without `NEXT_PUBLIC_`. (The Google OAuth client secret is likewise sensitive, but it lives in the Supabase Dashboard, not the app env — see above.)
 
 ### Environment-specific overrides
 
-| Variable | Local | Staging | Production |
+| Variable | Local | Preview (per-PR) | Production |
 |---|---|---|---|
-| `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | `https://<stable-staging-domain>` | `https://crm.nodwingroup.com` |
-| Supabase project | dev project | staging project | production project |
-| Google OAuth client | dev GCP client | staging GCP client | production GCP client |
+| `APP_URL` | `http://localhost:3000` | Vercel-assigned preview URL | `https://crm.nodwingroup.com` |
+| Supabase project | local stack / dev project | production project | production project |
+| Google OAuth client | dev GCP client | production GCP client | production GCP client |
 
-Each environment uses a **separate** Supabase project and GCP OAuth client. Do not share credentials across environments.
+There is no managed staging environment. Per-PR preview deployments run against the **production** Supabase project and GCP OAuth client. Local dev uses its own Supabase (local Docker stack or a personal dev project) and may use a separate dev GCP client. Do not expose the production service-role key to preview builds beyond what the app already needs server-side.
 
 > **SMTP and Resend:** Magic link emails are sent by Supabase using the SMTP credentials configured in the Supabase Dashboard (see §4.2). The app does not set SMTP env vars — those credentials live in the Supabase project itself. If the app sends its own transactional email independently (e.g. notifications, alerts), it uses the Resend SDK via `RESEND_API_KEY`. For now, magic link delivery is handled entirely by Supabase SMTP.
 
@@ -258,10 +251,10 @@ Each environment uses a **separate** Supabase project and GCP OAuth client. Do n
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `redirect_uri_mismatch` | Redirect URI in GCP OAuth client doesn't match the actual callback URL | Verify the authorized redirect URI in GCP points to `https://<project-ref>.supabase.co/auth/v1/callback`, not to the app. Then check that the app's URL is listed in Supabase **Authentication > Settings > Redirect URLs** |
-| `Invalid login credentials` | Domain not in the allowlist trigger, or user not found | Check the Postgres trigger in `supabase/migrations/` (see §3.2). If the trigger isn't deployed, any domain can sign up |
+| `Invalid login credentials` | Domain not in the allowlist, or user not found | Check the `auth_allowed_domains` table and that the Auth Hook is enabled (see §3.2). If the hook isn't wired up, any domain can sign up |
 | Magic link email not arriving | SPF/DKIM not configured, or custom SMTP settings incorrect | Verify DNS records (§4.3), test SMTP from Supabase dashboard (§4.2 step 6) |
 | Google login button does nothing | Google provider not fully configured in Supabase dashboard, or wrong credentials | Check **Authentication > Providers > Google** has correct Client ID and Secret |
-| Session doesn't persist on refresh | Cookie config mismatch with `@supabase/ssr` | Ensure `NEXT_PUBLIC_APP_URL` matches the actual origin. For local dev, `localhost` cookies must not have `Secure` flag |
+| Session doesn't persist on refresh | Cookie config mismatch with `@supabase/ssr` | Ensure `APP_URL` matches the actual origin. For local dev, `localhost` cookies must not have `Secure` flag |
 
 ---
 
@@ -362,7 +355,7 @@ Auth provider settings can be managed via the Supabase Management API if you pre
 | Push existing migrations | `supabase db push` | Idempotent — safe to re-run |
 | Pull schema baseline | `supabase db diff -f initial_schema` | Only if no migrations exist |
 | Apply seed data | `supabase db reset --linked` | Staging only. **Guard against production ref** |
-| Deploy domain allowlist trigger | `supabase db push` (includes the trigger migration) | See §3.2 for the SQL |
+| Deploy domain allowlist table | `supabase db push` (includes `20260504081413_auth_allowed_domains.sql`) | Enable the Auth Hook too — see §3.2 |
 
 ### 7.6 Local-to-Cloud env var switch
 
@@ -390,7 +383,7 @@ When deploying to Vercel:
 2. Add all variables from §5 for each environment (Production, Preview, Development).
 3. Go to **Settings > Git** and configure branch-to-environment mapping:
    - `main` → Production
-   - `*` → Preview (preview deployments get staging Supabase + staging OAuth)
+   - `*` → Preview (per-PR ephemeral deployments; they run against the **production** Supabase project and OAuth client — there is no separate staging config)
 4. Under **Settings > Functions**:
    - Ensure the function region is set to `Singapore` (`ap-southeast-1`) to match the Supabase region.
    - **Caveat:** Non-default function regions require Vercel's **Pro** plan or above. Edge Functions ignore the region setting entirely and run at the edge. If you are on a lower-tier plan, you may not be able to set a Singapore region — the functions will default to `iad1` (US East).
