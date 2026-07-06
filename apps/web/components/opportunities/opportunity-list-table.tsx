@@ -2,10 +2,6 @@
 
 import { useCallback, useMemo, useState } from "react"
 import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  useReactTable,
   type ColumnDef,
   type RowSelectionState,
   type SortingState,
@@ -20,16 +16,12 @@ import {
 import { getStageLabel, type OpportunityRecord } from "@/lib/data/opportunities.types"
 import { Money } from "@/lib/money"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { DataTable } from "@/components/primitives/data-table"
+import { FilterBar, FilterField } from "@/components/primitives/filter-bar"
+import { StageBadge } from "@/components/primitives/stage-badge"
 import {
   Dialog,
   DialogContent,
@@ -237,7 +229,7 @@ export function OpportunityListTable({
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           />
         ),
-        cell: ({ row }) => getStageLabel(row.getValue("stage")),
+        cell: ({ row }) => <StageBadge stage={row.getValue<DealStage>("stage")} />,
       },
       {
         accessorKey: "amount",
@@ -287,20 +279,6 @@ export function OpportunityListTable({
     [router],
   )
 
-  // TanStack Table is a compatible library; this is a known false positive.
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable({
-    data: filteredOpportunities,
-    columns,
-    state: { rowSelection, sorting },
-    enableRowSelection: true,
-    getRowId: (row) => row.id,
-    onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  })
-
   const handleBulkDelete = useCallback(async () => {
     if (selectedIds.length === 0) return
     setIsPending(true)
@@ -333,49 +311,56 @@ export function OpportunityListTable({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 sm:max-w-xs">
-          <SearchIcon className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search opportunities..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8"
-          />
-        </div>
-        <Select value={stageFilter} onValueChange={(v) => setStageFilter(v ?? "all")}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="All stages" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All stages</SelectItem>
-            {ALL_STAGES.map((stage) => (
-              <SelectItem key={stage} value={stage}>
-                {getStageLabel(stage)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v ?? "all")}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="All owners" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All owners</SelectItem>
-            {ownerOptions.map((o) => (
-              <SelectItem key={o.id} value={o.id}>
-                {o.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <FilterBar>
+        <FilterField label="Search" htmlFor="opp-search" className="flex-1 sm:max-w-xs">
+          <div className="relative">
+            <SearchIcon className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="opp-search"
+              placeholder="Search opportunities..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+        </FilterField>
+        <FilterField label="Stage" htmlFor="opp-stage-filter">
+          <Select value={stageFilter} onValueChange={(v) => setStageFilter(v ?? "all")}>
+            <SelectTrigger id="opp-stage-filter" className="w-[180px]">
+              <SelectValue placeholder="All stages" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All stages</SelectItem>
+              {ALL_STAGES.map((stage) => (
+                <SelectItem key={stage} value={stage}>
+                  {getStageLabel(stage)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+        <FilterField label="Owner" htmlFor="opp-owner-filter">
+          <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v ?? "all")}>
+            <SelectTrigger id="opp-owner-filter" className="w-[180px]">
+              <SelectValue placeholder="All owners" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All owners</SelectItem>
+              {ownerOptions.map((o) => (
+                <SelectItem key={o.id} value={o.id}>
+                  {o.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
         {hasActiveFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>
             <XIcon />
             Clear
           </Button>
         )}
-      </div>
+      </FilterBar>
 
       {selectedIds.length > 0 && (
         <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2">
@@ -403,59 +388,23 @@ export function OpportunityListTable({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length > 0 ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center text-muted-foreground"
-                >
-                  {hasActiveFilters
-                    ? "No opportunities match your filters."
-                    : "No opportunities yet. Create one to get started."}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <Card className="p-0">
+        <DataTable
+          columns={columns}
+          data={filteredOpportunities}
+          getRowId={(row) => row.id}
+          sorting={sorting}
+          onSortingChange={setSorting}
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+          enableRowSelection
+          emptyState={
+            hasActiveFilters
+              ? "No opportunities match your filters."
+              : "No opportunities yet. Create one to get started."
+          }
+        />
+      </Card>
 
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>

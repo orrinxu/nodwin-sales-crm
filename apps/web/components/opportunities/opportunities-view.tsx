@@ -8,6 +8,7 @@ import type { OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/oppo
 import type { AccountOption } from "@/lib/data/contacts"
 import type { EntityOption } from "@/components/entity-combobox"
 import { cn } from "@/lib/utils"
+import { SectionHeader } from "@/components/primitives/section-header"
 import { OpportunityBoard } from "@/components/opportunities/opportunity-board"
 import { OpportunityListTable } from "@/components/opportunities/opportunity-list-table"
 
@@ -48,19 +49,16 @@ export function OpportunitiesView({
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 lg:px-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Opportunities
-          </h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {viewMode === "kanban"
+      <div className="border-b px-4 py-3 lg:px-6">
+        <SectionHeader
+          title="Opportunities"
+          description={
+            viewMode === "kanban"
               ? "Drag opportunities between stages to update their pipeline status."
-              : "View and manage all opportunities in a table."}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center rounded-lg border p-0.5">
+              : "View and manage all opportunities in a table."
+          }
+          actions={
+            <div className="flex items-center rounded-lg border p-0.5">
             <button
               onClick={() => setViewMode("kanban")}
               className={cn(
@@ -85,8 +83,9 @@ export function OpportunitiesView({
               <ListIcon className="size-4" />
               <span className="hidden sm:inline">Table</span>
             </button>
-          </div>
-        </div>
+            </div>
+          }
+        />
       </div>
 
       {viewMode === "kanban" ? (

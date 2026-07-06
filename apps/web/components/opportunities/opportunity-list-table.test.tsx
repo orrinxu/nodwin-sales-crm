@@ -153,12 +153,14 @@ describe("OpportunityListTable", () => {
       />,
     )
 
-    expect(screen.getByText("Name")).toBeTruthy()
-    expect(screen.getByText("Account")).toBeTruthy()
-    expect(screen.getByText("Stage")).toBeTruthy()
-    expect(screen.getByText("Amount")).toBeTruthy()
-    expect(screen.getByText("Owner")).toBeTruthy()
-    expect(screen.getByText("Close Date")).toBeTruthy()
+    // Scope to the table so the labelled FilterBar controls (which also render
+    // "Stage"/"Owner" text) don't cause ambiguous matches.
+    const headerLabels = screen
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent ?? "")
+    for (const label of ["Name", "Account", "Stage", "Amount", "Owner", "Close Date"]) {
+      expect(headerLabels.some((text) => text.includes(label))).toBe(true)
+    }
   })
 
   it("renders empty state when no opportunities", () => {
