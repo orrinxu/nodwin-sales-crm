@@ -1,8 +1,9 @@
 /// <reference types="@testing-library/jest-dom/vitest" />
 import { describe, it, expect } from "vitest"
 import { render, screen } from "@testing-library/react"
-import { ForecastTile, selectForecastTile } from "./forecast-tile"
-import type { ForecastTileData } from "./forecast-tile"
+import { ForecastTile } from "./forecast-tile"
+import { selectForecastTile } from "./forecast-tile-data"
+import type { ForecastTileData } from "./forecast-tile-data"
 import type { ForecastData } from "@/lib/data/forecast"
 
 // A fully-populated ForecastData as the data layer would return it. The tile must
