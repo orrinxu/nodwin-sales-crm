@@ -22,6 +22,8 @@ import { Input } from "@/components/ui/input"
 import { DataTable } from "@/components/primitives/data-table"
 import { FilterBar, FilterField } from "@/components/primitives/filter-bar"
 import { StageBadge } from "@/components/primitives/stage-badge"
+import { StatusBadge } from "@/components/primitives/status-badge"
+import { overdueLabel, staleLabel } from "@/lib/opportunity/deal-health"
 import {
   Dialog,
   DialogContent,
@@ -230,6 +232,33 @@ export function OpportunityListTable({
           />
         ),
         cell: ({ row }) => <StageBadge stage={row.getValue<DealStage>("stage")} />,
+      },
+      {
+        id: "health",
+        header: "Health",
+        // Batched, server-computed health signals (see lib/data/deal-health.ts).
+        // A healthy / terminal deal has no signal → an em dash.
+        cell: ({ row }) => {
+          const health = row.original.health
+          if (!health || (!health.overdue && !health.stale)) {
+            return <span className="text-muted-foreground">—</span>
+          }
+          return (
+            <div className="flex flex-wrap items-center gap-1">
+              {health.overdue ? (
+                <StatusBadge tone="destructive">
+                  {overdueLabel(health.overdue.days)}
+                </StatusBadge>
+              ) : null}
+              {health.stale ? (
+                <StatusBadge tone="warning">
+                  {staleLabel(health.stale.days)}
+                </StatusBadge>
+              ) : null}
+            </div>
+          )
+        },
+        enableSorting: false,
       },
       {
         accessorKey: "amount",

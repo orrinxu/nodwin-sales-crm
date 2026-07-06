@@ -2,11 +2,13 @@
 
 import Link from "next/link"
 import { useDraggable } from "@dnd-kit/core"
-import { GripVertical, Building2, DollarSign, User, Flame, Clock } from "lucide-react"
+import { GripVertical, Building2, DollarSign, User, Flame, Clock, Hourglass } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/primitives/status-badge"
 import type { OpportunityRecord } from "@/lib/data/opportunities.types"
-import { isHotLead, isOverdue } from "@/lib/opportunity/kanban-intel"
+import { isHotLead } from "@/lib/opportunity/kanban-intel"
+import { overdueLabel, staleLabel } from "@/lib/opportunity/deal-health"
 import { Money } from "@/lib/money"
 
 interface OpportunityCardProps {
@@ -35,9 +37,11 @@ export function OpportunityCard({ opportunity }: OpportunityCardProps) {
     opportunity.currency,
   ).toDisplay()
 
-  const todayIso = new Date().toISOString().slice(0, 10)
   const hot = isHotLead(opportunity)
-  const overdue = isOverdue(opportunity, todayIso)
+  // Health signals are computed server-side in a batched pass and attached to the
+  // record (see lib/data/deal-health.ts). Each is null when it does not apply.
+  const overdue = opportunity.health?.overdue ?? null
+  const stale = opportunity.health?.stale ?? null
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -65,7 +69,7 @@ export function OpportunityCard({ opportunity }: OpportunityCardProps) {
               >
                 {opportunity.name}
               </Link>
-              {hot || overdue ? (
+              {hot || overdue || stale ? (
                 <div className="flex flex-wrap items-center gap-1">
                   {hot ? (
                     <Badge
@@ -77,10 +81,16 @@ export function OpportunityCard({ opportunity }: OpportunityCardProps) {
                     </Badge>
                   ) : null}
                   {overdue ? (
-                    <Badge variant="destructive">
+                    <StatusBadge tone="destructive">
                       <Clock className="size-3" />
-                      Overdue
-                    </Badge>
+                      {overdueLabel(overdue.days)}
+                    </StatusBadge>
+                  ) : null}
+                  {stale ? (
+                    <StatusBadge tone="warning">
+                      <Hourglass className="size-3" />
+                      {staleLabel(stale.days)}
+                    </StatusBadge>
                   ) : null}
                 </div>
               ) : null}

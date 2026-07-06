@@ -7,6 +7,7 @@ import {
 import { getAccountOptions } from "@/lib/data/contacts"
 import { getUserPreferences } from "@/lib/data/user-preferences"
 import { getStageTotals } from "@/lib/data/stage-totals"
+import { attachDealHealth } from "@/lib/data/deal-health"
 import { OpportunitiesView } from "@/components/opportunities/opportunities-view"
 import type { EntityOption } from "@/components/entity-combobox"
 import {
@@ -30,13 +31,17 @@ export default async function PipelinePage() {
 
   // Pipeline = the current user's OWN deals (owner_user_id = me). The "mine"
   // scope is an additional narrowing filter on top of RLS.
-  const [{ opportunities }, accounts, businessUnits, userOptions, preferences] = await Promise.all([
+  const [{ opportunities: rawOpportunities }, accounts, businessUnits, userOptions, preferences] = await Promise.all([
     getOpportunities(ctx, { scope: "mine" }),
     getAccountOptions(ctx),
     getBusinessUnitOptions(ctx),
     getUserOptions(ctx),
     getUserPreferences(ctx),
   ])
+
+  // Attach batched deal-card health signals (overdue / stale) — one RPC for the
+  // whole scoped list, never per-card.
+  const opportunities = await attachDealHealth(ctx, rawOpportunities)
 
   const users: EntityOption[] = userOptions.map((u) => ({
     id: u.id,
