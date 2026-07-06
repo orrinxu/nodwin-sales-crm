@@ -132,8 +132,8 @@ Five engineering roles, plus CEO and Security Reviewer. No designer agent in v1 
   - Writes Vitest unit tests for components with non-trivial logic
   - Writes Playwright E2E tests for major user flows when feature is complete
   - Does not write SQL, RLS policies, or webhook handlers
-- **Files in scope:** `app/(crm)/**` (UI routes), `components/**`, `lib/data/**` (typed Supabase queries), `lib/utils/**`
-- **Files NOT in scope:** anything in `lib/money.ts`, `lib/ai/`, `lib/webhooks/`, `lib/email/inbound.ts`, `lib/security/`, `supabase/`
+- **Files in scope:** `apps/web/app/(crm)/**` (UI routes), `apps/web/components/**`, `apps/web/lib/data/**` (typed Supabase queries), `apps/web/lib/shared/**`
+- **Files NOT in scope:** anything in `apps/web/lib/money.ts`, `apps/web/lib/ai/`, `apps/web/lib/webhooks/`, `apps/web/lib/email/inbound.ts`, `apps/web/lib/security/`, `supabase/`
 - **Budget:** $30/day soft, $60/day hard (highest volume agent)
 - **Heartbeat:** On ticket assignment
 
@@ -145,10 +145,10 @@ Five engineering roles, plus CEO and Security Reviewer. No designer agent in v1 
   - API routes (`app/api/**` excluding webhooks)
   - Server-side data access patterns (`lib/data/**`)
   - Background jobs scaffolding (Supabase Edge Functions, future Inngest functions)
-  - Helper functions in `lib/utils/`, `lib/workflows/`
+  - Helper functions in `apps/web/lib/shared/`, `apps/web/lib/workflows/`
   - Writes Vitest tests for all server-side logic
-- **Files in scope:** `app/api/**` (non-webhook), `lib/data/**`, `lib/workflows/**`, `lib/utils/**`, `supabase/functions/**`
-- **Files NOT in scope:** `lib/money.ts`, `lib/ai/`, `lib/webhooks/`, `lib/email/inbound.ts`, `lib/security/**`, `supabase/migrations/**`, `supabase/policies/**`
+- **Files in scope:** `apps/web/app/api/**` (non-webhook), `apps/web/lib/data/**`, `apps/web/lib/workflows/**`, `apps/web/lib/shared/**`, `supabase/functions/**`
+- **Files NOT in scope:** `apps/web/lib/money.ts`, `apps/web/lib/ai/`, `apps/web/lib/webhooks/`, `apps/web/lib/email/inbound.ts`, `apps/web/lib/security/**`, `supabase/migrations/**`, `supabase/policies/**`
 - **Budget:** $20/day soft, $50/day hard
 - **Heartbeat:** On ticket assignment
 
@@ -174,13 +174,13 @@ Five engineering roles, plus CEO and Security Reviewer. No designer agent in v1 
 - **Adapter:** Claude Code
 - **Reports to:** CTO + Security (for webhook-related PRs)
 - **Job description:**
-  - Slack integration (`lib/slack/**`)
-  - Google Workspace integrations (`lib/google/**`)
-  - Webhook handlers in `app/api/webhooks/**` (uses but does not modify `lib/webhooks/verify.ts`)
-  - AI feature implementations (uses but does not modify `lib/ai/router.ts`)
+  - Slack integration (planned — lives under `apps/web/lib/integrations/` when built)
+  - Google Workspace integrations (planned — lives under `apps/web/lib/integrations/` when built)
+  - Webhook handlers in `apps/web/app/api/webhooks/**` (uses but does not modify `apps/web/lib/webhooks/verify.ts`)
+  - AI feature implementations (uses but does not modify `apps/web/lib/ai/router.ts`)
   - Outbound email composition (uses Gmail API)
-- **Files in scope:** `lib/slack/**`, `lib/google/**`, `app/api/webhooks/**`, `lib/ai/features/**` (feature implementations, not the router)
-- **Files NOT in scope:** `lib/ai/router.ts`, `lib/webhooks/verify.ts`, `lib/email/inbound.ts` (these are core primitives only DB/SQL or Backend agent should touch, with Security review)
+- **Files in scope:** `apps/web/lib/integrations/**` (Slack, Google, and other third-party integration code — several are still planned/not-yet-built), `apps/web/app/api/webhooks/**`, plus AI feature implementations under `apps/web/lib/ai/` (feature code, not the router)
+- **Files NOT in scope:** `apps/web/lib/ai/router.ts`, `apps/web/lib/webhooks/verify.ts`, `apps/web/lib/email/inbound.ts` (these are core primitives only DB/SQL or Backend agent should touch, with Security review)
 - **Budget:** $20/day soft, $40/day hard
 - **Heartbeat:** On ticket assignment
 
@@ -319,9 +319,9 @@ Concrete checklist for first-time configuration:
 
 These are common configuration mistakes that I want to call out explicitly:
 
-- **Don't give workers direct access to production secrets.** Production environment variables live in Vercel + Supabase, not in agent workspaces. Agents work against staging.
+- **Don't give workers direct access to production secrets.** There is no managed staging environment — the build runs on a single-environment model. Agents work against a local Supabase stack in their own workspace. Production environment variables live only in Vercel + Supabase and are never handed to workers.
 - **Don't let agents auto-merge PRs.** Every merge requires a human-or-CEO approval gate, even on standard tickets.
-- **Don't skip the secret scanner in CI.** Paperclip's agents will occasionally produce code that accidentally embeds a test API key. The CI gitleaks check catches this. Don't disable it.
+- **Watch for accidentally-committed secrets.** Paperclip's agents will occasionally produce code that embeds a test API key. Note: there is currently **no** automated secret scanner (gitleaks or equivalent) gating CI — `ci.yml` has no such job, and the pre-commit hook only runs the RLS linter. Until a scanner is added, reviewers must catch embedded secrets manually. Adding a CI secret-scan gate is a recommended hardening step.
 - **Don't let agents push directly to `main`.** GitHub branch protection enforces this; Paperclip's agents should be configured to push to feature branches and open PRs.
 - **Don't configure agents to skip code review.** Even for tiny tickets, the CTO agent reviews. The point is consistency.
 

@@ -14,7 +14,7 @@ In v1.5, the same Supabase Auth issues OAuth tokens for MCP clients via a separa
 
 ### 6.2 Email — Outbound
 
-**Transactional email** (system notifications, approval requests, P&L delivery, weekly digests): sent via **Resend** or **Postmark** with a verified custom domain (`crm.nodwin.com`) and full SPF / DKIM / DMARC records. DMARC at `p=quarantine` minimum. This is non-negotiable per the failure mode documented in the project's reference Reddit post — Supabase's default SMTP has poor deliverability and would silently spam-folder ~50% of system emails.
+**Transactional email** (system notifications, approval requests, P&L delivery, weekly digests): sent via **Resend or SMTP** (the outbound transport is `"smtp" | "resend"`, resolved in `lib/data/email-transport.ts` and dispatched by `lib/notifications/delivery.ts`; SMTP uses `nodemailer`). Postmark is inbound-only — there is no Postmark outbound path. The configured domain (`crm.nodwin.com`) should be verified (`crm.nodwin.com`) and full SPF / DKIM / DMARC records. DMARC at `p=quarantine` minimum. This is non-negotiable per the failure mode documented in the project's reference Reddit post — Supabase's default SMTP has poor deliverability and would silently spam-folder ~50% of system emails.
 
 **User-composed email** (rep writes to a client from inside the CRM): sent via the user's **connected Gmail account** using OAuth scope `gmail.send`, not via SMTP. This way the email appears in the rep's Sent folder, threads correctly, and respects the user's existing email signature and reply-to. The CRM stores the Gmail message id and threads inbound replies via `In-Reply-To` header matching.
 
@@ -28,7 +28,7 @@ Inbound email is handled by Postmark Inbound (recommended) or AWS SES Inbound. T
 
 1. Postmark / SES receives the email at the user's unique address.
 2. Postmark / SES verifies DKIM, parses the email, attaches a DKIM-pass flag, and POSTs to a Supabase Edge Function endpoint with a signed webhook header.
-3. Edge function verifies the webhook signature using the official Postmark / AWS SDK (NEVER hand-rolled; see Section 8). Rejects unsigned or signature-mismatched requests.
+3. The webhook handler (`lib/webhooks/postmark.ts`) authenticates the request with a **constant-time shared-secret check** — it compares the `x-postmark-webhook-secret` header against the `POSTMARK_WEBHOOK_SECRET` env value using `timingSafeEqual` (see Section 8). There is no Postmark SDK; the check is a length-guarded constant-time comparison that rejects unsigned or mismatched requests before the payload is parsed.
 4. Edge function looks up the user by inbound address. If no user matches, the email is logged to a dead-letter table and an admin alert is sent.
 5. Edge function verifies the email was sent by the matched user (i.e., the From header matches the user's known email or one of their connected aliases). This prevents anyone with a leaked inbound address from injecting fake activities. Mismatches go to the dead-letter table.
 6. Edge function attempts to match the email to an Account by parsing the email's other recipients' domains against `Account.email_domains`.
@@ -39,23 +39,29 @@ Inbound email is handled by Postmark Inbound (recommended) or AWS SES Inbound. T
 
 > **Why this is treated with extreme care**
 >
-> A poorly built inbound parser is a critical vulnerability: an attacker who learns or guesses an inbound address could inject fake "communications" attributing fabricated quotes to real client contacts. The DKIM verification + sender-match + domain-match + dead-letter table layered defence is the minimum acceptable bar. This component will NOT be vibe-coded; the project lead will use the official Postmark Inbound SDK for parsing and signature verification, with a unit test suite exercising forgery, replay, and sender-spoofing attempts.
+> A poorly built inbound parser is a critical vulnerability: an attacker who learns or guesses an inbound address could inject fake "communications" attributing fabricated quotes to real client contacts. The DKIM verification + sender-match + domain-match + dead-letter table layered defence is the minimum acceptable bar. This component is not vibe-coded: the webhook is authenticated with a constant-time shared-secret comparison (`timingSafeEqual` on the `x-postmark-webhook-secret` header vs `POSTMARK_WEBHOOK_SECRET` — no third-party SDK), backed by a unit test suite exercising forgery, replay, and sender-spoofing attempts.
 
 ### 6.4 Slack
 
-Implemented as a Slack app with bot scopes for the Nodwin Slack workspace(s). Capabilities:
+> **Status: planned / not yet implemented (config scaffold only).** The full Slack app described below is **not** built. There is no `@slack/bolt` (or any Slack) dependency in the codebase, no slash-command or interactivity endpoint, no per-deal channel automation, and no approve-from-Slack flow.
+>
+> What exists today is a thin notification scaffold: a `slack` value in the `notification_channel` enum, an `escapeSlackMrkdwn()` helper in `lib/notifications/delivery.ts` (which can post a basic DM via a stored `slack_connections` token), and a `slack_connections` config table whose `status` defaults to `'disconnected'` (`20260618000003_integration_config.sql`).
+
+The intended (planned) Slack app would run with bot scopes for the Nodwin Slack workspace(s) and provide:
 
 - Bot posts to per-Sales-Unit channels: stage advances, deal closures, approval requests, deals at risk.
-- Slash command `/crm <query>` performs a quick AI search and returns a card preview with a deep link into the CRM.
+- Slash command `/crm <query>` performing a quick AI search and returning a card preview with a deep link into the CRM.
 - Per-deal Slack channel auto-creation (optional toggle per deal at creation time): creates a private channel, invites the Opportunity Team, posts a deal summary on creation, posts updates as the deal advances.
 - DMs to user when an approval is requested of them.
-- Approval can be actioned (approve / reject with comment) directly from the Slack message via Slack interactivity (Block Kit).
+- Approval actioned (approve / reject with comment) directly from the Slack message via Slack interactivity (Block Kit).
 
-Slack webhooks (interactivity, slash commands, events) verified via signature using the **official `@slack/bolt` library** — never hand-rolled.
+When built, Slack webhooks (interactivity, slash commands, events) would be verified via signature using the **official `@slack/bolt` library** — never hand-rolled.
 
 ### 6.5 Google Workspace
 
 #### 6.5.1 Drive
+
+> **Status: unbuilt / planned.** There is no `googleapis` dependency and no Drive folder/permission code in the codebase (`lib/integrations/drive/` is an unwired stub that throws "not configured"). The design below is aspirational.
 
 Per-opportunity folder created at opportunity creation, under a configurable parent folder structure: `/Nodwin CRM/Opportunities/{Entity}/{Account name}/{Opportunity name}/`. Per-account folder created at account creation under `/Nodwin CRM/Accounts/{Account name}/`.
 
@@ -63,13 +69,19 @@ Folder permissions are managed by the CRM via the Drive API based on the opportu
 
 #### 6.5.2 Gmail
 
+> **Status: unbuilt / planned.** There is no `googleapis` dependency and no Gmail send/read code in the codebase. The design below is aspirational.
+
 Per-user OAuth grants `gmail.send` (for outbound from CRM) and `gmail.readonly` (for the optional "my recent emails relevant to this deal" feature). The CRM does NOT continuously poll the user's inbox; readonly access is invoked only on-demand when the user opens an opportunity and clicks a "find related emails" button. This is both a privacy boundary and an AI cost control.
 
 #### 6.5.3 Calendar
 
+> **Status: unbuilt / planned.** No `googleapis` dependency and no Calendar integration code exists. The design below is aspirational.
+
 Per-user OAuth grants `calendar.events` scope. Meetings created from a deal in CRM are written to the user's primary calendar with a structured description containing a deep link back to the CRM. Calendar events involving known CRM contacts (matched by attendee email) are surfaced as suggested Activities in the CRM ("You met with Jane Smith from Tencent yesterday — log meeting?").
 
 #### 6.5.4 Sheets, Slides, Docs
+
+> **Status: unbuilt / planned.** No `googleapis` dependency and no Sheets/Slides/Docs code exists — the P&L-to-Sheets generation described here is not implemented. The design below is aspirational.
 
 Sheets: P&L generation per Section 5.1. Implemented using the Sheets API to programmatically create a copy of the canonical Project Budget Template and populate cells based on opportunity data. The template lives in a Drive location only the CRM service account can modify.
 
@@ -77,7 +89,7 @@ Slides and Docs: surfaced as document-link entries on opportunities (paste a Sli
 
 ### 6.6 AI Provider Router
 
-A pluggable AI client abstraction (`lib/ai/router.ts`) exposes a unified completion / streaming interface to the rest of the app. All five provider adapters are implemented and production-ready:
+A pluggable AI client abstraction (`lib/ai/router.ts`, which exposes `aiCall()` and assembles the provider chain) presents a unified completion / streaming interface to the rest of the app. All six provider adapters are implemented and production-ready:
 
 | Provider | Module | Auth method | Status |
 |---|---|---|---|
@@ -86,6 +98,7 @@ A pluggable AI client abstraction (`lib/ai/router.ts`) exposes a unified complet
 | Moonshot (Kimi) | `lib/ai/providers/moonshot.ts` | `Authorization: Bearer` header | Shipped |
 | DeepSeek | `lib/ai/providers/deepseek.ts` | `Authorization: Bearer` header | Shipped — lower-cost option |
 | Ollama | `lib/ai/providers/ollama.ts` | None (localhost) | Shipped — fallback when APIs unavailable or over budget |
+| OpenAI-compatible | `lib/ai/providers/openai-compatible.ts` | `Authorization: Bearer` header | Shipped — generic adapter for any OpenAI-compatible endpoint; enabled when `OPENAI_COMPATIBLE_BASE_URL` is set (`ProviderName` value `openai_compatible`, migration `20260619000007`) |
 
 **Security measures applied to all adapters (ORR-177):**
 - AbortController + 30-second timeout — every provider call is bounded. No hanging requests.
@@ -102,7 +115,15 @@ A pluggable AI client abstraction (`lib/ai/router.ts`) exposes a unified complet
 
 **Usage logging** (`lib/ai/usage-logger.ts`) writes every call to `ai_usage` (user, provider, model, tokens, cost, feature, timestamp). This drives the AI cost dashboard and powers the cap enforcement system.
 
-**Factory pattern:** `createAdaptersFromEnv()` in `lib/ai/router.ts` reads provider configuration from environment variables and returns only the adapters with valid credentials. This lets the same code path work in development (Ollama only), staging (subset of providers), and production (all providers).
+**Factory pattern:** `createAdaptersFromEnv()` in `lib/ai/providers/index.ts` reads provider configuration from environment variables and returns only the adapters with valid credentials (`lib/ai/router.ts` holds `aiCall()` and the provider-chain assembly, not the factory). This lets the same code path work in development (Ollama only), staging (subset of providers), and production (all providers).
+
+#### 6.6.1 Knowledge search / RAG stack
+
+Document knowledge search (ORR-620/621) runs on its own OpenAI-compatible seams, separate from the general provider router above:
+
+- **Embeddings** (`lib/ai/embeddings.ts`) call an OpenAI-compatible embeddings endpoint configured via `EMBEDDINGS_BASE_URL` / `EMBEDDINGS_MODEL` / `EMBEDDINGS_API_KEY` (e.g., a self-hosted llama.cpp server), or the equivalent values set in Admin → Knowledge.
+- **Generation** (`lib/ai/rag.ts`) produces cited answers grounded only in the retrieved chunks. It uses `aiCall()` against a generation endpoint configured via the `GENERATION_*` env vars or Admin → Knowledge.
+- Embeddings are stored in the pgvector `document_chunks` table (`20260704020000_document_ingestion.sql`) and retrieved with **tier-filtered** similarity search (`20260704030000_knowledge_search.sql`, tier fix `20260704040000`), so results never surface chunks the querying user is not entitled to see.
 
 ### 6.7 Background Jobs
 

@@ -40,7 +40,7 @@ Verify that Supabase migrations are applied and expected tables exist.
 
 ```bash
 # Option A — if supabase is linked
-supabase db push --linked
+supabase db push   # (--linked is optional; matches the db:migrate script / deploy.sh)
 
 # Option B — verify table existence directly
 psql "$SUPABASE_DB_URL" -c "
@@ -67,11 +67,11 @@ instance is not linked, run `supabase link --project-ref <project-id>` first.
 Curl a route inside `(crm)/` and confirm it returns HTTP 200 (not 500).
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}" http://localhost:3002/contacts
+curl -s -o /dev/null -w "%{http_code}" http://localhost:3030/contacts
 # Expected: 200
 ```
 
-Use the port the app is actually serving on (see the `PORT` env var or PM2 config).
+The PM2 preview serves on port `3030` (as shown above). If your setup differs, use the port the app is actually serving on (see the `PORT` env var or PM2 config).
 
 **If this fails (returns 500):** the app may be missing a dependency (sidebar layout,
 theme provider, etc.) or the schema is not applied. Check the app logs:
@@ -102,13 +102,13 @@ execute the checks in order:
 git branch --show-current | grep -q main || { echo "Wrong branch"; exit 1; }
 
 # 2. Schema
-supabase db push --linked 2>/dev/null || {
+supabase db push 2>/dev/null || {
   echo "Schema check failed — run pnpm db:migrate";
   exit 1;
 }
 
 # 3. Route
-curl -sf http://localhost:3002/contacts > /dev/null || {
+curl -sf http://localhost:3030/contacts > /dev/null || {
   echo "Route health check failed";
   exit 1;
 }
@@ -118,7 +118,7 @@ pm2 restart nodwin-crm-local-preview
 
 # 5. Verify after restart
 sleep 2
-curl -sf http://localhost:3002/contacts > /dev/null || {
+curl -sf http://localhost:3030/contacts > /dev/null || {
   echo "Post-restart health check failed";
   exit 1;
 }

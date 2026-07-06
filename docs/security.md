@@ -30,7 +30,7 @@ The project lead is building solo with AI assistance. Hand-writing every load-be
 |---|---|---|
 | RLS policies | Supabase RLS + a published multi-tenant CRM RLS template + `opportunity_visibility` trigger-maintained cache table for performance at scale | Policy bodies (using the template). Test cases. NOT the RLS engine. |
 | Authentication | Supabase Auth with Google OAuth | Domain allow-list hook. NOT password hashing, session management, or token issuance. |
-| Webhook signature verification | Official SDK from each provider (`@slack/bolt`, `postmark`, `googleapis`) | Configuration. Tests proving signatures fail when tampered with. NOT signature verification logic. |
+| Webhook signature verification | Postmark inbound verified with a hand-written constant-time HMAC/secret comparison via `node:crypto` (`lib/webhooks/verify.ts`); Slack delivery is a raw `fetch`; `googleapis` is an unwired stub | The verification logic itself — a hand-rolled constant-time HMAC/secret check — plus tests proving signatures fail when tampered with. (No official SDK is used here.) |
 | Inbound email parsing | Postmark Inbound (parses + DKIM-verifies + signs the webhook payload) | The matching logic (which Account, which Opportunity). NOT the email parser, NOT the DKIM check. |
 | Currency / money math | `dinero.js` library + Postgres `numeric(20,4)` columns. ESLint rule banning `Number` type for money fields. | Formulas using `dinero.js`. NOT float arithmetic anywhere in the codebase. |
 | Approval state machine | XState (or Postgres CHECK constraints on stage transitions) | State definitions. Test cases. NOT the state-transition engine. |
@@ -56,21 +56,21 @@ This checklist must be executed before East Asia goes live with real client data
 | Check | Verification |
 |---|---|
 | [BLOCKER] Custom SMTP configured with verified domain | Resend / Postmark, SPF, DKIM, DMARC at p=quarantine, mail-tester.com score ≥ 9/10 |
-| [BLOCKER] All RLS policies have automated tests passing | At least three personas tested, including denial cases | ✅ policies tested for: accounts, activities, ai_usage, audit, auth_allowed_domains, users, opportunity_visibility. 9 pgTAP files present in `supabase/tests/`. |
+| [BLOCKER] All RLS policies have automated tests passing | At least three personas tested, including denial cases | ✅ policies tested for: accounts, activities, ai_usage, audit, auth_allowed_domains, users, opportunity_visibility. pgTAP test files present in `supabase/tests/`. |
 | [BLOCKER] All public tables have RLS enabled | `SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname = 'public'` → all rowsecurity = true | |
 | [BLOCKER] Default-permissive RLS policies removed | `SELECT tablename, policyname, qual FROM pg_policies WHERE schemaname = 'public' AND qual ~ 'true'` → reviewed by hand, none remaining | |
-| [BLOCKER] Webhook endpoints verify signatures | Tested by sending a forged webhook and confirming rejection | ✅ `lib/webhooks/postmark.test.ts` exercises forged-payload rejection path. Postmark verification handler uses official SDK. |
+| [BLOCKER] Webhook endpoints verify signatures | Tested by sending a forged webhook and confirming rejection | ✅ `lib/webhooks/postmark.test.ts` exercises forged-payload rejection path. Postmark verification is a hand-written constant-time HMAC/secret check via `node:crypto` (`lib/webhooks/verify.ts`) — no official SDK. |
 | [BLOCKER] Inbound email pipeline rejects spoofed sender | Tested by sending email from a spoofed From address to a known inbound token | |
 | [BLOCKER] AI provider spending caps configured at provider dashboard | Anthropic console + Gemini quota set | |
 | [BLOCKER] Application-level AI caps tested | Set a $1 per-user cap, confirm 11th request rejects | ✅ `lib/ai/cap-enforcement.test.ts` exercises the $1 cap boundary. In-memory and Supabase-backed cap sources tested. |
 | [BLOCKER] Rate limiting on `/api/ai/*` endpoints | Tested with a script firing 100 requests/sec; confirms 429s | |
 | [BLOCKER] External security review completed | One senior security freelancer reviewed RLS, webhook handlers, inbound email parser. Findings remediated. | ✅ ORR-177 remediated all findings: Gemini API key moved from URL param to header, AbortController + 30s timeout on all 5 providers, audit.ts actor_source detection improved, URL encoding fixes applied. |
-| [BLOCKER] Secrets rotated before going live | All API keys / OAuth client secrets / webhook signing secrets generated specifically for production, not dev / staging | |
+| [BLOCKER] Secrets rotated before going live | All API keys / OAuth client secrets / webhook signing secrets generated specifically for production, not local dev | |
 | No floats in money fields (lint rule) | ESLint rule banning `Number` for fields named amount, cost, revenue, etc.; CI green | ✅ dinero.js migration complete (ORR-230). 93 money tests passing. All money fields use `numeric(20,4)` in Postgres and `Dinero` type in TypeScript. |
 | Audit log writes confirmed for all critical entities | Spot-test: change owner of an opportunity, confirm audit row created | ✅ audit.ts and Postgres triggers implemented. RLS restricted to admin-only (ORR-273). Unit tests in `lib/security/audit.test.ts`. |
-| Sandbox is fully isolated from production | Confirmed in staging — sandbox writes do not appear in production tables |
-| Drive permissions sync tested for all visibility tiers | Standard, Restricted, Confidential — confirmed in staging |
-| Salesforce migration tooling tested with copy of production data | Test import of 10 representative opportunities, manual review of all fields |
+| Sandbox is fully isolated from production | Verify sandbox writes do not appear in production tables (staging/sandbox are no longer managed environments — scope this to whatever isolated environment is used at launch) |
+| Drive permissions sync tested for all visibility tiers | Standard, Restricted, Confidential — *not yet built; Drive sync is unimplemented, defer this check until the feature ships* |
+| Salesforce migration tooling tested with copy of production data | *Not yet built / deferred — no Salesforce migration tooling exists* |
 | Backup and restore procedure documented and tested | Restore from backup to a fresh Supabase project, confirm data integrity |
 | Incident response runbook drafted | Who to call, what to disable, what to communicate |
 | GDPR / data privacy review | Data export, data deletion, retention policies documented |

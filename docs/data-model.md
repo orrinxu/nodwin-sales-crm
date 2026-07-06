@@ -48,7 +48,7 @@ Authenticated via Google OAuth, restricted to allow-listed domains (`nodwin.com`
 | id | uuid (PK, FK Supabase auth.users) | |
 | email | text (unique) | Google OAuth identity |
 | full_name | text | |
-| primary_role | enum | sales_rep \| sales_manager \| regional_head \| group_sales_lead \| finance \| ops \| admin \| exec \| external_partner |
+| primary_role | enum | sales_rep \| sales_manager \| regional_head \| group_sales_lead \| finance \| ops \| admin \| exec \| external_partner \| entity_admin |
 | primary_entity_id | uuid (FK Entity) | Home entity for fiscal year defaults, dashboards |
 | primary_business_unit_id | uuid (FK Business Unit) | Home Sales Unit |
 | manager_user_id | uuid (FK User, nullable) | Reporting line for visibility cascade |
@@ -127,6 +127,7 @@ The core unit. Locked from the existing Salesforce schema for v1, with adjustmen
 | primary_contact_id | uuid (FK Contact, nullable) | |
 | stage | enum | qualify \| meet_and_present \| propose \| negotiate \| verbal_agreement \| closed_won \| closed_lost |
 | probability_pct | numeric(5,2) | Default per-stage; overridable on the deal |
+| sales_initiator_user_id | uuid (FK User) NOT NULL | Rep who originated the deal; distinct from `owner_user_id` and used by the visibility model. Always set. |
 | owner_user_id | uuid (FK User) | Primary deal owner |
 | sales_unit_id | uuid (FK Business Unit) | Primary Sales Unit (revenue split managed separately) |
 | revenue_recognition_unit_id | uuid (FK Business Unit, nullable) | Set later, often at close |
@@ -189,21 +190,16 @@ Calls, notes, emails, meetings, and tasks logged against an Account, Contact, or
 | Field | Type | Notes |
 |---|---|---|
 | id | uuid (PK) | |
-| kind | enum | note \| call \| email_inbound \| email_outbound \| meeting \| task \| slack_message \| document_attached |
-| subject | text | |
-| body | text (rich) | For notes / call summaries / email body |
-| happened_at | timestamptz | When the activity occurred (may differ from `created_at` if logged after the fact) |
-| due_at | timestamptz (nullable) | For tasks |
-| completed_at | timestamptz (nullable) | For tasks |
-| duration_minutes | int (nullable) | For calls / meetings |
-| account_id | uuid (FK Account, nullable) | |
-| opportunity_id | uuid (FK Opportunity, nullable) | |
-| contact_id | uuid (FK Contact, nullable) | |
-| author_user_id | uuid (FK User) | |
-| source | enum | web \| mcp \| webhook \| email_inbound \| system — see §8.5 in [security](security.md) |
+| account_id | uuid (FK Account, nullable) | Nullable so unassigned inbound activities can be created when no account domain matches (ON DELETE CASCADE) |
+| opportunity_id | uuid (FK Opportunity, nullable) | ON DELETE SET NULL |
+| contact_id | uuid (FK Contact, nullable) | Optional; log an activity against a specific contact. ON DELETE SET NULL |
+| user_id | uuid (FK User) NOT NULL | Author of the activity (ON DELETE CASCADE) |
+| type | text | Free text, **not** an enum — values in use include `note`, `call`, `email_inbound`, `stage_change` |
 | external_thread_id | text (nullable) | Gmail thread ID, Slack ts, etc., for dedupe |
-| raw_payload | jsonb (nullable) | Original webhook payload for inbound items, for debugging |
-| custom_data | jsonb | |
+| subject | text (nullable) | |
+| body | text (nullable) | For notes / call summaries / email body |
+| metadata | jsonb (NOT NULL, default `{}`) | Free-form per-activity metadata (e.g., original inbound payload details) |
+| created_at, updated_at, created_by, updated_by | audit | Set by the `set_activity_audit_fields` trigger |
 
 ### 4.8 Documents
 
@@ -227,20 +223,87 @@ Documents are stored in Google Drive, not in Supabase Storage. The CRM creates a
 
 Approvals are modelled as instances of an admin-defined `approval_workflow`. The default workflow shipped for East Asia matches the existing template (Akshat / Ekansh — Budget Approval and Closure Approval, two stages). Other regions get their own workflows defined by Admin, without code changes.
 
+The approval schema is split into a **template layer** (the reusable workflow definition and its ordered step chain) and a **runtime layer** (a per-opportunity instance and its steps, snapshotted at trigger time), plus a per-entity **thresholds** table that drives when an approval is required.
+
+**`approval_workflows`** — the workflow template.
+
 | Field | Type | Notes |
 |---|---|---|
-| `approval_workflows.id` | uuid (PK) | |
-| `approval_workflows.name` | text | e.g., "East Asia Standard" |
-| `approval_workflows.applies_to_entity_id` | uuid (FK Entity, nullable) | If null, applies group-wide as a fallback |
-| `approval_workflows.trigger_stage` | enum | Stage at which the workflow triggers (e.g., budget approval triggers at meet_and_present, closure approval triggers at verbal_agreement) |
-| `approval_workflows.enforce_gate` | boolean | If false: only records approvals (v1 default). If true: blocks stage advance until approved (admin can flip this without code changes) |
-| `approval_steps.id` | uuid (PK) | |
-| `approval_steps.workflow_id` | uuid (FK) | |
-| `approval_steps.order` | int | |
-| `approval_steps.name` | text | e.g., "Budget Approval", "Closure Approval" |
-| `approval_steps.approver_user_ids` | uuid[] | Any one of these can approve, or all (sequential / parallel below) |
-| `approval_steps.mode` | enum | any_one \| all_required |
-| `approval_instances` | linked to opportunity_id, snapshot of workflow at trigger time, status (pending / approved / rejected / skipped), per-step audit log | |
+| id | uuid (PK) | |
+| name | text | e.g., "East Asia Standard" |
+| description | text (nullable) | |
+| entity_type | text | The object the workflow governs (e.g., `opportunity`) |
+| applies_to_entity_id | uuid (FK Entity, nullable) | If null, applies group-wide as a fallback (added 20260704000000) |
+| trigger_stage | enum `deal_stage` (nullable) | Stage at which the workflow triggers (e.g., budget approval at `meet_and_present`, closure at `verbal_agreement`) |
+| enforce_gate | boolean (default false) | If false: only records approvals (v1 default). If true: blocks stage advance until approved (admin can flip without code changes) |
+| created_at, updated_at, created_by, updated_by | audit | |
+
+**`approval_workflow_steps`** — the step **template** (the ordered chain) belonging to a workflow (added 20260703340000; extended 20260704000000).
+
+| Field | Type | Notes |
+|---|---|---|
+| id | uuid (PK) | |
+| workflow_id | uuid (FK approval_workflows, ON DELETE CASCADE) | UNIQUE `(workflow_id, step_order)` |
+| step_order | int | |
+| approver_role | enum `user_role` (nullable) | Role-based approver |
+| approver_user_id | uuid (FK User, nullable) | Single named approver |
+| name | text (nullable) | e.g., "Budget Approval", "Closure Approval" |
+| approver_user_ids | uuid[] (nullable) | Multiple approvers; combined with `mode` |
+| mode | enum `approval_step_mode` (default `all_required`) | any_one \| all_required |
+| created_at, updated_at, created_by, updated_by | audit | CHECK: an `approver_role`, `approver_user_id`, or non-empty `approver_user_ids` must be present |
+
+**`approval_instances`** — one runtime instance per triggered approval.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | uuid (PK) | |
+| workflow_id | uuid (FK approval_workflows, ON DELETE RESTRICT) | |
+| entity_type | text | |
+| entity_id | uuid | The governed row |
+| opportunity_id | uuid (FK Opportunity, nullable) | Convenience link (added 20260704000000) |
+| workflow_snapshot | jsonb (nullable) | Snapshot of the workflow + steps at trigger time |
+| trigger_stage | enum `deal_stage` (nullable) | Stage that triggered this instance |
+| status | enum `approval_status` (default `pending`) | pending / approved / rejected / etc. |
+| triggered_by_user_id | uuid (FK User, nullable) | |
+| created_at, updated_at, created_by, updated_by | audit | |
+
+**`approval_steps`** — the per-**instance** runtime steps (materialised from the template at trigger time).
+
+| Field | Type | Notes |
+|---|---|---|
+| id | uuid (PK) | |
+| instance_id | uuid (FK approval_instances, ON DELETE CASCADE) | |
+| step_order | int | Unique per instance (enforced by trigger) |
+| approver_role | enum `user_role` (nullable) | |
+| approver_user_id | uuid (FK User, nullable) | |
+| approver_user_ids | uuid[] (nullable) | Multiple approvers (added 20260704000000) |
+| mode | enum `approval_step_mode` (default `all_required`) | any_one \| all_required |
+| status | enum `approval_step_status` (default `pending`) | |
+| due_by | timestamptz (nullable) | |
+| created_at, updated_at | audit | |
+
+**`approval_decisions`** — the decision(s) recorded against each runtime step (the per-step audit log).
+
+| Field | Type | Notes |
+|---|---|---|
+| id | uuid (PK) | |
+| step_id | uuid (FK approval_steps, ON DELETE CASCADE) | |
+| decided_by_user_id | uuid (FK User) | |
+| decision | enum `approval_decision_type` | |
+| comment | text (nullable) | |
+| created_at | timestamptz | |
+
+**`approval_thresholds`** — per-entity rules that determine when an approval is required (added 20260618000002).
+
+| Field | Type | Notes |
+|---|---|---|
+| id | uuid (PK) | |
+| entity_id | uuid (FK Entity, ON DELETE CASCADE) | |
+| deal_value_threshold | numeric(20,4) (nullable) | Approval required above this deal value |
+| discount_threshold_pct | numeric(5,2) (nullable) | Approval required above this discount |
+| confidential_tier_required | text (nullable) | |
+| approver_role | text | Role required to approve |
+| created_at, updated_at | audit | |
 
 > **Approval enforcement is admin-toggle, not a code change**
 >
@@ -276,7 +339,7 @@ Implemented via Postgres triggers writing to a single `audit_log` table (one tab
 
 ### 4.12 AI Usage Log
 
-Every AI call writes a row to `ai_usage` with: `user_id`, `provider` (claude / gemini / kimi / deepseek / ollama_local), `model`, `prompt_tokens`, `completion_tokens`, `cost_usd_estimate`, `feature` (search / summarise / draft_email / etc.), `request_id`, `started_at`, `finished_at`, `status`. This drives both the per-user / per-team / per-company spending caps (Section 7) and admin dashboards on AI cost.
+Every AI call writes a row to `ai_usage` with: `user_id`, `provider` (claude / gemini / kimi / deepseek / ollama_local / openai_compatible), `model`, `prompt_tokens`, `completion_tokens`, `cost_amount numeric(20,4)` + `cost_currency text` (default `USD`), `feature` (search / summarise / draft_email / etc.), `request_id`, `started_at`, `finished_at`, `status`. This drives both the per-user / per-team / per-company spending caps (Section 7) and admin dashboards on AI cost.
 
 ### 4.13 MCP Sessions and Audit (v1.5)
 
@@ -287,5 +350,17 @@ When the MCP server is built in v1.5, it adds two tables:
 `mcp_calls` records every MCP tool invocation: `id`, `session_id`, `tool_name` (e.g., "search_opportunities", "create_activity"), `arguments` (jsonb, redacted of any secret-like fields), `result_status` (success / error / rate_limited / unauthorised), `latency_ms`, `occurred_at`. Used for the AI agent dashboard and per-user / per-tool rate limiting.
 
 Both tables have RLS: users see only their own sessions / calls; admin sees all.
+
+### 4.14 Supporting tables (not covered here)
+
+This document is scoped to the core entities. The schema also includes a number of significant supporting tables created by later migrations that are not detailed above:
+
+- `opportunity_visibility` — materialised per-user visibility rows driving deal RLS (recomputed by trigger).
+- `opportunity_revenue_schedule` — recurring-revenue month-by-month schedule rows.
+- `currencies` / `fx_rates` — currency reference data and FX conversion rates for reporting-currency roll-ups.
+- `document_chunks` — pgvector embeddings backing the knowledge-search / RAG stack (ORR-620/621).
+- `inbound_email_deadletter` — dead-letter table for inbound emails that fail matching or sender verification.
+- `user_notifications` / `user_notification_overrides` / `notification_routing` — in-app notification delivery and per-user channel routing.
+- `ai_daily_caps` / `ai_settings` / `ai_providers` — AI spending caps and admin-configured AI provider settings.
 
 ---

@@ -34,7 +34,7 @@ This is not a public product. It will not be sold. Future M&A acquisitions migra
 
 ## Architecture (one-paragraph version)
 
-A Next.js (App Router) frontend talks to a Supabase backend (Postgres + Auth + Storage + Realtime + RLS). All data access goes through typed clients in `lib/data/`. All external service calls (AI, email, Slack, Drive, Gmail, Calendar) go through narrow modules in `lib/` that wrap the official SDKs and enforce safety properties: signature verification, spending caps, audit logging. State that needs durability (background jobs, scheduled work, multi-step workflows) lives in Inngest. The whole thing deploys to Vercel (frontend) + Supabase (backend) + a small Ollama VM (fallback AI) + Inngest (jobs). Authentication is Google OAuth restricted to allow-listed Nodwin Group domains.
+A Next.js (App Router) frontend talks to a Supabase backend (Postgres + Auth + Storage + Realtime + RLS). All data access goes through typed clients in `lib/data/`. All external service calls (AI, email, Slack, Drive, Gmail, Calendar) go through narrow modules in `lib/` that wrap the official SDKs and enforce safety properties: signature verification, spending caps, audit logging. Background jobs and scheduled work run through API routes under `apps/web/app/api/jobs/*`, triggered by a `pg_cron` scaffold (`supabase/migrations/20260619000008_pg_cron_scaffold.sql`); a managed durable-workflow layer (e.g. Inngest) is planned but not yet wired. The whole thing deploys to Vercel (frontend) + Supabase (backend) + a small Ollama VM (fallback AI). Authentication is Google OAuth restricted to allow-listed Nodwin Group domains.
 
 Full architecture is in `docs/SOW.md` Section 6.
 
@@ -50,11 +50,11 @@ This project is being built primarily by AI-assisted ("vibe") coding by a non-co
 | Row-level access control | Supabase RLS with mandatory test suite |
 | Money math | dinero.js + Postgres `numeric(20,4)` |
 | Approval state machine | XState |
-| Webhook signature verification | Official SDKs (@slack/bolt, postmark, googleapis) |
+| Webhook signature verification | HMAC check against `POSTMARK_WEBHOOK_SECRET` (`lib/webhooks/postmark.ts`) |
 | Inbound email parsing | Postmark Inbound (DKIM-verified) |
-| Rate limiting | Upstash Redis or Supabase native |
-| Email deliverability | Resend or Postmark with full SPF/DKIM/DMARC |
-| Background job durability | Inngest |
+| Rate limiting | Supabase native |
+| Email deliverability | Resend / SMTP with full SPF/DKIM/DMARC (outbound) |
+| Background job durability | `api/jobs/*` routes + `pg_cron` scaffold (managed durable-workflow layer planned) |
 | AI cost ceiling | Multi-layer caps (app + provider dashboard) |
 
 The agents working on this repo write the *integration glue* around these primitives, not the primitives themselves. The primitives are committed to the repo as the first work done, before any UI or feature work begins. They live in `lib/` and `supabase/` and are flagged as high-risk in `AGENTS.md`.
@@ -67,16 +67,23 @@ A pre-launch external security audit (~$2-3K, one day of a senior security engin
 
 See `AGENTS.md` §3 for the pinned stack. Summary:
 
+Shipped and wired:
+
 - **Next.js + TypeScript + shadcn/ui + Tailwind** (frontend)
 - **Supabase** (Postgres + Auth + Storage + Realtime + RLS)
-- **Inngest** (background jobs)
-- **Resend / Postmark** (transactional + inbound email)
-- **@slack/bolt** (Slack)
-- **googleapis** (Drive, Gmail, Calendar, Sheets)
 - **dinero.js** (money)
 - **XState** (workflows)
-- **Vitest + Playwright** (tests)
+- **Vitest** (tests)
 - **pnpm** (package manager)
+- Background jobs — `api/jobs/*` routes + `pg_cron` scaffold
+- Email — outbound via Resend/SMTP; **Postmark inbound webhook only** (parsed in `lib/email/`, no `postmark` SDK dependency)
+- Slack — optional, driven by a `SLACK_BOT_TOKEN` env var over raw `fetch` (no `@slack/bolt` dependency)
+
+Aspirational / SOW targets (stubbed or not yet wired):
+
+- Google Workspace (Drive, Gmail, Calendar, Sheets) — a `drive/` integration stub under `lib/integrations/`; no `googleapis` dependency yet
+- Managed durable-workflow layer (e.g. Inngest) — planned, not installed
+- End-to-end tests (Playwright) — not a dependency; unit/integration tests are Vitest only
 
 ---
 
@@ -109,13 +116,18 @@ App runs at http://localhost:3000. Supabase Studio at http://localhost:54323.
 
 See `apps/web/.env.example` for the full list. The minimum to boot locally:
 
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (server-side only, never expose to browser)
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` (server-side only, never expose to browser)
-- `GOOGLE_OAUTH_CLIENT_ID`
-- `GOOGLE_OAUTH_CLIENT_SECRET`
-- `RESEND_API_KEY` (or Postmark equivalent)
-- `ANTHROPIC_API_KEY` (or whichever AI provider you're testing with)
+- `NEXT_PUBLIC_API_URL`
+- `NEXT_PUBLIC_APP_NAME`
+- `POSTMARK_WEBHOOK_SECRET` (inbound email signature verification)
+- `RESEND_API_KEY` (optional — transactional/outbound email)
+- `ANTHROPIC_API_KEY` (optional — or whichever AI provider you're testing with)
+
+Google OAuth is brokered by Supabase Auth; the app never reads Google client credentials directly.
 
 ---
 
@@ -126,7 +138,6 @@ pnpm dev              # dev server (frontend + supabase if running)
 pnpm lint             # ESLint
 pnpm typecheck        # TypeScript no-emit check
 pnpm test             # Vitest unit + integration
-pnpm test:e2e         # Playwright (slow; run before merging significant features)
 pnpm db:test          # RLS policy test suite (must pass before merging any policy change)
 pnpm db:migrate       # apply pending migrations
 pnpm db:reset         # nuke local DB and re-apply all migrations + seed (development only)
@@ -166,12 +177,12 @@ nodwin-crm/
 │       │           └── callback/  # Google OAuth callback
 │       ├── lib/               # shared application code
 │       │   ├── money.ts       # HIGH-RISK — dinero.js wrapper
-│       │   ├── ai/            # HIGH-RISK — AI router + 5 provider adapters
+│       │   ├── ai/            # HIGH-RISK — AI router + 6 provider adapters
 │       │   │   ├── router.ts
 │       │   │   ├── cap-enforcement.ts
 │       │   │   ├── usage-logger.ts
 │       │   │   ├── supabase-cap-source.ts
-│       │   │   └── providers/ (anthropic, gemini, deepseek, moonshot, ollama)
+│       │   │   └── providers/ (anthropic, gemini, deepseek, moonshot, ollama, openai-compatible)
 │       │   ├── webhooks/      # HIGH-RISK — signature verification
 │       │   │   └── postmark.ts
 │       │   ├── email/         # HIGH-RISK — inbound email parser
@@ -191,11 +202,11 @@ nodwin-crm/
 │       ├── next.config.ts
 │       └── vitest.config.ts
 ├── supabase/
-│   ├── migrations/            # HIGH-RISK — SQL migrations, ordered (12 files)
+│   ├── migrations/            # HIGH-RISK — SQL migrations, ordered
 │   ├── policies/              # HIGH-RISK — RLS policies, one file per table
-│   ├── tests/                 # pgTAP RLS tests (9 files)
+│   ├── tests/                 # pgTAP RLS tests
 │   ├── functions/             # Edge functions (empty — planned)
-│   └── seed/                  # sandbox seed data (dev only)
+│   └── seed/                  # local/test seed data (dev only)
 ├── infra/
 │   └── local-preview/         # PM2 + local preview deployment
 │       ├── ecosystem.config.js
@@ -207,8 +218,8 @@ nodwin-crm/
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml             # lint + typecheck + test + RLS test
-│       └── secret-scan.yml    # gitleaks
-├── .eslintrc.cjs              # HIGH-RISK — do not weaken rules
+│       └── migration-ci.yml   # migration / schema-drift checks
+├── apps/web/eslint.config.mjs # HIGH-RISK — flat config, do not weaken rules
 ├── .env.example               # documented env vars (no real values)
 └── (config: package.json, tsconfig.json, pnpm-workspace.yaml, etc.)
 ```
@@ -232,11 +243,10 @@ See `docs/deploy-vercel.md` for the full Vercel setup guide (project creation, e
 | Environment | Frontend | Supabase | Purpose |
 |---|---|---|---|
 | Local | `pnpm dev` | local docker | individual development |
-| Staging | Vercel preview | Supabase staging project | PR previews; agent UAT |
-| Sandbox | Vercel | Supabase sandbox project | sales rep training, demos. Reset on a schedule. |
+| Preview | Vercel preview (ephemeral, per-PR) | shared dev project | automatic per-PR deploy; agent UAT |
 | Production | Vercel production | Supabase production project | live East Asia (and eventually group-wide) |
 
-Production deploy requires manual approval gate (see `.github/workflows/deploy.yml`). The board (human) approves; CTO agent does not have authority to deploy to production.
+Production deploys via the connected Vercel project on merge to `main`; per-PR preview deploys are created automatically by Vercel. The board (human) controls what merges to `main`; the CTO agent does not have authority to promote to production.
 
 Migrations run as part of deploy. Failed migrations halt deploy and surface to the board.
 
@@ -248,7 +258,7 @@ See `docs/security.md` for the full threat model and pre-launch security checkli
 
 - Custom SMTP with full SPF/DKIM/DMARC is mandatory before any user receives a real email
 - All public tables have RLS enabled, with policies tested in CI
-- All webhook handlers verify signatures using official SDKs as the first line of code
+- All webhook handlers verify signatures as the first line of code (Postmark: hand-written constant-time HMAC via `lib/webhooks/verify.ts` — no SDK)
 - All AI calls go through `lib/ai/router.ts` which enforces multi-layer spending caps
 - Inbound email pipeline is hardened against forgery (DKIM verification + sender match + dead-letter table)
 - A pre-launch external security audit is mandatory before East Asia go-live

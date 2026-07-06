@@ -1,7 +1,7 @@
 # Supabase Environments
 
 > How to manage local vs production Supabase instances for the Nodwin Sales CRM.
-> This covers all three scopes in the CRM's Supabase landscape:
+> This covers the two scopes in the CRM's Supabase landscape:
 > local development databases in the monorepo vs the cloud preview application in production.
 
 ---
@@ -26,7 +26,7 @@ All environments share the same three variables. The values differ:
 | `SUPABASE_SERVICE_ROLE_KEY`    | From `supabase status` output (secret key)       | From Supabase Cloud dashboard > Settings > API           |
 
 **Env file locations:**
-- Local preview: `apps/web/.env.local` (on the AMD GPU server, port 3002)
+- Local preview: `apps/web/.env.local` (on the AMD GPU server, port 3030)
 - Local dev workstation: `.env.local` at repo root (Next.js resolves from cwd)
 
 **Tailscale note:** If you move the server or access it remotely, use the Tailscale hostname (e.g., `http://nodwin-server.tailNNNNNN.ts.net:54321`) instead of the LAN IP. This is forward-compatible with the planned office move.
@@ -43,7 +43,7 @@ supabase start                   # if not already running
 supabase status                  # copy the publishable + secret keys
 # Point NEXT_PUBLIC_SUPABASE_URL to http://192.168.88.51:54321
 # Use the keys from supabase status output
-pnpm dev -p 3002                 # or whatever port
+pnpm dev -p 3030                 # or whatever port
 ```
 
 ### Switch to production
@@ -65,7 +65,7 @@ supabase link --project-ref <project-ref>
 
 1. Edit/add files in `supabase/migrations/`.
 2. Run `supabase migration up` to apply.
-3. Test: `curl -sf http://localhost:3002/contacts > /dev/null`.
+3. Test: `curl -sf http://localhost:3030/contacts > /dev/null`.
 
 ### Production
 
@@ -92,13 +92,12 @@ supabase link --project-ref <project-ref>
 The CI pipeline (`ci.yml`) runs on every PR and includes:
 
 1. **Supabase local stack startup** — starts Dockerized Supabase, applies all migrations.
-2. **Supabase schema lint** (`supabase db lint --local`) — catches schema errors in migrations.
-3. **RLS policy lint** — checks all policies for correctness.
-4. **RLS policy coverage** — ensures every table has row-level security enabled.
-5. **RLS tests** — runs `pnpm db:test` against the local stack.
+2. **RLS policy lint** — checks all policies for correctness.
+3. **RLS policy coverage** — ensures every table has row-level security enabled.
+4. **RLS tests** — runs `pnpm db:test` against the local stack.
 
-Additional migration-specific checks run on PRs touching `supabase/migrations/**` (see `migration-ci.yml`):
-- `supabase db lint` on the full local schema
+Migration-specific checks run on PRs touching `supabase/migrations/**` (see `migration-ci.yml`):
+- **Supabase schema lint** (`supabase db lint --local --level error`) — catches schema errors in migrations.
 - `supabase db diff` against main (requires a linked Supabase project; skipped if not linked)
 
 ---
