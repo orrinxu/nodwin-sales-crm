@@ -53,7 +53,7 @@ export function KnowledgeSearch() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="space-y-6 p-6">
       <div>
         <h1 className="flex items-center gap-2 text-xl font-semibold">
           <Sparkles className="size-5 text-muted-foreground" />
