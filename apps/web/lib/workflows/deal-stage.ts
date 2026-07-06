@@ -1,54 +1,32 @@
 import { setup, assign, type ActorRefFrom } from "xstate"
 
-export const DEAL_STAGES = [
-  "qualify",
-  "meet_and_present",
-  "propose",
-  "negotiate",
-  "verbal_agreement",
-  "closed_won",
-  "closed_lost",
-] as const
+// `lib/opportunity/stage.ts` is the single source of truth for the DealStage
+// domain model (stage list, ordering, terminal helpers). This module owns only
+// the xstate workflow machine and re-exports the domain pieces so existing
+// importers of `./deal-stage` keep working without a second, drifting copy.
+import {
+  DEAL_STAGES,
+  STAGE_ORDER,
+  TERMINAL_STAGES,
+  NON_TERMINAL_STAGES,
+  isTerminalStage,
+  getNextStage,
+  getPrevStage,
+  type DealStage,
+  type NonTerminalDealStage,
+} from "@/lib/opportunity/stage"
 
-export type DealStage = (typeof DEAL_STAGES)[number]
-
-export const STAGE_ORDER: Record<DealStage, number> = {
-  qualify: 0,
-  meet_and_present: 1,
-  propose: 2,
-  negotiate: 3,
-  verbal_agreement: 4,
-  closed_won: 5,
-  closed_lost: 6,
+export {
+  DEAL_STAGES,
+  STAGE_ORDER,
+  TERMINAL_STAGES,
+  NON_TERMINAL_STAGES,
+  isTerminalStage,
+  getNextStage,
+  getPrevStage,
 }
 
-export const TERMINAL_STAGES: DealStage[] = ["closed_won", "closed_lost"]
-
-export const NON_TERMINAL_STAGES: DealStage[] = DEAL_STAGES.filter(
-  (s): s is Exclude<DealStage, "closed_won" | "closed_lost"> =>
-    !TERMINAL_STAGES.includes(s),
-)
-
-export type NonTerminalDealStage = (typeof NON_TERMINAL_STAGES)[number]
-
-export function isTerminalStage(stage: DealStage): boolean {
-  return TERMINAL_STAGES.includes(stage)
-}
-
-export function getNextStage(
-  stage: DealStage,
-): DealStage | undefined {
-  if (isTerminalStage(stage)) return undefined
-  const index = DEAL_STAGES.indexOf(stage)
-  return DEAL_STAGES.at(index + 1)
-}
-
-export function getPrevStage(
-  stage: DealStage,
-): DealStage | undefined {
-  const index = DEAL_STAGES.indexOf(stage)
-  return index > 0 ? DEAL_STAGES.at(index - 1) : undefined
-}
+export type { DealStage, NonTerminalDealStage }
 
 export interface StageHistoryEntry {
   from: DealStage
