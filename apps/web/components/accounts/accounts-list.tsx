@@ -119,13 +119,13 @@ export function AccountsList({
     return result
   }, [accounts, searchQuery, industryFilter, ownerFilter])
 
+  // getRowId keys the selection by account id, so it survives filtering/sorting.
   const selectedIds = useMemo(
     () =>
       Object.entries(rowSelection)
         .filter(([, isSelected]) => isSelected)
-        .map(([key]) => filteredAccounts.at(Number(key))?.id)
-        .filter((id): id is string => !!id),
-    [rowSelection, filteredAccounts],
+        .map(([id]) => id),
+    [rowSelection],
   )
 
   const columns: ColumnDef<AccountListRecord>[] = useMemo(
@@ -261,6 +261,7 @@ export function AccountsList({
     columns,
     state: { rowSelection, sorting },
     enableRowSelection: true,
+    getRowId: (row) => row.id,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),

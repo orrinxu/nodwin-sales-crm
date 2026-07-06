@@ -59,6 +59,7 @@ export default async function DashboardPage() {
           id: d.id,
           name: d.name,
           company: d.company,
+          stage: d.stage,
           stageLabel: d.stageLabel,
           amount: fmt.format(d.amount),
           daysSinceLastActivity: d.daysSinceLastActivity,

@@ -197,7 +197,7 @@ function EditUserDialog({
           <div className="flex items-center justify-between rounded-md border px-3 py-2">
             <div>
               <p className="text-sm font-medium">Active</p>
-              <p className="text-xs text-muted-foreground">Inactive users cannot sign in features that check status.</p>
+              <p className="text-xs text-muted-foreground">Inactive users can&apos;t sign in and are hidden from features that check status.</p>
             </div>
             <Switch checked={active} onCheckedChange={setActive} disabled={isSelf} aria-label="Active" />
           </div>

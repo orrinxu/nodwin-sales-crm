@@ -113,38 +113,10 @@ export function AccountDetailWrapper({
     : null
 
   return (
-    <div className="relative">
-      <div className="absolute top-6 right-6 z-10">
-        <AccountForm
-          account={account}
-          fieldDefinitions={fieldDefinitions}
-          taxIdTypes={taxIdTypes}
-          initialTaxIds={taxIds}
-          ownerOptions={ownerOptions}
-          accountOptions={accountOptions}
-          currentUserId={currentUserId}
-          parentRelationship={parentRelationship}
-          createAction={async () => {
-            throw new Error("Not available")
-          }}
-          updateAction={updateAction}
-          saveTaxIdsAction={saveTaxIdsAction}
-          onSaveRelationship={saveRelationshipAction}
-          onSuccess={() => {
-            router.refresh()
-          }}
-          trigger={
-            <Button variant="outline" size="sm">
-              <Pencil className="size-4" />
-              Edit
-            </Button>
-          }
-        />
-      </div>
-
+    <div>
       <div className="flex flex-1 flex-col gap-6 p-6">
-            <div className="flex items-start gap-4">
-              <div className="flex-1">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
                 <h1 className="text-2xl font-semibold tracking-tight">
                   {account.name}
                 </h1>
@@ -161,6 +133,33 @@ export function AccountDetailWrapper({
                     <span className="text-sm text-muted-foreground ml-1">Unassigned</span>
                   )}
                 </div>
+              </div>
+              <div className="shrink-0">
+                <AccountForm
+                  account={account}
+                  fieldDefinitions={fieldDefinitions}
+                  taxIdTypes={taxIdTypes}
+                  initialTaxIds={taxIds}
+                  ownerOptions={ownerOptions}
+                  accountOptions={accountOptions}
+                  currentUserId={currentUserId}
+                  parentRelationship={parentRelationship}
+                  createAction={async () => {
+                    throw new Error("Not available")
+                  }}
+                  updateAction={updateAction}
+                  saveTaxIdsAction={saveTaxIdsAction}
+                  onSaveRelationship={saveRelationshipAction}
+                  onSuccess={() => {
+                    router.refresh()
+                  }}
+                  trigger={
+                    <Button variant="outline" size="sm">
+                      <Pencil className="size-4" />
+                      Edit
+                    </Button>
+                  }
+                />
               </div>
             </div>
 
