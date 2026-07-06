@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from "react"
 
+import { THEME_STORAGE_KEY } from "@/lib/theme/theme-object"
+
 type Theme = "dark" | "light" | "system"
 
 type ThemeProviderProps = {
@@ -41,7 +43,7 @@ function applyTheme(resolved: "dark" | "light") {
 export function ThemeProvider({
   children,
   defaultTheme = "system",
-  storageKey = "nodwin-crm-theme",
+  storageKey = THEME_STORAGE_KEY,
 }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(() => {
     if (typeof window === "undefined") return defaultTheme
@@ -52,6 +54,9 @@ export function ThemeProvider({
     getSystemTheme(),
   )
 
+  // For an explicit "light"/"dark" preference the server already applied the
+  // correct class + brand from the cookie, so hydration is flash-free. Only the
+  // "system" preference (which the server cannot detect) reconciles on mount.
   const resolvedTheme = theme === "system" ? systemTheme : theme
 
   useEffect(() => {
@@ -68,6 +73,9 @@ export function ThemeProvider({
 
   const setTheme = (newTheme: Theme) => {
     localStorage.setItem(storageKey, newTheme)
+    // Mirror to a cookie so the SERVER can render the correct theme on the next
+    // request — this is what keeps the first paint flash-free.
+    document.cookie = `${storageKey}=${newTheme}; path=/; max-age=31536000; SameSite=Lax`
     setThemeState(newTheme)
   }
 
