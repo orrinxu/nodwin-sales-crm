@@ -1,25 +1,22 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { LayoutGridIcon, ListIcon, KanbanIcon } from "lucide-react"
+import { LayoutGridIcon, ListIcon } from "lucide-react"
 
 import { type OpportunityRecord } from "@/lib/data/opportunities.types"
 import type { OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/opportunities.types"
-import type { StageTotals } from "@/lib/data/stage-totals"
 import type { AccountOption } from "@/lib/data/contacts"
 import type { EntityOption } from "@/components/entity-combobox"
 import { cn } from "@/lib/utils"
-import { SectionHeader } from "@/components/primitives/section-header"
-import { EmptyState } from "@/components/primitives/empty-state"
+import { Card, CardContent } from "@/components/ui/card"
+import { SectionHeader } from "@/components/ui/section-header"
+import { EmptyState } from "@/components/ui/empty-state"
+import { CircleDashedIcon } from "lucide-react"
 import { OpportunityBoard } from "@/components/opportunities/opportunity-board"
 import { OpportunityListTable } from "@/components/opportunities/opportunity-list-table"
-import { OpportunityForm } from "@/components/opportunities/opportunity-form"
 
 interface OpportunitiesViewProps {
   opportunities: OpportunityRecord[]
-  /** FX-normalised per-stage totals for the board columns (count / value / weighted). */
-  stageTotals?: StageTotals
   accounts: AccountOption[]
   businessUnits: BusinessUnitOption[]
   users?: EntityOption[]
@@ -32,18 +29,7 @@ interface OpportunitiesViewProps {
   searchUsersAction?: (query: string) => Promise<EntityOption[]>
   createContactQuickAction?: (input: { fullName: string; email?: string; accountId?: string }) => Promise<EntityOption>
   defaultCurrency?: string
-  /** Which view to open on first render. Defaults to the board (kanban). */
-  defaultView?: "board" | "table"
-  /** Page header title. Defaults to "Opportunities". */
-  title?: string
-  /** Page header description. When omitted, a view-mode-aware default is used. */
-  description?: string
-  /**
-   * Dedicated empty-state copy (title + optional description). When provided AND
-   * there are no opportunities, a clean EmptyState — with the create action — is
-   * shown instead of the board/table. Used by the personal Pipeline board; the
-   * org-wide Opportunities list omits it and keeps its built-in empty rendering.
-   */
+  defaultView?: ViewMode | "board"
   emptyState?: { title: string; description?: string }
 }
 
@@ -51,7 +37,6 @@ type ViewMode = "kanban" | "table"
 
 export function OpportunitiesView({
   opportunities,
-  stageTotals,
   accounts,
   businessUnits,
   users,
@@ -64,86 +49,80 @@ export function OpportunitiesView({
   searchUsersAction,
   createContactQuickAction,
   defaultCurrency,
-  defaultView = "board",
-  title = "Opportunities",
-  description,
+  defaultView,
   emptyState,
 }: OpportunitiesViewProps) {
-  const router = useRouter()
   const [viewMode, setViewMode] = useState<ViewMode>(
-    defaultView === "table" ? "table" : "kanban",
+    defaultView === "board" || defaultView == null ? "kanban" : "table"
   )
 
-  const showEmptyState = emptyState != null && opportunities.length === 0
+  const viewToggle = (
+    <div className="flex items-center rounded-lg border p-0.5">
+      <button
+        onClick={() => setViewMode("kanban")}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors",
+          viewMode === "kanban"
+            ? "bg-muted text-foreground shadow-xs"
+            : "text-muted-foreground hover:text-foreground",
+        )}
+      >
+        <LayoutGridIcon className="size-4" />
+        <span className="hidden sm:inline">Kanban</span>
+      </button>
+      <button
+        onClick={() => setViewMode("table")}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors",
+          viewMode === "table"
+            ? "bg-muted text-foreground shadow-xs"
+            : "text-muted-foreground hover:text-foreground",
+        )}
+      >
+        <ListIcon className="size-4" />
+        <span className="hidden sm:inline">Table</span>
+      </button>
+    </div>
+  )
+
+  if (emptyState && opportunities.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 lg:px-6">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Opportunities</h1>
+          </div>
+        </div>
+        <div className="flex flex-1 items-center justify-center p-6">
+          <EmptyState
+            icon={CircleDashedIcon}
+            title={emptyState.title}
+            description={emptyState.description}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="border-b px-4 py-3 lg:px-6">
-        <SectionHeader
-          title={title}
-          description={
-            description ??
-            (viewMode === "kanban"
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 lg:px-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Opportunities
+          </h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {viewMode === "kanban"
               ? "Drag opportunities between stages to update their pipeline status."
-              : "View and manage all opportunities in a table.")
-          }
-          actions={
-            <div className="flex items-center rounded-lg border p-0.5">
-            <button
-              onClick={() => setViewMode("kanban")}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors",
-                viewMode === "kanban"
-                  ? "bg-muted text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <LayoutGridIcon className="size-4" />
-              <span className="hidden sm:inline">Kanban</span>
-            </button>
-            <button
-              onClick={() => setViewMode("table")}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors",
-                viewMode === "table"
-                  ? "bg-muted text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <ListIcon className="size-4" />
-              <span className="hidden sm:inline">Table</span>
-            </button>
-            </div>
-          }
-        />
+              : "View and manage all opportunities in a table."}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">{viewToggle}</div>
       </div>
 
-      {showEmptyState ? (
-        <div className="flex flex-1 items-center justify-center p-4 lg:p-6">
-          <EmptyState
-            icon={KanbanIcon}
-            title={emptyState.title}
-            description={emptyState.description}
-            action={
-              <OpportunityForm
-                accounts={accounts}
-                businessUnits={businessUnits}
-                users={users}
-                createAction={createAction}
-                onSuccess={() => router.refresh()}
-                searchAccountsAction={searchAccountsAction}
-                searchContactsAction={searchContactsAction}
-                searchUsersAction={searchUsersAction}
-                createContactQuickAction={createContactQuickAction}
-                defaultCurrency={defaultCurrency}
-              />
-            }
-          />
-        </div>
-      ) : viewMode === "kanban" ? (
+      {viewMode === "kanban" ? (
         <OpportunityBoard
           opportunities={opportunities}
-          stageTotals={stageTotals}
           accounts={accounts}
           businessUnits={businessUnits}
           users={users}
@@ -157,11 +136,19 @@ export function OpportunitiesView({
         />
       ) : (
         <div className="flex-1 p-4 lg:p-6">
-          <OpportunityListTable
-            opportunities={opportunities}
-            bulkDeleteAction={bulkDeleteAction}
-            bulkUpdateStageAction={bulkUpdateStageAction}
-          />
+          <Card>
+            <SectionHeader
+              title="Pipeline"
+              description="Filter, sort, and manage opportunities."
+            />
+            <CardContent>
+              <OpportunityListTable
+                opportunities={opportunities}
+                bulkDeleteAction={bulkDeleteAction}
+                bulkUpdateStageAction={bulkUpdateStageAction}
+              />
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>

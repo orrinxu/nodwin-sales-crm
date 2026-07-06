@@ -2,6 +2,9 @@
 
 import { useCallback, useMemo, useState } from "react"
 import {
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
   type ColumnDef,
   type RowSelectionState,
   type SortingState,
@@ -16,14 +19,22 @@ import {
 import { getStageLabel, type OpportunityRecord } from "@/lib/data/opportunities.types"
 import { Money } from "@/lib/money"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
-import { DataTable } from "@/components/primitives/data-table"
-import { FilterBar, FilterField } from "@/components/primitives/filter-bar"
-import { StageBadge } from "@/components/primitives/stage-badge"
-import { StatusBadge } from "@/components/primitives/status-badge"
-import { overdueLabel, staleLabel } from "@/lib/opportunity/deal-health"
+import {
+  DataTable,
+  DataTableBulkBar,
+  DataTableToolbar,
+  SortHeader,
+} from "@/components/ui/data-table"
+import { FilterBar, FilterSearch } from "@/components/ui/filter-bar"
+import { Badge } from "@/components/ui/badge"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -32,14 +43,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Trash2Icon, ArrowUpDownIcon, SearchIcon, XIcon } from "lucide-react"
+import { Trash2Icon, ArrowUpDownIcon } from "lucide-react"
 
 interface OpportunityListTableProps {
   opportunities: OpportunityRecord[]
@@ -62,7 +66,7 @@ function formatCurrency(amount: string, currency: string): string {
 }
 
 function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "—"
+  if (!dateStr) return "\u2014"
   try {
     return new Intl.DateTimeFormat("en-US", {
       month: "short",
@@ -74,37 +78,12 @@ function formatDate(dateStr: string | null): string {
   }
 }
 
-// Raw minor-unit value for sorting; never throws. Cross-currency comparison is a
-// rough total order (fine for a list sort — the dashboards do FX conversion).
 function centsOf(opp: OpportunityRecord): number {
   try {
     return Money.fromAmount(opp.amount, opp.currency).cents
   } catch {
     return 0
   }
-}
-
-function SortHeader({
-  label,
-  onClick,
-  align = "left",
-}: {
-  label: string
-  onClick: () => void
-  align?: "left" | "right"
-}) {
-  return (
-    <div className={align === "right" ? "text-right" : undefined}>
-      <Button
-        variant="ghost"
-        className={align === "right" ? "-mr-3 h-8" : "-ml-3 h-8"}
-        onClick={onClick}
-      >
-        {label}
-        <ArrowUpDownIcon className="ml-2 size-4" />
-      </Button>
-    </div>
-  )
 }
 
 export function OpportunityListTable({
@@ -162,7 +141,6 @@ export function OpportunityListTable({
     setOwnerFilter("all")
   }, [])
 
-  // getRowId keys the selection by opportunity id, so it survives filtering/sorting.
   const selectedIds = useMemo(
     () =>
       Object.entries(rowSelection)
@@ -201,7 +179,8 @@ export function OpportunityListTable({
         header: ({ column }) => (
           <SortHeader
             label="Name"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            sorted={column.getIsSorted()}
+            onToggle={() => column.toggleSorting(column.getIsSorted() === "asc")}
           />
         ),
         cell: ({ row }) => (
@@ -218,55 +197,34 @@ export function OpportunityListTable({
         header: ({ column }) => (
           <SortHeader
             label="Account"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            sorted={column.getIsSorted()}
+            onToggle={() => column.toggleSorting(column.getIsSorted() === "asc")}
           />
         ),
-        cell: ({ row }) => row.getValue("accountName") ?? "—",
+        cell: ({ row }) => row.getValue("accountName") ?? "\u2014",
       },
       {
         accessorKey: "stage",
         header: ({ column }) => (
           <SortHeader
             label="Stage"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            sorted={column.getIsSorted()}
+            onToggle={() => column.toggleSorting(column.getIsSorted() === "asc")}
           />
         ),
-        cell: ({ row }) => <StageBadge stage={row.getValue<DealStage>("stage")} />,
-      },
-      {
-        id: "health",
-        header: "Health",
-        // Batched, server-computed health signals (see lib/data/deal-health.ts).
-        // A healthy / terminal deal has no signal → an em dash.
         cell: ({ row }) => {
-          const health = row.original.health
-          if (!health || (!health.overdue && !health.stale)) {
-            return <span className="text-muted-foreground">—</span>
-          }
-          return (
-            <div className="flex flex-wrap items-center gap-1">
-              {health.overdue ? (
-                <StatusBadge tone="destructive">
-                  {overdueLabel(health.overdue.days)}
-                </StatusBadge>
-              ) : null}
-              {health.stale ? (
-                <StatusBadge tone="warning">
-                  {staleLabel(health.stale.days)}
-                </StatusBadge>
-              ) : null}
-            </div>
-          )
+          const stage = row.getValue<DealStage>("stage")
+          return <Badge variant="stage" stage={stage}>{getStageLabel(stage)}</Badge>
         },
-        enableSorting: false,
       },
       {
         accessorKey: "amount",
         header: ({ column }) => (
           <SortHeader
             label="Amount"
+            sorted={column.getIsSorted()}
+            onToggle={() => column.toggleSorting(column.getIsSorted() === "asc")}
             align="right"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           />
         ),
         cell: ({ row }) => {
@@ -289,17 +247,19 @@ export function OpportunityListTable({
         header: ({ column }) => (
           <SortHeader
             label="Owner"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            sorted={column.getIsSorted()}
+            onToggle={() => column.toggleSorting(column.getIsSorted() === "asc")}
           />
         ),
-        cell: ({ row }) => row.getValue("ownerName") ?? "—",
+        cell: ({ row }) => row.getValue("ownerName") ?? "\u2014",
       },
       {
         accessorKey: "closeDate",
         header: ({ column }) => (
           <SortHeader
             label="Close Date"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            sorted={column.getIsSorted()}
+            onToggle={() => column.toggleSorting(column.getIsSorted() === "asc")}
           />
         ),
         cell: ({ row }) => formatDate(row.getValue("closeDate")),
@@ -307,6 +267,19 @@ export function OpportunityListTable({
     ],
     [router],
   )
+
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const table = useReactTable({
+    data: filteredOpportunities,
+    columns,
+    state: { rowSelection, sorting },
+    enableRowSelection: true,
+    getRowId: (row) => row.id,
+    onRowSelectionChange: setRowSelection,
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  })
 
   const handleBulkDelete = useCallback(async () => {
     if (selectedIds.length === 0) return
@@ -338,103 +311,74 @@ export function OpportunityListTable({
     }
   }, [selectedIds, targetStage, bulkUpdateStageAction, router])
 
+  const toolbar = (
+    <>
+      <FilterBar hasActiveFilters={hasActiveFilters} onClear={clearFilters}>
+        <FilterSearch
+          placeholder="Search opportunities..."
+          value={searchQuery}
+          onChange={setSearchQuery}
+        />
+        <Select value={stageFilter} onValueChange={(v) => setStageFilter(v ?? "all")}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="All stages" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All stages</SelectItem>
+            {ALL_STAGES.map((stage) => (
+              <SelectItem key={stage} value={stage}>
+                {getStageLabel(stage)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v ?? "all")}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="All owners" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All owners</SelectItem>
+            {ownerOptions.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {o.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterBar>
+      <DataTableBulkBar selectedCount={selectedIds.length}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowStageDialog(true)}
+        >
+          <ArrowUpDownIcon />
+          Change Stage
+        </Button>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => setShowDeleteDialog(true)}
+        >
+          <Trash2Icon />
+          Delete
+        </Button>
+      </DataTableBulkBar>
+    </>
+  )
+
   return (
     <div className="space-y-4">
-      <FilterBar>
-        <FilterField label="Search" htmlFor="opp-search" className="flex-1 sm:max-w-xs">
-          <div className="relative">
-            <SearchIcon className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="opp-search"
-              placeholder="Search opportunities..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8"
-            />
-          </div>
-        </FilterField>
-        <FilterField label="Stage" htmlFor="opp-stage-filter">
-          <Select value={stageFilter} onValueChange={(v) => setStageFilter(v ?? "all")}>
-            <SelectTrigger id="opp-stage-filter" className="w-[180px]">
-              <SelectValue placeholder="All stages" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All stages</SelectItem>
-              {ALL_STAGES.map((stage) => (
-                <SelectItem key={stage} value={stage}>
-                  {getStageLabel(stage)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FilterField>
-        <FilterField label="Owner" htmlFor="opp-owner-filter">
-          <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v ?? "all")}>
-            <SelectTrigger id="opp-owner-filter" className="w-[180px]">
-              <SelectValue placeholder="All owners" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All owners</SelectItem>
-              {ownerOptions.map((o) => (
-                <SelectItem key={o.id} value={o.id}>
-                  {o.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FilterField>
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
-            <XIcon />
-            Clear
-          </Button>
-        )}
-      </FilterBar>
-
-      {selectedIds.length > 0 && (
-        <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2">
-          <span className="text-sm text-muted-foreground">
-            {selectedIds.length} selected
-          </span>
-          <div className="ml-auto flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowStageDialog(true)}
-            >
-              <ArrowUpDownIcon />
-              Change Stage
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setShowDeleteDialog(true)}
-            >
-              <Trash2Icon />
-              Delete
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <Card className="p-0">
-        <DataTable
-          columns={columns}
-          data={filteredOpportunities}
-          getRowId={(row) => row.id}
-          sorting={sorting}
-          onSortingChange={setSorting}
-          rowSelection={rowSelection}
-          onRowSelectionChange={setRowSelection}
-          enableRowSelection
-          emptyState={
-            hasActiveFilters
-              ? "No opportunities match your filters."
-              : "No opportunities yet. Create one to get started."
-          }
-        />
-      </Card>
-
+      <DataTable
+        table={table}
+        columnsLength={columns.length}
+        toolbar={toolbar}
+        emptyTitle={
+          hasActiveFilters
+            ? "No opportunities match your filters."
+            : "No opportunities yet. Create one to get started."
+        }
+      />
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
