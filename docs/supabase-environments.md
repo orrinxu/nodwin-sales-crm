@@ -11,7 +11,7 @@
 | Environment  | Supabase                     | Purpose                   | Migration method          |
 | ------------ | ---------------------------- | ------------------------- | ------------------------- |
 | **Local**    | Docker via `supabase start`  | Dev + test + smoke        | `supabase migration up`   |
-| **Production** | Supabase Cloud (`nodwin-sales-crm`, ref `omixuxvrogwmstsswecq`, `ap-southeast-1`) | Live CRM data | `supabase db push --linked` |
+| **Production** | Supabase Cloud — **not yet provisioned** (create the project, then record its ref + region here) | Live CRM data | `supabase db push --linked` |
 
 ---
 

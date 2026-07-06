@@ -59,7 +59,7 @@ Do **not** modify these files. If your work requires changes here, create a tick
 
 ## Adapter
 
-This agent runs on **opencode** (local adapter). Follow opencode conventions for tool use and file operations.
+This agent runs on **opencode** (the `opencode_local` adapter, qwen3-coder). Follow opencode conventions for tool use and file operations.
 
 ---
 

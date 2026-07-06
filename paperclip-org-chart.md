@@ -50,8 +50,8 @@ You do not write code. You do not review every PR. You govern.
    │          │          │          │
    ▼          ▼          ▼          ▼
 [FRONTEND] [BACKEND] [DB / SQL] [INTEGRATION]
- Claude     Claude    Claude     Claude
-  Code      Code      Code        Code
+ opencode     opencode    opencode     opencode
+  _local       _local       _local         _local 
 ```
 
 Five engineering roles, plus CEO and Security Reviewer. No designer agent in v1 — shadcn/ui handles most design needs and the design intent is locked in the SOW. Tech writer handles documentation cleanup as a low-priority background role.
@@ -124,7 +124,7 @@ Five engineering roles, plus CEO and Security Reviewer. No designer agent in v1 
 
 ### Frontend Worker Agent
 
-- **Adapter:** Claude Code (or Cursor — agent's choice; pick one and stick with it for consistency)
+- **Adapter:** opencode_local (qwen3-coder)
 - **Reports to:** CTO
 - **Job description:**
   - Implement tickets in Phase 3 (auth and shell), Phase 4 (core CRM), Phase 7 (dashboards), and any UI work in later phases
@@ -139,7 +139,7 @@ Five engineering roles, plus CEO and Security Reviewer. No designer agent in v1 
 
 ### Backend Worker Agent
 
-- **Adapter:** Claude Code
+- **Adapter:** opencode_local (qwen3-coder)
 - **Reports to:** CTO
 - **Job description:**
   - API routes (`app/api/**` excluding webhooks)
@@ -154,7 +154,7 @@ Five engineering roles, plus CEO and Security Reviewer. No designer agent in v1 
 
 ### DB / SQL Worker Agent
 
-- **Adapter:** Claude Code
+- **Adapter:** opencode_local (qwen3-coder)
 - **Reports to:** CTO + Security (every PR triggers Security review)
 - **Job description:**
   - Database migrations (`supabase/migrations/**`)
@@ -171,7 +171,7 @@ Five engineering roles, plus CEO and Security Reviewer. No designer agent in v1 
 
 ### Integration Worker Agent
 
-- **Adapter:** Claude Code
+- **Adapter:** opencode_local (qwen3-coder)
 - **Reports to:** CTO + Security (for webhook-related PRs)
 - **Job description:**
   - Slack integration (planned — lives under `apps/web/lib/integrations/` when built)
