@@ -8,6 +8,7 @@ import {
 import type { PipelineMetrics, PipelineStageSummary } from "@/lib/data/metrics"
 import { getStuckDeals } from "@/lib/data/stuck-deals"
 import { getNeedsAttention } from "@/lib/data/needs-attention"
+import { getForecastData } from "@/lib/data/forecast"
 import { getNumberFormat, getDateFormat } from "@/lib/data/user-preferences"
 import { numberFormatLocale } from "@/lib/format"
 import { MetricsCards } from "@/components/dashboard/metrics-cards"
@@ -16,18 +17,20 @@ import { ActivityTimeline } from "@/components/dashboard/activity-timeline"
 import { RecentDeals } from "@/components/dashboard/recent-deals"
 import { StuckDeals } from "@/components/dashboard/stuck-deals"
 import { NeedsAttention } from "@/components/dashboard/needs-attention"
+import { ForecastTile, selectForecastTile } from "@/components/dashboard/forecast-tile"
 
 export default async function DashboardPage() {
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
 
-  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, needsAttention, numberFormat, dateFormat] = await Promise.all([
+  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, needsAttention, forecast, numberFormat, dateFormat] = await Promise.all([
     getPipelineMetrics(ctx),
     getPipelineSummary(ctx),
     getRecentDeals(ctx),
     getRecentActivities(ctx),
     getStuckDeals(ctx),
     getNeedsAttention(ctx),
+    getForecastData(ctx),
     getNumberFormat(ctx),
     getDateFormat(ctx),
   ])
@@ -60,6 +63,8 @@ export default async function DashboardPage() {
       />
 
       <MetricsCards metrics={pipelineMetrics} locale={locale} />
+
+      <ForecastTile data={selectForecastTile(forecast)} locale={locale} />
 
       <StuckDeals
         totalAtRisk={fmt.format(stuck.totalValueAtRisk)}
