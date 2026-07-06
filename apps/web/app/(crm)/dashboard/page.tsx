@@ -17,7 +17,8 @@ import { ActivityTimeline } from "@/components/dashboard/activity-timeline"
 import { RecentDeals } from "@/components/dashboard/recent-deals"
 import { StuckDeals } from "@/components/dashboard/stuck-deals"
 import { NeedsAttention } from "@/components/dashboard/needs-attention"
-import { ForecastTile, selectForecastTile } from "@/components/dashboard/forecast-tile"
+import { ForecastTile } from "@/components/dashboard/forecast-tile"
+import { selectForecastTile } from "@/components/dashboard/forecast-tile-data"
 
 export default async function DashboardPage() {
   const user = await requireUser()
