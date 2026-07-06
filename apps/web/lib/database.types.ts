@@ -3141,6 +3141,44 @@ export type Database = {
           visibility_tier: Database["public"]["Enums"]["visibility_tier"]
         }[]
       }
+      forecast_pipeline_agg: {
+        Args: {
+          p_this_quarter_start: string
+          p_this_quarter_end: string
+          p_next_quarter_end: string
+        }
+        Returns: {
+          period: string
+          stage: string
+          currency: string
+          weighted_amount: number
+          gross_amount: number
+          deal_count: number
+        }[]
+      }
+      forecast_revenue_curve_agg: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          month: string
+          currency: string
+          amount: number
+          entry_count: number
+        }[]
+      }
+      rep_scorecard_agg: {
+        Args: { p_period_start: string; p_period_end: string }
+        Returns: {
+          owner_user_id: string | null
+          owner_name: string | null
+          currency: string
+          open_amount: number | null
+          weighted_amount: number | null
+          won_amount: number | null
+          won_count: number
+          lost_count: number
+          cycle_days_sum: number | null
+        }[]
+      }
       stuck_deal_last_activity: {
         Args: { opp_ids: string[] }
         Returns: {
