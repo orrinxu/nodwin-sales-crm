@@ -47,8 +47,8 @@ All three share the same build configuration:
 | **Build command** | `pnpm build` |
 | **Output directory** | `.next` |
 | **Install command** | `pnpm install --frozen-lockfile` |
-| **Node.js version** | 20.x |
-| **Package manager** | pnpm |
+| **Node.js version** | 20.x (`engines.node` is `>=20.0.0`) |
+| **Package manager** | pnpm `10.33.0` (Vercel auto-detects from the `packageManager` field in the root `package.json`) |
 
 > The monorepo root is the git root; Vercel must know to look in `apps/web`. Setting the root directory to `apps/web` tells Vercel to run `pnpm build` from that subdirectory.
 
@@ -88,6 +88,7 @@ Set environment variables for each Vercel project in **Settings → Environment 
 | `POSTMARK_WEBHOOK_SECRET` | Staging secret | Sandbox secret | Production secret | Production + Preview |
 | `NEXT_PUBLIC_DEBUG` | `false` | `false` | `false` | All |
 | `NEXT_PUBLIC_LOG_LEVEL` | `info` | `info` | `warn` | All |
+| `NEXT_PUBLIC_ENV` | `staging` | `sandbox` | `production` | All |
 
 ### Secret variables (masked)
 
@@ -97,8 +98,24 @@ The following must be marked **"Encrypt"** (masked in Vercel logs):
 |---|---|
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase dashboard → Settings → API |
 | `POSTMARK_WEBHOOK_SECRET` | Postmark → Server → Webhooks → HttpHeaders |
+| `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` / `DEEPSEEK_API_KEY` / `MOONSHOT_API_KEY` / `OPENAI_COMPATIBLE_API_KEY` | AI provider dashboards — see AI provider variables below |
 
-> **Never** expose `SUPABASE_SERVICE_ROLE_KEY`, `POSTMARK_WEBHOOK_SECRET`, or similar secrets in preview deployments for untrusted PRs. Vercel encrypts environment variables by default — ensure "Encrypt" is checked for all sensitive variables.
+> **Never** expose `SUPABASE_SERVICE_ROLE_KEY`, `POSTMARK_WEBHOOK_SECRET`, the AI provider keys, or similar secrets in preview deployments for untrusted PRs. Vercel encrypts environment variables by default — ensure "Encrypt" is checked for all sensitive variables.
+
+### AI provider variables (optional — powers knowledge search, RAG, and AI features)
+
+The AI features (knowledge search / RAG and the admin AI settings, from ORR-634/635) resolve provider credentials **DB-first**: an admin configures providers under **Admin → AI**, and those settings take precedence. As an environment-level fallback, `createAdaptersFromEnv()` (`apps/web/lib/ai/providers/index.ts`) additionally registers **any provider whose API key is present in the environment**. Set the key(s) for the provider(s) you want available without DB configuration — each is optional, and a provider is simply unavailable if its key is unset. The matching `*_MODEL` var overrides that provider's default model.
+
+| Provider | Required var(s) | Optional model override | Notes |
+|---|---|---|---|
+| Anthropic (Claude) | `ANTHROPIC_API_KEY` | `ANTHROPIC_MODEL` (default `claude-sonnet-4-6`) | Secret |
+| Google (Gemini) | `GOOGLE_API_KEY` | `GEMINI_MODEL` | Secret |
+| DeepSeek | `DEEPSEEK_API_KEY` | `DEEPSEEK_MODEL` | Secret |
+| Moonshot (Kimi) | `MOONSHOT_API_KEY` | `MOONSHOT_MODEL` | Secret |
+| OpenAI-compatible | `OPENAI_COMPATIBLE_API_KEY` + `OPENAI_COMPATIBLE_BASE_URL` | `OPENAI_COMPATIBLE_MODEL` | Secret; base URL targets any OpenAI-compatible endpoint |
+| Ollama (self-hosted) | `OLLAMA_BASE_URL` | `OLLAMA_MODEL` | No API key; the URL must be network-reachable from Vercel's runtime |
+
+> All `*_API_KEY` values are secrets — mark them **Encrypt** and do not expose them to untrusted preview deployments. If no provider is configured (neither DB settings nor env), AI features degrade gracefully and stay disabled. Note that `OLLAMA_BASE_URL` must be reachable from Vercel's serverless/edge runtime — a `localhost` Ollama on a dev box will not resolve from a Vercel deployment.
 
 ---
 
@@ -148,7 +165,7 @@ For each environment, add the corresponding callback URL to the Google Cloud Con
 
 | Environment | Callback URL |
 |---|---|
-| Local dev | `http://localhost:3000/api/auth/callback` |
+| Local dev | `http://localhost:3000/api/auth/callback` (port 3000 is the `next dev` default; adjust if you run the dev server on another port, e.g. `-p 3030`) |
 | Staging (preview) | `https://<preview-url>.vercel.app/api/auth/callback` |
 | Sandbox | `https://sandbox-app.vercel.app/api/auth/callback` |
 | Production | `https://crm.nodwingaming.com/api/auth/callback` |
@@ -213,6 +230,7 @@ Before considering a Vercel environment operational:
 - [ ] Node.js version is 20.x.
 - [ ] All required environment variables are set and scoped correctly.
 - [ ] Secret variables are marked encrypted.
+- [ ] AI provider key(s) set — or admin AI settings configured — if knowledge search / RAG is in use (optional otherwise).
 - [ ] Google OAuth callback URL is registered for the environment.
 - [ ] Supabase RLS policies pass for the linked Supabase instance.
 - [ ] Production domain resolves and SSL certificate is active.
