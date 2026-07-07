@@ -1,9 +1,17 @@
+/* eslint-disable custom/require-auth-import -- this file IS the auth module */
 import "server-only"
+import { cache } from "react"
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import type { NextRequest } from "next/server"
 import { env } from "./env"
 import { ForbiddenError, UnauthorisedError } from "./errors"
+import { createServerClient as createAppServerClient } from "@/lib/supabase/server"
+import {
+  PERMISSION_KEYS,
+  isPermissionKey,
+  type PermissionKey,
+} from "@/lib/data/permissions"
 
 export interface AuthenticatedUser {
   id: string
@@ -112,6 +120,44 @@ export function requireAdminAccess(user: AuthenticatedUser): void {
   if (!isSuperAdmin(user) && !isEntityAdmin(user)) {
     throw new ForbiddenError(
       `Requires admin access, got '${user.role ?? "none"}'`,
+    )
+  }
+}
+
+// ── Permissions (roles × permission matrix; see lib/data/permissions.ts) ────────
+//
+// Super Admin ('admin') always passes BEFORE any DB round-trip — this matches the
+// DB has_permission() short-circuit AND is what keeps the LOCAL_PREVIEW_ADMIN
+// (which has no real users row) working. Non-admins are resolved once per request
+// via the my_permissions() RPC, cached with React cache().
+
+/** The current user's permission key set (all keys for Super Admin). Cached per request. */
+export const getMyPermissions = cache(
+  async (user: AuthenticatedUser): Promise<Set<PermissionKey>> => {
+    if (user.role === "admin") return new Set(PERMISSION_KEYS)
+    const supabase = await createAppServerClient()
+    const { data } = await supabase.rpc("my_permissions")
+    const keys = ((data ?? []) as string[]).filter(isPermissionKey)
+    return new Set(keys)
+  },
+)
+
+export async function hasPermission(
+  user: AuthenticatedUser,
+  key: PermissionKey,
+): Promise<boolean> {
+  if (user.role === "admin") return true
+  return (await getMyPermissions(user)).has(key)
+}
+
+/** Throw ForbiddenError unless the user holds `key`. */
+export async function requirePermission(
+  user: AuthenticatedUser,
+  key: PermissionKey,
+): Promise<void> {
+  if (!(await hasPermission(user, key))) {
+    throw new ForbiddenError(
+      `Requires permission '${key}', got role '${user.role ?? "none"}'`,
     )
   }
 }

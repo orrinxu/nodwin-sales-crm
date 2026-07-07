@@ -1,13 +1,21 @@
+/* eslint-disable custom/require-auth-import -- tests for the auth module itself */
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { UnauthorisedError, ForbiddenError } from "./errors"
 
 const mockGetUser = vi.fn()
 const mockRpc = vi.fn()
+const mockAppRpc = vi.fn()
 
 const mockClient = {
   auth: { getUser: mockGetUser },
   rpc: mockRpc,
 }
+
+// getMyPermissions uses the app server client (lib/supabase/server), distinct from
+// the @supabase/ssr client requireUser builds.
+vi.mock("@/lib/supabase/server", () => ({
+  createServerClient: vi.fn(async () => ({ rpc: mockAppRpc })),
+}))
 
 vi.mock("next/headers", () => ({
   cookies: vi.fn(() =>
@@ -287,5 +295,24 @@ describe("two-tier admin helpers", () => {
     expect(() => requireAdminAccess(mk("entity_admin"))).not.toThrow()
     expect(() => requireAdminAccess(mk("sales_rep"))).toThrow(ForbiddenError)
     expect(() => requireAdminAccess(mk(undefined))).toThrow(ForbiddenError)
+  })
+})
+
+describe("hasPermission", () => {
+  const admin = { id: "1", email: undefined, role: "admin" }
+  const rep = { id: "2", email: undefined, role: "sales_rep" }
+
+  it("short-circuits Super Admin to true WITHOUT any RPC (local-preview safe)", async () => {
+    const { hasPermission } = await import("./auth")
+    expect(await hasPermission(admin, "opportunities.delete")).toBe(true)
+    expect(mockAppRpc).not.toHaveBeenCalled()
+  })
+
+  it("resolves non-admins from my_permissions()", async () => {
+    mockAppRpc.mockResolvedValue({ data: ["opportunities.edit", "reports.view"] })
+    const { hasPermission } = await import("./auth")
+    expect(await hasPermission(rep, "opportunities.edit")).toBe(true)
+    expect(await hasPermission(rep, "opportunities.delete")).toBe(false)
+    expect(mockAppRpc).toHaveBeenCalledWith("my_permissions")
   })
 })

@@ -75,6 +75,14 @@
 # Write access is admin-only.
 .*relationship_types.*:USING \(true\)
 
+# ── roles / permissions / role_permissions ────────────────────────────────────
+# RBAC reference/config tables: the roles catalogue, the code-defined permission
+# catalogue, and the role×permission matrix. All authenticated users may read
+# them to render role/permission labels; the security-relevant checks go through
+# the SECURITY DEFINER has_permission()/my_permissions() functions, not these
+# SELECT policies. Write access is admin-only (current_user_role() = 'admin').
+.*roles_permissions.*:USING \(true\)
+
 # ── system_settings ───────────────────────────────────────────────────────────
 # System-wide configuration table. All authenticated users need read access
 # to discover system settings. Write access is admin-only.
