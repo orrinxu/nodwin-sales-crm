@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
+import { modelsFor } from "@/lib/ai/provider-models"
 import type { AiProviderName, AiProvidersView, AiProviderSafe } from "@/lib/data/ai-providers"
 
 interface Props {
@@ -155,7 +156,12 @@ export function AiProvidersForm({ data, saveAction }: Props) {
                     />
                   </Field>
                   <Field label="Model">
-                    <Input value={d.model} onChange={(e) => patch(p.provider, { model: e.target.value })} placeholder="model name" />
+                    <ModelPicker
+                      provider={p.provider}
+                      label={p.label}
+                      value={d.model}
+                      onChange={(v) => patch(p.provider, { model: v })}
+                    />
                   </Field>
                   <Field label="Priority (lower runs first)">
                     <Input
@@ -186,6 +192,44 @@ export function AiProvidersForm({ data, saveAction }: Props) {
         </div>
       </form>
     </div>
+  )
+}
+
+/**
+ * Model field: a datalist-backed combobox. For providers with a curated model
+ * list, the models appear as selectable suggestions (native <datalist>), while
+ * the field stays a plain text input so any custom / unknown value can still be
+ * typed and is preserved on save. For providers with no curated list
+ * (self-hosted), it degrades to a plain free-text input.
+ */
+function ModelPicker({
+  provider, label, value, onChange,
+}: {
+  provider: AiProviderName
+  label: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  const options = modelsFor(provider)
+  const listId = `ai-model-options-${provider}`
+  return (
+    <>
+      <Input
+        aria-label={`Model for ${label}`}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={options.length > 0 ? "Select or type a model" : "model name"}
+        list={options.length > 0 ? listId : undefined}
+        autoComplete="off"
+      />
+      {options.length > 0 && (
+        <datalist id={listId}>
+          {options.map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
+      )}
+    </>
   )
 }
 

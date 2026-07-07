@@ -2558,6 +2558,57 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_views: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          filters: Json
+          id: string
+          name: string
+          scope: string
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          filters?: Json
+          id?: string
+          name: string
+          scope: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          filters?: Json
+          id?: string
+          name?: string
+          scope?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_views_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "ai_usage_daily_rollup"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "saved_views_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       slack_connections: {
         Row: {
           created_at: string
@@ -2773,6 +2824,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          dashboard_layout: Json | null
           date_format: string
           display_currency: string | null
           entry_currency_default: string | null
@@ -2788,6 +2840,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          dashboard_layout?: Json | null
           date_format?: string
           display_currency?: string | null
           entry_currency_default?: string | null
@@ -2803,6 +2856,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          dashboard_layout?: Json | null
           date_format?: string
           display_currency?: string | null
           entry_currency_default?: string | null
@@ -2999,10 +3053,41 @@ export type Database = {
           value_bucket: string
         }[]
       }
+      conversion_funnel_agg: {
+        Args: never
+        Returns: {
+          deal_count: number
+          stage: string
+        }[]
+      }
       current_user_entity_id: { Args: never; Returns: string }
       current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      forecast_pipeline_agg: {
+        Args: {
+          p_next_quarter_end: string
+          p_this_quarter_end: string
+          p_this_quarter_start: string
+        }
+        Returns: {
+          currency: string
+          deal_count: number
+          gross_amount: number
+          period: string
+          stage: string
+          weighted_amount: number
+        }[]
+      }
+      forecast_revenue_curve_agg: {
+        Args: never
+        Returns: {
+          amount: number
+          currency: string
+          entry_count: number
+          month: string
+        }[]
       }
       get_effective_user_caps: {
         Args: { p_user_id: string }
@@ -3099,6 +3184,20 @@ export type Database = {
           _step_id: string
         }
         Returns: undefined
+      }
+      rep_scorecard_agg: {
+        Args: { p_period_end: string; p_period_start: string }
+        Returns: {
+          currency: string
+          cycle_days_sum: number
+          lost_count: number
+          open_amount: number
+          owner_name: string
+          owner_user_id: string
+          weighted_amount: number
+          won_amount: number
+          won_count: number
+        }[]
       }
       replace_account_tax_ids: {
         Args: { _account_id: string; _tax_ids: Json }

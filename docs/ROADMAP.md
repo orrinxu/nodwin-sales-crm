@@ -1,35 +1,28 @@
 # Nodwin CRM — Build Roadmap
 
 > Status of every **SOW §5.1 Must-Have (v1)** feature + the **§5.2 MCP (v1.5)** deliverable,
-> against the codebase as audited **2026-07-03**. This is the canonical "what's left" reference.
+> against the codebase as audited **2026-07-06**. This is the canonical "what's left" reference.
 >
 > Legend — **✅ Done** (wired end-to-end, usable) · **🟡 Partial** (code exists but unwired / placeholder / broken) · **❌ Absent** (schema/toggle only, or nothing).
 > Effort — **S** ≈ ≤1 PR wiring · **M** ≈ new admin/UI surface · **L** ≈ greenfield subsystem.
 
-Audit tally: **3 done · 8 partial · 12 absent** of 23.
+Audit tally: **8 done · 4 partial · 11 absent** of 23.
 
 ---
 
-## ✅ Done (3)
+## ✅ Done (8)
 
 | SOW # | Feature | Notes |
 |---|---|---|
+| 1 | Google OAuth + domain allow-list (+ admin GUI) | OAuth + `is_email_domain_allowed()` enforcement plus allowed-domains admin GUI (`app/(crm)/admin/allowed-domains/`, `lib/data/allowed-domains.ts`). |
+| 2 | Account detail company-tree | Relationship graph wired into account detail (`app/(crm)/accounts/[id]/page.tsx` → `getAccountRelationships`/`getAccountRelationshipGraph`/`upsertAccountRelationshipAction`); `admin/relationship-types/`. (Drive-folder sub-part stays deferred → §12.) |
 | 3 | Contact list + detail (+ M2M account links) | Read view doesn't display linked accounts (edit-only) — minor. |
 | 4 | Opportunity list + kanban | Drag-to-advance, per-column totals, hot/overdue badges. |
+| 5 | Opportunity detail tabs | ORR-646 detail read-view redesign; stage-history/splits/team/approvals wired to real data. |
 | 6 | Custom fields admin GUI | All 12 data types; add/edit/archive/reorder. |
-
----
-
-## 🟡 In progress — this batch (the "wiring win" partials)
-
-These have load-bearing backends already built; the work is entry points and UI.
-
-| SOW # | Feature | Effort | What's being done |
-|---|---|---|---|
-| 1 | Google OAuth + domain allow-list | M | OAuth + `is_email_domain_allowed()` enforcement already work at runtime. **Adding the admin GUI** to edit `auth_allowed_domains` (mirrors business-units/entities admin). |
-| 2 | Account detail company-tree | S | `RelationshipTree` + `getAccountRelationshipGraph` are **built but orphaned** (from stashed ORR-468). **Wiring them into the account detail page.** (Drive-folder sub-part stays deferred → §12.) |
-| 5 | Opportunity detail tabs | M | Splits/team/stage-history/activity are real. **Restructuring into tabs** and wiring Notes/Calls/Stage-history/Approval-history to real data; Email/Files render honest "connect Gmail/Drive" empty states until those land. |
-| 7 | Approval workflow (MVP) | M | Schema + isolated xstate exist. **Building `lib/data/approvals.ts`, submit/approve/reject + real approval-history** on the opportunity. `enforce_gate` stays OFF per SOW §4.9. Admin GUI + template steps = follow-up (see below). |
+| 7 | Approval workflow (MVP) | `lib/data/approvals.ts`; write-path/gate/multi-approver migrations; opp-detail wires submit/approve/reject/reassign/cancel (ORR-604/608/610/611). |
+| 7b | Approval admin GUI + template steps | `app/(crm)/admin/approval-workflows/`; migrations `..350000_approval_workflow_admin.sql`, `20260704000000_approval_template_layer.sql`, `..010000_approval_enforce_gate.sql`. (Sub-item of 7 — not counted in the 23.) |
+| 15 | AI search (semantic + keyword) | pgvector shipped: `lib/ai/embeddings.ts`, `lib/ingestion/`, migrations `..020000_document_ingestion.sql` / `..030000_knowledge_search.sql`, route `app/api/knowledge/search/route.ts`, UI `app/(crm)/knowledge/` + `admin/knowledge/` (ORR-620/621). |
 
 ---
 
@@ -37,11 +30,10 @@ These have load-bearing backends already built; the work is entry points and UI.
 
 | SOW # | Feature | Effort | Gap | Blocked by |
 |---|---|---|---|---|
-| 7b | Approval **admin GUI** + template steps | M | Add `enforce_gate` col + `approval_workflow_steps` template table; admin authoring UI at `/admin/approvals`. | — (follows 7-MVP) |
 | 9 | Inbound email (Postmark) | S | Parser `lib/email/inbound.ts` + `lib/webhooks/postmark.ts` complete + tested. **Missing only the route** `app/api/webhooks/postmark/route.ts`. | Postmark account/domain |
 | 11 | Slack integration | M | `sendSlackNotification` queries **phantom columns** (`slack_user_id`/`access_token`/`user_id`/`enabled` don't exist) → runtime error. Needs reconciled per-user Slack-identity schema + a signed slash-command/event route. | Slack app + `@slack/bolt` |
 | 16 | AI assistant (summarise/draft/next-best) | M | Full router + caps + 6 providers in `lib/ai/`; **nothing calls it**. Needs `/api/ai/*` endpoints + UI buttons. | — |
-| 17 | Dashboards (role-tiered) | L | 1 generic dashboard + reports exist. **~10 of 11 named dashboards absent** (My Pipeline/Activities/Targets, Team Funnel/Leaderboard/Stuck Deals, Group Pipeline, Revenue Forecast, Deals at Risk); no My/Team/Group tiers. | — |
+| 17 | Dashboards (role-tiered) | L | 1 generic dashboard + reports exist; **Stuck Deals shipped** (ORR-103: `lib/data/stuck-deals.ts`, `components/dashboard/stuck-deals.tsx`, `admin/deal-health/`). **~9 of 11 named dashboards still absent** (My Pipeline/Activities/Targets, Team Funnel/Leaderboard, Group Pipeline, Revenue Forecast, Deals at Risk); no My/Team/Group tiers. | — |
 
 ---
 
@@ -56,16 +48,15 @@ These have load-bearing backends already built; the work is entry points and UI.
 | 10 | Outbound email composer (Gmail OAuth) | L | `gmail.send` OAuth, compose UI, log-as-activity. (Resend txn-notifications are unrelated.) |
 | 13 | Google Calendar | L | Event creation from deals + event→suggested-activity ingest. |
 | 14 | **P&L Google Sheet on close** | L | Headline SOW "why". Sheets API copy-of-template + prefill + Finance share + notify, on `closed_won`. |
-| 15 | AI search (semantic + keyword) | L | No embeddings/pgvector/route. Needs indexing pipeline + search API + UI. |
 | 18 | Salesforce migration tooling | L | Only a `legacy_salesforce_id` column. Needs idempotent + incremental importer + `sf_field_map.yaml`. |
 | 20 | Audit-log **viewer** UI | M | Triggers write `audit_log`; nothing displays it. Needs per-record + global filterable view. |
 | 21 | AI cost dashboard | M | `ai_usage` + rollup view exist; no admin page reads them. Depends conceptually on 16 being live. |
-| 19 | Sandbox / demo mode | M | Admin-toggleable seeded, isolated env. Nothing exists. |
+| 19 | Sandbox / demo mode | — | **⚠️ Deprecated direction.** Nothing built — and no longer planned as spec'd: the deploy model was collapsed to a single production environment, so "sandbox as a managed, admin-toggleable isolated env" is obsolete. Re-scope (e.g. seed-data-only demo mode) before any build. |
 | 22 | Mobile PWA + Capacitor | M | No manifest/service worker. Add `next-pwa` + manifest; Capacitor wrapper if leadership wants stores. |
 | — | **MCP server (v1.5)** | L | Data layer is prepped (`{user, source}` threaded). Needs server + tool registry + `mcp_sessions`/`mcp_calls` + auth. Per SOW, starts *after* 4wk East-Asia stability. |
 
 ### Missing admin GUIs (sub-items of above)
-User management / role assignment · Approvals (7b) · Allowed-domains (part of 1) · AI-cost (21) · Audit-viewer (20) · Sandbox (19).
+User management / role assignment · AI-cost (21) · Audit-viewer (20). *(Approvals-7b and Allowed-domains-1 now shipped; Sandbox-19 deprecated.)*
 
 ---
 

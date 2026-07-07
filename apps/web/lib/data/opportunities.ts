@@ -101,12 +101,36 @@ function toDomainOpportunity(data: Record<string, unknown>): OpportunityRecord {
   }
 }
 
+/**
+ * Owner-scope for the opportunities list. Applied as an ADDITIONAL narrowing
+ * filter on top of RLS — it can only ever remove rows the caller could already
+ * see, never widen access.
+ *
+ * - "all"  (default): every opportunity visible to the caller under RLS — the
+ *   org-wide Opportunities list.
+ * - "mine": only opportunities the caller owns (owner_user_id = me) — the
+ *   personal Pipeline board.
+ *
+ * Extension seam: a future "team" scope (owners within the caller's reporting
+ * line via users.manager_user_id) slots in as one more branch in
+ * `applyScopeFilter` below — resolve the report ids and add
+ * `.in("owner_user_id", reportIds)`. Kept as a string-literal union so adding a
+ * member is a small, localized, type-checked change.
+ */
+export type OpportunityScope = "mine" | "all"
+
+export interface OpportunityListParams {
+  scope?: OpportunityScope
+}
+
 export async function getOpportunities(
   ctx: OpportunityCallContext,
+  params: OpportunityListParams = {},
 ): Promise<OpportunityListResult> {
   const supabase = await createServerClient()
+  const scope: OpportunityScope = params.scope ?? "all"
 
-  const { data, error, count } = await supabase
+  let query = supabase
     .from("opportunities")
     .select(
       `
@@ -147,7 +171,19 @@ export async function getOpportunities(
     `,
       { count: "exact" },
     )
-    .order("updated_at", { ascending: false })
+
+  // Owner-scope narrowing. Additional filter ON TOP of RLS — never widens access.
+  if (scope === "mine") {
+    query = query.eq("owner_user_id", ctx.user.id)
+  }
+  // Future: else if (scope === "team") {
+  //   const reportIds = await getReportUserIds(ctx) // via users.manager_user_id
+  //   query = query.in("owner_user_id", reportIds)
+  // }
+
+  const { data, error, count } = await query.order("updated_at", {
+    ascending: false,
+  })
 
   if (error) {
     throw new Error(`Failed to load opportunities: ${error.message}`)

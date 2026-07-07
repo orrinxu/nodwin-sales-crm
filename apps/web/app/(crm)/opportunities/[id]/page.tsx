@@ -27,6 +27,12 @@ import {
   reassignApprovalStepAction,
   cancelApprovalInstanceAction,
 } from "../actions"
+import {
+  dealCopilotSummaryAction,
+  dealCopilotEmailAction,
+  dealCopilotNextBestActionAction,
+} from "../copilot-actions"
+import { isDealCopilotConfigured } from "@/lib/ai/deal-copilot"
 import { OpportunityDetailWrapper } from "@/components/opportunities/opportunity-detail-wrapper"
 
 export default async function OpportunityDetailPage({
@@ -44,7 +50,7 @@ export default async function OpportunityDetailPage({
     notFound()
   }
 
-  const [businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState, enforceGateStatus] =
+  const [businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState, enforceGateStatus, dealCopilotConfigured] =
     await Promise.all([
       getBusinessUnitOptions(ctx),
       getActivitiesForOpportunity(ctx, id),
@@ -55,6 +61,7 @@ export default async function OpportunityDetailPage({
       getApprovalHistoryForOpportunity(ctx, id),
       getApprovalActionState(ctx, id),
       getEnforceGateStatus(ctx, id, opportunity.stage),
+      isDealCopilotConfigured(),
     ])
 
   const approvalStatus = approvalStatusLabel(summarizeApprovalStatus(approvals))
@@ -84,6 +91,10 @@ export default async function OpportunityDetailPage({
       updateSplitsAction={updateOpportunitySplitsAction}
       updateTeamAction={updateOpportunityTeamMembersAction}
       enforceGateStatus={enforceGateStatus}
+      dealCopilotConfigured={dealCopilotConfigured}
+      dealCopilotSummaryAction={dealCopilotSummaryAction}
+      dealCopilotEmailAction={dealCopilotEmailAction}
+      dealCopilotNextBestActionAction={dealCopilotNextBestActionAction}
     />
   )
 }

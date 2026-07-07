@@ -111,13 +111,13 @@ export function ContactsList({
     return result
   }, [contacts, searchQuery, accountFilter, ownerFilter])
 
+  // getRowId keys the selection by contact id, so it survives filtering/sorting.
   const selectedIds = useMemo(
     () =>
       Object.entries(rowSelection)
         .filter(([, isSelected]) => isSelected)
-        .map(([key]) => filteredContacts.at(Number(key))?.id)
-        .filter((id): id is string => !!id),
-    [rowSelection, filteredContacts],
+        .map(([id]) => id),
+    [rowSelection],
   )
 
   const columns: ColumnDef<ContactListRecord>[] = useMemo(
@@ -193,6 +193,7 @@ export function ContactsList({
     columns,
     state: { rowSelection },
     enableRowSelection: true,
+    getRowId: (row) => row.id,
     onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
   })

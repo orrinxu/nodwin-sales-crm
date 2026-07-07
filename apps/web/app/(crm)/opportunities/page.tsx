@@ -6,6 +6,9 @@ import {
 } from "@/lib/data/opportunities"
 import { getAccountOptions } from "@/lib/data/contacts"
 import { getUserPreferences } from "@/lib/data/user-preferences"
+import { getStageTotals } from "@/lib/data/stage-totals"
+import { attachDealHealth } from "@/lib/data/deal-health"
+import { listSavedViews } from "@/lib/data/saved-views"
 import { OpportunitiesView } from "@/components/opportunities/opportunities-view"
 import type { EntityOption } from "@/components/entity-combobox"
 import {
@@ -17,24 +20,34 @@ import {
   searchContactsAction,
   searchUsersAction,
   createContactQuickAction,
+  saveViewAction,
+  deleteSavedViewAction,
 } from "./actions"
 
 export default async function OpportunitiesPage() {
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
 
-  const [{ opportunities }, accounts, businessUnits, userOptions, preferences] = await Promise.all([
-    getOpportunities(ctx),
+  const [{ opportunities: rawOpportunities }, accounts, businessUnits, userOptions, preferences, savedViews] = await Promise.all([
+    getOpportunities(ctx, { scope: "all" }),
     getAccountOptions(ctx),
     getBusinessUnitOptions(ctx),
     getUserOptions(ctx),
     getUserPreferences(ctx),
+    listSavedViews(ctx, "all"),
   ])
+
+  // Attach batched deal-card health signals (overdue / stale) — one RPC for the
+  // whole scoped list, never per-card.
+  const opportunities = await attachDealHealth(ctx, rawOpportunities)
 
   const users: EntityOption[] = userOptions.map((u) => ({
     id: u.id,
     name: u.fullName,
   }))
+
+  // FX-normalised per-stage board totals over the scoped ("all") list.
+  const stageTotals = await getStageTotals(ctx, opportunities)
 
   // Entry default: explicit entry_currency_default, else "match display", else USD.
   const defaultCurrency =
@@ -43,6 +56,7 @@ export default async function OpportunitiesPage() {
   return (
       <OpportunitiesView
         opportunities={opportunities}
+        stageTotals={stageTotals}
         accounts={accounts}
         businessUnits={businessUnits}
         users={users}
@@ -55,6 +69,13 @@ export default async function OpportunitiesPage() {
         searchUsersAction={searchUsersAction}
         createContactQuickAction={createContactQuickAction}
         defaultCurrency={defaultCurrency}
+        defaultView="table"
+        title="Opportunities"
+        description="All deals across the group you can access."
+        savedViews={savedViews}
+        savedViewScope="all"
+        saveViewAction={saveViewAction}
+        deleteSavedViewAction={deleteSavedViewAction}
       />
   )
 }

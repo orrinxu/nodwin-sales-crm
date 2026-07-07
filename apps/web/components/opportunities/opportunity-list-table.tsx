@@ -2,10 +2,6 @@
 
 import { useCallback, useMemo, useState } from "react"
 import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  useReactTable,
   type ColumnDef,
   type RowSelectionState,
   type SortingState,
@@ -20,16 +16,14 @@ import {
 import { getStageLabel, type OpportunityRecord } from "@/lib/data/opportunities.types"
 import { Money } from "@/lib/money"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { DataTable } from "@/components/primitives/data-table"
+import { FilterBar, FilterField } from "@/components/primitives/filter-bar"
+import { StageBadge } from "@/components/primitives/stage-badge"
+import { StatusBadge } from "@/components/primitives/status-badge"
+import { overdueLabel, staleLabel } from "@/lib/opportunity/deal-health"
 import {
   Dialog,
   DialogContent,
@@ -46,6 +40,16 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Trash2Icon, ArrowUpDownIcon, SearchIcon, XIcon } from "lucide-react"
+import { SavedViewsMenu } from "@/components/opportunities/saved-views-menu"
+import {
+  buildSavedFilters,
+  applySavedFilters,
+} from "@/components/opportunities/saved-views-filters"
+import type {
+  SavedViewRecord,
+  SavedViewFilters,
+  SavedViewScope,
+} from "@/lib/data/saved-views"
 
 interface OpportunityListTableProps {
   opportunities: OpportunityRecord[]
@@ -54,6 +58,15 @@ interface OpportunityListTableProps {
     ids: string[]
     stage: string
   }) => Promise<void>
+  /** Saved-views support — omitted (all four) disables the Views control. */
+  savedViews?: SavedViewRecord[]
+  savedViewScope?: SavedViewScope
+  saveViewAction?: (input: {
+    name: string
+    scope: SavedViewScope
+    filters: SavedViewFilters
+  }) => Promise<SavedViewRecord>
+  deleteSavedViewAction?: (id: string) => Promise<void>
 }
 
 const ALL_STAGES = [...NON_TERMINAL_STAGES, ...TERMINAL_STAGES]
@@ -117,6 +130,10 @@ export function OpportunityListTable({
   opportunities,
   bulkDeleteAction,
   bulkUpdateStageAction,
+  savedViews,
+  savedViewScope,
+  saveViewAction,
+  deleteSavedViewAction,
 }: OpportunityListTableProps) {
   const router = useRouter()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -167,6 +184,23 @@ export function OpportunityListTable({
     setStageFilter("all")
     setOwnerFilter("all")
   }, [])
+
+  // Saved views: serialize the live filter/sort state, and restore it on apply.
+  const currentFilters = useMemo(
+    () => buildSavedFilters({ searchQuery, stageFilter, ownerFilter, sorting }),
+    [searchQuery, stageFilter, ownerFilter, sorting],
+  )
+  const applyView = useCallback((filters: SavedViewFilters) => {
+    const next = applySavedFilters(filters)
+    setSearchQuery(next.searchQuery)
+    setStageFilter(next.stageFilter)
+    setOwnerFilter(next.ownerFilter)
+    setSorting(next.sorting)
+  }, [])
+  const savedViewsEnabled =
+    savedViewScope != null &&
+    saveViewAction != null &&
+    deleteSavedViewAction != null
 
   // getRowId keys the selection by opportunity id, so it survives filtering/sorting.
   const selectedIds = useMemo(
@@ -237,7 +271,34 @@ export function OpportunityListTable({
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           />
         ),
-        cell: ({ row }) => getStageLabel(row.getValue("stage")),
+        cell: ({ row }) => <StageBadge stage={row.getValue<DealStage>("stage")} />,
+      },
+      {
+        id: "health",
+        header: "Health",
+        // Batched, server-computed health signals (see lib/data/deal-health.ts).
+        // A healthy / terminal deal has no signal → an em dash.
+        cell: ({ row }) => {
+          const health = row.original.health
+          if (!health || (!health.overdue && !health.stale)) {
+            return <span className="text-muted-foreground">—</span>
+          }
+          return (
+            <div className="flex flex-wrap items-center gap-1">
+              {health.overdue ? (
+                <StatusBadge tone="destructive">
+                  {overdueLabel(health.overdue.days)}
+                </StatusBadge>
+              ) : null}
+              {health.stale ? (
+                <StatusBadge tone="warning">
+                  {staleLabel(health.stale.days)}
+                </StatusBadge>
+              ) : null}
+            </div>
+          )
+        },
+        enableSorting: false,
       },
       {
         accessorKey: "amount",
@@ -287,20 +348,6 @@ export function OpportunityListTable({
     [router],
   )
 
-  // TanStack Table is a compatible library; this is a known false positive.
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable({
-    data: filteredOpportunities,
-    columns,
-    state: { rowSelection, sorting },
-    enableRowSelection: true,
-    getRowId: (row) => row.id,
-    onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  })
-
   const handleBulkDelete = useCallback(async () => {
     if (selectedIds.length === 0) return
     setIsPending(true)
@@ -333,49 +380,69 @@ export function OpportunityListTable({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 sm:max-w-xs">
-          <SearchIcon className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search opportunities..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8"
-          />
-        </div>
-        <Select value={stageFilter} onValueChange={(v) => setStageFilter(v ?? "all")}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="All stages" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All stages</SelectItem>
-            {ALL_STAGES.map((stage) => (
-              <SelectItem key={stage} value={stage}>
-                {getStageLabel(stage)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v ?? "all")}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="All owners" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All owners</SelectItem>
-            {ownerOptions.map((o) => (
-              <SelectItem key={o.id} value={o.id}>
-                {o.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <FilterBar>
+        <FilterField label="Search" htmlFor="opp-search" className="flex-1 sm:max-w-xs">
+          <div className="relative">
+            <SearchIcon className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="opp-search"
+              placeholder="Search opportunities..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+        </FilterField>
+        <FilterField label="Stage" htmlFor="opp-stage-filter">
+          <Select value={stageFilter} onValueChange={(v) => setStageFilter(v ?? "all")}>
+            <SelectTrigger id="opp-stage-filter" className="w-[180px]">
+              <SelectValue placeholder="All stages" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All stages</SelectItem>
+              {ALL_STAGES.map((stage) => (
+                <SelectItem key={stage} value={stage}>
+                  {getStageLabel(stage)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+        <FilterField label="Owner" htmlFor="opp-owner-filter">
+          <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v ?? "all")}>
+            <SelectTrigger id="opp-owner-filter" className="w-[180px]">
+              <SelectValue placeholder="All owners" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All owners</SelectItem>
+              {ownerOptions.map((o) => (
+                <SelectItem key={o.id} value={o.id}>
+                  {o.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
         {hasActiveFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>
             <XIcon />
             Clear
           </Button>
         )}
-      </div>
+        {savedViewsEnabled ? (
+          <div className="ml-auto">
+            <SavedViewsMenu
+              savedViews={savedViews ?? []}
+              scope={savedViewScope}
+              currentFilters={currentFilters}
+              canSave={hasActiveFilters}
+              onApply={applyView}
+              saveViewAction={saveViewAction}
+              deleteSavedViewAction={deleteSavedViewAction}
+            />
+          </div>
+        ) : null}
+      </FilterBar>
 
       {selectedIds.length > 0 && (
         <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2">
@@ -403,59 +470,23 @@ export function OpportunityListTable({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length > 0 ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center text-muted-foreground"
-                >
-                  {hasActiveFilters
-                    ? "No opportunities match your filters."
-                    : "No opportunities yet. Create one to get started."}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <Card className="p-0">
+        <DataTable
+          columns={columns}
+          data={filteredOpportunities}
+          getRowId={(row) => row.id}
+          sorting={sorting}
+          onSortingChange={setSorting}
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+          enableRowSelection
+          emptyState={
+            hasActiveFilters
+              ? "No opportunities match your filters."
+              : "No opportunities yet. Create one to get started."
+          }
+        />
+      </Card>
 
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>

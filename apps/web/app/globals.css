@@ -4,6 +4,17 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================================================
+   DESIGN SYSTEM — token bands (see DESIGN.md)
+
+   1. FIXED band (:root + .dark): warm neutrals, semantic colours, 7-stage ramp.
+      These never change per tenant.
+   2. INJECTABLE band: --primary / --accent / --ring / sidebar-primary/-ring.
+      Declared here with a var(--brand-*, <seeded fallback>) so SSR-without-
+      injection still renders. app/layout.tsx stamps the --brand-* vars.
+   3. @theme inline: exposes the tokens above as Tailwind colour/utility aliases.
+   ========================================================================== */
+
 @theme inline {
     --font-heading: var(--font-sans);
     --font-sans: var(--font-sans);
@@ -24,6 +35,13 @@
     --color-input: var(--input);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-success: var(--success);
+    --color-success-foreground: var(--success-foreground);
+    --color-warning: var(--warning);
+    --color-warning-foreground: var(--warning-foreground);
+    --color-info: var(--info);
+    --color-info-foreground: var(--info-foreground);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
     --color-muted-foreground: var(--muted-foreground);
@@ -38,6 +56,15 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
+    /* 7-stage ramp — chart solids exposed as Tailwind colour utilities
+       (bg-stage-qualify, text-stage-closed_won, …). */
+    --color-stage-qualify: var(--stage-qualify-chart);
+    --color-stage-meet_and_present: var(--stage-meet_and_present-chart);
+    --color-stage-propose: var(--stage-propose-chart);
+    --color-stage-negotiate: var(--stage-negotiate-chart);
+    --color-stage-verbal_agreement: var(--stage-verbal_agreement-chart);
+    --color-stage-closed_won: var(--stage-closed_won-chart);
+    --color-stage-closed_lost: var(--stage-closed_lost-chart);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -48,72 +75,191 @@
 }
 
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.45 0.18 145);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.95 0.03 145);
-    --secondary-foreground: oklch(0.25 0.06 145);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.93 0.05 145);
-    --accent-foreground: oklch(0.25 0.06 145);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.92 0.01 145);
-    --input: oklch(0.9 0.01 145);
-    --ring: oklch(0.45 0.18 145);
-    --chart-1: oklch(0.55 0.18 145);
-    --chart-2: oklch(0.45 0.14 145);
-    --chart-3: oklch(0.35 0.1 145);
-    --chart-4: oklch(0.65 0.14 145);
-    --chart-5: oklch(0.5 0.12 145);
+    /* --- FIXED: warm neutrals (hue ~70, very low chroma) --- */
+    --background: oklch(0.995 0.003 70);
+    --foreground: oklch(0.18 0.01 70);
+    --card: oklch(1 0.002 70);
+    --card-foreground: oklch(0.18 0.01 70);
+    --popover: oklch(1 0.002 70);
+    --popover-foreground: oklch(0.18 0.01 70);
+    --secondary: oklch(0.95 0.008 70);
+    --secondary-foreground: oklch(0.24 0.012 70);
+    --muted: oklch(0.97 0.006 70);
+    --muted-foreground: oklch(0.52 0.02 70);
+    --border: oklch(0.92 0.008 70);
+    --input: oklch(0.9 0.01 70);
+    --sidebar: oklch(0.985 0.005 70);
+    --sidebar-foreground: oklch(0.2 0.01 70);
+    --sidebar-accent: oklch(0.95 0.008 70);
+    --sidebar-accent-foreground: oklch(0.24 0.012 70);
+    --sidebar-border: oklch(0.92 0.008 70);
+
+    /* --- FIXED: neutral charts (kept for legacy chart-1..5 usage) --- */
+    --chart-1: oklch(0.55 0.02 70);
+    --chart-2: oklch(0.45 0.02 70);
+    --chart-3: oklch(0.65 0.02 70);
+    --chart-4: oklch(0.75 0.015 70);
+    --chart-5: oklch(0.35 0.02 70);
     --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.45 0.18 145);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.93 0.05 145);
-    --sidebar-accent-foreground: oklch(0.25 0.06 145);
-    --sidebar-border: oklch(0.92 0.01 145);
-    --sidebar-ring: oklch(0.45 0.18 145);
+
+    /* --- FIXED: semantic colours --- */
+    --destructive: oklch(0.577 0.245 27.325);
+    --destructive-foreground: oklch(0.99 0 0);
+    --success: oklch(0.55 0.14 150);
+    --success-foreground: oklch(0.99 0 0);
+    --warning: oklch(0.72 0.15 75);
+    --warning-foreground: oklch(0.26 0.05 75);
+    --info: oklch(0.55 0.15 250);
+    --info-foreground: oklch(0.99 0 0);
+
+    /* --- FIXED: 7-stage ramp (badge bg / badge fg / chart solid) --- */
+    --stage-qualify-badge-bg: oklch(0.95 0.04 250);
+    --stage-qualify-badge-fg: oklch(0.45 0.13 250);
+    --stage-qualify-chart: oklch(0.6 0.14 250);
+    --stage-meet_and_present-badge-bg: oklch(0.95 0.04 290);
+    --stage-meet_and_present-badge-fg: oklch(0.45 0.14 290);
+    --stage-meet_and_present-chart: oklch(0.58 0.16 290);
+    --stage-propose-badge-bg: oklch(0.95 0.05 75);
+    --stage-propose-badge-fg: oklch(0.48 0.12 75);
+    --stage-propose-chart: oklch(0.72 0.14 75);
+    --stage-negotiate-badge-bg: oklch(0.95 0.05 45);
+    --stage-negotiate-badge-fg: oklch(0.48 0.14 45);
+    --stage-negotiate-chart: oklch(0.65 0.16 45);
+    --stage-verbal_agreement-badge-bg: oklch(0.94 0.04 190);
+    --stage-verbal_agreement-badge-fg: oklch(0.42 0.1 190);
+    --stage-verbal_agreement-chart: oklch(0.62 0.11 190);
+    --stage-closed_won-badge-bg: oklch(0.94 0.05 150);
+    --stage-closed_won-badge-fg: oklch(0.42 0.13 150);
+    --stage-closed_won-chart: oklch(0.6 0.15 150);
+    --stage-closed_lost-badge-bg: oklch(0.95 0.04 25);
+    --stage-closed_lost-badge-fg: oklch(0.5 0.16 25);
+    --stage-closed_lost-chart: oklch(0.58 0.2 25);
+
+    /* --- INJECTABLE: brand (fallbacks == SEEDED_THEME.light) --- */
+    --primary: var(--brand-primary-light, oklch(0.45 0.18 145));
+    --primary-foreground: var(--brand-primary-foreground-light, oklch(0.985 0 0));
+    --accent: var(--brand-accent-light, oklch(0.93 0.05 145));
+    --accent-foreground: var(--brand-accent-foreground-light, oklch(0.25 0.06 145));
+    --ring: var(--brand-ring-light, oklch(0.45 0.18 145));
+    --sidebar-primary: var(--brand-sidebar-primary-light, oklch(0.45 0.18 145));
+    --sidebar-primary-foreground: var(--brand-sidebar-primary-foreground-light, oklch(0.985 0 0));
+    --sidebar-ring: var(--brand-sidebar-ring-light, oklch(0.45 0.18 145));
 }
 
 .dark {
-    --background: oklch(0.13 0.02 145);
-    --foreground: oklch(0.95 0.01 145);
-    --card: oklch(0.18 0.03 145);
-    --card-foreground: oklch(0.95 0.01 145);
-    --popover: oklch(0.18 0.03 145);
-    --popover-foreground: oklch(0.95 0.01 145);
-    --primary: oklch(0.65 0.2 145);
-    --primary-foreground: oklch(0.12 0.02 145);
-    --secondary: oklch(0.22 0.04 145);
-    --secondary-foreground: oklch(0.9 0.02 145);
-    --muted: oklch(0.22 0.04 145);
-    --muted-foreground: oklch(0.6 0.03 145);
-    --accent: oklch(0.22 0.04 145);
-    --accent-foreground: oklch(0.9 0.02 145);
+    /* --- FIXED: warm neutrals (dark) --- */
+    --background: oklch(0.16 0.008 70);
+    --foreground: oklch(0.96 0.005 70);
+    --card: oklch(0.2 0.01 70);
+    --card-foreground: oklch(0.96 0.005 70);
+    --popover: oklch(0.2 0.01 70);
+    --popover-foreground: oklch(0.96 0.005 70);
+    --secondary: oklch(0.26 0.012 70);
+    --secondary-foreground: oklch(0.92 0.008 70);
+    --muted: oklch(0.25 0.01 70);
+    --muted-foreground: oklch(0.68 0.02 70);
+    --border: oklch(0.28 0.012 70);
+    --input: oklch(0.31 0.014 70);
+    --sidebar: oklch(0.15 0.008 70);
+    --sidebar-foreground: oklch(0.92 0.008 70);
+    --sidebar-accent: oklch(0.24 0.012 70);
+    --sidebar-accent-foreground: oklch(0.92 0.008 70);
+    --sidebar-border: oklch(0.26 0.012 70);
+
+    /* --- FIXED: neutral charts (dark) --- */
+    --chart-1: oklch(0.72 0.02 70);
+    --chart-2: oklch(0.62 0.02 70);
+    --chart-3: oklch(0.52 0.02 70);
+    --chart-4: oklch(0.8 0.015 70);
+    --chart-5: oklch(0.42 0.02 70);
+
+    /* --- FIXED: semantic colours (dark) --- */
     --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(0.25 0.04 145);
-    --input: oklch(0.28 0.04 145);
-    --ring: oklch(0.6 0.18 145);
-    --chart-1: oklch(0.65 0.2 145);
-    --chart-2: oklch(0.55 0.16 145);
-    --chart-3: oklch(0.45 0.12 145);
-    --chart-4: oklch(0.7 0.16 145);
-    --chart-5: oklch(0.5 0.14 145);
-    --sidebar: oklch(0.12 0.03 145);
-    --sidebar-foreground: oklch(0.9 0.02 145);
-    --sidebar-primary: oklch(0.6 0.2 145);
-    --sidebar-primary-foreground: oklch(0.12 0.02 145);
-    --sidebar-accent: oklch(0.2 0.04 145);
-    --sidebar-accent-foreground: oklch(0.9 0.02 145);
-    --sidebar-border: oklch(0.22 0.04 145);
-    --sidebar-ring: oklch(0.55 0.16 145);
+    --destructive-foreground: oklch(0.99 0 0);
+    --success: oklch(0.68 0.16 150);
+    --success-foreground: oklch(0.16 0.02 150);
+    --warning: oklch(0.78 0.15 75);
+    --warning-foreground: oklch(0.2 0.04 75);
+    --info: oklch(0.66 0.15 250);
+    --info-foreground: oklch(0.16 0.02 250);
+
+    /* --- FIXED: 7-stage ramp (dark) --- */
+    --stage-qualify-badge-bg: oklch(0.3 0.05 250);
+    --stage-qualify-badge-fg: oklch(0.82 0.1 250);
+    --stage-qualify-chart: oklch(0.68 0.15 250);
+    --stage-meet_and_present-badge-bg: oklch(0.3 0.06 290);
+    --stage-meet_and_present-badge-fg: oklch(0.82 0.11 290);
+    --stage-meet_and_present-chart: oklch(0.66 0.17 290);
+    --stage-propose-badge-bg: oklch(0.32 0.06 75);
+    --stage-propose-badge-fg: oklch(0.85 0.12 75);
+    --stage-propose-chart: oklch(0.76 0.14 75);
+    --stage-negotiate-badge-bg: oklch(0.32 0.07 45);
+    --stage-negotiate-badge-fg: oklch(0.83 0.13 45);
+    --stage-negotiate-chart: oklch(0.7 0.16 45);
+    --stage-verbal_agreement-badge-bg: oklch(0.3 0.05 190);
+    --stage-verbal_agreement-badge-fg: oklch(0.8 0.09 190);
+    --stage-verbal_agreement-chart: oklch(0.7 0.11 190);
+    --stage-closed_won-badge-bg: oklch(0.3 0.06 150);
+    --stage-closed_won-badge-fg: oklch(0.82 0.13 150);
+    --stage-closed_won-chart: oklch(0.7 0.16 150);
+    --stage-closed_lost-badge-bg: oklch(0.32 0.08 25);
+    --stage-closed_lost-badge-fg: oklch(0.82 0.14 25);
+    --stage-closed_lost-chart: oklch(0.66 0.2 25);
+
+    /* --- INJECTABLE: brand (fallbacks == SEEDED_THEME.dark) --- */
+    --primary: var(--brand-primary-dark, oklch(0.65 0.2 145));
+    --primary-foreground: var(--brand-primary-foreground-dark, oklch(0.12 0.02 145));
+    --accent: var(--brand-accent-dark, oklch(0.22 0.04 145));
+    --accent-foreground: var(--brand-accent-foreground-dark, oklch(0.9 0.02 145));
+    --ring: var(--brand-ring-dark, oklch(0.6 0.18 145));
+    --sidebar-primary: var(--brand-sidebar-primary-dark, oklch(0.6 0.2 145));
+    --sidebar-primary-foreground: var(--brand-sidebar-primary-foreground-dark, oklch(0.12 0.02 145));
+    --sidebar-ring: var(--brand-sidebar-ring-dark, oklch(0.55 0.16 145));
+}
+
+/* ============================================================================
+   Type scale — Tailwind v4 @utility idiom. Compose with colour/weight
+   utilities as needed; these set size/line-height/tracking/weight.
+   ========================================================================== */
+@utility text-display {
+    font-size: 2.25rem;
+    line-height: 2.5rem;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+}
+@utility text-title {
+    font-size: 1.5rem;
+    line-height: 2rem;
+    letter-spacing: -0.0125em;
+    font-weight: 600;
+}
+@utility text-heading {
+    font-size: 1.125rem;
+    line-height: 1.6rem;
+    letter-spacing: -0.01em;
+    font-weight: 600;
+}
+@utility text-subheading {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+}
+@utility text-body {
+    font-size: 0.875rem;
+    line-height: 1.4rem;
+    font-weight: 400;
+}
+@utility text-caption {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 400;
+}
+@utility text-eyebrow {
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 600;
 }
 
 @layer base {

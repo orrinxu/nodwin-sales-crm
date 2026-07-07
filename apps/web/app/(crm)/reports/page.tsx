@@ -1,6 +1,8 @@
 import { requireUser } from "@/lib/security/auth"
 import { getReportData } from "@/lib/data/reports"
+import { getForecastData } from "@/lib/data/forecast"
 import { ReportsView } from "@/components/reports/reports-view"
+import { ForecastScorecards } from "@/components/reports/forecast-scorecards"
 
 export const metadata = {
   title: "Reports - Nodwin CRM",
@@ -8,7 +10,16 @@ export const metadata = {
 
 export default async function ReportsPage() {
   const user = await requireUser()
-  const reportData = await getReportData({ user, source: "web" })
+  const ctx = { user, source: "web" as const }
+  const [reportData, forecastData] = await Promise.all([
+    getReportData(ctx),
+    getForecastData(ctx),
+  ])
 
-  return <ReportsView data={reportData} />
+  return (
+    <div className="flex flex-col gap-6 p-6">
+      <ForecastScorecards data={forecastData} />
+      <ReportsView data={reportData} />
+    </div>
+  )
 }

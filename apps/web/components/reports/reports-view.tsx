@@ -17,17 +17,11 @@ import {
 } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { ReportData } from "@/lib/data/reports"
-
-const COLORS: Record<string, string> = {
-  qualify: "#3b82f6",
-  meet_and_present: "#8b5cf6",
-  propose: "#f59e0b",
-  negotiate: "#ef4444",
-  verbal_agreement: "#10b981",
-  won: "#22c55e",
-  lost: "#ef4444",
-  open: "#6b7280",
-}
+import {
+  CHART_SERIES,
+  chartTooltipStyle,
+  stageChartColor,
+} from "@/components/primitives/chart-theme"
 
 function fmt(v: unknown) {
   const n = typeof v === "number" ? v : Number(v ?? 0)
@@ -39,26 +33,24 @@ function fmt(v: unknown) {
   }).format(n)
 }
 
-const tooltipStyle: React.CSSProperties = {
-  background: "hsl(var(--popover))",
-  color: "hsl(var(--popover-foreground))",
-  border: "1px solid hsl(var(--border))",
-  borderRadius: "var(--radius)",
-  boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-}
+const tooltipStyle = chartTooltipStyle
 
 export function ReportsView({ data }: { data: ReportData }) {
   const pipelineData = data.pipelineByStage.map((s) => ({
     name: s.label,
     amount: s.amount,
-    fill: COLORS[s.stage] ?? "#6b7280",
+    fill: stageChartColor(s.stage),
   }))
 
   const wonLostData = data.wonLostRevenue.map((s) => ({
     name: s.type.charAt(0).toUpperCase() + s.type.slice(1),
     value: s.amount,
     color:
-      s.type === "won" ? COLORS.won : s.type === "lost" ? COLORS.lost : COLORS.open,
+      s.type === "won"
+        ? CHART_SERIES.won
+        : s.type === "lost"
+          ? CHART_SERIES.lost
+          : CHART_SERIES.neutral,
   }))
 
   const trendData = data.monthlyTrends.map((s) => ({
@@ -73,7 +65,7 @@ export function ReportsView({ data }: { data: ReportData }) {
   }))
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -193,14 +185,14 @@ export function ReportsView({ data }: { data: ReportData }) {
                   <Line
                     type="monotone"
                     dataKey="Created"
-                    stroke="#3b82f6"
+                    stroke={CHART_SERIES.created}
                     strokeWidth={2}
                     dot={false}
                   />
                   <Line
                     type="monotone"
                     dataKey="Won"
-                    stroke="#22c55e"
+                    stroke={CHART_SERIES.won}
                     strokeWidth={2}
                     dot={false}
                   />
@@ -231,7 +223,11 @@ export function ReportsView({ data }: { data: ReportData }) {
                     width={120}
                   />
                   <Tooltip formatter={fmt} contentStyle={tooltipStyle} />
-                  <Bar dataKey="amount" radius={[0, 4, 4, 0]} fill="#8b5cf6" />
+                  <Bar
+                    dataKey="amount"
+                    radius={[0, 4, 4, 0]}
+                    fill="var(--color-primary)"
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
