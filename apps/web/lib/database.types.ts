@@ -2421,6 +2421,30 @@ export type Database = {
           },
         ]
       }
+      permissions: {
+        Row: {
+          category: string
+          description: string | null
+          key: string
+          label: string
+          sort_order: number
+        }
+        Insert: {
+          category: string
+          description?: string | null
+          key: string
+          label: string
+          sort_order?: number
+        }
+        Update: {
+          category?: string
+          description?: string | null
+          key?: string
+          label?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       relationship_types: {
         Row: {
           active: boolean
@@ -2527,6 +2551,84 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      role_permissions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          permission_key: string
+          role_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          permission_key: string
+          role_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          permission_key?: string
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_permissions_permission_key_fkey"
+            columns: ["permission_key"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "role_permissions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roles: {
+        Row: {
+          base_role: Database["public"]["Enums"]["user_role"]
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          label: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          base_role: Database["public"]["Enums"]["user_role"]
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          label: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          base_role?: Database["public"]["Enums"]["user_role"]
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          label?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       salesforce_connections: {
         Row: {
@@ -2915,6 +3017,7 @@ export type Database = {
           primary_business_unit_id: string | null
           primary_entity_id: string | null
           primary_role: Database["public"]["Enums"]["user_role"]
+          role_id: string | null
           updated_at: string
         }
         Insert: {
@@ -2931,6 +3034,7 @@ export type Database = {
           primary_business_unit_id?: string | null
           primary_entity_id?: string | null
           primary_role?: Database["public"]["Enums"]["user_role"]
+          role_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -2947,6 +3051,7 @@ export type Database = {
           primary_business_unit_id?: string | null
           primary_entity_id?: string | null
           primary_role?: Database["public"]["Enums"]["user_role"]
+          role_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2976,6 +3081,13 @@ export type Database = {
             columns: ["manager_user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "users_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
             referencedColumns: ["id"]
           },
         ]
@@ -3124,6 +3236,7 @@ export type Database = {
           total_prompt_tokens: number
         }[]
       }
+      has_permission: { Args: { perm_key: string }; Returns: boolean }
       is_email_domain_allowed: { Args: { _email: string }; Returns: boolean }
       job_pipeline_health_snapshot: { Args: never; Returns: undefined }
       money_add: {
@@ -3150,6 +3263,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      my_permissions: { Args: never; Returns: string[] }
       opportunity_check_enforce_gate: {
         Args: {
           _opportunity_id: string
@@ -3239,6 +3353,10 @@ export type Database = {
           similarity: number
           visibility_tier: Database["public"]["Enums"]["visibility_tier"]
         }[]
+      }
+      set_role_permissions: {
+        Args: { _keys: string[]; _role_id: string }
+        Returns: undefined
       }
       stuck_deal_last_activity: {
         Args: { opp_ids: string[] }

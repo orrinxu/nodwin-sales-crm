@@ -34,7 +34,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import type { AdminUserRecord, UserRole } from "@/lib/data/users.types"
-import { USER_ROLES } from "@/lib/data/users.types"
 
 const NONE = "__none__"
 
@@ -69,6 +68,8 @@ interface UsersListProps {
   canManageRoles: boolean
   entities: Option[]
   businessUnits: Option[]
+  /** Assignable roles (system + custom) from the roles table. */
+  roles: Option[]
   updateAction: (userId: string, input: unknown) => Promise<void>
 }
 
@@ -78,6 +79,7 @@ function EditUserDialog({
   canManageRoles,
   entities,
   businessUnits,
+  roles,
   otherUsers,
   onOpenChange,
   updateAction,
@@ -87,13 +89,14 @@ function EditUserDialog({
   canManageRoles: boolean
   entities: Option[]
   businessUnits: Option[]
+  roles: Option[]
   otherUsers: { id: string; name: string }[]
   onOpenChange: (open: boolean) => void
   updateAction: UsersListProps["updateAction"]
 }) {
   const router = useRouter()
   const [fullName, setFullName] = useState(user.fullName ?? "")
-  const [role, setRole] = useState<UserRole>(user.role)
+  const [roleId, setRoleId] = useState<string>(user.roleId ?? "")
   const [entityId, setEntityId] = useState(user.primaryEntityId ?? NONE)
   const [buId, setBuId] = useState(user.primaryBusinessUnitId ?? NONE)
   const [managerId, setManagerId] = useState(user.managerUserId ?? NONE)
@@ -113,7 +116,7 @@ function EditUserDialog({
       // Role / manager / entity are Super-Admin-only (and trigger-blocked for
       // Entity Admins) — don't submit them when the viewer can't manage them.
       if (canManageRoles) {
-        payload.role = role
+        if (roleId) payload.roleId = roleId
         payload.primaryEntityId = entityId === NONE ? null : entityId
         payload.managerUserId = managerId === NONE ? null : managerId
       }
@@ -144,11 +147,11 @@ function EditUserDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Role</Label>
-              <Select value={role} onValueChange={(v) => v && setRole(v as UserRole)} disabled={!canManageRoles}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select value={roleId} onValueChange={(v) => v && setRoleId(v)} disabled={!canManageRoles}>
+                <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
                 <SelectContent>
-                  {USER_ROLES.map((r) => (
-                    <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>
+                  {roles.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -214,7 +217,7 @@ function EditUserDialog({
   )
 }
 
-export function UsersList({ users, currentUserId, canManageRoles, entities, businessUnits, updateAction }: UsersListProps) {
+export function UsersList({ users, currentUserId, canManageRoles, entities, businessUnits, roles, updateAction }: UsersListProps) {
   const [query, setQuery] = useState("")
   const [editing, setEditing] = useState<AdminUserRecord | null>(null)
 
@@ -270,7 +273,7 @@ export function UsersList({ users, currentUserId, canManageRoles, entities, busi
                     {u.id === currentUserId && <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{u.email ?? "—"}</TableCell>
-                  <TableCell><Badge variant="secondary">{roleLabel(u.role)}</Badge></TableCell>
+                  <TableCell><Badge variant="secondary">{u.roleLabel ?? roleLabel(u.role)}</Badge></TableCell>
                   <TableCell>{u.primaryEntityName ?? "—"}</TableCell>
                   <TableCell>{u.managerName ?? "—"}</TableCell>
                   <TableCell>
@@ -299,6 +302,7 @@ export function UsersList({ users, currentUserId, canManageRoles, entities, busi
           canManageRoles={canManageRoles}
           entities={entities}
           businessUnits={businessUnits}
+          roles={roles}
           otherUsers={otherUsers}
           onOpenChange={(open) => { if (!open) setEditing(null) }}
           updateAction={updateAction}
