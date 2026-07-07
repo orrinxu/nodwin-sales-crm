@@ -319,7 +319,7 @@ Concrete checklist for first-time configuration:
 
 These are common configuration mistakes that I want to call out explicitly:
 
-- **Don't give workers direct access to production secrets.** There is no managed staging environment — the build runs on a single-environment model. Agents work against a local Supabase stack in their own workspace. Production environment variables live only in Vercel + Supabase and are never handed to workers.
+- **Don't give workers direct access to production secrets.** Staging is the DO VPS — there are no managed cloud environments. Agents work against a local Supabase stack in their own workspace. Production environment variables live only on the DO VPS (`app.env`) + GitHub Actions secrets and are never handed to workers.
 - **Don't let agents auto-merge PRs.** Every merge requires a human-or-CEO approval gate, even on standard tickets.
 - **Watch for accidentally-committed secrets.** Paperclip's agents will occasionally produce code that embeds a test API key. Note: there is currently **no** automated secret scanner (gitleaks or equivalent) gating CI — `ci.yml` has no such job, and the pre-commit hook only runs the RLS linter. Until a scanner is added, reviewers must catch embedded secrets manually. Adding a CI secret-scan gate is a recommended hardening step.
 - **Don't let agents push directly to `main`.** GitHub branch protection enforces this; Paperclip's agents should be configured to push to feature branches and open PRs.

@@ -1,61 +1,65 @@
 # Supabase Environments
 
-> How to manage local vs production Supabase instances for the Nodwin Sales CRM.
-> This covers the two scopes in the CRM's Supabase landscape:
-> local development databases in the monorepo vs the cloud preview application in production.
+> How the CRM's Supabase instances are managed across environments.
+>
+> The app runs on a self-hosted stack: a Docker container for the Next.js app and
+> **self-hosted Supabase** (via `docker compose`) on a DigitalOcean VPS. We do not
+> use Supabase Cloud or Vercel. The canonical deploy docs are in
+> [`deploy/`](../deploy/) — this doc is the environment/migration reference.
 
 ---
 
 ## Environment map
 
-| Environment  | Supabase                     | Purpose                   | Migration method          |
-| ------------ | ---------------------------- | ------------------------- | ------------------------- |
-| **Local**    | Docker via `supabase start`  | Dev + test + smoke        | `supabase migration up`   |
-| **Production** | Supabase Cloud — **not yet provisioned** (create the project, then record its ref + region here) | Live CRM data | `supabase db push --linked` |
+| Environment  | Supabase                                             | Purpose                     | Migration method                    |
+| ------------ | ---------------------------------------------------- | --------------------------- | ----------------------------------- |
+| **Local**    | Docker via `supabase start`                          | Dev + test + smoke          | `supabase migration up` / `db reset`|
+| **Staging**  | Self-hosted (docker compose) on the DigitalOcean VPS | Pre-prod / UAT              | `supabase db push --db-url <conn>`  |
+| **Production** | Self-hosted on a VPS — **not yet provisioned** (separate ticket) | Live CRM data | `supabase db push --db-url <conn>`  |
+
+Standing up self-hosted Supabase and applying migrations is manual — see
+[`deploy/SUPABASE-SETUP.md`](../deploy/SUPABASE-SETUP.md). The app deploy pipeline
+([`deploy.yml`](../.github/workflows/deploy.yml)) ships only the app container; it
+does **not** run migrations.
 
 ---
 
 ## Key environment variables
 
-All environments share the same three variables. The values differ:
+All environments share the same variables; the values differ:
 
-| Variable                       | Local                                            | Production                                               |
-| ------------------------------ | ------------------------------------------------ | -------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`     | `http://192.168.88.51:54321` (or Tailscale hostname)  | `https://<project-ref>.supabase.co`                      |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`| From `supabase status` output (publishable key)  | From Supabase Cloud dashboard > Settings > API           |
-| `SUPABASE_SERVICE_ROLE_KEY`    | From `supabase status` output (secret key)       | From Supabase Cloud dashboard > Settings > API           |
+| Variable                        | Local                                                | Staging (DO VPS)                                     |
+| ------------------------------- | ---------------------------------------------------- | ---------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | `http://192.168.88.51:54321` (or Tailscale hostname) | `https://<your-supabase-host>` (your own domain)     |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | From `supabase status` output (publishable key)      | The `ANON_KEY` from the self-host Supabase `.env`     |
+| `SUPABASE_SERVICE_ROLE_KEY`     | From `supabase status` output (secret key)           | The `SERVICE_ROLE_KEY` from the self-host `.env`      |
 
 **Env file locations:**
 - Local preview: `apps/web/.env.local` (on the AMD GPU server, port 3030)
 - Local dev workstation: `.env.local` at repo root (Next.js resolves from cwd)
+- Staging: `app.env` beside the compose file on the VPS (see [`deploy/app.env.example`](../deploy/app.env.example))
 
-**Tailscale note:** If you move the server or access it remotely, use the Tailscale hostname (e.g., `http://nodwin-server.tailNNNNNN.ts.net:54321`) instead of the LAN IP. This is forward-compatible with the planned office move.
+**Tailscale note:** If you move the server or access it remotely, use the Tailscale
+hostname (e.g., `http://nodwin-server.tailNNNNNN.ts.net:54321`) instead of the LAN IP.
 
 ---
 
 ## How to switch between environments
 
-### Switch to local
+### Local
 
 ```bash
-cd /home/orrin/nodwin-sales-crm
 supabase start                   # if not already running
 supabase status                  # copy the publishable + secret keys
-# Point NEXT_PUBLIC_SUPABASE_URL to http://192.168.88.51:54321
-# Use the keys from supabase status output
-pnpm dev -p 3030                 # or whatever port
+# Point NEXT_PUBLIC_SUPABASE_URL at http://192.168.88.51:54321, use those keys
+pnpm dev -p 3030
 ```
 
-### Switch to production
+### Staging (DO VPS)
 
-```bash
-cd /home/orrin/nodwin-sales-crm
-supabase login                   # one-time (opens browser)
-supabase link --project-ref <project-ref>
-# Update .env.local with cloud URL + cloud keys
-```
-
-**Never run `supabase db push --linked` against production from a feature branch.** Only push from `main` after merge.
+Staging runs on the VPS itself — you don't "switch" a local `.env` to it. Deploys
+happen via the pipeline (merge to `main`), and migrations are pushed at the VPS
+Postgres. See [`deploy/DEPLOYMENT.md`](../deploy/DEPLOYMENT.md).
 
 ---
 
@@ -64,26 +68,32 @@ supabase link --project-ref <project-ref>
 ### Local
 
 1. Edit/add files in `supabase/migrations/`.
-2. Run `supabase migration up` to apply.
+2. Run `supabase migration up` (or `supabase db reset` for a clean rebuild + seed).
 3. Test: `curl -sf http://localhost:3030/contacts > /dev/null`.
 
-### Production
+### Staging
 
-1. Merge your PR to `main`.
-2. Pull the latest `main` locally.
-3. Ensure `supabase link` is pointed at the production project.
-4. Run `supabase db push --linked`.
-5. Smoke test: `curl -sf https://<your-vercel-domain>/contacts > /dev/null`.
+Migrations are applied manually against the self-hosted Postgres (they are **not**
+run by the app deploy). After merging a migration-bearing PR to `main`:
 
-**Golden rule:** Production migrations only land via `supabase db push` from `main` after merge. Never push from a feature branch. Never run the dev seed against production.
+```bash
+supabase db push --db-url "postgresql://postgres:<password>@<vps-host>:5432/postgres"
+```
+
+**Golden rule:** apply migrations from `main` after merge, never from a feature
+branch, and never run the dev seed against real data. Full steps + the optional
+seed are in [`deploy/SUPABASE-SETUP.md`](../deploy/SUPABASE-SETUP.md).
 
 ---
 
 ## Seed data
 
-- **Local only.** The seed is in `supabase/seed/sandbox.sql`.
-- Seed is automatically loaded when you run `supabase db reset`.
-- **Never load seed data on production.** Production contains real CRM data.
+- **Local + fresh staging.** The seed is in `supabase/seed/sandbox.sql` (Nodwin
+  entities + business units + a Super Admin login).
+- Loaded automatically by `supabase db reset` locally; on the VPS, apply it once
+  with `psql "$DB_URL" -f supabase/seed/sandbox.sql`.
+- **Rotate the seeded admin password on staging** — it is a dev default.
+- **Never load the seed over real production data.**
 
 ---
 
@@ -98,7 +108,10 @@ The CI pipeline (`ci.yml`) runs on every PR and includes:
 
 Migration-specific checks run on PRs touching `supabase/migrations/**` (see `migration-ci.yml`):
 - **Supabase schema lint** (`supabase db lint --local --level error`) — catches schema errors in migrations.
-- `supabase db diff` against main (requires a linked Supabase project; skipped if not linked)
+- `supabase db diff` against main (requires a linked project; skipped if not linked).
+
+The cheap checks (lint · typecheck · gitleaks) also run on every push via
+[`deploy.yml`](../.github/workflows/deploy.yml).
 
 ---
 
@@ -112,17 +125,18 @@ Before deploying or declaring a hosting setup complete, run the 3-check smoke pr
 
 Additionally:
 
-- [ ] `.env.local` points at the correct Supabase instance (not the wrong env).
-- [ ] Supabase migrations are fully applied (no pending migrations in `supabase status`).
+- [ ] `app.env` / `.env.local` points at the correct Supabase instance (not the wrong env).
+- [ ] Supabase migrations are fully applied (`supabase db push --db-url` ran after the last schema change).
 - [ ] At least one route under `(crm)/` returns 200 (smoke test pass).
-- [ ] Seed data is loaded (local only).
-- [ ] RLS is enforced (local mirrors production policies).
+- [ ] Seed data is loaded (local / fresh staging only).
+- [ ] RLS is enforced (local mirrors staging policies).
 
 ---
 
 ## Related documents
 
+- [Deploy runbook](../deploy/DEPLOYMENT.md) — step-by-step DO VPS deploy
+- [Supabase VPS setup](../deploy/SUPABASE-SETUP.md) — self-host bring-up + migrations
 - [Smoke Test Procedure](smoke-test.md) — 3-check pre-deploy verification
-- [Setup Guide](setup-guide.md) — full Google OAuth + Supabase Cloud setup walkthrough
-- [Deploy (Vercel)](deploy-vercel.md) — Vercel deployment with per-environment Supabase wiring
+- [Setup Guide](setup-guide.md) — Google OAuth setup for self-hosted Supabase
 - [Runbook (Incident)](runbook-incident.md) — escalation when schema/route checks fail

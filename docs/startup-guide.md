@@ -83,7 +83,7 @@ Copy the **anon key** and **service_role key** into `apps/web/.env.local`.
 
 ## Step 4: Run migrations
 
-> **Heads up:** `pnpm db:migrate` runs `supabase db push`, which targets the **linked remote** Supabase project, **not** your local stack. Do not use it to set up your local database — it will try to push to the cloud project you linked.
+> **Heads up:** `pnpm db:migrate` runs `supabase db push`, which targets whatever database URL you pass it (`--db-url`) — typically the self-hosted VPS Postgres, **not** your local stack. There is no Supabase Cloud link. Do not use it to set up your local database; for the VPS migration flow see `../deploy/SUPABASE-SETUP.md`.
 
 For a **local** database, apply migrations with either of:
 
@@ -146,9 +146,9 @@ pnpm dev              # Dev server (frontend + supabase if running)
 pnpm lint             # ESLint
 pnpm typecheck        # TypeScript no-emit check
 pnpm test             # Vitest unit + integration
-pnpm db:migrate       # Push migrations to the LINKED REMOTE (not local — use db:reset locally)
+pnpm db:migrate       # Push migrations to a remote DB via --db-url, e.g. the VPS Postgres (not local — use db:reset locally)
 pnpm db:reset         # Nuke local DB + re-apply all migrations + seed (sandbox.sql)
-pnpm db:seed          # (placeholder — its file is empty; use db:reset to seed locally)
+pnpm db:seed          # Apply sandbox.sql to the running local DB (idempotent); use db:reset for a clean rebuild
 pnpm db:test          # Run RLS policy test suite (pgTAP)
 pnpm rls:check        # Check RLS coverage across all tables
 pnpm build            # Production build
@@ -162,10 +162,10 @@ pnpm build            # Production build
 |---|---|---|
 | `supabase:start` fails with "Cannot connect to Docker" | Docker is not running | Start Docker Desktop/Engine and retry |
 | `pnpm dev` fails with env validation error | Missing or incorrect env var | Check `apps/web/.env.local`; run `pnpm supabase:start` to get anon/service keys |
-| `pnpm db:migrate` fails | It targets the **linked remote** project — not needed for local setup | For local, use `pnpm db:reset`; to push to a remote, `supabase link` first |
+| `pnpm db:migrate` fails | It targets a **remote DB** via `--db-url` (e.g. the VPS Postgres) — not needed for local setup | For local, use `pnpm db:reset`; to push to a remote, pass the DB URL (see `../deploy/SUPABASE-SETUP.md`) |
 | Auth redirects to localhost | `APP_URL` not set in `.env.local` | Set `APP_URL=http://localhost:3000` |
-| Google OAuth returns "redirect_uri_mismatch" | Callback URL not registered in GCP, or app URL missing from Supabase Redirect URLs | Register `https://<project-ref>.supabase.co/auth/v1/callback` in GCP (see `docs/setup-guide.md` §2.1). Add app URL to Supabase **Authentication > Settings > Redirect URLs** |
-| Seed fails with "relation does not exist" | Migrations not yet applied | Run `pnpm db:migrate` before `pnpm db:seed` |
+| Google OAuth returns "redirect_uri_mismatch" | Callback URL not registered in GCP, or app URL missing from Supabase Redirect URLs | Register your self-hosted Supabase auth callback URL `https://<your-supabase-host>/auth/v1/callback` in GCP (see `docs/setup-guide.md` §2.1). Add app URL to Supabase **Authentication > Settings > Redirect URLs** |
+| Seed fails with "relation does not exist" | Migrations not yet applied | Run `pnpm db:reset` (applies all migrations + seed), or `supabase migration up` then `pnpm db:seed` |
 | App loads but shows 401 on queries | Anon key mismatch | Copy the exact anon key from `pnpm supabase:start` output |
 | Build fails after pulling latest | Lockfile or dependency drift | Run `pnpm install` to update lockfile, then `pnpm build` |
 | Port 3000 already in use | Another process is using it | Kill the process or set `PORT=3001 pnpm dev` |
@@ -177,11 +177,10 @@ pnpm build            # Production build
 If your local state gets corrupted:
 
 ```bash
-pnpm db:reset          # Nuke and re-migrate + re-seed
-# or for a truly clean slate:
-pnpm supabase:start    # This also resets if already running
-pnpm db:migrate
-pnpm db:seed
+pnpm db:reset          # Nuke local DB, re-apply all migrations, re-seed (usually enough)
+# or, to also restart the local Supabase containers first:
+pnpm supabase:start    # (re)start the local stack
+pnpm db:reset          # then rebuild the DB
 ```
 
 ---
@@ -191,7 +190,8 @@ pnpm db:seed
 | Document | What it covers |
 |---|---|
 | `README.md` | Project overview, stack, architecture, daily commands |
-| `docs/deploy-vercel.md` | Vercel deployment for production |
+| `deploy/DEPLOYMENT.md` | DigitalOcean VPS deployment (step-by-step) |
+| `deploy/SUPABASE-SETUP.md` | Self-hosted Supabase bring-up + migrations |
 | `docs/security.md` | Threat model, RLS, pre-launch checklist |
 | `docs/integrations.md` | Auth, email, Slack, Google Workspace, AI, background jobs |
 | `docs/data-model.md` | Full schema reference (every table and field) |
