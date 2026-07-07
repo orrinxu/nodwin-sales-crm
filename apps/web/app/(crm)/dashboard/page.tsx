@@ -21,6 +21,7 @@ import { NeedsAttention } from "@/components/dashboard/needs-attention"
 import { ForecastTile } from "@/components/dashboard/forecast-tile"
 import { selectForecastTile } from "@/components/dashboard/forecast-tile-data"
 import { ConversionFunnel } from "@/components/dashboard/conversion-funnel"
+import { RepLeaderboard } from "@/components/dashboard/rep-leaderboard"
 
 export default async function DashboardPage() {
   const user = await requireUser()
@@ -70,6 +71,13 @@ export default async function DashboardPage() {
       <SummaryStrip data={selectSummaryStrip(pipelineMetrics, forecastTile)} locale={locale} />
 
       <ForecastTile data={forecastTile} locale={locale} />
+
+      <RepLeaderboard
+        scorecard={forecast.scorecard}
+        currentUserId={user.id}
+        currency={forecast.currency}
+        locale={locale}
+      />
 
       <StuckDeals
         totalAtRisk={fmt.format(stuck.totalValueAtRisk)}
