@@ -34,7 +34,7 @@ This is not a public product. It will not be sold. Future M&A acquisitions migra
 
 ## Architecture (one-paragraph version)
 
-A Next.js (App Router) frontend talks to a Supabase backend (Postgres + Auth + Storage + Realtime + RLS). All data access goes through typed clients in `lib/data/`. All external service calls (AI, email, Slack, Drive, Gmail, Calendar) go through narrow modules in `lib/` that wrap the official SDKs and enforce safety properties: signature verification, spending caps, audit logging. Background jobs and scheduled work run through API routes under `apps/web/app/api/jobs/*`, triggered by a `pg_cron` scaffold (`supabase/migrations/20260619000008_pg_cron_scaffold.sql`); a managed durable-workflow layer (e.g. Inngest) is planned but not yet wired. The whole thing deploys to Vercel (frontend) + Supabase (backend) + a small Ollama VM (fallback AI). Authentication is Google OAuth restricted to allow-listed Nodwin Group domains.
+A Next.js (App Router) frontend talks to a Supabase backend (Postgres + Auth + Storage + Realtime + RLS). All data access goes through typed clients in `lib/data/`. All external service calls (AI, email, Slack, Drive, Gmail, Calendar) go through narrow modules in `lib/` that wrap the official SDKs and enforce safety properties: signature verification, spending caps, audit logging. Background jobs and scheduled work run through API routes under `apps/web/app/api/jobs/*`, triggered by a `pg_cron` scaffold (`supabase/migrations/20260619000008_pg_cron_scaffold.sql`); a managed durable-workflow layer (e.g. Inngest) is planned but not yet wired. The whole thing deploys as a Docker container on a single DigitalOcean VPS alongside a self-hosted Supabase stack (Postgres + Auth + Storage + Realtime, run via `docker compose`) plus a small Ollama VM (fallback AI). Authentication is Google OAuth restricted to allow-listed Nodwin Group domains.
 
 Full architecture is in `docs/SOW.md` Section 6.
 
@@ -102,7 +102,7 @@ Docker must be running before you execute any `supabase:*` or `db:*` scripts. Th
 
 ### Quick start
 
-See **`docs/startup-guide.md`** for the full step-by-step local dev setup. See **`docs/setup-guide.md`** for the authentication configuration (OAuth, Supabase Cloud, magic link). One-liner:
+See **`docs/startup-guide.md`** for the full step-by-step local dev setup. See **`docs/setup-guide.md`** for the authentication configuration (OAuth, self-hosted Supabase, magic link). One-liner:
 
 ```bash
 git clone <repo-url> && cd nodwin-crm && pnpm install && \
@@ -160,7 +160,7 @@ nodwin-crm/
 ├── docs/
 │   ├── SOW.md                 # full strategic source of truth (v1.1)
 │   ├── startup-guide.md       # step-by-step local dev setup
-│   ├── setup-guide.md         # authentication setup (OAuth, Supabase Cloud, magic link)
+│   ├── setup-guide.md         # authentication setup (OAuth, self-hosted Supabase, magic link)
 │   ├── data-model.md          # schema reference
 │   ├── integrations.md        # integration architecture details
 │   ├── security.md            # threat model and pre-launch checklist
@@ -238,15 +238,15 @@ nodwin-crm/
 
 ## Deployment
 
-See `docs/deploy-vercel.md` for the full Vercel setup guide (project creation, env vars, DNS, OAuth, troubleshooting).
+See `deploy/DEPLOYMENT.md` for the full step-by-step deploy guide (VPS provisioning, env vars, DNS, OAuth, troubleshooting), `deploy/README.md` for the reference, and `deploy/SUPABASE-SETUP.md` for bringing up the self-hosted Supabase stack and applying migrations.
 
-| Environment | Frontend | Supabase | Purpose |
+| Environment | App | Supabase | Purpose |
 |---|---|---|---|
 | Local | `pnpm dev` | local docker | individual development |
-| Preview | Vercel preview (ephemeral, per-PR) | shared dev project | automatic per-PR deploy; agent UAT |
-| Production | Vercel production | Supabase production project | live East Asia (and eventually group-wide) |
+| Staging | Docker container on the DO VPS | self-hosted Supabase on the same VPS | live-like environment; agent UAT |
+| Production | future/separate deployment | future/separate self-hosted stack | live East Asia (and eventually group-wide) |
 
-Production deploys via the connected Vercel project on merge to `main`; per-PR preview deploys are created automatically by Vercel. The board (human) controls what merges to `main`; the CTO agent does not have authority to promote to production.
+Deploys run via GitHub Actions on merge to `main`: build the image, push to `ghcr.io`, then SSH to the VPS and `docker compose pull app && docker compose up -d app` (see `.github/workflows/deploy.yml`). The board (human) controls what merges to `main`; the CTO agent does not have authority to promote to production.
 
 Migrations run as part of deploy. Failed migrations halt deploy and surface to the board.
 
@@ -269,7 +269,7 @@ See `docs/security.md` for the full threat model and pre-launch security checkli
 
 - **Audit log:** every mutating operation on Opportunity, Account, Contact, Approval, Document, and OpportunitySplit writes to a single `audit_log` table via Postgres triggers. See `docs/data-model.md` §4.11.
 - **AI usage:** every AI call writes to `ai_usage` (user, provider, model, tokens, cost, feature, timestamp). Drives the AI cost dashboard and cap enforcement.
-- **Application logs:** Vercel logs + Supabase logs. Sentry (or equivalent) for error tracking — added in v1.5.
+- **Application logs:** `docker compose logs` on the VPS (app container) + Supabase container logs. Sentry (or equivalent) for error tracking — added in v1.5.
 - **Uptime monitoring:** to be added before East Asia go-live (Better Stack / Pingdom / similar).
 
 ---

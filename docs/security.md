@@ -36,7 +36,7 @@ The project lead is building solo with AI assistance. Hand-writing every load-be
 | Approval state machine | XState (or Postgres CHECK constraints on stage transitions) | State definitions. Test cases. NOT the state-transition engine. |
 | Rate limiting | Upstash Redis or Supabase's built-in rate limiting | Configuration per endpoint. NOT a homegrown rate limiter. |
 | AI provider spending ceiling | Provider dashboards (Anthropic console, Google AI Studio) PLUS application-level caps | Application-level caps. Provider-level caps configured by hand. |
-| Secret management | Vercel / Railway environment variables + Supabase Vault for runtime-rotated secrets | Setting environment variables. NOT a secret-storage system. |
+| Secret management | GitHub Actions vars/secrets (build-time) + `app.env` on the DO VPS (runtime) + the self-hosted Supabase stack's own `.env`/config | Setting environment variables. NOT a secret-storage system. |
 | MCP protocol (v1.5) | Official `@modelcontextprotocol/sdk` | Tool implementations. Auth integration. NOT the MCP transport. |
 
 ### 8.3 RLS Policy Pattern

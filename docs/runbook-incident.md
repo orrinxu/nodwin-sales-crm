@@ -5,7 +5,7 @@
 
 ## Scope
 
-This runbook covers incident response procedures for the Nodwin CRM running on the production stack (Vercel + Supabase + AI providers + Postmark/Resend email + Google Workspace + Slack).
+This runbook covers incident response procedures for the Nodwin CRM running on the production stack (a Docker container on a DigitalOcean VPS + self-hosted Supabase + AI providers + Postmark/Resend email + Google Workspace + Slack).
 
 ## Pre-Deploy Smoke Check
 
@@ -50,7 +50,7 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 
 ## Response Procedures
 
-### P-1: Service Down (Vercel / Supabase)
+### P-1: Service Down (DO VPS / Supabase)
 
 **Symptoms:** App returns 5xx, blank page, or "Application error". Supabase Studio unreachable.
 
@@ -58,13 +58,13 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 
 0. **Run the [3-Check Smoke Procedure](smoke-test.md)** to rule out branch mismatch, unapplied schema, or stale process — the most common causes of "service down" on local preview deployments. If all 3 checks pass, proceed to infrastructure-level diagnosis.
 
-1. **Check Vercel dashboard** (`vercel.com/nodwin-crm`) → Deployments → Latest production deploy. Is it healthy?
-   - If deploy failed: check build logs. Common causes: TypeScript error, missing env var, failed migration.
-   - If deploy succeeded but app is down: check Vercel status page (https://www.vercel-status.com).
-2. **Check Supabase status** (https://status.supabase.com). If Supabase is degraded, this is upstream — wait for resolution.
-3. **Check Supabase project health:** `supabase projects list` → verify project is in active state.
-4. **Check recent migrations:** `supabase db diff --linked` to confirm schema matches expected state. A failed migration can leave the DB in an inconsistent state.
-5. **Rollback a bad deploy:** In Vercel dashboard → Deployments → find last known-good deploy → "Promote to Production".
+1. **Check the app on the VPS:** SSH in and run `docker compose ps` and `docker compose logs app`. Also check the latest **GitHub Actions Deploy run** (`.github/workflows/deploy.yml`). Is the app container up and healthy?
+   - If the deploy job failed: check the Actions build logs. Common causes: TypeScript error, missing env var, failed migration.
+   - If deploy succeeded but app is down: check the DigitalOcean status page (https://status.digitalocean.com).
+2. **Check the self-hosted Supabase containers** on the VPS with `docker compose ps` — verify the Supabase services (db, auth, rest, storage, realtime) are up. If a container is unhealthy, check its logs with `docker compose logs`.
+3. **Check DB health:** confirm the Postgres container is accepting connections (e.g. `docker compose exec db pg_isready`).
+4. **Check recent migrations:** `supabase db diff --db-url "postgresql://postgres:<password>@<vps-host>:5432/postgres"` to confirm schema matches expected state. A failed migration can leave the DB in an inconsistent state.
+5. **Rollback a bad deploy:** re-point the app service image to a previous `:sha-<sha>` tag and run `docker compose up -d app` on the VPS (see `../deploy/DEPLOYMENT.md`).
 6. **Restore from backup** (Supabase): Settings → Database → Backups → select latest backup → Restore. Estimated downtime: 15-30 min.
 
 ### P-2: Data Breach / RLS Leak
@@ -121,7 +121,7 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 **Steps:**
 
 1. **Rotate the leaked key** immediately at the provider dashboard (Anthropic Console, Google Cloud, DeepSeek, Resend/Postmark, Slack).
-2. **Update the environment variable** in Vercel and Supabase to the new key.
+2. **Update the environment variable** in `app.env` on the VPS (and in the self-hosted Supabase `.env` if it's a Supabase-side secret), then `docker compose up -d` to pick it up. If it's a build-time `NEXT_PUBLIC_*` var, rebuild the image via the GitHub Actions pipeline.
 3. **Revoke the old key** at the provider after confirming the new key works.
 4. **Check for unauthorized usage** — query `ai_usage` for calls made with the old key. If the leak is to GitHub, check repo forks / clones.
 5. **If the leak is in git history:** run `git filter-branch` to purge the secret from history, force-push, and notify the team to rebase. Consider rotating all secrets as a precaution.
@@ -170,7 +170,7 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 **Steps:**
 
 1. **Check Slack app status** (https://status.slack.com). If Slack is degraded, wait.
-2. **Check Slack delivery logs** in Vercel logs. Slack delivery is a raw `fetch` to `chat.postMessage` with the `SLACK_BOT_TOKEN` in `lib/notifications/delivery.ts` (no `@slack/bolt` dependency); failures log the HTTP status. A revoked/rotated token typically surfaces as a non-200 status — update `SLACK_BOT_TOKEN` if so.
+2. **Check Slack delivery logs** in the app container logs (`docker compose logs app` on the VPS). Slack delivery is a raw `fetch` to `chat.postMessage` with the `SLACK_BOT_TOKEN` in `lib/notifications/delivery.ts` (no `@slack/bolt` dependency); failures log the HTTP status. A revoked/rotated token typically surfaces as a non-200 status — update `SLACK_BOT_TOKEN` if so.
 3. **Re-install the Slack app** from the Slack API dashboard if the token cannot be recovered.
 4. **Check channel membership** — the bot may have been removed from a channel. Re-invite via `/invite @NodwinCRM`.
 
@@ -194,8 +194,8 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 | Operational Sponsor | Akshat Rathee | Slack DM |
 | Operational Sponsor | Mickael Piantchenko | Slack DM |
 | Stakeholder (Trinity) | Abhishek Aggarwal | Slack DM |
-| Vercel Support | — | https://vercel.com/support |
-| Supabase Support | — | support@supabase.com |
+| DigitalOcean Support | — | https://www.digitalocean.com/support |
+| Supabase (self-hosted / community) | — | https://github.com/supabase/supabase |
 | Anthropic Billing | — | support@anthropic.com |
 | Google Cloud Support | — | https://cloud.google.com/support |
 | Postmark Support | — | https://postmarkapp.com/support |
@@ -207,15 +207,15 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 1. Supabase Dashboard → Database → Backups.
 2. Select the latest backup point.
 3. Click "Restore" — this creates a new Supabase project and restores the backup into it.
-4. Update `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` env vars in Vercel to point to the restored project.
+4. Update `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `app.env` on the VPS to point to the restored Supabase stack, then `docker compose up -d app`.
 5. Re-run migrations from the backup point forward.
 6. Verify data integrity: spot-check a sample of accounts + opportunities.
 
-### Manual Rollback of Vercel Deploy
+### Manual Rollback of a Deploy
 
-1. Vercel Dashboard → Deployments.
-2. Find the last known-good production deploy.
-3. Click the three-dot menu → "Promote to Production".
+1. On the VPS, identify the last known-good image tag (`:sha-<sha>` in `ghcr.io`).
+2. Re-point the app service image to that tag in the compose config (or override).
+3. Run `docker compose up -d app` to roll back (see `../deploy/DEPLOYMENT.md`).
 4. Verify the app loads and all core flows (login, pipeline view, activity logging) work.
 
 ## Post-Incident

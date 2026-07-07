@@ -1,50 +1,45 @@
-# Setup guide: Google OAuth, Supabase Cloud, and magic link email
+# Setup guide: Google OAuth, self-hosted Supabase, and magic link email
 
 > How to configure authentication for the Nodwin CRM from scratch.
-> Covers Supabase Cloud project creation, Google OAuth credential setup, magic link configuration, and environment wiring.
+> Covers configuring the self-hosted Supabase project, Google OAuth credential setup, magic link configuration, and environment wiring.
 
 ## Quick start — a personal test setup without a company domain
 
 If you don't have a Nodwin Group domain or Google Workspace access yet, use this abbreviated path to get a working personal test setup with your own personal accounts. Each step below is a simplified version of the full section listed in parentheses.
 
-1. **Supabase project** (§1) — create a **free-tier** Supabase Cloud project using your personal email, or use the local Supabase stack via `pnpm supabase:start` (Docker required). Free tier is sufficient for a dev setup.
-2. **Google OAuth** (§2.1) — create a GCP project using your personal Gmail. Set the OAuth consent screen to **External** (not Internal). Add your personal email(s) as test users. When registering redirect URIs in GCP, use **only** `https://<project-ref>.supabase.co/auth/v1/callback` — Supabase is the OAuth broker, not the app. The app's own domains (Vercel URLs, localhost) belong in **Supabase's** Redirect URLs allowlist (under Authentication > Settings), not in GCP.
+1. **Supabase project** (§1) — for a dev setup, use the local Supabase stack via `pnpm supabase:start` (Docker required). For a shared instance, bring up the self-hosted Supabase stack on the VPS per `../deploy/SUPABASE-SETUP.md`.
+2. **Google OAuth** (§2.1) — create a GCP project using your personal Gmail. Set the OAuth consent screen to **External** (not Internal). Add your personal email(s) as test users. When registering redirect URIs in GCP, use **only** `https://<your-supabase-host>/auth/v1/callback` — Supabase is the OAuth broker, not the app. The app's own domains (the DO app URL, localhost) belong in **Supabase's** Redirect URLs allowlist (under Authentication > Settings), not in GCP.
 3. **Supabase Auth** (§3) — enable the Google provider. In **Authentication > Settings**, add your app URL(s) to **Redirect URLs**. Skip the domain allowlist trigger during dev (see §3.2).
 4. **Magic link email** (§4) — use Supabase's built-in email sender for dev (skip custom SMTP). Or create a free Resend account and use their sandbox sender (`onboarding@resend.dev`) — no DNS setup needed.
-5. **Env vars** (§5) — use the Supabase project ref and anon key (from Cloud dashboard or from `pnpm supabase:start` output).
+5. **Env vars** (§5) — use the Supabase host URL and anon key (from the self-host stack's `.env`, or from `pnpm supabase:start` output for local dev).
 6. **Local dev** (§6) — test on `http://localhost:3000`. Sign in with your personal Google account.
-7. **Vercel deploy** (§8) — deploy to a free Vercel account. Use a stable domain alias as your app URL (see §2.1). Add the final URL to Supabase's Redirect URLs, not GCP.
+7. **Deploy** (§8) — deploy the app as a Docker container on the DO VPS (see `../deploy/DEPLOYMENT.md`). Use a stable domain behind your reverse proxy as your app URL (see §2.1). Add the final URL to Supabase's Redirect URLs, not GCP.
 
-> **Everything below this point** describes the full production setup with Nodwin Group domains, Google Workspace, SPF/DKIM/DMARC, and the domain allowlist. For a personal/dev setup you can skip sections 2.1 (stable domain guidance still applies), 2.2, 3.2 (domain allowlist trigger), 4.3 (SPF/DKIM/DMARC), and the production Vercel domain setup in §8.
+> **Everything below this point** describes the full production setup with Nodwin Group domains, Google Workspace, SPF/DKIM/DMARC, and the domain allowlist. For a personal/dev setup you can skip sections 2.1 (stable domain guidance still applies), 2.2, 3.2 (domain allowlist trigger), 4.3 (SPF/DKIM/DMARC), and the production domain setup in §8.
 
 ---
 
 ## Table of contents
 
-1. [Create a Supabase Cloud project](#1-create-a-supabase-cloud-project)
+1. [Configure the self-hosted Supabase project](#1-configure-the-self-hosted-supabase-project)
 2. [Configure Google OAuth credentials](#2-configure-google-oauth-credentials)
 3. [Wire up Supabase Auth](#3-wire-up-supabase-auth)
 4. [Configure magic link email (custom SMTP)](#4-configure-magic-link-email-custom-smtp)
 5. [Environment variables](#5-environment-variables)
 6. [Verify it works](#6-verify-it-works)
-7. [Link Supabase CLI to Cloud and run migrations](#7-link-supabase-cli-to-cloud-and-run-migrations)
-8. [Vercel deployment](#8-vercel-deployment)
+7. [Run migrations against the self-hosted database](#7-run-migrations-against-the-self-hosted-database)
+8. [Deployment](#8-deployment)
 
 ---
 
-## 1. Create a Supabase Cloud project
+## 1. Configure the self-hosted Supabase project
 
-A single managed **production** Supabase project is needed. There are no longer managed staging or sandbox environments — the only non-production instances are ephemeral per-PR previews, which run against the production configuration rather than a dedicated Supabase project.
+Supabase is **self-hosted** on the DigitalOcean VPS via `docker compose` — there is no Supabase Cloud project. The full bring-up (containers, secrets, domain, TLS) is documented in `../deploy/SUPABASE-SETUP.md`. The dev model is: a local Supabase stack (`pnpm supabase:start`) for individual development, plus one self-hosted staging stack on the VPS. There are no managed cloud environments and no per-PR cloud previews.
 
-1. Go to [supabase.com](https://supabase.com) and sign in with the Nodwin Group Google Workspace account.
-2. Click **New project**.
-3. Fill in:
-   - **Name:** `nodwin-crm-<environment>` (e.g. `nodwin-crm-production`)
-   - **Database password:** Generate a strong one. Store in 1Password / vault.
-   - **Region:** `Singapore` (`ap-southeast-1`) — closest to the East Asia user base.
-   - **Pricing plan:** `Pro` (required for custom SMTP, larger DB size, and daily backups). For a dev sandbox, the **Free** tier is sufficient.
-4. Wait for the project to spin up (~2 minutes).
-5. Note the **Project URL**, **Project API keys** (anon + service_role), and **Project ID** from **Project Settings > General**.
+1. Bring up the self-hosted Supabase stack on the VPS per `../deploy/SUPABASE-SETUP.md` (or use `pnpm supabase:start` for local dev).
+2. Set a strong **Postgres password** in the self-host `.env`. Store it in 1Password / vault.
+3. Point the stack at your own domain (e.g. `supabase.crm.nodwingroup.com`) behind your reverse proxy — this is your Supabase host URL, not a `*.supabase.co` URL.
+4. Note the **Supabase host URL** and the **API keys** (`ANON_KEY` + `SERVICE_ROLE_KEY`) — these come from the self-host stack's `.env`, not a cloud dashboard.
 
 ---
 
@@ -54,13 +49,12 @@ Auth is restricted to Nodwin Group Google Workspace domains (e.g. `@nodwingroup.
 
 ### 2.1 Create a GCP project (one per CRM environment)
 
-> **Plan your URLs before creating the OAuth client.** Google does not support wildcards in authorized origins or redirect URIs. Vercel generates a unique hostname per branch/commit (e.g. `project-git-feature-xyz.vercel.app`), so you cannot register every preview URL individually. You must use a **single stable domain alias** for each non-production environment:
+> **Plan your URLs before creating the OAuth client.** Google does not support wildcards in authorized origins or redirect URIs. Use a **single stable domain** for each environment served off the VPS reverse proxy:
 >
-> - A custom subdomain like `staging-crm.nodwingroup.com` pointed at Vercel via a CNAME record.
+> - A custom subdomain like `staging-crm.nodwingroup.com` pointed at the DO VPS via an A/CNAME record and terminated by your reverse proxy.
 > - A personal domain subdomain like `nodwin-crm-staging.yourname.dev` — useful for dev sandboxes without company DNS access.
-> - Or a Vercel-pinned alias: in the Vercel project dashboard under **Deployments**, find the staging branch deployment, click **Domains**, and add an alias bound to that specific deployment. This gives you a fixed URL like `staging-crm.vercel.app`.
 >
-> Register only this one stable URL in GCP. Do not commit to managing individual preview URLs — every new branch would break OAuth.
+> Register only this one stable URL in GCP. The app runs as a single Docker container behind a fixed domain, so there are no ephemeral per-branch URLs to manage.
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com) and create a new project named `Nodwin CRM <environment>`.
 2. Navigate to **APIs & Services > OAuth consent screen**.
@@ -80,12 +74,12 @@ Auth is restricted to Nodwin Group Google Workspace domains (e.g. `@nodwingroup.
      - `https://<your-stable-staging-domain>` (staging — see callout above)
      - `https://crm.nodwingroup.com` (production)
    - **Authorized redirect URIs:** Register exactly one URI per environment. When Supabase is the OAuth broker (which it is in this setup), Google redirects to Supabase's callback endpoint, not the app's:
-      - `https://<project-ref>.supabase.co/auth/v1/callback`
+      - `https://<your-supabase-host>/auth/v1/callback`
    - **Do not** add app-specific paths like `/auth/callback` here. The app's callback URLs belong in **Supabase's** Redirect URLs (Authentication > Settings), not in GCP.
    - Click **Create**.
 5. Copy the **Client ID** and **Client Secret**. Store them in 1Password / vault.
 
-> **One redirect URI per GCP client, period.** Since the Supabase callback URL (`https://<project-ref>.supabase.co/auth/v1/callback`) is the same for all environments served by that Supabase project, you only need one entry. The Supabase project itself redirects to the correct app URL after authentication based on its **Site URL** and **Redirect URLs** settings — configure those per environment in the Supabase dashboard.
+> **One redirect URI per GCP client, period.** Since the Supabase callback URL (`https://<your-supabase-host>/auth/v1/callback`) is the same for all environments served by that Supabase project, you only need one entry. The Supabase project itself redirects to the correct app URL after authentication based on its **Site URL** and **Redirect URLs** settings — configure those per environment in the Supabase dashboard.
 
 ### 2.2 Restrict by domain (optional but recommended)
 
@@ -190,12 +184,12 @@ Before sending any real emails, configure DNS for the sending domain (e.g. `nodw
 
 ## 5. Environment variables
 
-All auth-related environment variables are listed here. Copy these into `.env.local` for local development and into the Vercel project dashboard for each environment.
+All auth-related environment variables are listed here. Copy these into `.env.local` for local development, and into the app's `app.env` on the VPS (plus GitHub Actions build vars for any `NEXT_PUBLIC_*` build-time values) for the deployed environment.
 
 ```bash
 # --- Supabase ---
-SUPABASE_URL=https://<project-ref>.supabase.co
-NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_URL=https://<your-supabase-host>
+NEXT_PUBLIC_SUPABASE_URL=https://<your-supabase-host>
 SUPABASE_ANON_KEY=<anon-key-from-supabase-settings>
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key-from-supabase-settings>
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key-from-supabase-settings>
@@ -221,13 +215,13 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api  # change per environment
 
 ### Environment-specific overrides
 
-| Variable | Local | Preview (per-PR) | Production |
+| Variable | Local | Staging (DO VPS) | Production (future) |
 |---|---|---|---|
-| `APP_URL` | `http://localhost:3000` | Vercel-assigned preview URL | `https://crm.nodwingroup.com` |
-| Supabase project | local stack / dev project | production project | production project |
-| Google OAuth client | dev GCP client | production GCP client | production GCP client |
+| `APP_URL` | `http://localhost:3000` | `https://staging-crm.nodwingroup.com` | `https://crm.nodwingroup.com` |
+| Supabase | local stack | self-hosted stack on the VPS | future/separate self-hosted stack |
+| Google OAuth client | dev GCP client | staging GCP client | production GCP client |
 
-There is no managed staging environment. Per-PR preview deployments run against the **production** Supabase project and GCP OAuth client. Local dev uses its own Supabase (local Docker stack or a personal dev project) and may use a separate dev GCP client. Do not expose the production service-role key to preview builds beyond what the app already needs server-side.
+Staging is the DO VPS. There are no managed cloud environments and no per-PR cloud previews. Local dev uses its own local Supabase Docker stack and may use a separate dev GCP client. Keep the service-role key server-side only (in `app.env` on the VPS), never in the browser bundle.
 
 > **SMTP and Resend:** Magic link emails are sent by Supabase using the SMTP credentials configured in the Supabase Dashboard (see §4.2). The app does not set SMTP env vars — those credentials live in the Supabase project itself. If the app sends its own transactional email independently (e.g. notifications, alerts), it uses the Resend SDK via `RESEND_API_KEY`. For now, magic link delivery is handled entirely by Supabase SMTP.
 
@@ -250,7 +244,7 @@ There is no managed staging environment. Per-PR preview deployments run against 
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `redirect_uri_mismatch` | Redirect URI in GCP OAuth client doesn't match the actual callback URL | Verify the authorized redirect URI in GCP points to `https://<project-ref>.supabase.co/auth/v1/callback`, not to the app. Then check that the app's URL is listed in Supabase **Authentication > Settings > Redirect URLs** |
+| `redirect_uri_mismatch` | Redirect URI in GCP OAuth client doesn't match the actual callback URL | Verify the authorized redirect URI in GCP points to `https://<your-supabase-host>/auth/v1/callback`, not to the app. Then check that the app's URL is listed in Supabase **Authentication > Settings > Redirect URLs** |
 | `Invalid login credentials` | Domain not in the allowlist, or user not found | Check the `auth_allowed_domains` table and that the Auth Hook is enabled (see §3.2). If the hook isn't wired up, any domain can sign up |
 | Magic link email not arriving | SPF/DKIM not configured, or custom SMTP settings incorrect | Verify DNS records (§4.3), test SMTP from Supabase dashboard (§4.2 step 6) |
 | Google login button does nothing | Google provider not fully configured in Supabase dashboard, or wrong credentials | Check **Authentication > Providers > Google** has correct Client ID and Secret |
@@ -258,9 +252,9 @@ There is no managed staging environment. Per-PR preview deployments run against 
 
 ---
 
-## 7. Link Supabase CLI to Cloud and run migrations
+## 7. Run migrations against the self-hosted database
 
-Once the Supabase Cloud project exists, link it to the repo so migrations are applied from code, not from the Dashboard UI.
+Migrations are applied from code against the self-hosted Postgres by passing its connection string with `--db-url` — there is no Supabase Cloud project to `link`. See `../deploy/SUPABASE-SETUP.md` for the canonical bring-up + migration flow.
 
 ### 7.1 Install Supabase CLI
 
@@ -279,14 +273,13 @@ supabase --version
 
 <!-- VERIFY: v2.20.12 is the pinned version. Update the URL when the pinned version changes. -->
 
-### 7.2 Link to your Supabase Cloud project
+### 7.2 Point the CLI at the self-hosted database
+
+Migrations target whatever database you name via `--db-url`. Keep the VPS Postgres connection string handy (from the self-host `.env`):
 
 ```bash
-# From the root of the repo
-supabase link --project-ref <project-ref>
+export SUPABASE_DB_URL="postgresql://postgres:<password>@<vps-host>:5432/postgres"
 ```
-
-The CLI prompts for your database password. This creates a `supabase/config.toml` with the project reference and connection details.
 
 > If you haven't run `supabase init` yet, do that first: `supabase init`. It creates the `supabase/` directory structure including `migrations/`, `seed.sql`, and `config.toml`.
 
@@ -295,15 +288,15 @@ The CLI prompts for your database password. This creates a `supabase/config.toml
 If there are existing migration files in `supabase/migrations/`:
 
 ```bash
-# Apply all pending migrations to the linked Cloud project
-supabase db push
+# Apply all pending migrations to the self-hosted VPS Postgres
+supabase db push --db-url "$SUPABASE_DB_URL"
 ```
 
-If there are no migrations yet, you can pull the schema from the Cloud project as the starting baseline:
+If there are no migrations yet, you can diff the self-hosted DB as the starting baseline:
 
 ```bash
-# Dump the Cloud DB schema into a migration file (migra is the default differ)
-supabase db diff -f initial_schema
+# Dump the DB schema into a migration file (migra is the default differ)
+supabase db diff --db-url "$SUPABASE_DB_URL" -f initial_schema
 
 # Apply it locally
 supabase migration up
@@ -315,28 +308,29 @@ If you already have a local Supabase instance with a schema you want to migrate:
 # Step 1: Start local Supabase
 supabase start
 
-# Step 2: Diff local vs prod/staging and generate migration
-supabase db diff --linked -f migrate_local_to_cloud
+# Step 2: Diff local vs the VPS Postgres and generate a migration
+#         (db diff needs a target DB URL — pass the VPS connection string)
+supabase db diff --db-url "$SUPABASE_DB_URL" -f migrate_local_to_vps
 
-# Step 3: Push the migration to the linked Cloud project
-supabase db push
+# Step 3: Push the migration to the VPS Postgres
+supabase db push --db-url "$SUPABASE_DB_URL"
 ```
 
 ### 7.4 Seed data (sandbox only)
 
 ```bash
-supabase db reset --linked
+supabase db reset --db-url "$SUPABASE_DB_URL"
 ```
 
-> **⚠️ This command drops ALL data and recreates the database from scratch.** Running it against the wrong project ref is catastrophic — it destroys production data irreversibly.
+> **⚠️ This command drops ALL data and recreates the database from scratch.** Running it against the wrong DB URL is catastrophic — it destroys data irreversibly.
 >
 > **Safeguards:**
-> - Never put the production project ref in your local `.env` or `config.toml`. Keep it in a password manager and paste it only when needed for one-off operations.
-> - Consider adding a guard script that checks the project ref before running destructive commands:
+> - Never put the production DB URL in your local `.env` or `config.toml`. Keep it in a password manager and paste it only when needed for one-off operations.
+> - Consider adding a guard script that checks the DB URL before running destructive commands:
 >   ```bash
->   # bin/guard-ref.sh
->   if grep -q '<production-project-ref>' supabase/config.toml 2>/dev/null; then
->     echo "FATAL: Production project ref detected. Aborting." >&2
+>   # bin/guard-db-url.sh
+>   if printf '%s' "$SUPABASE_DB_URL" | grep -q '<production-host>'; then
+>     echo "FATAL: Production DB URL detected. Aborting." >&2
 >     exit 1
 >   fi
 >   ```
@@ -351,44 +345,42 @@ Auth provider settings can be managed via the Supabase Management API if you pre
 |---|---|---|
 | Install Supabase CLI | `supabase --version` | v2.20+ recommended |
 | Init repo structure | `supabase init` | Creates `supabase/` dir |
-| Link to Cloud | `supabase link --project-ref <ref>` | Uses DB password |
-| Push existing migrations | `supabase db push` | Idempotent — safe to re-run |
-| Pull schema baseline | `supabase db diff -f initial_schema` | Only if no migrations exist |
-| Apply seed data | `supabase db reset --linked` | Staging only. **Guard against production ref** |
-| Deploy domain allowlist table | `supabase db push` (includes `20260504081413_auth_allowed_domains.sql`) | Enable the Auth Hook too — see §3.2 |
+| Push existing migrations | `supabase db push --db-url "$SUPABASE_DB_URL"` | Idempotent — safe to re-run |
+| Pull schema baseline | `supabase db diff --db-url "$SUPABASE_DB_URL" -f initial_schema` | Only if no migrations exist |
+| Apply seed data | `supabase db reset --db-url "$SUPABASE_DB_URL"` | Sandbox only. **Guard against the production DB URL** |
+| Deploy domain allowlist table | `supabase db push --db-url "$SUPABASE_DB_URL"` (includes `20260504081413_auth_allowed_domains.sql`) | Enable the Auth Hook too — see §3.2 |
 
-### 7.6 Local-to-Cloud env var switch
+### 7.6 Local-to-VPS env var switch
 
-After linking, update `.env.local` to point at the Cloud project instead of the local Supabase instance:
+To point `.env.local` at the self-hosted VPS Supabase instead of the local Supabase stack:
 
 ```bash
 # Before (local Supabase with Docker):
 # NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
 # NEXT_PUBLIC_SUPABASE_ANON_KEY=<local-anon-key>
 
-# After (Supabase Cloud):
-NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<cloud-anon-key>
+# After (self-hosted Supabase on the VPS):
+NEXT_PUBLIC_SUPABASE_URL=https://<your-supabase-host>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key-from-self-host-env>
 ```
 
-The anon key and project ref are in **Supabase Dashboard > Project Settings > API**.
+The anon key and host URL come from the self-host stack's `.env` (see `../deploy/SUPABASE-SETUP.md`).
 
 ---
 
-## 8. Vercel deployment
+## 8. Deployment
 
-When deploying to Vercel:
+The app deploys as a Docker container on a single DigitalOcean VPS, alongside the self-hosted Supabase stack. Follow the canonical guides:
 
-1. In the Vercel project dashboard, go to **Settings > Environment Variables**.
-2. Add all variables from §5 for each environment (Production, Preview, Development).
-3. Go to **Settings > Git** and configure branch-to-environment mapping:
-   - `main` → Production
-   - `*` → Preview (per-PR ephemeral deployments; they run against the **production** Supabase project and OAuth client — there is no separate staging config)
-4. Under **Settings > Functions**:
-   - Ensure the function region is set to `Singapore` (`ap-southeast-1`) to match the Supabase region.
-   - **Caveat:** Non-default function regions require Vercel's **Pro** plan or above. Edge Functions ignore the region setting entirely and run at the edge. If you are on a lower-tier plan, you may not be able to set a Singapore region — the functions will default to `iad1` (US East).
-5. Configure a **stable domain alias** for staging (see §2.1 callout). Do not rely on per-branch preview URLs for OAuth.
-6. Trigger a deployment. Check your staging URL — the login page should load and Google OAuth should work.
+- `../deploy/DEPLOYMENT.md` — step-by-step VPS provisioning, env wiring, DNS/TLS, and the deploy pipeline.
+- `../deploy/SUPABASE-SETUP.md` — bringing up the self-hosted Supabase stack and applying migrations.
+
+The short version:
+
+1. Set runtime env vars from §5 in the app's `app.env` on the VPS. Provide any build-time `NEXT_PUBLIC_*` values as GitHub Actions build vars/secrets.
+2. Merges to `main` trigger GitHub Actions (`.github/workflows/deploy.yml`): build the image, push to `ghcr.io`, SSH to the VPS, then `docker compose pull app && docker compose up -d app`. Cheap checks (lint/typecheck/gitleaks) run on every push.
+3. Serve the app behind your reverse proxy on a **stable domain** (see §2.1 callout) — not a per-branch URL. Register that domain in Supabase's Redirect URLs.
+4. After the deploy, check your staging URL — the login page should load and Google OAuth should work.
 
 ---
 
