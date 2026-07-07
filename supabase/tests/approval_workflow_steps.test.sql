@@ -7,7 +7,7 @@
 
 BEGIN;
 
-SELECT plan(46);
+SELECT plan(42);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -329,49 +329,10 @@ SELECT is_empty(
   'deleting a workflow cascades to its template steps'
 );
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- 21. Seed — East Asia Budget Gate workflow exists
--- ═══════════════════════════════════════════════════════════════════════════════
-
-SELECT tests.as_user('admin@nodwin.com');
-SET LOCAL ROLE authenticated;
-SELECT isnt_empty(
-  $$SELECT id FROM public.approval_workflows WHERE entity_type = 'opportunity' AND trigger_stage = 'meet_and_present' AND applies_to_entity_id = 'e0000001-0001-0001-0001-000000000001'$$,
-  'East Asia Budget Gate workflow seeded'
-);
-
--- ═══════════════════════════════════════════════════════════════════════════════
--- 22. Seed — East Asia Budget Gate has template steps
--- ═══════════════════════════════════════════════════════════════════════════════
-
-SELECT tests.as_user('admin@nodwin.com');
-SET LOCAL ROLE authenticated;
-SELECT isnt_empty(
-  $$SELECT aws.id FROM public.approval_workflow_steps aws JOIN public.approval_workflows aw ON aw.id = aws.workflow_id WHERE aw.entity_type = 'opportunity' AND aw.trigger_stage = 'meet_and_present' AND aw.applies_to_entity_id = 'e0000001-0001-0001-0001-000000000001'$$,
-  'East Asia Budget Gate has template steps'
-);
-
--- ═══════════════════════════════════════════════════════════════════════════════
--- 23. Seed — East Asia Closure Gate workflow exists
--- ═══════════════════════════════════════════════════════════════════════════════
-
-SELECT tests.as_user('admin@nodwin.com');
-SET LOCAL ROLE authenticated;
-SELECT isnt_empty(
-  $$SELECT id FROM public.approval_workflows WHERE entity_type = 'opportunity' AND trigger_stage = 'verbal_agreement' AND applies_to_entity_id = 'e0000001-0001-0001-0001-000000000001'$$,
-  'East Asia Closure Gate workflow seeded'
-);
-
--- ═══════════════════════════════════════════════════════════════════════════════
--- 24. Seed — East Asia Closure Gate has template steps
--- ═══════════════════════════════════════════════════════════════════════════════
-
-SELECT tests.as_user('admin@nodwin.com');
-SET LOCAL ROLE authenticated;
-SELECT isnt_empty(
-  $$SELECT aws.id FROM public.approval_workflow_steps aws JOIN public.approval_workflows aw ON aw.id = aws.workflow_id WHERE aw.entity_type = 'opportunity' AND aw.trigger_stage = 'verbal_agreement' AND aw.applies_to_entity_id = 'e0000001-0001-0001-0001-000000000001'$$,
-  'East Asia Closure Gate has template steps'
-);
+-- Note: the "East Asia" default approval workflows are no longer shipped in the
+-- local seed (demo data was removed from supabase/seed/sandbox.sql), so the four
+-- assertions that checked for them have been dropped. Seeding of default
+-- workflows, if reintroduced, should be covered by its own migration + test.
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 25. Anon cannot read approval_workflow_steps
