@@ -40,6 +40,19 @@ const GAP_PX = 16
 const MIN = 1
 const MAX = 12
 
+/**
+ * Make a widget fill its grid cell instead of sitting at its natural height:
+ * a direct-child Card stretches to full height as a flex column and its content
+ * region grows to fill and scrolls when it overflows (so content is never cut
+ * off — it scrolls). Bare (non-Card) widget roots just fill the height.
+ */
+const FIT_WIDGET =
+  "[&>*]:h-full [&>*]:min-h-0 " +
+  "[&>[data-slot=card]]:flex [&>[data-slot=card]]:flex-col [&>[data-slot=card]]:overflow-hidden " +
+  "[&>[data-slot=card]>[data-slot=card-content]]:min-h-0 " +
+  "[&>[data-slot=card]>[data-slot=card-content]]:flex-1 " +
+  "[&>[data-slot=card]>[data-slot=card-content]]:overflow-auto"
+
 interface DashboardGridProps {
   /** Pre-rendered widget nodes keyed by id (built on the server). */
   widgets: { id: string; node: ReactNode }[]
@@ -195,7 +208,7 @@ export function DashboardGrid({
           {layout.map((item) => (
             <div
               key={item.id}
-              className="min-h-0 overflow-auto"
+              className={cn("min-h-0 overflow-hidden", FIT_WIDGET)}
               style={{
                 gridColumn: `span ${item.colSpan}`,
                 gridRow: `span ${item.rowSpan}`,
@@ -321,7 +334,12 @@ function SortableWidget({
         {title}
       </button>
 
-      <div className="pointer-events-none h-full select-none overflow-hidden rounded-xl ring-2 ring-primary/30">
+      <div
+        className={cn(
+          "pointer-events-none h-full min-h-0 select-none overflow-hidden rounded-xl ring-2 ring-primary/30",
+          FIT_WIDGET,
+        )}
+      >
         {children}
       </div>
 

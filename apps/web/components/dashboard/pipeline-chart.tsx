@@ -64,12 +64,13 @@ export function PipelineChart({ stages, currency, locale }: PipelineChartProps) 
   }))
 
   return (
-    <div className="rounded-lg border bg-card p-4">
+    <div className="flex h-full flex-col rounded-lg border bg-card p-4">
       <h2 className="mb-4 text-lg font-semibold">Pipeline by Stage</h2>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div>
+      <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-2">
+        <div className="flex min-h-0 flex-col">
           <h3 className="mb-2 text-sm text-muted-foreground">Deal Count</h3>
-          <ResponsiveContainer width="100%" height={300}>
+          <div className="min-h-[180px] flex-1">
+          <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
               <XAxis
@@ -93,11 +94,13 @@ export function PipelineChart({ stages, currency, locale }: PipelineChartProps) 
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          </div>
         </div>
 
-        <div>
+        <div className="flex min-h-0 flex-col">
           <h3 className="mb-2 text-sm text-muted-foreground">Total Value</h3>
-          <ResponsiveContainer width="100%" height={300}>
+          <div className="min-h-[180px] flex-1">
+          <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
               <XAxis
@@ -123,6 +126,7 @@ export function PipelineChart({ stages, currency, locale }: PipelineChartProps) 
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          </div>
         </div>
       </div>
     </div>
