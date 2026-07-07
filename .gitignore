@@ -13,6 +13,10 @@ out/
 .env.*
 !.env.example
 
+# Deploy: real runtime env for the app container on the VPS — never commit.
+# (The committed template is deploy/app.env.example.)
+deploy/*.env
+
 # Editor
 .vscode/
 .idea/

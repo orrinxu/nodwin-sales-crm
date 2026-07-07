@@ -1,0 +1,33 @@
+# Build-context hygiene: keep the image small and the build reproducible.
+# The image is built from the lockfile + source only; everything installed or
+# generated is recreated inside the build.
+
+# Installed / generated
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+**/out
+
+# VCS + CI + editor
+.git
+.gitignore
+.github
+.vscode
+.idea
+
+# Local env & secrets — runtime-injected on the VPS, never baked into the image
+**/.env
+**/.env.*
+!**/.env.example
+
+# Supabase self-host stack & DB tooling — not needed to build the web app
+supabase
+
+# Docs & meta
+**/*.md
+LICENSE
+
+# Test / coverage artifacts
+**/coverage
+**/.vitest

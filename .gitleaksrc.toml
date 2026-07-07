@@ -46,3 +46,17 @@ description = "Google service account private keys"
 patterns = [
     { pattern = "-----BEGIN RSA PRIVATE KEY-----", severity = "HIGH" }
 ]
+
+# ── Allowlist ────────────────────────────────────────────────────────────────
+# Test fixtures and the local-setup docs contain deliberately FAKE keys (e.g.
+# "eyjanon.abcdef123", truncated demo JWTs). They are not real secrets and must
+# not fail the scan. This is PATH-based (not commit-fingerprint like
+# .gitleaksignore), so it holds permanently as those files move across commits —
+# which is why the old fingerprint entries kept letting the same fakes re-leak.
+[allowlist]
+description = "Fake keys in test fixtures and docs are excluded by path"
+paths = [
+    '''.*\.test\.tsx?$''',
+    '''.*/__tests__/.*''',
+    '''(^|/)docs/.*\.md$''',
+]

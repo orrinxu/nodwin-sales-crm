@@ -1,0 +1,49 @@
+# deploy/app.service.yml
+#
+# The Nodwin CRM web app as ONE docker-compose service, to be MERGED into the
+# staging VPS's existing Supabase self-host compose. It is not a standalone
+# stack: copy only the `app:` service below into the compose that already runs
+# the Supabase services on the VPS. Do NOT copy the Supabase services here — this
+# ticket does not touch them.
+#
+# The image is built and pushed to ghcr by .github/workflows/deploy.yml. On merge
+# to main the deploy step SSHes to the VPS and runs:
+#     docker compose pull app && docker compose up -d app
+
+services:
+  app:
+    image: ghcr.io/orrinxu/nodwin-sales-crm:latest
+    # ROLLBACK: pin to a specific build instead of `latest`, e.g.
+    #     image: ghcr.io/orrinxu/nodwin-sales-crm:sha-<40-char-commit-sha>
+    # then `docker compose up -d app`. Old sha- tags stay in ghcr as targets.
+    restart: unless-stopped
+    pull_policy: always
+
+    # Runtime env: server-only secrets + NEXT_PUBLIC_API_URL (see app.env.example
+    # for why that one public var is also needed at runtime). Copy
+    # deploy/app.env.example to `app.env` beside your compose file and fill it in.
+    # app.env holds the service-role key — keep it out of git (chmod 600).
+    env_file:
+      - ./app.env
+
+    ports:
+      # The standalone server listens on 3000 in the container. Expose to the
+      # host, or (better) attach it to your existing TLS reverse proxy. TLS /
+      # proxy config is infra and out of scope for this ticket.
+      - "3000:3000"
+
+    healthcheck:
+      # node:*-slim ships no curl/wget, so use Node's built-in fetch. /login → 200.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+    # If the app should reach Supabase over the compose's INTERNAL network by
+    # service name (e.g. SUPABASE_URL=http://kong:8000 instead of a public URL),
+    # attach it to the Supabase stack's network and (optionally) order startup:
+    #   networks:
+    #     - default            # or the Supabase compose's named network
+    #   depends_on:
+    #     - kong               # Supabase API gateway service name — adjust to match
