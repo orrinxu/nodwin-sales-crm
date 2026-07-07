@@ -8,6 +8,7 @@ import { getAccountOptions } from "@/lib/data/contacts"
 import { getUserPreferences } from "@/lib/data/user-preferences"
 import { getStageTotals } from "@/lib/data/stage-totals"
 import { attachDealHealth } from "@/lib/data/deal-health"
+import { listSavedViews } from "@/lib/data/saved-views"
 import { OpportunitiesView } from "@/components/opportunities/opportunities-view"
 import type { EntityOption } from "@/components/entity-combobox"
 import {
@@ -19,6 +20,8 @@ import {
   searchContactsAction,
   searchUsersAction,
   createContactQuickAction,
+  saveViewAction,
+  deleteSavedViewAction,
 } from "../opportunities/actions"
 
 export const metadata = {
@@ -31,12 +34,13 @@ export default async function PipelinePage() {
 
   // Pipeline = the current user's OWN deals (owner_user_id = me). The "mine"
   // scope is an additional narrowing filter on top of RLS.
-  const [{ opportunities: rawOpportunities }, accounts, businessUnits, userOptions, preferences] = await Promise.all([
+  const [{ opportunities: rawOpportunities }, accounts, businessUnits, userOptions, preferences, savedViews] = await Promise.all([
     getOpportunities(ctx, { scope: "mine" }),
     getAccountOptions(ctx),
     getBusinessUnitOptions(ctx),
     getUserOptions(ctx),
     getUserPreferences(ctx),
+    listSavedViews(ctx, "mine"),
   ])
 
   // Attach batched deal-card health signals (overdue / stale) — one RPC for the
@@ -74,6 +78,10 @@ export default async function PipelinePage() {
         defaultView="board"
         title="Pipeline"
         description="Your deals — the ones you own. Drag between stages to update status."
+        savedViews={savedViews}
+        savedViewScope="mine"
+        saveViewAction={saveViewAction}
+        deleteSavedViewAction={deleteSavedViewAction}
         emptyState={{
           title: "You don't own any deals yet",
           description:

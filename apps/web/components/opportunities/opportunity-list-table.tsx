@@ -40,6 +40,16 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Trash2Icon, ArrowUpDownIcon, SearchIcon, XIcon } from "lucide-react"
+import { SavedViewsMenu } from "@/components/opportunities/saved-views-menu"
+import {
+  buildSavedFilters,
+  applySavedFilters,
+} from "@/components/opportunities/saved-views-filters"
+import type {
+  SavedViewRecord,
+  SavedViewFilters,
+  SavedViewScope,
+} from "@/lib/data/saved-views"
 
 interface OpportunityListTableProps {
   opportunities: OpportunityRecord[]
@@ -48,6 +58,15 @@ interface OpportunityListTableProps {
     ids: string[]
     stage: string
   }) => Promise<void>
+  /** Saved-views support — omitted (all four) disables the Views control. */
+  savedViews?: SavedViewRecord[]
+  savedViewScope?: SavedViewScope
+  saveViewAction?: (input: {
+    name: string
+    scope: SavedViewScope
+    filters: SavedViewFilters
+  }) => Promise<SavedViewRecord>
+  deleteSavedViewAction?: (id: string) => Promise<void>
 }
 
 const ALL_STAGES = [...NON_TERMINAL_STAGES, ...TERMINAL_STAGES]
@@ -111,6 +130,10 @@ export function OpportunityListTable({
   opportunities,
   bulkDeleteAction,
   bulkUpdateStageAction,
+  savedViews,
+  savedViewScope,
+  saveViewAction,
+  deleteSavedViewAction,
 }: OpportunityListTableProps) {
   const router = useRouter()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -161,6 +184,23 @@ export function OpportunityListTable({
     setStageFilter("all")
     setOwnerFilter("all")
   }, [])
+
+  // Saved views: serialize the live filter/sort state, and restore it on apply.
+  const currentFilters = useMemo(
+    () => buildSavedFilters({ searchQuery, stageFilter, ownerFilter, sorting }),
+    [searchQuery, stageFilter, ownerFilter, sorting],
+  )
+  const applyView = useCallback((filters: SavedViewFilters) => {
+    const next = applySavedFilters(filters)
+    setSearchQuery(next.searchQuery)
+    setStageFilter(next.stageFilter)
+    setOwnerFilter(next.ownerFilter)
+    setSorting(next.sorting)
+  }, [])
+  const savedViewsEnabled =
+    savedViewScope != null &&
+    saveViewAction != null &&
+    deleteSavedViewAction != null
 
   // getRowId keys the selection by opportunity id, so it survives filtering/sorting.
   const selectedIds = useMemo(
@@ -389,6 +429,19 @@ export function OpportunityListTable({
             Clear
           </Button>
         )}
+        {savedViewsEnabled ? (
+          <div className="ml-auto">
+            <SavedViewsMenu
+              savedViews={savedViews ?? []}
+              scope={savedViewScope}
+              currentFilters={currentFilters}
+              canSave={hasActiveFilters}
+              onApply={applyView}
+              saveViewAction={saveViewAction}
+              deleteSavedViewAction={deleteSavedViewAction}
+            />
+          </div>
+        ) : null}
       </FilterBar>
 
       {selectedIds.length > 0 && (

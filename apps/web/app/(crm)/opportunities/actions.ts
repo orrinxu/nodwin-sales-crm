@@ -32,6 +32,11 @@ import {
   notifyCurrentApprover,
   type ApprovalDecisionType,
 } from "@/lib/data/approvals"
+import {
+  saveView,
+  deleteSavedView,
+  saveViewInputSchema,
+} from "@/lib/data/saved-views"
 import { z } from "zod"
 
 export async function createOpportunityAction(input: unknown) {
@@ -42,6 +47,25 @@ export async function createOpportunityAction(input: unknown) {
   revalidatePath("/opportunities")
   revalidatePath("/pipeline")
   return opportunity
+}
+
+export async function saveViewAction(input: unknown) {
+  const user = await requireUser()
+  const ctx = { user, source: "web" as const }
+  const parsed = saveViewInputSchema.parse(input)
+  const view = await saveView(ctx, parsed)
+  revalidatePath("/opportunities")
+  revalidatePath("/pipeline")
+  return view
+}
+
+export async function deleteSavedViewAction(id: unknown) {
+  const user = await requireUser()
+  const ctx = { user, source: "web" as const }
+  const viewId = z.string().uuid().parse(id)
+  await deleteSavedView(ctx, viewId)
+  revalidatePath("/opportunities")
+  revalidatePath("/pipeline")
 }
 
 export async function updateOpportunityAction(id: string, input: unknown) {

@@ -9,6 +9,11 @@ import type { OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/oppo
 import type { StageTotals } from "@/lib/data/stage-totals"
 import type { AccountOption } from "@/lib/data/contacts"
 import type { EntityOption } from "@/components/entity-combobox"
+import type {
+  SavedViewRecord,
+  SavedViewFilters,
+  SavedViewScope,
+} from "@/lib/data/saved-views"
 import { cn } from "@/lib/utils"
 import { SectionHeader } from "@/components/primitives/section-header"
 import { EmptyState } from "@/components/primitives/empty-state"
@@ -45,6 +50,15 @@ interface OpportunitiesViewProps {
    * org-wide Opportunities list omits it and keeps its built-in empty rendering.
    */
   emptyState?: { title: string; description?: string }
+  /** Saved-views support for the table view — passed straight to OpportunityListTable. */
+  savedViews?: SavedViewRecord[]
+  savedViewScope?: SavedViewScope
+  saveViewAction?: (input: {
+    name: string
+    scope: SavedViewScope
+    filters: SavedViewFilters
+  }) => Promise<SavedViewRecord>
+  deleteSavedViewAction?: (id: string) => Promise<void>
 }
 
 type ViewMode = "kanban" | "table"
@@ -68,6 +82,10 @@ export function OpportunitiesView({
   title = "Opportunities",
   description,
   emptyState,
+  savedViews,
+  savedViewScope,
+  saveViewAction,
+  deleteSavedViewAction,
 }: OpportunitiesViewProps) {
   const router = useRouter()
   const [viewMode, setViewMode] = useState<ViewMode>(
@@ -161,6 +179,10 @@ export function OpportunitiesView({
             opportunities={opportunities}
             bulkDeleteAction={bulkDeleteAction}
             bulkUpdateStageAction={bulkUpdateStageAction}
+            savedViews={savedViews}
+            savedViewScope={savedViewScope}
+            saveViewAction={saveViewAction}
+            deleteSavedViewAction={deleteSavedViewAction}
           />
         </div>
       )}
