@@ -288,9 +288,7 @@ Proprietary — internal Nodwin Group use only. Not for redistribution.
 
 ## Contact
 
-- **Project lead / Board:** Orrin Xu
-- **Operational sponsor:** Akshat Rathee, Mickael Piantchenko
-- **Stakeholder:** Abhishek Aggarwal (Trinity Gaming)
+- **Project lead** Orrin Xu
 
 ---
 
