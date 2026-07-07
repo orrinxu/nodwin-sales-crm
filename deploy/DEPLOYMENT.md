@@ -13,7 +13,8 @@ rolls the container over SSH.
 ## 0. Prerequisites (once)
 
 - Staging VPS reachable over SSH, running Docker + the Supabase self-host
-  `docker compose` stack.
+  `docker compose` stack. **Standing that up + applying migrations is manual and
+  not part of the pipeline** — see [`SUPABASE-SETUP.md`](./SUPABASE-SETUP.md) first.
 - You're an admin on the `orrinxu/nodwin-sales-crm` GitHub repo.
 - You know the two staging URLs:
   - **app URL** — where the CRM will be served, e.g. `https://crm-staging.example`

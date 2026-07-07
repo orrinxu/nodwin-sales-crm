@@ -7,6 +7,8 @@ on the VPS**, pushed to ghcr, then rolled out to the staging VPS over SSH.
 - Image: [`Dockerfile`](../Dockerfile) → `ghcr.io/orrinxu/nodwin-sales-crm`
 - App service to merge into the VPS compose: [`app.service.yml`](./app.service.yml)
 - Runtime env template: [`app.env.example`](./app.env.example)
+- Step-by-step deploy runbook: [`DEPLOYMENT.md`](./DEPLOYMENT.md)
+- Supabase stand-up + migrations (not automated): [`SUPABASE-SETUP.md`](./SUPABASE-SETUP.md)
 
 Target for this pipeline is **staging**. Prod is a separate ticket.
 
