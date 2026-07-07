@@ -2773,6 +2773,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          dashboard_layout: Json | null
           date_format: string
           display_currency: string | null
           entry_currency_default: string | null
@@ -2788,6 +2789,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          dashboard_layout?: Json | null
           date_format?: string
           display_currency?: string | null
           entry_currency_default?: string | null
@@ -2803,6 +2805,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          dashboard_layout?: Json | null
           date_format?: string
           display_currency?: string | null
           entry_currency_default?: string | null
