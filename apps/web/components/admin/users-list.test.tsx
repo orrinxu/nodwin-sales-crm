@@ -12,12 +12,14 @@ vi.mock("server-only", () => ({}))
 
 const users: AdminUserRecord[] = [
   {
-    id: "u-admin", email: "alice@nodwin.com", fullName: "Alice Admin", role: "admin", active: true,
+    id: "u-admin", email: "alice@nodwin.com", fullName: "Alice Admin", role: "admin",
+    roleId: "role-admin", roleLabel: "Super Admin", active: true,
     crmInboundEmail: null, primaryEntityId: "e1", primaryEntityName: "Nodwin India",
     primaryBusinessUnitId: null, primaryBusinessUnitName: null, managerUserId: null, managerName: null,
   },
   {
-    id: "u-rep", email: "charlie@nodwin.com", fullName: "Charlie Rep", role: "sales_rep", active: true,
+    id: "u-rep", email: "charlie@nodwin.com", fullName: "Charlie Rep", role: "sales_rep",
+    roleId: "role-rep", roleLabel: "Sales Rep", active: true,
     crmInboundEmail: null, primaryEntityId: "e1", primaryEntityName: "Nodwin India",
     primaryBusinessUnitId: null, primaryBusinessUnitName: null, managerUserId: "u-admin", managerName: "Alice Admin",
   },
@@ -30,6 +32,10 @@ function makeProps(extra = {}) {
     canManageRoles: true,
     entities: [{ id: "e1", name: "Nodwin India" }],
     businessUnits: [{ id: "b1", name: "East Asia" }],
+    roles: [
+      { id: "role-admin", name: "Super Admin" },
+      { id: "role-rep", name: "Sales Rep" },
+    ],
     updateAction: vi.fn().mockResolvedValue(undefined),
     ...extra,
   }
@@ -40,7 +46,6 @@ describe("UsersList", () => {
 
   it("lists users with role badges and the (you) marker", () => {
     render(<UsersList {...makeProps()} />)
-    // Email is unique per row (the name can also appear as another user's manager).
     expect(screen.getByText("alice@nodwin.com")).toBeInTheDocument()
     expect(screen.getByText("charlie@nodwin.com")).toBeInTheDocument()
     expect(screen.getByText("Sales Rep")).toBeInTheDocument()
@@ -50,19 +55,21 @@ describe("UsersList", () => {
   it("filters by search", async () => {
     render(<UsersList {...makeProps()} />)
     await userEvent.type(screen.getByPlaceholderText("Search users…"), "charlie")
-    // Alice's row is gone (her email no longer shown).
     expect(screen.queryByText("alice@nodwin.com")).not.toBeInTheDocument()
     expect(screen.getByText("charlie@nodwin.com")).toBeInTheDocument()
   })
 
-  it("edits another user and saves", async () => {
+  it("edits another user and saves the assigned role_id", async () => {
     const props = makeProps()
     render(<UsersList {...props} />)
     await userEvent.click(screen.getByRole("button", { name: "Edit Charlie Rep" }))
     expect(await screen.findByText("Edit user")).toBeInTheDocument()
     await userEvent.click(screen.getByRole("button", { name: "Save" }))
     await waitFor(() => {
-      expect(props.updateAction).toHaveBeenCalledWith("u-rep", expect.objectContaining({ role: "sales_rep" }))
+      expect(props.updateAction).toHaveBeenCalledWith(
+        "u-rep",
+        expect.objectContaining({ roleId: "role-rep" }),
+      )
     })
   })
 
@@ -75,10 +82,9 @@ describe("UsersList", () => {
       expect(props.updateAction).toHaveBeenCalled()
     })
     const payload = props.updateAction.mock.calls[0][1] as Record<string, unknown>
-    expect("role" in payload).toBe(false)
+    expect("roleId" in payload).toBe(false)
     expect("primaryEntityId" in payload).toBe(false)
     expect("managerUserId" in payload).toBe(false)
-    // Still allowed to edit name / BU / active.
     expect("active" in payload).toBe(true)
   })
 })
