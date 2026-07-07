@@ -35,7 +35,7 @@ describe("RepLeaderboard", () => {
     )
     expect(screen.getByText("Team leaderboard")).toBeInTheDocument()
     expect(firstRowText(container)).toContain("Bob") // 300k won leads
-    expect(screen.getByText("$300K")).toBeInTheDocument()
+    expect(screen.getByText("$300,000")).toBeInTheDocument()
     expect(screen.getByText("(you)")).toBeInTheDocument() // Alice is the viewer
   })
 

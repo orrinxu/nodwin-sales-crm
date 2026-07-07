@@ -53,8 +53,7 @@ export function RepLeaderboard({
   const money = new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
-    notation: "compact",
-    maximumFractionDigits: 1,
+    maximumFractionDigits: 0,
   })
   const fmt = (value: number) =>
     kind === "money" ? money.format(value) : `${value}%`
