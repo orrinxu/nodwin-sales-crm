@@ -103,9 +103,9 @@ The migrations in `supabase/migrations/` are ordered (numbered files) and run se
 pnpm db:reset
 ```
 
-Use `pnpm db:reset` to get seeded sample data. It runs `supabase db reset`, which re-applies every migration and then loads the seed defined in `config.toml` (`[db.seed] sql_paths` → `supabase/seed/sandbox.sql`, ~35 KB). This creates sample accounts, contacts, opportunities, and users so you can explore the app without creating everything from scratch.
+Use `pnpm db:reset` to get a seeded local database. It runs `supabase db reset`, which re-applies every migration and then loads the seed defined in `config.toml` (`[db.seed] sql_paths` → `supabase/seed/sandbox.sql`). This creates the Nodwin legal entities, their business units, and a Super Admin login (`orrinxu@gmail.com` / `12345678`) so you can sign in and start entering real data.
 
-> **Note:** `pnpm db:seed` runs `supabase db query --local --file supabase/seed/seed-test-data.sql`, but that file is an empty placeholder — it seeds nothing. The real sample data lives in `supabase/seed/sandbox.sql` and is loaded by `supabase db reset`, so prefer `pnpm db:reset`.
+> **Note:** `pnpm db:seed` applies `supabase/seed/sandbox.sql` to the already-running local DB (idempotent). The same seed loads automatically on `supabase db reset`, so prefer `pnpm db:reset` for a clean rebuild.
 
 > **Never run the seed against a production Supabase project.** The seed data includes fake but plausible-looking records that would pollute real pipelines.
 
