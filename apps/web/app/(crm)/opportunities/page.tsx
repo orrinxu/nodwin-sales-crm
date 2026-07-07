@@ -8,6 +8,7 @@ import { getAccountOptions } from "@/lib/data/contacts"
 import { getUserPreferences } from "@/lib/data/user-preferences"
 import { getStageTotals } from "@/lib/data/stage-totals"
 import { attachDealHealth } from "@/lib/data/deal-health"
+import { listSavedViews } from "@/lib/data/saved-views"
 import { OpportunitiesView } from "@/components/opportunities/opportunities-view"
 import type { EntityOption } from "@/components/entity-combobox"
 import {
@@ -19,18 +20,21 @@ import {
   searchContactsAction,
   searchUsersAction,
   createContactQuickAction,
+  saveViewAction,
+  deleteSavedViewAction,
 } from "./actions"
 
 export default async function OpportunitiesPage() {
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
 
-  const [{ opportunities: rawOpportunities }, accounts, businessUnits, userOptions, preferences] = await Promise.all([
+  const [{ opportunities: rawOpportunities }, accounts, businessUnits, userOptions, preferences, savedViews] = await Promise.all([
     getOpportunities(ctx, { scope: "all" }),
     getAccountOptions(ctx),
     getBusinessUnitOptions(ctx),
     getUserOptions(ctx),
     getUserPreferences(ctx),
+    listSavedViews(ctx, "all"),
   ])
 
   // Attach batched deal-card health signals (overdue / stale) — one RPC for the
@@ -68,6 +72,10 @@ export default async function OpportunitiesPage() {
         defaultView="table"
         title="Opportunities"
         description="All deals across the group you can access."
+        savedViews={savedViews}
+        savedViewScope="all"
+        saveViewAction={saveViewAction}
+        deleteSavedViewAction={deleteSavedViewAction}
       />
   )
 }
