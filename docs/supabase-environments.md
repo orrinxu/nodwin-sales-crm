@@ -81,7 +81,7 @@ supabase link --project-ref <project-ref>
 
 ## Seed data
 
-- **Local only.** The seed is in `supabase/seed/sandbox.sql` and `supabase/seed/seed-test-data.sql`.
+- **Local only.** The seed is in `supabase/seed/sandbox.sql`.
 - Seed is automatically loaded when you run `supabase db reset`.
 - **Never load seed data on production.** Production contains real CRM data.
 
