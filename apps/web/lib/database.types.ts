@@ -2999,6 +2999,13 @@ export type Database = {
           value_bucket: string
         }[]
       }
+      conversion_funnel_agg: {
+        Args: never
+        Returns: {
+          deal_count: number
+          stage: string
+        }[]
+      }
       current_user_entity_id: { Args: never; Returns: string }
       current_user_role: {
         Args: never
