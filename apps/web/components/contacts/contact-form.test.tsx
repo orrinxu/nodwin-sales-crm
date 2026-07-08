@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from "vitest"
+import { render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { ContactForm } from "./contact-form"
 import type { AccountOption } from "@/lib/data/contacts"
 
@@ -52,5 +54,36 @@ describe("ContactForm", () => {
         onSuccess={vi.fn()}
       />
     )).not.toThrow()
+  })
+
+  it("submits a name-only contact (the default empty social row must not block submit)", async () => {
+    const createAction = vi.fn().mockResolvedValue({ id: "c1" })
+    const onSuccess = vi.fn()
+    const user = userEvent.setup()
+
+    render(
+      <ContactForm
+        accounts={mockAccounts}
+        createAction={createAction}
+        onSuccess={onSuccess}
+      />,
+    )
+
+    // Open the sheet via the trigger.
+    await user.click(screen.getByRole("button", { name: /create contact/i }))
+
+    // Fill only the required field.
+    await user.type(await screen.findByLabelText(/full name/i), "Jane Smith")
+
+    // The submit button shares the "Create Contact" label with the trigger;
+    // pick the type="submit" one inside the form.
+    const submit = screen
+      .getAllByRole("button", { name: /create contact/i })
+      .find((b) => b.getAttribute("type") === "submit")
+    await user.click(submit as HTMLElement)
+
+    await waitFor(() => expect(createAction).toHaveBeenCalledTimes(1))
+    expect(createAction.mock.calls[0][0]).toMatchObject({ fullName: "Jane Smith" })
+    expect(onSuccess).toHaveBeenCalled()
   })
 })
