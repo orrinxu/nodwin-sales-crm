@@ -85,6 +85,8 @@ export interface OpportunityRecord {
   accountId: string
   accountName: string | null
   primaryContactId: string | null
+  /** Optional so existing record mocks don't need updating; always set by the data layer. */
+  primaryContactName?: string | null
   stage: DealStage
   probabilityPct: number
   /** Decimal string representation of the amount (e.g. "50000.00"). Never a float. */
