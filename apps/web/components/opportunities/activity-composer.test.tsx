@@ -250,4 +250,35 @@ describe("ActivityComposer", () => {
       expect(createAction).not.toHaveBeenCalled()
     })
   })
+
+  describe("notes-only mode", () => {
+    it("renders the note form and hides the Call tab", () => {
+      render(<ActivityComposer {...defaultProps} notesOnly />)
+
+      expect(screen.getByPlaceholderText(/write your note/i)).toBeInTheDocument()
+      expect(
+        screen.getByRole("button", { name: /save note/i }),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole("tab", { name: /call/i }),
+      ).not.toBeInTheDocument()
+    })
+
+    it("saves a note in notes-only mode", async () => {
+      const createAction = vi.fn().mockResolvedValue(mockResolved)
+      const user = userEvent.setup()
+      render(
+        <ActivityComposer
+          {...defaultProps}
+          createAction={createAction}
+          notesOnly
+        />,
+      )
+
+      await user.type(screen.getByPlaceholderText(/write your note/i), "Met at expo")
+      await user.click(screen.getByRole("button", { name: /save note/i }))
+
+      expect(createAction).toHaveBeenCalledTimes(1)
+    })
+  })
 })

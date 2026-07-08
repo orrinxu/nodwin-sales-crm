@@ -195,7 +195,7 @@ export function ContactDetailWrapper({
         />
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Activity</CardTitle>
+            <CardTitle className="text-sm">Notes</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <ActivityComposer
@@ -203,6 +203,7 @@ export function ContactDetailWrapper({
               scope={{ contactId: contact.id, accountId: contact.primaryAccountId }}
               createAction={createActivityAction}
               onCreated={() => router.refresh()}
+              notesOnly
             />
             <ActivityTimeline activities={activities} />
           </CardContent>
