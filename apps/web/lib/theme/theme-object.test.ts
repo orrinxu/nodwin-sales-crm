@@ -18,7 +18,7 @@ describe("resolveThemeMode", () => {
     expect(resolveThemeMode(undefined)).toBe(DEFAULT_THEME_MODE)
     expect(resolveThemeMode(null)).toBe(DEFAULT_THEME_MODE)
     expect(resolveThemeMode("garbage")).toBe(DEFAULT_THEME_MODE)
-    expect(DEFAULT_THEME_MODE).toBe("dark")
+    expect(DEFAULT_THEME_MODE).toBe("light")
   })
 })
 

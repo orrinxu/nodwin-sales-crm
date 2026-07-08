@@ -69,7 +69,7 @@ export const SEEDED_THEME: ThemeObject = {
 export const THEME_STORAGE_KEY = "nodwin-crm-theme"
 
 /** Seeded default when no preference is known (SSR cannot detect "system"). */
-export const DEFAULT_THEME_MODE: ThemeMode = "dark"
+export const DEFAULT_THEME_MODE: ThemeMode = "light"
 
 /**
  * Resolve a stored preference string ("light" | "dark" | "system" | undefined)
