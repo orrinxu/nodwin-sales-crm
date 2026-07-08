@@ -33,11 +33,19 @@ const formSchema = z.object({
   phone: z.string().max(50).optional().or(z.literal("")),
   primaryAccountId: z.string().optional().or(z.literal("")),
   notes: z.string().max(5000).optional().or(z.literal("")),
+  // Rows may be left blank (the form seeds one empty row and onSubmit strips
+  // incomplete ones); only require both fields when either is filled, so a
+  // name-only contact isn't silently blocked by the default empty row.
   socials: z.array(
-    z.object({
-      platform: z.string().min(1),
-      url: z.string().min(1),
-    }),
+    z
+      .object({
+        platform: z.string(),
+        url: z.string(),
+      })
+      .refine((s) => (s.platform.trim() === "") === (s.url.trim() === ""), {
+        message: "Enter both a platform and a URL",
+        path: ["url"],
+      }),
   ),
   accountLinkIds: z.array(z.string()),
 })
