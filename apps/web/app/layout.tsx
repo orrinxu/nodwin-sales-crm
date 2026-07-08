@@ -29,7 +29,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   // Flash-free theming: resolve the mode server-side from the cookie the client
-  // mirrors on every toggle (falls back to the seeded default "dark"), then
+  // mirrors on every toggle (falls back to the seeded default "light"), then
   // render the class AND stamp the brand vars inline so the very first paint
   // already has the correct theme + brand. See lib/theme/theme-object.ts.
   const cookieStore = await cookies();
@@ -49,7 +49,7 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <ThemeProvider defaultTheme="dark">{children}</ThemeProvider>
+        <ThemeProvider defaultTheme="light">{children}</ThemeProvider>
       </body>
     </html>
   );
