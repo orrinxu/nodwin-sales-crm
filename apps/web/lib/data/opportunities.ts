@@ -59,7 +59,6 @@ export type OpportunityStageUpdateInput = z.infer<typeof opportunityStageUpdateS
 function toDomainOpportunity(data: Record<string, unknown>): OpportunityRecord {
   const account = data.account as { name: string } | null
   const owner = data.owner as { full_name: string } | null
-  const primaryContact = data.primary_contact as { full_name: string } | null
   const currency = (data.currency as string) ?? "USD"
   const amount = Money.fromAmount(String(data.amount ?? 0), currency).toAmount()
   return {
@@ -68,7 +67,6 @@ function toDomainOpportunity(data: Record<string, unknown>): OpportunityRecord {
     accountId: data.account_id as string,
     accountName: account?.name ?? null,
     primaryContactId: (data.primary_contact_id as string) ?? null,
-    primaryContactName: primaryContact?.full_name ?? null,
     stage: data.stage as DealStage,
     probabilityPct: Number(data.probability_pct ?? 0),
     amount,
@@ -169,8 +167,7 @@ export async function getOpportunities(
       created_at,
       updated_at,
       account:account_id ( name ),
-      owner:owner_user_id ( full_name ),
-      primary_contact:primary_contact_id ( full_name )
+      owner:owner_user_id ( full_name )
     `,
       { count: "exact" },
     )
@@ -241,8 +238,7 @@ export async function getOpportunityById(
       created_at,
       updated_at,
       account:account_id ( name ),
-      owner:owner_user_id ( full_name ),
-      primary_contact:primary_contact_id ( full_name )
+      owner:owner_user_id ( full_name )
     `,
     )
     .eq("id", id)
@@ -491,8 +487,7 @@ export async function createOpportunity(
       created_at,
       updated_at,
       account:account_id ( name ),
-      owner:owner_user_id ( full_name ),
-      primary_contact:primary_contact_id ( full_name )
+      owner:owner_user_id ( full_name )
     `,
     )
     .single()
