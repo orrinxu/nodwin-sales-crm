@@ -28,9 +28,18 @@ export async function createServerClient() {
         return cookieStore.getAll()
       },
       setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => {
-          cookieStore.set(name, value, options)
-        })
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options)
+          })
+        } catch {
+          // Called from a Server Component, where cookies can't be written
+          // (Next.js: "Cookies can only be modified in a Server Action or Route
+          // Handler"). Safe to ignore — writes only matter in Server Actions /
+          // Route Handlers, where set() succeeds and this catch never runs. This
+          // stops a stray session-refresh write during a page render (e.g. a
+          // getUser() call) from crashing the whole request.
+        }
       },
     },
   })
