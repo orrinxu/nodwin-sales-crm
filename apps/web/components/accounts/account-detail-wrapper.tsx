@@ -445,7 +445,7 @@ export function AccountDetailWrapper({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Activity</CardTitle>
+            <CardTitle className="text-sm">Notes</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <ActivityComposer
@@ -453,6 +453,7 @@ export function AccountDetailWrapper({
               scope={{ accountId: account.id }}
               createAction={createActivityAction}
               onCreated={() => router.refresh()}
+              notesOnly
             />
             <ActivityTimeline activities={activities} />
           </CardContent>

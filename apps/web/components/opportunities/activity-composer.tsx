@@ -32,6 +32,12 @@ interface ActivityComposerProps {
   scope: ActivityScope
   createAction: (revalidateId: string, input: unknown) => Promise<ActivityRecord>
   onCreated?: () => void
+  /**
+   * Notes-only mode for account/contact pages: renders just the note form (no
+   * Call tab, no wrapper card). Full activity logging (calls) lives on
+   * opportunities.
+   */
+  notesOnly?: boolean
 }
 
 export function ActivityComposer({
@@ -39,7 +45,19 @@ export function ActivityComposer({
   scope,
   createAction,
   onCreated,
+  notesOnly = false,
 }: ActivityComposerProps) {
+  if (notesOnly) {
+    return (
+      <NoteForm
+        revalidateId={revalidateId}
+        scope={scope}
+        createAction={createAction}
+        onCreated={onCreated}
+      />
+    )
+  }
+
   return (
     <Card>
       <CardHeader>
