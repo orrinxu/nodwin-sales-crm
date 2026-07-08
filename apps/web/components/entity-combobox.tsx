@@ -25,6 +25,13 @@ export interface EntityOption {
 export interface EntityComboboxProps {
   items: EntityOption[]
   value: string | null
+  /**
+   * Label to show in the trigger for the current `value` when its item isn't in
+   * `items` (e.g. search-backed lists that start empty, or an edit form whose
+   * selected entity isn't in the initial page). Prevents the trigger from
+   * falling back to showing the raw id.
+   */
+  valueLabel?: string
   onChange: (value: string | null) => void
   searchAction?: (query: string) => Promise<EntityOption[]>
   placeholder?: string
@@ -52,6 +59,7 @@ const DEBOUNCE_MS = 250
 export function EntityCombobox({
   items,
   value,
+  valueLabel,
   onChange,
   searchAction,
   placeholder = "Select...",
@@ -65,6 +73,11 @@ export function EntityCombobox({
 }: EntityComboboxProps) {
   const _createAction = createAction ?? onCreate
   const [createdItems, setCreatedItems] = useState<EntityOption[]>([])
+  // Remembers the label of an item the user picked that isn't in `items` (e.g.
+  // a search result), so the trigger keeps showing its name, not a raw id.
+  const [picked, setPicked] = useState<{ id: string; label: string } | null>(
+    null,
+  )
   const [open, setOpen] = useState(false)
   const [inputValue, setInputValue] = useState("")
   const [isCreating, setIsCreating] = useState(false)
@@ -131,19 +144,29 @@ export function EntityCombobox({
     [allItems, value],
   )
 
-  const displayValue = value && !selectedItem
-    ? value
-    : selectedItem
-      ? getItemLabel(selectedItem)
+  // Never fall back to the raw id: prefer the matched item's label, then the
+  // caller-supplied label for the current value, else nothing (placeholder).
+  const displayValue = selectedItem
+    ? getItemLabel(selectedItem)
+    : value
+      ? picked?.id === value
+        ? picked.label
+        : valueLabel ?? ""
       : ""
 
   const handleValueChange = useCallback(
     (v: string | null) => {
+      const chosen =
+        v != null
+          ? filteredItems.find((i) => i.id === v) ??
+            allItems.find((i) => i.id === v)
+          : undefined
+      setPicked(chosen ? { id: chosen.id, label: getItemLabel(chosen) } : null)
       onChange(v)
       setInputValue("")
       setOpen(false)
     },
-    [onChange],
+    [onChange, filteredItems, allItems],
   )
 
   const handleCreate = useCallback(async () => {
@@ -180,7 +203,9 @@ export function EntityCombobox({
         disabled={disabled}
       >
         <ComboboxValue placeholder={placeholder}>
-          {displayValue || undefined}
+          {/* Always pass an explicit child: an undefined child makes Base UI's
+              ComboboxValue fall back to rendering the raw value (the id). */}
+          {displayValue || placeholder}
         </ComboboxValue>
       </ComboboxTrigger>
       <ComboboxContent align="start">

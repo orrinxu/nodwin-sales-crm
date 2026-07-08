@@ -37,15 +37,31 @@ describe("EntityCombobox", () => {
       expect(screen.queryByText("Choose account...")).not.toBeInTheDocument()
     })
 
-    it("shows value when selected item not in items list", () => {
+    it("shows valueLabel (not the raw id) when the selected item is not in items", () => {
+      render(
+        <EntityCombobox
+          items={[]}
+          value="contact-42"
+          valueLabel="Jane Smith"
+          onChange={vi.fn()}
+          placeholder="Select contact..."
+        />,
+      )
+      expect(screen.getByText("Jane Smith")).toBeInTheDocument()
+      expect(screen.queryByText("contact-42")).not.toBeInTheDocument()
+    })
+
+    it("never shows the raw id when the item is missing and no valueLabel is given", () => {
       render(
         <EntityCombobox
           items={mockItems}
           value="nonexistent"
           onChange={vi.fn()}
+          placeholder="Choose account..."
         />,
       )
-      expect(screen.getByText("nonexistent")).toBeInTheDocument()
+      expect(screen.queryByText("nonexistent")).not.toBeInTheDocument()
+      expect(screen.getByText("Choose account...")).toBeInTheDocument()
     })
 
     it("renders disabled state", () => {
