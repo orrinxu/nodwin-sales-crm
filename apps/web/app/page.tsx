@@ -1,21 +1,24 @@
 import { redirect } from "next/navigation"
-import { createServerClient } from "@/lib/supabase/server"
+import { cookies } from "next/headers"
 import { env } from "@/lib/security/env"
 
-// Root forwards based on auth: the dashboard when signed in, the login page
-// otherwise. (The canonical dashboard lives at /dashboard inside the (crm)
-// route group so it inherits the sidebar layout.)
+// Root forwards by session presence: /dashboard when a Supabase auth cookie is
+// present, /login otherwise.
+//
+// We only READ cookies here. A Server Component can't write cookies, and a live
+// `supabase.auth.getUser()` triggers Supabase's session refresh (setAll), which
+// throws "Cookies can only be modified in a Server Action or Route Handler". The
+// destination page validates the session for real (requireUser), so a stale or
+// expired cookie still ends up back on /login.
 export default async function Home() {
-  // Local preview bypasses real auth (requireUser returns a stub admin), so
-  // send it straight to the app.
   if (env.NEXT_PUBLIC_ENV === "local-preview") {
     redirect("/dashboard")
   }
 
-  const supabase = await createServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const cookieStore = await cookies()
+  const hasSession = cookieStore
+    .getAll()
+    .some((c) => c.name.startsWith("sb-") && c.name.includes("auth-token"))
 
-  redirect(user ? "/dashboard" : "/login")
+  redirect(hasSession ? "/dashboard" : "/login")
 }
