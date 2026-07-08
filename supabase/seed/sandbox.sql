@@ -85,7 +85,7 @@ INSERT INTO auth.users (
   '00000000-0000-0000-0000-000000000000',
   'a0000000-0000-4000-8000-000000000001',
   'authenticated', 'authenticated',
-  'orrinxu@gmail.com',
+  'orrin.xu@nodwin.com',
   extensions.crypt('12345678', extensions.gen_salt('bf')),
   now(), now(), now(),
   '{"provider":"email","providers":["email"]}'::jsonb,
@@ -102,7 +102,7 @@ INSERT INTO auth.identities (
   gen_random_uuid(),
   'a0000000-0000-4000-8000-000000000001',
   'a0000000-0000-4000-8000-000000000001',
-  '{"sub":"a0000000-0000-4000-8000-000000000001","email":"orrinxu@gmail.com","email_verified":true}'::jsonb,
+  '{"sub":"a0000000-0000-4000-8000-000000000001","email":"orrin.xu@nodwin.com","email_verified":true}'::jsonb,
   'email', now(), now(), now()
 )
 ON CONFLICT (provider_id, provider) DO NOTHING;

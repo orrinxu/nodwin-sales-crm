@@ -4,6 +4,7 @@ import { Suspense, useEffect } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { AlertTriangle } from "lucide-react"
 import { LoginButton } from "@/components/auth/login-button"
+import { PasswordForm } from "@/components/auth/password-form"
 import { MagicLinkForm } from "@/components/auth/magic-link-form"
 import { EmailOtpForm } from "@/components/auth/email-otp-form"
 import {
@@ -64,9 +65,9 @@ function LoginForm() {
             )}
           </div>
         )}
+        <PasswordForm />
         {process.env.NEXT_PUBLIC_ENV !== "local-preview" && (
           <>
-            <LoginButton />
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t" />
@@ -77,6 +78,7 @@ function LoginForm() {
                 </span>
               </div>
             </div>
+            <LoginButton />
           </>
         )}
         <MagicLinkForm />
