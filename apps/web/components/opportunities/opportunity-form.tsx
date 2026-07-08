@@ -456,6 +456,7 @@ export function OpportunityForm({
               <EntityCombobox
                 items={accountsForCombobox}
                 value={form.getValues("accountId")}
+                valueLabel={opportunity?.accountName ?? undefined}
                 onChange={(v) => {
                   form.setValue("accountId", v ?? "", { shouldValidate: true })
                   form.setValue("primaryContactId", "")
@@ -478,6 +479,7 @@ export function OpportunityForm({
               <EntityCombobox
                 items={[]}
                 value={form.getValues("primaryContactId") || null}
+                valueLabel={opportunity?.primaryContactName ?? undefined}
                 onChange={(v) => form.setValue("primaryContactId", v ?? "", { shouldValidate: true })}
                 searchAction={
                   searchContactsAction
@@ -531,6 +533,7 @@ export function OpportunityForm({
                 <EntityCombobox
                   items={usersProp}
                   value={form.getValues("ownerUserId") || null}
+                  valueLabel={opportunity?.ownerName ?? undefined}
                   onChange={(v) => form.setValue("ownerUserId", v ?? "", { shouldValidate: true })}
                   searchAction={searchUsersAction}
                   placeholder="Select owner"
