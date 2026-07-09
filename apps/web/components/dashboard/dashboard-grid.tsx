@@ -46,14 +46,16 @@ const MAX = 12
  * region grows to fill and scrolls when it overflows (so content is never cut
  * off — it scrolls). Bare (non-Card) widget roots just fill the height.
  *
- * The direct child clips its own CONTENT (overflow-hidden) so nothing spills the
- * cell, but the cell wrapper itself must NOT clip — the Card's visible border is
- * a `ring` (an outset box-shadow drawn just outside the box), so a clipping
- * wrapper shaves it off at the edges. Content containment lives on the child;
- * the ring lives in the gap between cells.
+ * Nothing here clips: a widget's visible border is a `ring` (an outset box-shadow
+ * drawn just outside the box), so any clipping ancestor shaves it off at the
+ * edges. A Card already clips its OWN content (Card primitive is overflow-hidden)
+ * and its content region scrolls when it overflows, so cards self-contain without
+ * a clipping wrapper. Bare-root widgets (e.g. the KPI summary strip, the pipeline
+ * chart) render at their natural height and must fit their cell (sized via the
+ * widget's rowSpan) rather than being clipped — clipping cut their tile borders.
  */
 const FIT_WIDGET =
-  "[&>*]:h-full [&>*]:min-h-0 [&>*]:overflow-hidden " +
+  "[&>*]:h-full [&>*]:min-h-0 " +
   "[&>[data-slot=card]]:flex [&>[data-slot=card]]:flex-col " +
   "[&>[data-slot=card]>[data-slot=card-content]]:min-h-0 " +
   "[&>[data-slot=card]>[data-slot=card-content]]:flex-1 " +
