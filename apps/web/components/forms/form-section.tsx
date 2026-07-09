@@ -42,6 +42,12 @@ export function FormSection({
     </h3>
   )
 
+  // Fields flow across a responsive grid: 1 column on mobile, 2 on tablet, 3 on
+  // desktop. A field spans all columns with `col-span-full` (Name, multi-selects,
+  // textareas). Section headers live outside the grid, so they always span full.
+  const FIELD_GRID =
+    "grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2 xl:grid-cols-3"
+
   if (!collapsible) {
     return (
       <section className={cn("space-y-3", className)}>
@@ -52,7 +58,7 @@ export function FormSection({
         {description && (
           <p className="text-xs text-muted-foreground">{description}</p>
         )}
-        <div className="space-y-3">{children}</div>
+        <div className={FIELD_GRID}>{children}</div>
       </section>
     )
   }
@@ -77,28 +83,13 @@ export function FormSection({
         {aside}
       </div>
       <CollapsibleContent>
-        <div className="space-y-3 pt-3 pb-0.5">
+        <div className={cn(FIELD_GRID, "pt-3 pb-0.5")}>
           {description && (
-            <p className="text-xs text-muted-foreground">{description}</p>
+            <p className="col-span-full text-xs text-muted-foreground">{description}</p>
           )}
           {children}
         </div>
       </CollapsibleContent>
     </Collapsible>
-  )
-}
-
-/** Responsive two-column grid for pairing related fields inside a section. */
-export function FieldGrid({
-  children,
-  className,
-}: {
-  children: React.ReactNode
-  className?: string
-}) {
-  return (
-    <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2", className)}>
-      {children}
-    </div>
   )
 }

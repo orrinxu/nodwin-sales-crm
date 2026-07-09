@@ -47,7 +47,11 @@ export function RecordEditDialog({
       {trigger && <DialogTrigger render={trigger} />}
       <DialogContent
         className={cn(
-          "flex max-h-[86vh] w-full max-w-3xl flex-col gap-0 overflow-hidden p-0",
+          // Wide on desktop (≈82% of viewport, capped), full-height-safe at 90vh.
+          // The dialog sizes to content and only reaches the cap (and scrolls)
+          // when the content genuinely overflows — which on desktop, with the
+          // 3-column field grid, it should not.
+          "flex max-h-[90vh] w-[82vw] max-w-[1400px] flex-col gap-0 overflow-hidden p-0 text-[15px]",
           contentClassName,
         )}
       >
@@ -56,7 +60,9 @@ export function RecordEditDialog({
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
+          {/* Sizes to content (no scroll) until it exceeds the 90vh cap — then
+              scrolls. On desktop it fits; on mobile (1 column) it scrolls. */}
+          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5 [&_input]:text-[15px] [&_textarea]:text-[15px]">
             {children}
           </div>
           <div className="flex flex-col-reverse gap-2 border-t bg-muted/50 px-6 py-3 sm:flex-row sm:justify-end">

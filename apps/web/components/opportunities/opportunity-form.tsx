@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RecordEditDialog } from "@/components/forms/record-edit-dialog"
-import { FormSection, FieldGrid } from "@/components/forms/form-section"
+import { FormSection } from "@/components/forms/form-section"
 import {
   Select,
   SelectTrigger,
@@ -460,7 +460,7 @@ export function OpportunityForm({
 
       {/* ── Deal details ─────────────────────────────────────────────── */}
       <FormSection title="Deal details" collapsible={false}>
-        <div className="grid gap-1.5">
+        <div className="col-span-full grid gap-1.5">
           <Label htmlFor="name">
             Name <span className="text-destructive">*</span>
           </Label>
@@ -517,75 +517,70 @@ export function OpportunityForm({
           )}
         </div>
 
-        <FieldGrid>
-          <div className="grid gap-1.5">
-            <Label>
-              Sales Unit <span className="text-destructive">*</span>
-            </Label>
-            <Select
-              value={form.getValues("salesUnitId")}
-              onValueChange={(v) => form.setValue("salesUnitId", String(v ?? ""), { shouldValidate: true })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select unit" />
-              </SelectTrigger>
-              <SelectContent>
-                {businessUnits.map((bu) => (
-                  <SelectItem key={bu.id} value={bu.id}>{bu.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {form.formState.errors.salesUnitId && (
-              <p className="text-xs text-destructive">{form.formState.errors.salesUnitId.message}</p>
-            )}
-          </div>
+        <div className="grid gap-1.5">
+          <Label>
+            Sales Unit <span className="text-destructive">*</span>
+          </Label>
+          <Select
+            value={form.getValues("salesUnitId")}
+            onValueChange={(v) => form.setValue("salesUnitId", String(v ?? ""), { shouldValidate: true })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select unit" />
+            </SelectTrigger>
+            <SelectContent>
+              {businessUnits.map((bu) => (
+                <SelectItem key={bu.id} value={bu.id}>{bu.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {form.formState.errors.salesUnitId && (
+            <p className="text-xs text-destructive">{form.formState.errors.salesUnitId.message}</p>
+          )}
+        </div>
 
-          <div className="grid gap-1.5">
-            <Label>Owner</Label>
-            <EntityCombobox
-              items={usersProp}
-              value={form.getValues("ownerUserId") || null}
-              valueLabel={opportunity?.ownerName ?? undefined}
-              onChange={(v) => form.setValue("ownerUserId", v ?? "", { shouldValidate: true })}
-              searchAction={searchUsersAction}
-              placeholder="Select owner"
-              searchPlaceholder="Search users..."
-              emptyMessage="No users found."
-            />
-          </div>
-        </FieldGrid>
+        <div className="grid gap-1.5">
+          <Label>Owner</Label>
+          <EntityCombobox
+            items={usersProp}
+            value={form.getValues("ownerUserId") || null}
+            valueLabel={opportunity?.ownerName ?? undefined}
+            onChange={(v) => form.setValue("ownerUserId", v ?? "", { shouldValidate: true })}
+            searchAction={searchUsersAction}
+            placeholder="Select owner"
+            searchPlaceholder="Search users..."
+            emptyMessage="No users found."
+          />
+        </div>
 
-        <FieldGrid>
-          <div className="grid gap-1.5">
-            <Label>Stage</Label>
-            <Select value={watchStage} onValueChange={(v) => handleStageChange(String(v ?? "") as DealStage)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select stage" />
-              </SelectTrigger>
-              <SelectContent>
-                {DEAL_STAGES.map((s) => (
-                  <SelectItem key={s} value={s}>{getStageLabel(s)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="grid gap-1.5">
+          <Label>Stage</Label>
+          <Select value={watchStage} onValueChange={(v) => handleStageChange(String(v ?? "") as DealStage)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select stage" />
+            </SelectTrigger>
+            <SelectContent>
+              {DEAL_STAGES.map((s) => (
+                <SelectItem key={s} value={s}>{getStageLabel(s)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-          <div className="grid gap-1.5">
-            <Label htmlFor="probabilityPct">Probability (%)</Label>
-            <Input id="probabilityPct" type="number" min="0" max="100" {...form.register("probabilityPct")} placeholder="0" />
-          </div>
-        </FieldGrid>
+        <div className="grid gap-1.5">
+          <Label htmlFor="probabilityPct">Probability (%)</Label>
+          <Input id="probabilityPct" type="number" min="0" max="100" {...form.register("probabilityPct")} placeholder="0" />
+        </div>
 
-        <FieldGrid>
-          <div className="grid gap-1.5">
-            <Label htmlFor="amount">Amount</Label>
-            <Input id="amount" type="number" step="0.01" min="0" {...form.register("amount")} placeholder="0.00" />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="currency">Currency</Label>
-            <Input id="currency" {...form.register("currency")} placeholder="USD" />
-          </div>
-        </FieldGrid>
+        <div className="grid gap-1.5">
+          <Label htmlFor="amount">Amount</Label>
+          <Input id="amount" type="number" step="0.01" min="0" {...form.register("amount")} placeholder="0.00" />
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label htmlFor="currency">Currency</Label>
+          <Input id="currency" {...form.register("currency")} placeholder="USD" />
+        </div>
 
         <div className="grid gap-1.5">
           <Label htmlFor="closeDate">Close Date</Label>
@@ -593,7 +588,7 @@ export function OpportunityForm({
         </div>
 
         {isClosedLost && (
-          <div className="grid gap-1.5">
+          <div className="col-span-full grid gap-1.5">
             <Label htmlFor="lossReason">
               Loss Reason <span className="text-destructive">*</span>
             </Label>
@@ -607,7 +602,7 @@ export function OpportunityForm({
 
       {/* ── Classification ───────────────────────────────────────────── */}
       <FormSection title="Classification" defaultOpen={false}>
-        <div className="grid gap-1.5">
+        <div className="col-span-full grid gap-1.5">
           <Label>Service Type</Label>
           <MultiSelect
             options={serviceTypeOptions}
@@ -618,73 +613,69 @@ export function OpportunityForm({
           />
         </div>
 
-        <FieldGrid>
-          <div className="grid gap-1.5">
-            <Label>Property Type</Label>
-            <Select
-              value={form.getValues("propertyType") || ""}
-              onValueChange={(v) => form.setValue("propertyType", (v ? String(v) : "") as "" | PropertyType, { shouldValidate: true })}
-            >
-              <SelectTrigger><SelectValue placeholder="Select property type" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">None</SelectItem>
-                {PROPERTY_TYPES.map((t) => (
-                  // eslint-disable-next-line security/detect-object-injection
-                  <SelectItem key={t} value={t}>{PROPERTY_TYPE_LABELS[t] ?? t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid gap-1.5">
-            <Label>Project Type</Label>
-            <Select
-              value={form.getValues("projectType") || ""}
-              onValueChange={(v) => form.setValue("projectType", (v ? String(v) : "") as ProjectType, { shouldValidate: true })}
-            >
-              <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-              <SelectContent>
-                {PROJECT_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>{t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </FieldGrid>
-
-        <FieldGrid>
-          <div className="grid gap-1.5">
-            <Label>Revenue Category</Label>
-            <Select
-              value={form.getValues("revenueCategory") || ""}
-              onValueChange={(v) => form.setValue("revenueCategory", (v ? String(v) : "") as RevenueCategory, { shouldValidate: true })}
-            >
-              <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-              <SelectContent>
-                {REVENUE_CATEGORIES.map((c) => (
-                  <SelectItem key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid gap-1.5">
-            <Label>Visibility Tier</Label>
-            <Select
-              value={form.getValues("visibilityTier") ?? "standard"}
-              onValueChange={(v) => form.setValue("visibilityTier", (v ? String(v) : "standard") as VisibilityTier, { shouldValidate: true })}
-            >
-              <SelectTrigger><SelectValue placeholder="Standard" /></SelectTrigger>
-              <SelectContent>
-                {VISIBILITY_TIERS.map((t) => (
-                  <SelectItem key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </FieldGrid>
+        <div className="grid gap-1.5">
+          <Label>Property Type</Label>
+          <Select
+            value={form.getValues("propertyType") || ""}
+            onValueChange={(v) => form.setValue("propertyType", (v ? String(v) : "") as "" | PropertyType, { shouldValidate: true })}
+          >
+            <SelectTrigger><SelectValue placeholder="Select property type" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">None</SelectItem>
+              {PROPERTY_TYPES.map((t) => (
+                // eslint-disable-next-line security/detect-object-injection
+                <SelectItem key={t} value={t}>{PROPERTY_TYPE_LABELS[t] ?? t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <div className="grid gap-1.5">
+          <Label>Project Type</Label>
+          <Select
+            value={form.getValues("projectType") || ""}
+            onValueChange={(v) => form.setValue("projectType", (v ? String(v) : "") as ProjectType, { shouldValidate: true })}
+          >
+            <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+            <SelectContent>
+              {PROJECT_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>{t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label>Revenue Category</Label>
+          <Select
+            value={form.getValues("revenueCategory") || ""}
+            onValueChange={(v) => form.setValue("revenueCategory", (v ? String(v) : "") as RevenueCategory, { shouldValidate: true })}
+          >
+            <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+            <SelectContent>
+              {REVENUE_CATEGORIES.map((c) => (
+                <SelectItem key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label>Visibility Tier</Label>
+          <Select
+            value={form.getValues("visibilityTier") ?? "standard"}
+            onValueChange={(v) => form.setValue("visibilityTier", (v ? String(v) : "standard") as VisibilityTier, { shouldValidate: true })}
+          >
+            <SelectTrigger><SelectValue placeholder="Standard" /></SelectTrigger>
+            <SelectContent>
+              {VISIBILITY_TIERS.map((t) => (
+                <SelectItem key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="col-span-full grid gap-1.5">
           <Label>Country of Execution</Label>
           <MultiSelect
             options={COUNTRY_OPTIONS}
@@ -699,63 +690,60 @@ export function OpportunityForm({
       {/* ── Commercials & legal (stage-gated: Propose onward) ────────── */}
       {showCommercial ? (
         <FormSection title="Commercials & legal" defaultOpen>
-          <FieldGrid>
-            <div className="grid gap-1.5">
-              <Label htmlFor="estimatedGrossMarginPct">Estimated Gross Margin (%)</Label>
-              <Input id="estimatedGrossMarginPct" type="number" step="0.1" min="0" max="100" {...form.register("estimatedGrossMarginPct")} placeholder="0" />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="barterValue">Barter Value</Label>
-              <Input id="barterValue" {...form.register("barterValue")} placeholder="0.00" />
-            </div>
-          </FieldGrid>
+          <div className="grid gap-1.5">
+            <Label htmlFor="estimatedGrossMarginPct">Estimated Gross Margin (%)</Label>
+            <Input id="estimatedGrossMarginPct" type="number" step="0.1" min="0" max="100" {...form.register("estimatedGrossMarginPct")} placeholder="0" />
+          </div>
 
-          <FieldGrid>
-            <div className="grid gap-1.5">
-              <Label htmlFor="servicePeriodStart">Service Start</Label>
-              <Input id="servicePeriodStart" type="date" {...form.register("servicePeriodStart")} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="servicePeriodEnd">Service End</Label>
-              <Input id="servicePeriodEnd" type="date" {...form.register("servicePeriodEnd")} />
-            </div>
-          </FieldGrid>
+          <div className="grid gap-1.5">
+            <Label htmlFor="barterValue">Barter Value</Label>
+            <Input id="barterValue" {...form.register("barterValue")} placeholder="0.00" />
+          </div>
 
           <div className="grid gap-1.5">
             <Label htmlFor="executionDate">Execution Date</Label>
             <Input id="executionDate" type="date" {...form.register("executionDate")} />
           </div>
 
-          <FieldGrid>
-            <div className="grid gap-1.5">
-              <Label>Billing Entity</Label>
-              <Select
-                value={form.getValues("billingEntityId") || ""}
-                onValueChange={(v) => form.setValue("billingEntityId", String(v ?? ""), { shouldValidate: true })}
-              >
-                <SelectTrigger><SelectValue placeholder="Select billing entity" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">None</SelectItem>
-                  {businessUnits.map((bu) => (<SelectItem key={bu.id} value={bu.id}>{bu.name}</SelectItem>))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Entity Sales</Label>
-              <Select
-                value={form.getValues("entitySalesId") || ""}
-                onValueChange={(v) => form.setValue("entitySalesId", String(v ?? ""), { shouldValidate: true })}
-              >
-                <SelectTrigger><SelectValue placeholder="Select entity sales" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">None</SelectItem>
-                  {businessUnits.map((bu) => (<SelectItem key={bu.id} value={bu.id}>{bu.name}</SelectItem>))}
-                </SelectContent>
-              </Select>
-            </div>
-          </FieldGrid>
+          <div className="grid gap-1.5">
+            <Label htmlFor="servicePeriodStart">Service Start</Label>
+            <Input id="servicePeriodStart" type="date" {...form.register("servicePeriodStart")} />
+          </div>
 
-          <div className="flex items-center justify-between rounded-lg border p-3">
+          <div className="grid gap-1.5">
+            <Label htmlFor="servicePeriodEnd">Service End</Label>
+            <Input id="servicePeriodEnd" type="date" {...form.register("servicePeriodEnd")} />
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label>Billing Entity</Label>
+            <Select
+              value={form.getValues("billingEntityId") || ""}
+              onValueChange={(v) => form.setValue("billingEntityId", String(v ?? ""), { shouldValidate: true })}
+            >
+              <SelectTrigger><SelectValue placeholder="Select billing entity" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">None</SelectItem>
+                {businessUnits.map((bu) => (<SelectItem key={bu.id} value={bu.id}>{bu.name}</SelectItem>))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label>Entity Sales</Label>
+            <Select
+              value={form.getValues("entitySalesId") || ""}
+              onValueChange={(v) => form.setValue("entitySalesId", String(v ?? ""), { shouldValidate: true })}
+            >
+              <SelectTrigger><SelectValue placeholder="Select entity sales" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">None</SelectItem>
+                {businessUnits.map((bu) => (<SelectItem key={bu.id} value={bu.id}>{bu.name}</SelectItem>))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="col-span-full flex items-center justify-between rounded-lg border p-3">
             <div className="grid gap-0.5">
               <Label className="text-sm font-medium">Recurring</Label>
               <p className="text-xs text-muted-foreground">Is this a recurring engagement?</p>
@@ -805,7 +793,7 @@ export function OpportunityForm({
 
       {/* ── Description & notes ──────────────────────────────────────── */}
       <FormSection title="Description & notes" defaultOpen={false}>
-        <div className="grid gap-1.5">
+        <div className="col-span-full grid gap-1.5">
           <Label htmlFor="description">Description</Label>
           <textarea
             id="description"
@@ -816,12 +804,14 @@ export function OpportunityForm({
         </div>
 
         {fieldDefinitions.length > 0 && (
-          <CustomFieldsForm
-            fieldDefinitions={fieldDefinitions}
-            values={customFieldValues}
-            onChange={(key, value) => setCustomFieldValues((prev) => ({ ...prev, [key]: value }))}
-            errors={{}}
-          />
+          <div className="col-span-full">
+            <CustomFieldsForm
+              fieldDefinitions={fieldDefinitions}
+              values={customFieldValues}
+              onChange={(key, value) => setCustomFieldValues((prev) => ({ ...prev, [key]: value }))}
+              errors={{}}
+            />
+          </div>
         )}
       </FormSection>
     </RecordEditDialog>

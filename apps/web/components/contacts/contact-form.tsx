@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RecordEditDialog } from "@/components/forms/record-edit-dialog"
-import { FormSection, FieldGrid } from "@/components/forms/form-section"
+import { FormSection } from "@/components/forms/form-section"
 
 import type { ContactRecord, ContactCreateInput, AccountOption } from "@/lib/data/contacts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
@@ -220,7 +220,7 @@ export function ContactForm({
 
       {/* ── Contact details ──────────────────────────────────────────── */}
       <FormSection title="Contact details" collapsible={false}>
-        <div className="grid gap-1.5">
+        <div className="col-span-full grid gap-1.5">
           <Label htmlFor="fullName">
             Full Name <span className="text-destructive">*</span>
           </Label>
@@ -230,16 +230,10 @@ export function ContactForm({
           )}
         </div>
 
-        <FieldGrid>
-          <div className="grid gap-1.5">
-            <Label htmlFor="title">Title</Label>
-            <Input id="title" {...form.register("title")} placeholder="Job title" />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="phone">Phone</Label>
-            <Input id="phone" type="tel" {...form.register("phone")} placeholder="+1 (555) 000-0000" />
-          </div>
-        </FieldGrid>
+        <div className="grid gap-1.5">
+          <Label htmlFor="title">Title</Label>
+          <Input id="title" {...form.register("title")} placeholder="Job title" />
+        </div>
 
         <div className="grid gap-1.5">
           <Label htmlFor="email">Email</Label>
@@ -247,6 +241,11 @@ export function ContactForm({
           {form.formState.errors.email && (
             <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
           )}
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label htmlFor="phone">Phone</Label>
+          <Input id="phone" type="tel" {...form.register("phone")} placeholder="+1 (555) 000-0000" />
         </div>
       </FormSection>
 
@@ -266,7 +265,7 @@ export function ContactForm({
           </select>
         </div>
 
-        <div className="grid gap-1.5">
+        <div className="col-span-full grid gap-1.5">
           <Label>Additional Account Links</Label>
           <div className="flex flex-wrap gap-2">
             {watchedAccountLinkIds.map((accountId) => {
@@ -289,7 +288,7 @@ export function ContactForm({
             })}
           </div>
           <select
-            className="mt-1 h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="mt-1 h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:max-w-xs"
             value=""
             onChange={(e) => addAccountLink(e.target.value)}
           >
@@ -305,7 +304,7 @@ export function ContactForm({
 
       {/* ── Social profiles ──────────────────────────────────────────── */}
       <FormSection title="Social profiles" defaultOpen={false}>
-        <div className="grid gap-1.5">
+        <div className="col-span-full grid gap-1.5">
           <div className="flex items-center justify-between">
             <Label>Profiles</Label>
             <button
@@ -354,15 +353,17 @@ export function ContactForm({
       {/* ── Notes ────────────────────────────────────────────────────── */}
       <FormSection title="Notes & custom fields" defaultOpen={false}>
         {fieldDefinitions.length > 0 && (
-          <CustomFieldsForm
-            fieldDefinitions={fieldDefinitions}
-            values={customFieldValues}
-            onChange={(key, value) => setCustomFieldValues((prev) => ({ ...prev, [key]: value }))}
-            errors={{}}
-          />
+          <div className="col-span-full">
+            <CustomFieldsForm
+              fieldDefinitions={fieldDefinitions}
+              values={customFieldValues}
+              onChange={(key, value) => setCustomFieldValues((prev) => ({ ...prev, [key]: value }))}
+              errors={{}}
+            />
+          </div>
         )}
 
-        <div className="grid gap-1.5">
+        <div className="col-span-full grid gap-1.5">
           <Label htmlFor="notes">Notes</Label>
           <textarea
             id="notes"
