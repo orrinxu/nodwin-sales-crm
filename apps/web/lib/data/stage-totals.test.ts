@@ -44,6 +44,7 @@ function opp(overrides: Partial<OpportunityRecord>): OpportunityRecord {
     accountId: "a1",
     accountName: null,
     primaryContactId: null,
+    primaryContactName: null,
     stage: "qualify" as DealStage,
     probabilityPct: 50,
     amount: "1000.00",

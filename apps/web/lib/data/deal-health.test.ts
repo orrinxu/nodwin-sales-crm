@@ -60,6 +60,7 @@ function opp(o: {
     accountId: "acct",
     accountName: null,
     primaryContactId: null,
+    primaryContactName: null,
     stage: o.stage as OpportunityRecord["stage"],
     probabilityPct: 0,
     amount: "0.00",

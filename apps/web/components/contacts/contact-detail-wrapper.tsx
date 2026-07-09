@@ -56,7 +56,9 @@ export function ContactDetailWrapper({
 }: ContactDetailWrapperProps) {
   const router = useRouter()
 
-  const accountName = (id: string) => accounts.find((a) => a.id === id)?.name ?? id
+  // Never surface a raw id: a linked account missing from the options list
+  // (e.g. RLS-filtered) renders a neutral placeholder, not its UUID.
+  const accountName = (id: string) => accounts.find((a) => a.id === id)?.name ?? "Unknown account"
   const primaryAccount = contact.primaryAccountId
     ? accounts.find((a) => a.id === contact.primaryAccountId) ?? null
     : null

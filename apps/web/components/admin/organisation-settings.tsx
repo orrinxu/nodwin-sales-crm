@@ -190,7 +190,7 @@ export function OrganisationSettings({
                   <TableBody>
                     {overrides.map((o) => (
                       <TableRow key={o.entityId}>
-                        <TableCell className="font-medium">{o.entityName ?? o.entityId}</TableCell>
+                        <TableCell className="font-medium">{o.entityName ?? "Unknown entity"}</TableCell>
                         <TableCell>
                           <Select value={o.currencyCode} onValueChange={(v) => v && changeOverride(o, v)}>
                             <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
@@ -206,7 +206,7 @@ export function OrganisationSettings({
                             variant="ghost"
                             size="icon"
                             onClick={() => removeOverride(o.entityId)}
-                            aria-label={`Remove override for ${o.entityName ?? o.entityId}`}
+                            aria-label={`Remove override for ${o.entityName ?? "unknown entity"}`}
                           >
                             <Trash2Icon className="h-4 w-4 text-destructive" />
                           </Button>

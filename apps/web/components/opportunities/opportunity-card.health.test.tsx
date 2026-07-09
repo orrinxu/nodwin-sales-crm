@@ -13,6 +13,7 @@ const base: OpportunityRecord = {
   accountId: "acct-1",
   accountName: "Acme Corp",
   primaryContactId: null,
+  primaryContactName: null,
   stage: "propose",
   probabilityPct: 40, // below hot threshold (70) so "Hot" doesn't confound assertions
   amount: "50000.00",

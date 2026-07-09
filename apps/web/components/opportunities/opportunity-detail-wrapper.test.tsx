@@ -43,6 +43,7 @@ function makeOpportunity(overrides: Partial<OpportunityRecord> = {}): Opportunit
     accountId: "acct-1",
     accountName: "Acme Corp",
     primaryContactId: null,
+    primaryContactName: null,
     stage: "negotiate",
     probabilityPct: 75,
     amount: "50000.00",
@@ -208,10 +209,17 @@ describe("OpportunityDetailWrapper", () => {
       expect(screen.getByText("Conference")).toBeInTheDocument()
     })
 
-    it("renders a muted entity id-hint (name resolution is a separate ticket), not a business-unit name", () => {
-      render(<OpportunityDetailWrapper {...defaultProps} opportunity={makeOpportunity({ billingEntityId: "bu-1" })} />)
-      expect(screen.getByText(/Entity ·/)).toBeInTheDocument()
-      // The old bug resolved billing_entity_id against business_units — must not happen now.
+    it("resolves the billing entity id to its name, never a raw id or a business-unit name", () => {
+      render(
+        <OpportunityDetailWrapper
+          {...defaultProps}
+          entities={[{ id: "ent-1", name: "Nodwin India" }]}
+          opportunity={makeOpportunity({ billingEntityId: "ent-1" })}
+        />,
+      )
+      expect(screen.getByText("Nodwin India")).toBeInTheDocument()
+      // Must never leak the raw id, and must not resolve against business_units.
+      expect(screen.queryByText(/ent-1/)).not.toBeInTheDocument()
       expect(screen.queryByText("East Asia Sales")).not.toBeInTheDocument()
     })
   })

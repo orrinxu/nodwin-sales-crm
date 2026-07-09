@@ -67,6 +67,8 @@ function toDomainOpportunity(data: Record<string, unknown>): OpportunityRecord {
     accountId: data.account_id as string,
     accountName: account?.name ?? null,
     primaryContactId: (data.primary_contact_id as string) ?? null,
+    // Populated by getOpportunityById via a separate fetch (no FK to embed).
+    primaryContactName: null,
     stage: data.stage as DealStage,
     probabilityPct: Number(data.probability_pct ?? 0),
     amount,
@@ -251,7 +253,21 @@ export async function getOpportunityById(
     throw new Error(`Failed to load opportunity: ${error.message}`)
   }
 
-  return toDomainOpportunity(data as Record<string, unknown>)
+  const opportunity = toDomainOpportunity(data as Record<string, unknown>)
+
+  // Resolve the primary contact's name separately: there is no FK on
+  // primary_contact_id → contacts, so it cannot be a PostgREST embed (that
+  // throws "Could not find a relationship in schema cache").
+  if (opportunity.primaryContactId) {
+    const { data: contact } = await supabase
+      .from("contacts")
+      .select("full_name")
+      .eq("id", opportunity.primaryContactId)
+      .maybeSingle()
+    opportunity.primaryContactName = (contact?.full_name as string | undefined) ?? null
+  }
+
+  return opportunity
 }
 
 export async function getBusinessUnitOptions(
@@ -266,6 +282,29 @@ export async function getBusinessUnitOptions(
 
   if (error) {
     throw new Error(`Failed to load business units: ${error.message}`)
+  }
+
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    name: r.name as string,
+  }))
+}
+
+// Legal entities (billing_entity_id / entity_sales_id → entities). Mirrors
+// getBusinessUnitOptions so the detail view can resolve entity ids → names
+// instead of rendering a raw UUID.
+export async function getEntityOptions(
+  ctx: OpportunityCallContext,
+): Promise<BusinessUnitOption[]> {
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("entities")
+    .select("id, name")
+    .order("name", { ascending: true })
+
+  if (error) {
+    throw new Error(`Failed to load entities: ${error.message}`)
   }
 
   return (data ?? []).map((r) => ({

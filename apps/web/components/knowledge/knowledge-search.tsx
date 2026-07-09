@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { documentCategoryLabel } from "@/lib/data/documents.types"
 
 interface Source {
   documentId: string
@@ -111,7 +112,7 @@ export function KnowledgeSearch() {
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 truncate text-primary hover:underline"
                       >
-                        <span className="truncate">Drive file {s.driveFileId}</span>
+                        <span className="truncate">Open document</span>
                         <ExternalLink className="size-3 shrink-0" />
                       </a>
                       {s.pageRefs.length > 0 && (
@@ -120,8 +121,8 @@ export function KnowledgeSearch() {
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       {s.category && (
-                        <Badge variant="secondary" className="text-xs capitalize">
-                          {s.category}
+                        <Badge variant="secondary" className="text-xs">
+                          {documentCategoryLabel(s.category)}
                         </Badge>
                       )}
                       <span className="text-xs text-muted-foreground">

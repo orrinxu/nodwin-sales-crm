@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { AccountForm, TAX_CF_KEYS } from "@/components/accounts/account-form"
 import { CustomFieldsDisplay } from "@/components/contacts/custom-fields-display"
 import { AccountTaxIdsDisplay } from "@/components/accounts/account-tax-ids-display"
+import { documentCategoryLabel } from "@/lib/data/documents.types"
 import { AttachContactsDialog } from "@/components/accounts/attach-contacts-dialog"
 import { ActivityComposer } from "@/components/opportunities/activity-composer"
 import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
@@ -414,7 +415,7 @@ export function AccountDetailWrapper({
                       <FileText className="size-4 text-muted-foreground" />
                       <div>
                         <p className="text-sm font-medium">{doc.name}</p>
-                        <p className="text-xs text-muted-foreground">{doc.category}</p>
+                        <p className="text-xs text-muted-foreground">{documentCategoryLabel(doc.category)}</p>
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">

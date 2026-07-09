@@ -3,6 +3,7 @@ import { requireUser, isSuperAdmin } from "@/lib/security/auth"
 import {
   getOpportunityById,
   getBusinessUnitOptions,
+  getEntityOptions,
   getOpportunitySplits,
   getOpportunityTeamMembers,
   getUserOptions,
@@ -50,9 +51,10 @@ export default async function OpportunityDetailPage({
     notFound()
   }
 
-  const [businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState, enforceGateStatus, dealCopilotConfigured] =
+  const [businessUnits, entities, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState, enforceGateStatus, dealCopilotConfigured] =
     await Promise.all([
       getBusinessUnitOptions(ctx),
+      getEntityOptions(ctx),
       getActivitiesForOpportunity(ctx, id),
       getOpportunitySplits(ctx, id),
       getOpportunityTeamMembers(ctx, id),
@@ -70,6 +72,7 @@ export default async function OpportunityDetailPage({
     <OpportunityDetailWrapper
       opportunity={opportunity}
       businessUnits={businessUnits}
+      entities={entities}
       updateAction={updateOpportunityAction}
       updateStageAction={updateOpportunityStageAction}
       activities={activities}

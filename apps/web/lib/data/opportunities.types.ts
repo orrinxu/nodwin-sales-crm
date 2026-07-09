@@ -85,6 +85,12 @@ export interface OpportunityRecord {
   accountId: string
   accountName: string | null
   primaryContactId: string | null
+  /**
+   * Resolved on the single-record read (getOpportunityById) only — the list
+   * read leaves it null. There is no FK on primary_contact_id → contacts, so it
+   * is fetched separately, not via a PostgREST embed.
+   */
+  primaryContactName: string | null
   stage: DealStage
   probabilityPct: number
   /** Decimal string representation of the amount (e.g. "50000.00"). Never a float. */

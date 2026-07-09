@@ -298,7 +298,7 @@ export function ApprovalWorkflowsList({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium">{w.name}</span>
-                    <Badge variant="secondary" className="text-xs">{w.entityType}</Badge>
+                    <Badge variant="secondary" className="text-xs">{titleCase(w.entityType)}</Badge>
                     <Badge variant="outline" className="text-xs">
                       {w.entityName ?? "Org-wide default"}
                     </Badge>

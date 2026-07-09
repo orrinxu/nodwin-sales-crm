@@ -293,7 +293,7 @@ export function ContactForm({
                       key={accountId}
                       className="inline-flex items-center gap-1 rounded-md border bg-muted px-2 py-1 text-xs"
                     >
-                      {acct?.name ?? accountId}
+                      {acct?.name ?? "Unknown account"}
                       <button
                         type="button"
                         className="text-muted-foreground hover:text-foreground"

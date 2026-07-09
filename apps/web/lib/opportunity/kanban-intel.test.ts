@@ -16,6 +16,7 @@ function makeOpp(overrides: Partial<OpportunityRecord> = {}): OpportunityRecord 
     accountId: "acc-1",
     accountName: "Acme",
     primaryContactId: null,
+    primaryContactName: null,
     stage: "qualify" as DealStage,
     probabilityPct: 50,
     amount: "1000.00",

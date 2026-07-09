@@ -12,6 +12,7 @@ const mockOpportunity: OpportunityRecord = {
   accountId: "acct-1",
   accountName: "Acme Corp",
   primaryContactId: null,
+  primaryContactName: null,
   stage: "propose",
   probabilityPct: 60,
   amount: "50000.00",

@@ -28,6 +28,7 @@ const mockOpportunity = {
   accountId: "acct-1",
   accountName: "Acme Corp",
   primaryContactId: null,
+  primaryContactName: null,
   stage: "negotiate" as const,
   probabilityPct: 75,
   amount: "50000.00",
