@@ -21,9 +21,23 @@ interface RecordEditDialogProps {
   /** Footer action row (e.g. Cancel + Save). Rendered in a sticky footer. */
   footer: React.ReactNode
   children: React.ReactNode
-  /** Width override; defaults to a roomy two-column-friendly modal. */
+  /**
+   * "wide" (default): big record editors — ~82vw up to 1400px, 3-column-friendly.
+   * "md": smaller config editors (a handful of fields) — ~2xl, so they aren't
+   * absurdly wide for 2–4 fields while keeping the same chrome.
+   */
+  size?: "wide" | "md"
+  /** Extra width/style override on the panel. */
   contentClassName?: string
 }
+
+// NB: DialogContent's base caps the panel at `sm:max-w-sm` from 640px up, and an
+// unprefixed max-w does NOT override a `sm:`-prefixed one in tailwind-merge — so
+// the `sm:` variant must be set explicitly or the panel stays ~384px.
+const sizeClass = (size: "wide" | "md") =>
+  size === "md"
+    ? "w-[92vw] max-w-2xl sm:max-w-2xl"
+    : "w-[82vw] max-w-[1400px] sm:max-w-[1400px]"
 
 /**
  * The shared shell for FULL record edits: a wide, centered modal with a header,
@@ -40,6 +54,7 @@ export function RecordEditDialog({
   onSubmit,
   footer,
   children,
+  size = "wide",
   contentClassName,
 }: RecordEditDialogProps) {
   return (
@@ -47,15 +62,11 @@ export function RecordEditDialog({
       {trigger && <DialogTrigger render={trigger} />}
       <DialogContent
         className={cn(
-          // Wide on desktop (≈82% of viewport, capped), full-height-safe at 90vh.
-          // The dialog sizes to content and only reaches the cap (and scrolls)
-          // when the content genuinely overflows — which on desktop, with the
-          // 3-column field grid, it should not.
-          // NB: DialogContent's base class caps the panel at `sm:max-w-sm`
-          // (384px) from 640px up. An unprefixed max-w-[1400px] does NOT override
-          // a `sm:`-prefixed utility in tailwind-merge, so we must override the
-          // `sm:` variant explicitly or the panel stays ~384px wide.
-          "flex max-h-[90vh] w-[82vw] max-w-[1400px] sm:max-w-[1400px] flex-col gap-0 overflow-hidden p-0 text-[15px]",
+          // Sizes to content and only reaches the 90vh cap (and scrolls) when the
+          // content genuinely overflows — which on desktop, with the responsive
+          // field grid, it should not.
+          "flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 text-[15px]",
+          sizeClass(size),
           contentClassName,
         )}
       >

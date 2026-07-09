@@ -123,7 +123,7 @@ function CreateRoleDialog({
         <PlusIcon className="h-4 w-4" />
         New role
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl text-[15px]">
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <DialogHeader>
             <DialogTitle>Create role</DialogTitle>
@@ -133,7 +133,7 @@ function CreateRoleDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="role-key">
                 Key <span className="text-destructive">*</span>
@@ -175,7 +175,7 @@ function CreateRoleDialog({
                 Inherits this role&apos;s row-level data access (unchanged); permissions layer on top.
               </p>
             </div>
-            <div className="grid gap-2">
+            <div className="grid gap-2 sm:col-span-2">
               <Label htmlFor="role-description">Description</Label>
               <Input id="role-description" {...form.register("description")} />
             </div>
@@ -237,13 +237,13 @@ function EditRoleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl text-[15px]">
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <DialogHeader>
             <DialogTitle>Edit role</DialogTitle>
             <DialogDescription>Update &ldquo;{role.label}&rdquo;.</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label>Key</Label>
               <p className="rounded-md bg-muted px-3 py-2 font-mono text-sm text-muted-foreground">
@@ -265,7 +265,7 @@ function EditRoleDialog({
                 <p className="text-xs text-destructive">{form.formState.errors.label.message}</p>
               )}
             </div>
-            <div className="grid gap-2">
+            <div className="grid gap-2 sm:col-span-2">
               <Label htmlFor="edit-role-description">Description</Label>
               <Input id="edit-role-description" {...form.register("description")} />
             </div>

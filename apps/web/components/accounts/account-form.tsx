@@ -4,25 +4,13 @@ import { useState, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Save, Plus, ChevronDown } from "lucide-react"
+import { Save, Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-  SheetClose,
-} from "@/components/ui/sheet"
-import {
-  Collapsible,
-  CollapsibleContent,
-} from "@/components/ui/collapsible"
+import { RecordEditDialog } from "@/components/forms/record-edit-dialog"
+import { FormSection } from "@/components/forms/form-section"
 import { EntityCombobox } from "@/components/entity-combobox"
 import type { EntityOption } from "@/components/entity-combobox"
 import type { AccountRecord, AccountCreateInput, AccountUpdateInput, AccountRelationshipKind } from "@/lib/data/accounts"
@@ -232,281 +220,196 @@ export function AccountForm({
   }
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetTrigger
-        render={
-          (trigger ?? (
-            <Button>
-              <Plus className="size-4" />
-              Create Account
-            </Button>
-          )) as React.ReactElement
-        }
-      />
-      <SheetContent side="right" className="sm:max-w-lg overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>{isEditing ? "Edit Account" : "Create Account"}</SheetTitle>
-          <SheetDescription>
-            {isEditing
-              ? "Update the account details below."
-              : "Fill in the details to create a new account."}
-          </SheetDescription>
-        </SheetHeader>
+    <RecordEditDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      trigger={
+        (trigger ?? (
+          <Button>
+            <Plus className="size-4" />
+            Create Account
+          </Button>
+        )) as React.ReactElement
+      }
+      title={isEditing ? "Edit Account" : "Create Account"}
+      description={
+        isEditing
+          ? "Update the account details below."
+          : "Fill in the details to create a new account."
+      }
+      onSubmit={form.handleSubmit(onSubmit)}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={() => handleOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={pending}>
+            <Save className="size-4" />
+            {pending ? "Saving..." : isEditing ? "Save Changes" : "Create Account"}
+          </Button>
+        </>
+      }
+    >
+      {error && (
+        <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-1 flex-col"
-        >
-          <div className="flex-1 space-y-4 px-4 py-4">
-            {error && (
-              <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-                {error}
-              </div>
-            )}
+      {/* hidden input for accountOwnerUserId so the form field is registered */}
+      <input type="hidden" {...form.register("accountOwnerUserId")} />
 
-            {/* hidden input for accountOwnerUserId so the form field is registered */}
-            <input type="hidden" {...form.register("accountOwnerUserId")} />
+      {/* ── Essentials ───────────────────────────────────────────────── */}
+      <FormSection title="Essentials" collapsible={false}>
+        <div className="col-span-full grid gap-1.5">
+          <Label htmlFor="name">
+            Account Name <span className="text-destructive">*</span>
+          </Label>
+          <Input id="name" {...form.register("name")} placeholder="Company or organization name" />
+          {form.formState.errors.name && (
+            <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
+          )}
+        </div>
 
-            {/* ── Section 1: Essentials ────────────────────────────── */}
-            <SectionHeader title="Essentials" />
+        <div className="grid gap-1.5">
+          <Label>Account Owner</Label>
+          <EntityCombobox
+            items={ownerOptions}
+            value={ownerValue ?? ""}
+            onChange={(v) => form.setValue("accountOwnerUserId", v ?? undefined)}
+            placeholder="Select owner..."
+            searchPlaceholder="Search users..."
+            emptyMessage="No users found."
+          />
+        </div>
 
-            <div className="grid gap-1.5">
-              <Label htmlFor="name">
-                Account Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="name"
-                {...form.register("name")}
-                placeholder="Company or organization name"
-              />
-              {form.formState.errors.name && (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.name.message}
-                </p>
-              )}
-            </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="legalName">Legal Name</Label>
+          <Input id="legalName" {...form.register("legalName")} placeholder="Registered legal name" />
+        </div>
 
-            <div className="grid gap-1.5">
-              <Label>Account Owner</Label>
-              <EntityCombobox
-                items={ownerOptions}
-                value={ownerValue ?? ""}
-                onChange={(v) => form.setValue("accountOwnerUserId", v ?? undefined)}
-                placeholder="Select owner..."
-                searchPlaceholder="Search users..."
-                emptyMessage="No users found."
-              />
-            </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="website">Website</Label>
+          <Input id="website" type="url" {...form.register("website")} placeholder="https://example.com" />
+        </div>
 
-            <div className="grid gap-1.5">
-              <Label htmlFor="legalName">Legal Name</Label>
-              <Input
-                id="legalName"
-                {...form.register("legalName")}
-                placeholder="Registered legal name"
-              />
-            </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="country">
+            Country <span className="text-destructive">*</span>
+          </Label>
+          <Input id="country" {...form.register("country")} placeholder="Country" />
+          {form.formState.errors.country && (
+            <p className="text-xs text-destructive">{form.formState.errors.country.message}</p>
+          )}
+        </div>
 
-            <div className="grid gap-1.5">
-              <Label htmlFor="website">Website</Label>
-              <Input
-                id="website"
-                type="url"
-                {...form.register("website")}
-                placeholder="https://example.com"
-              />
-            </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="industry">Industry</Label>
+          <Input id="industry" {...form.register("industry")} placeholder="Industry" />
+        </div>
+      </FormSection>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-1.5">
-                <Label htmlFor="country">Country</Label>
-                <Input
-                  id="country"
-                  {...form.register("country")}
-                  placeholder="Country"
-                />
-              </div>
+      {/* ── Hierarchy ────────────────────────────────────────────────── */}
+      <FormSection title="Hierarchy" defaultOpen>
+        <div className="grid gap-1.5">
+          <Label>Parent / Related Account</Label>
+          <EntityCombobox
+            items={accountOptions}
+            value={parentAccountId}
+            onChange={(v) => setParentAccountId(v ?? "")}
+            placeholder="Select account..."
+            searchPlaceholder="Search accounts..."
+            emptyMessage="No accounts found."
+          />
+        </div>
 
-              <div className="grid gap-1.5">
-                <Label htmlFor="industry">Industry</Label>
-                <Input
-                  id="industry"
-                  {...form.register("industry")}
-                  placeholder="Industry"
-                />
-              </div>
-            </div>
+        {parentAccountId && (
+          <div className="grid gap-1.5">
+            <Label>Relationship</Label>
+            <select
+              className="h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              value={relationshipKind}
+              onChange={(e) => setRelationshipKind(e.target.value as AccountRelationshipKind)}
+            >
+              <option value="">Select relationship kind...</option>
+              {RELATIONSHIP_KIND_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </FormSection>
 
-            {/* ── Section 2: Hierarchy ────────────────────────────── */}
-            <CollapsibleSection title="Hierarchy" defaultOpen>
-              <div className="grid gap-1.5">
-                <Label>Parent / Related Account</Label>
-                <EntityCombobox
-                  items={accountOptions}
-                  value={parentAccountId}
-                  onChange={(v) => setParentAccountId(v ?? "")}
-                  placeholder="Select account..."
-                  searchPlaceholder="Search accounts..."
-                  emptyMessage="No accounts found."
-                />
-              </div>
-
-              {parentAccountId && (
-                <div className="grid gap-1.5">
-                  <Label>Relationship</Label>
-                  <select
-                    className="h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                    value={relationshipKind}
-                    onChange={(e) => setRelationshipKind(e.target.value as AccountRelationshipKind)}
-                  >
-                    <option value="">Select relationship kind...</option>
-                    {RELATIONSHIP_KIND_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </CollapsibleSection>
-
-            {/* ── Section 3: Commercial (custom fields + structured Tax IDs) ── */}
-            {(section3Defs.length > 0 || showTaxEditor) && (
-              <CollapsibleSection title="Commercial" defaultOpen={false}>
-                {section3Defs.length > 0 && (
-                  <CustomFieldsForm
-                    fieldDefinitions={section3Defs}
-                    values={customFieldValues}
-                    onChange={(key, value) =>
-                      setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
-                    }
-                    errors={{}}
-                  />
-                )}
-                {showTaxEditor && (
-                  <TaxIdsEditor
-                    taxIdTypes={taxIdTypes}
-                    value={taxIds}
-                    onChange={setTaxIds}
-                  />
-                )}
-              </CollapsibleSection>
-            )}
-
-            {/* ── Section 5: Contact & Matching ────────────────────────────── */}
-            <CollapsibleSection title="Contact & Matching" defaultOpen={false}>
-              <div className="grid gap-1.5">
-                <Label htmlFor="emailDomainsInput">Email Domains</Label>
-                <Input
-                  id="emailDomainsInput"
-                  {...form.register("emailDomainsInput")}
-                  placeholder="example.com, other.com (comma separated)"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Comma-separated list of company email domains. Used for automatic contact association.
-                </p>
-              </div>
-
-              {section5Defs.length > 0 && (
-                <CustomFieldsForm
-                  fieldDefinitions={section5Defs}
-                  values={customFieldValues}
-                  onChange={(key, value) =>
-                    setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
-                  }
-                  errors={{}}
-                />
-              )}
-            </CollapsibleSection>
-
-            {/* ── Section 6: Description ────────────────────────────── */}
-            <SectionHeader title="Description" />
-            <div className="grid gap-1.5">
-              <textarea
-                id="description"
-                className="min-h-[100px] w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 resize-y placeholder:text-muted-foreground"
-                placeholder="Company description or notes"
-                {...form.register("description")}
-              />
-            </div>
-
-            {/* ── Section 7: Custom Fields ────────────────────────────── */}
-            {section7Defs.length > 0 && (
+      {/* ── Commercial (custom fields + structured Tax IDs) ──────────── */}
+      {(section3Defs.length > 0 || showTaxEditor) && (
+        <FormSection title="Commercial" defaultOpen={false}>
+          {section3Defs.length > 0 && (
+            <div className="col-span-full">
               <CustomFieldsForm
-                fieldDefinitions={section7Defs}
+                fieldDefinitions={section3Defs}
                 values={customFieldValues}
-                onChange={(key, value) =>
-                  setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
-                }
+                onChange={(key, value) => setCustomFieldValues((prev) => ({ ...prev, [key]: value }))}
                 errors={{}}
               />
-            )}
-          </div>
+            </div>
+          )}
+          {showTaxEditor && (
+            <div className="col-span-full">
+              <TaxIdsEditor taxIdTypes={taxIdTypes} value={taxIds} onChange={setTaxIds} />
+            </div>
+          )}
+        </FormSection>
+      )}
 
-          <SheetFooter>
-            <SheetClose
-              render={
-                <Button type="button" variant="outline" disabled={pending}>
-                  Cancel
-                </Button>
-              }
-            />
-            <Button type="submit" disabled={pending}>
-              <Save className="size-4" />
-              {pending
-                ? "Saving..."
-                : isEditing
-                  ? "Save Changes"
-                  : "Create Account"}
-            </Button>
-          </SheetFooter>
-        </form>
-      </SheetContent>
-    </Sheet>
-  )
-}
-
-function SectionHeader({ title }: { title: string }) {
-  return (
-    <div className="border-b pb-1.5 pt-1">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {title}
-      </h3>
-    </div>
-  )
-}
-
-function CollapsibleSection({
-  title,
-  defaultOpen,
-  children,
-}: {
-  title: string
-  defaultOpen: boolean
-  children: React.ReactNode
-}) {
-  const [open, setOpen] = useState(defaultOpen)
-
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <button
-        type="button"
-        className="group flex w-full items-center gap-2 py-1 cursor-pointer select-none rounded-md transition-colors hover:bg-muted/50"
-        onClick={() => setOpen(!open)}
-      >
-        <ChevronDown
-          className="size-3.5 shrink-0 transition-transform duration-200"
-          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
-        />
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {title}
-        </h3>
-      </button>
-      <CollapsibleContent>
-        <div className="space-y-3 pt-2 pb-0.5">
-          {children}
+      {/* ── Contact & Matching ───────────────────────────────────────── */}
+      <FormSection title="Contact & Matching" defaultOpen={false}>
+        <div className="col-span-full grid gap-1.5">
+          <Label htmlFor="emailDomainsInput">Email Domains</Label>
+          <Input id="emailDomainsInput" {...form.register("emailDomainsInput")} placeholder="example.com, other.com (comma separated)" />
+          <p className="text-xs text-muted-foreground">
+            Comma-separated list of company email domains. Used for automatic contact association.
+          </p>
         </div>
-      </CollapsibleContent>
-    </Collapsible>
+
+        {section5Defs.length > 0 && (
+          <div className="col-span-full">
+            <CustomFieldsForm
+              fieldDefinitions={section5Defs}
+              values={customFieldValues}
+              onChange={(key, value) => setCustomFieldValues((prev) => ({ ...prev, [key]: value }))}
+              errors={{}}
+            />
+          </div>
+        )}
+      </FormSection>
+
+      {/* ── Description ──────────────────────────────────────────────── */}
+      <FormSection title="Description" collapsible={false}>
+        <div className="col-span-full grid gap-1.5">
+          <textarea
+            id="description"
+            className="min-h-[100px] w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 resize-y placeholder:text-muted-foreground"
+            placeholder="Company description or notes"
+            {...form.register("description")}
+          />
+        </div>
+
+        {section7Defs.length > 0 && (
+          <div className="col-span-full">
+            <CustomFieldsForm
+              fieldDefinitions={section7Defs}
+              values={customFieldValues}
+              onChange={(key, value) => setCustomFieldValues((prev) => ({ ...prev, [key]: value }))}
+              errors={{}}
+            />
+          </div>
+        )}
+      </FormSection>
+    </RecordEditDialog>
   )
 }

@@ -174,7 +174,7 @@ function CreateEntityDialog({ createAction }: Pick<EntitiesListProps, "createAct
         <PlusIcon className="h-4 w-4" />
         Add Entity
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl text-[15px]">
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <DialogHeader>
             <DialogTitle>Create Entity</DialogTitle>
@@ -183,8 +183,8 @@ function CreateEntityDialog({ createAction }: Pick<EntitiesListProps, "createAct
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
+          <div className="grid gap-4 py-4 sm:grid-cols-2">
+            <div className="grid gap-2 sm:col-span-2">
               <Label htmlFor="entity-name">
                 Name <span className="text-destructive">*</span>
               </Label>
@@ -198,7 +198,7 @@ function CreateEntityDialog({ createAction }: Pick<EntitiesListProps, "createAct
               )}
             </div>
 
-            <div className="grid gap-2">
+            <div className="grid gap-2 sm:col-span-2">
               <Label htmlFor="entity-legal-name">Legal Name</Label>
               <Input
                 id="entity-legal-name"
@@ -207,7 +207,7 @@ function CreateEntityDialog({ createAction }: Pick<EntitiesListProps, "createAct
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="contents">
               <div className="grid gap-2">
                 <Label htmlFor="entity-country">Country</Label>
                 <Input
@@ -262,7 +262,7 @@ function CreateEntityDialog({ createAction }: Pick<EntitiesListProps, "createAct
               />
             </div>
 
-            <div className="grid gap-2">
+            <div className="grid gap-2 sm:col-span-2">
               <Label htmlFor="entity-display-name">Display Name</Label>
               <Input
                 id="entity-display-name"
@@ -360,7 +360,7 @@ function EditEntityDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl text-[15px]">
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <DialogHeader>
             <DialogTitle>Edit Entity</DialogTitle>
@@ -369,8 +369,8 @@ function EditEntityDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
+          <div className="grid gap-4 py-4 sm:grid-cols-2">
+            <div className="grid gap-2 sm:col-span-2">
               <Label htmlFor="edit-entity-name">
                 Name <span className="text-destructive">*</span>
               </Label>
@@ -380,12 +380,12 @@ function EditEntityDialog({
               )}
             </div>
 
-            <div className="grid gap-2">
+            <div className="grid gap-2 sm:col-span-2">
               <Label htmlFor="edit-entity-legal-name">Legal Name</Label>
               <Input id="edit-entity-legal-name" {...form.register("legalName")} />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="contents">
               <div className="grid gap-2">
                 <Label htmlFor="edit-entity-country">Country</Label>
                 <Input id="edit-entity-country" {...form.register("country")} />
@@ -434,7 +434,7 @@ function EditEntityDialog({
               />
             </div>
 
-            <div className="grid gap-2">
+            <div className="grid gap-2 sm:col-span-2">
               <Label htmlFor="edit-entity-display-name">Display Name</Label>
               <Input id="edit-entity-display-name" {...form.register("displayName")} />
             </div>
