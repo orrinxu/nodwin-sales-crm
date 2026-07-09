@@ -51,7 +51,11 @@ export function RecordEditDialog({
           // The dialog sizes to content and only reaches the cap (and scrolls)
           // when the content genuinely overflows — which on desktop, with the
           // 3-column field grid, it should not.
-          "flex max-h-[90vh] w-[82vw] max-w-[1400px] flex-col gap-0 overflow-hidden p-0 text-[15px]",
+          // NB: DialogContent's base class caps the panel at `sm:max-w-sm`
+          // (384px) from 640px up. An unprefixed max-w-[1400px] does NOT override
+          // a `sm:`-prefixed utility in tailwind-merge, so we must override the
+          // `sm:` variant explicitly or the panel stays ~384px wide.
+          "flex max-h-[90vh] w-[82vw] max-w-[1400px] sm:max-w-[1400px] flex-col gap-0 overflow-hidden p-0 text-[15px]",
           contentClassName,
         )}
       >
