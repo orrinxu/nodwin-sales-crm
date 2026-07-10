@@ -48,7 +48,10 @@ export type IndexStatus = Database["public"]["Enums"]["document_index_status"]
 
 export interface DocumentIndexRow {
   id: string
-  driveFileId: string
+  name: string
+  driveFileId: string | null
+  /** Object path in the `documents` Storage bucket; null for Drive-only rows. */
+  storagePath: string | null
   mimeType: string
   opportunityId: string | null
   accountId: string | null
@@ -64,12 +67,14 @@ export interface DocumentForIngestion extends DocumentIndexRow {
 }
 
 const SELECT_COLS =
-  "id, drive_file_id, mime_type, opportunity_id, account_id, category, uploaded_by, index_status, index_attempts"
+  "id, name, drive_file_id, storage_path, mime_type, opportunity_id, account_id, category, uploaded_by, index_status, index_attempts"
 
 function mapRow(r: Record<string, unknown>): DocumentIndexRow {
   return {
     id: r.id as string,
-    driveFileId: r.drive_file_id as string,
+    name: r.name as string,
+    driveFileId: (r.drive_file_id as string) ?? null,
+    storagePath: (r.storage_path as string) ?? null,
     mimeType: r.mime_type as string,
     opportunityId: (r.opportunity_id as string) ?? null,
     accountId: (r.account_id as string) ?? null,
@@ -78,6 +83,22 @@ function mapRow(r: Record<string, unknown>): DocumentIndexRow {
     indexStatus: r.index_status as IndexStatus,
     indexAttempts: (r.index_attempts as number) ?? 0,
   }
+}
+
+/** Download a document's raw bytes from Storage (service role) for the
+ *  ingestion worker. System/worker path only — no per-user RLS applies. */
+export async function downloadDocumentBytes(
+  ctx: DocumentCallContext,
+  storagePath: string,
+): Promise<Uint8Array> {
+  requireSystem(ctx)
+  const { data, error } = await serviceRoleClient()
+    .storage.from(STORAGE_BUCKET)
+    .download(storagePath)
+  if (error || !data) {
+    throw new Error(`Failed to download document bytes: ${error?.message ?? "no data"}`)
+  }
+  return new Uint8Array(await data.arrayBuffer())
 }
 
 // ── User-facing ──────────────────────────────────────────────────────────────
@@ -181,7 +202,7 @@ export interface ReplaceChunksInput {
   opportunityId: string | null
   accountId: string | null
   visibilityTier: Database["public"]["Enums"]["visibility_tier"]
-  driveFileId: string
+  driveFileId: string | null
   uploadedBy: string
   category: Database["public"]["Enums"]["document_category"] | null
   embeddingModel: string

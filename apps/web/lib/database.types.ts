@@ -1184,7 +1184,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           document_id: string
-          drive_file_id: string
+          drive_file_id: string | null
           embedding: string | null
           embedding_dim: number
           embedding_model: string
@@ -1205,7 +1205,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           document_id: string
-          drive_file_id: string
+          drive_file_id?: string | null
           embedding?: string | null
           embedding_dim: number
           embedding_model: string
@@ -1226,7 +1226,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           document_id?: string
-          drive_file_id?: string
+          drive_file_id?: string | null
           embedding?: string | null
           embedding_dim?: number
           embedding_model?: string

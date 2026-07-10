@@ -5,6 +5,7 @@ vi.mock("server-only", () => ({}))
 // Mock the persistence layer so this is a worker-orchestration integration test
 // (fetch → extract → chunk → embed → write) without a live database.
 const getDocumentForIngestion = vi.fn()
+const downloadDocumentBytes = vi.fn()
 const listPendingDocuments = vi.fn()
 const replaceDocumentChunks = vi.fn().mockResolvedValue(0)
 const setDocumentIndexStatus = vi.fn().mockResolvedValue(undefined)
@@ -12,6 +13,7 @@ const setDocumentIndexStatus = vi.fn().mockResolvedValue(undefined)
 vi.mock("../data/documents", () => ({
   SYSTEM_CONTEXT: { user: { id: "sys", email: "system@nodwin", role: "system" }, source: "system" },
   getDocumentForIngestion: (...a: unknown[]) => getDocumentForIngestion(...a),
+  downloadDocumentBytes: (...a: unknown[]) => downloadDocumentBytes(...a),
   listPendingDocuments: (...a: unknown[]) => listPendingDocuments(...a),
   replaceDocumentChunks: (...a: unknown[]) => replaceDocumentChunks(...a),
   setDocumentIndexStatus: (...a: unknown[]) => setDocumentIndexStatus(...a),
@@ -100,14 +102,34 @@ describe("ingestDocument", () => {
     )
   })
 
-  it("marks failed with a clear message for a format needing a parser (v1 gap)", async () => {
+  it("marks failed with a clear message for a still-unsupported binary format", async () => {
+    // PDF is now supported; images/other binaries still need a parser/OCR.
     getDocumentForIngestion.mockResolvedValue({ ...baseDoc })
-    const deps: IngestionDeps = { drive: fakeDrive("%PDF-1.7 ...", "application/pdf"), embedder: fakeEmbedder }
+    const deps: IngestionDeps = { drive: fakeDrive("\x89PNG...", "image/png"), embedder: fakeEmbedder }
 
     const res = await ingestDocument("doc-1", deps)
 
     expect(res.status).toBe("failed")
     expect(res.error).toMatch(/does not support/i)
+  })
+
+  it("reads bytes from Storage (not Drive) when the document has a storage_path", async () => {
+    getDocumentForIngestion.mockResolvedValue({
+      ...baseDoc,
+      driveFileId: null,
+      storagePath: "opp-1/uuid-brief.txt",
+      name: "brief.txt",
+      mimeType: "text/plain",
+    })
+    downloadDocumentBytes.mockResolvedValue(new TextEncoder().encode("Stored proposal body text."))
+    const drive: DriveClient = { fetchFile: vi.fn() }
+
+    const res = await ingestDocument("doc-1", { drive, embedder: fakeEmbedder })
+
+    expect(res.status).toBe("indexed")
+    expect(downloadDocumentBytes).toHaveBeenCalledWith(expect.anything(), "opp-1/uuid-brief.txt")
+    expect(drive.fetchFile).not.toHaveBeenCalled()
+    expect(replaceDocumentChunks.mock.calls[0][1].chunks.length).toBeGreaterThan(0)
   })
 
   it("indexes an empty file as a complete pass with zero chunks", async () => {

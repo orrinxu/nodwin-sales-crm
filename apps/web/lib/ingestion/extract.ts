@@ -1,5 +1,8 @@
 import type { DriveFile } from "../integrations/drive/types"
 import type { TextSegment } from "./chunk"
+import { extractText as unpdfExtractText, getDocumentProxy } from "unpdf"
+
+const PDF_MIME = "application/pdf"
 
 // ORR-620 v1: NATIVE text extraction only. Anything that needs a binary parser
 // (PDF / PPTX / DOCX) or OCR (text-in-images, scanned decks) is OUT OF SCOPE and
@@ -34,10 +37,26 @@ export function isNativelyExtractable(mimeType: string): boolean {
  * UnsupportedMimeError for formats that need a parser — the worker marks the
  * document 'failed' with that message rather than indexing garbage.
  */
-export function extractText(file: DriveFile): TextSegment[] {
+export async function extractText(file: DriveFile): Promise<TextSegment[]> {
+  const mime = file.mimeType.split(";")[0].trim().toLowerCase()
+  if (mime === PDF_MIME) {
+    return extractPdf(file.bytes)
+  }
   if (!isNativelyExtractable(file.mimeType)) {
     throw new UnsupportedMimeError(file.mimeType)
   }
   const text = new TextDecoder("utf-8").decode(file.bytes)
   return [{ text }]
+}
+
+/** Extract a PDF's text page-by-page via unpdf (pdf.js, no native deps). One
+ *  segment per non-empty page, carrying a "p.N" ref onto the chunk for
+ *  citations. Scanned/image-only PDFs yield no text (OCR is a follow-up). */
+async function extractPdf(bytes: Uint8Array): Promise<TextSegment[]> {
+  const pdf = await getDocumentProxy(bytes)
+  const { text } = await unpdfExtractText(pdf, { mergePages: false })
+  const pages = Array.isArray(text) ? text : [text]
+  return pages
+    .map((t, i) => ({ ref: `p.${i + 1}`, text: (t ?? "").trim() }))
+    .filter((seg) => seg.text.length > 0)
 }
