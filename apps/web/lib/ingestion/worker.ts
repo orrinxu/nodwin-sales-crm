@@ -1,11 +1,12 @@
 import "server-only"
-import type { DriveClient } from "../integrations/drive/types"
+import type { DriveClient, DriveFile } from "../integrations/drive/types"
 import type { Embedder } from "../ai/embeddings"
 import { extractText } from "./extract"
 import { chunkSegments } from "./chunk"
 import {
   SYSTEM_CONTEXT,
   getDocumentForIngestion,
+  downloadDocumentBytes,
   listPendingDocuments,
   replaceDocumentChunks,
   setDocumentIndexStatus,
@@ -41,8 +42,18 @@ export async function ingestDocument(
   const visibilityTier = doc.opportunityTier ?? "confidential"
 
   try {
-    const file = await deps.drive.fetchFile(doc.driveFileId)
-    const segments = extractText(file)
+    // Bytes now live in Supabase Storage (ORR-653). Prefer the Storage copy;
+    // fall back to the legacy Drive fetch for any pre-Storage row.
+    let file: DriveFile
+    if (doc.storagePath) {
+      const bytes = await downloadDocumentBytes(SYSTEM_CONTEXT, doc.storagePath)
+      file = { bytes, mimeType: doc.mimeType, name: doc.name }
+    } else if (doc.driveFileId) {
+      file = await deps.drive.fetchFile(doc.driveFileId)
+    } else {
+      throw new Error("Document has neither a storage_path nor a drive_file_id")
+    }
+    const segments = await extractText(file)
     const chunks = chunkSegments(segments)
 
     if (chunks.length === 0) {
