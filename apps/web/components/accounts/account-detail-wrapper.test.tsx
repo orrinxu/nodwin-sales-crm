@@ -391,7 +391,16 @@ describe("AccountDetailWrapper", () => {
 
     it("renders document name", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Contract.pdf")).toBeInTheDocument()
+      // Appears in both the pinned Contract slot and the full list.
+      expect(screen.getAllByText("Contract.pdf").length).toBeGreaterThanOrEqual(1)
+    })
+
+    it("promotes a Documents band with pinned RFP/Proposal/Contract slots", () => {
+      render(<AccountDetailWrapper {...defaultProps} />)
+      expect(screen.getByText("RFP")).toBeInTheDocument()
+      expect(screen.getByText("Proposal")).toBeInTheDocument()
+      // The contract slot is filled; RFP/Proposal are empty.
+      expect(screen.getAllByText("None yet")).toHaveLength(2)
     })
 
     it("groups documents by category", () => {
@@ -401,7 +410,7 @@ describe("AccountDetailWrapper", () => {
 
     it("renders uploaded date", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText(/Jun 1, 2026/)).toBeInTheDocument()
+      expect(screen.getAllByText(/Jun 1, 2026/).length).toBeGreaterThanOrEqual(1)
     })
 
     it("still shows the module (upload surface) when there are no files", () => {
