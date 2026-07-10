@@ -1283,8 +1283,8 @@ export type Database = {
           category: Database["public"]["Enums"]["document_category"]
           created_at: string
           created_by: string | null
-          drive_file_id: string
-          drive_folder_id: string
+          drive_file_id: string | null
+          drive_folder_id: string | null
           id: string
           index_attempts: number
           index_error: string | null
@@ -1295,6 +1295,8 @@ export type Database = {
           name: string
           opportunity_id: string | null
           reindex_requested_at: string | null
+          size_bytes: number | null
+          storage_path: string | null
           updated_at: string
           updated_by: string | null
           uploaded_at: string
@@ -1305,8 +1307,8 @@ export type Database = {
           category?: Database["public"]["Enums"]["document_category"]
           created_at?: string
           created_by?: string | null
-          drive_file_id: string
-          drive_folder_id: string
+          drive_file_id?: string | null
+          drive_folder_id?: string | null
           id?: string
           index_attempts?: number
           index_error?: string | null
@@ -1317,6 +1319,8 @@ export type Database = {
           name: string
           opportunity_id?: string | null
           reindex_requested_at?: string | null
+          size_bytes?: number | null
+          storage_path?: string | null
           updated_at?: string
           updated_by?: string | null
           uploaded_at?: string
@@ -1327,8 +1331,8 @@ export type Database = {
           category?: Database["public"]["Enums"]["document_category"]
           created_at?: string
           created_by?: string | null
-          drive_file_id?: string
-          drive_folder_id?: string
+          drive_file_id?: string | null
+          drive_folder_id?: string | null
           id?: string
           index_attempts?: number
           index_error?: string | null
@@ -1339,6 +1343,8 @@ export type Database = {
           name?: string
           opportunity_id?: string | null
           reindex_requested_at?: string | null
+          size_bytes?: number | null
+          storage_path?: string | null
           updated_at?: string
           updated_by?: string | null
           uploaded_at?: string
@@ -3430,6 +3436,9 @@ export type Database = {
         | "invoice"
         | "presentation"
         | "other"
+        | "brand_guidelines"
+        | "logo_assets"
+        | "rate_card"
       document_index_status: "pending" | "indexed" | "failed"
       field_data_type:
         | "text"
@@ -3672,6 +3681,9 @@ export const Constants = {
         "invoice",
         "presentation",
         "other",
+        "brand_guidelines",
+        "logo_assets",
+        "rate_card",
       ],
       document_index_status: ["pending", "indexed", "failed"],
       field_data_type: [

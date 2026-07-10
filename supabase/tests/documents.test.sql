@@ -6,7 +6,7 @@
 
 BEGIN;
 
-SELECT plan(19);
+SELECT plan(28);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -187,16 +187,15 @@ SELECT results_eq(
   'other rep cannot update rep doc (RLS blocks row)'
 );
 
--- ── 11. Non-admin cannot delete ───────────────────────────────────────────────
--- The DELETE policy is admin-only (USING clause), so a non-admin's DELETE is
--- silently filtered to zero rows rather than raising 42501. Verify the row
--- survives the attempt: the rep can still see their own document afterwards.
+-- ── 11. Uploader CAN delete their own document (revised-proposal workflow) ────
+-- The DELETE policy now allows the uploader (not only an admin) to remove a file
+-- they uploaded — e.g. deleting a superseded proposal.
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 DELETE FROM public.documents WHERE drive_file_id = 'drive-file-1';
-SELECT isnt_empty(
+SELECT is_empty(
   $$SELECT id FROM public.documents WHERE drive_file_id = 'drive-file-1'$$,
-  'rep cannot delete own document (silently blocked)'
+  'uploader can delete their own document'
 );
 
 -- ── 12. Admin can delete any document ─────────────────────────────────────────
@@ -227,6 +226,107 @@ SELECT results_eq(
   $$SELECT category::text FROM public.documents WHERE drive_file_id = 'drive-default-cat'$$,
   $$SELECT 'other'::text$$,
   'category defaults to other'
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Phase 1 (ORR-653): server-side storage — new schema, relaxed delete, the
+-- confidential fence on delete, brand categories, and the Storage bucket/RLS.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Extra fixtures (as service role).
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+
+-- A Confidential-tier opportunity owned by the rep, plus a document on it.
+INSERT INTO public.opportunities (
+  id, name, account_id, stage, owner_user_id, sales_unit_id, amount, currency, visibility_tier
+) VALUES
+  ('00000000-0000-0000-0000-000000000009', 'Confidential Opp', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'qualify', '11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 500000, 'USD', 'confidential');
+INSERT INTO public.opportunity_visibility (opportunity_id, user_id, reason)
+VALUES ('00000000-0000-0000-0000-000000000009', '11111111-1111-1111-1111-111111111111', 'owner')
+ON CONFLICT (opportunity_id, user_id, reason) DO NOTHING;
+INSERT INTO public.documents (id, opportunity_id, drive_file_id, drive_folder_id, name, mime_type, category, uploaded_by)
+VALUES ('d0000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000009', 'drive-file-conf', 'folder-conf', 'Confidential Proposal.pdf', 'application/pdf', 'proposal', '11111111-1111-1111-1111-111111111111');
+-- A plain rep-owned doc used for the non-uploader delete check.
+INSERT INTO public.documents (id, opportunity_id, drive_file_id, drive_folder_id, name, mime_type, category, uploaded_by)
+VALUES ('d0000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000001', 'drive-file-12', 'folder-12', 'Rep Doc 12.pdf', 'application/pdf', 'other', '11111111-1111-1111-1111-111111111111');
+
+-- ── 15. Storage-only document (NULL Drive refs) can be inserted ───────────────
+SELECT lives_ok(
+  $$INSERT INTO public.documents (id, opportunity_id, storage_path, size_bytes, name, mime_type, category, uploaded_by)
+    VALUES ('d0000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001/file11.pdf', 12345, 'Storage Only.pdf', 'application/pdf', 'proposal', '11111111-1111-1111-1111-111111111111')$$,
+  'storage-only document (null drive refs, has storage_path) can be inserted'
+);
+
+-- ── 16. Source CHECK: neither Drive ref nor storage_path is rejected ──────────
+SELECT throws_ok(
+  $$INSERT INTO public.documents (id, opportunity_id, name, mime_type, category, uploaded_by)
+    VALUES (gen_random_uuid(), '00000000-0000-0000-0000-000000000001', 'No Source.pdf', 'application/pdf', 'other', '11111111-1111-1111-1111-111111111111')$$,
+  '23514',
+  NULL,
+  'document with neither a drive ref nor a storage_path is rejected'
+);
+
+-- ── 17. Brand-oriented category is valid ──────────────────────────────────────
+SELECT lives_ok(
+  $$INSERT INTO public.documents (id, account_id, storage_path, name, mime_type, category, uploaded_by)
+    VALUES ('d0000000-0000-0000-0000-000000000013', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'aaaa/brand.pdf', 'Brand Guidelines.pdf', 'application/pdf', 'brand_guidelines', '11111111-1111-1111-1111-111111111111')$$,
+  'brand_guidelines category is valid'
+);
+
+-- ── 18. Non-uploader non-admin cannot delete another user's document ──────────
+SELECT tests.as_user('other@nodwin.com');
+SET LOCAL ROLE authenticated;
+DELETE FROM public.documents WHERE drive_file_id = 'drive-file-12';
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+SELECT isnt_empty(
+  $$SELECT id FROM public.documents WHERE drive_file_id = 'drive-file-12'$$,
+  'non-uploader non-admin cannot delete another user document'
+);
+
+-- ── 19. Admin cannot SEE a Confidential-tier document (masking) ───────────────
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  $$SELECT id FROM public.documents WHERE drive_file_id = 'drive-file-conf'$$,
+  'admin cannot see confidential-tier document (masked)'
+);
+
+-- ── 20. Admin cannot DELETE a Confidential-tier document ──────────────────────
+SELECT tests.as_user('admin@nodwin.com');
+SET LOCAL ROLE authenticated;
+DELETE FROM public.documents WHERE drive_file_id = 'drive-file-conf';
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+SELECT isnt_empty(
+  $$SELECT id FROM public.documents WHERE drive_file_id = 'drive-file-conf'$$,
+  'admin cannot delete confidential-tier document (fence preserved)'
+);
+
+-- ── 21. Authorised owner CAN still see their own Confidential document ─────────
+SELECT tests.as_user('rep@nodwin.com');
+SET LOCAL ROLE authenticated;
+SELECT isnt_empty(
+  $$SELECT id FROM public.documents WHERE drive_file_id = 'drive-file-conf'$$,
+  'authorised owner can see own confidential-tier document'
+);
+
+-- ── 22. Private `documents` storage bucket exists ─────────────────────────────
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
+SELECT isnt_empty(
+  $$SELECT id FROM storage.buckets WHERE id = 'documents' AND public = false$$,
+  'private documents storage bucket exists'
+);
+
+-- ── 23. Three documents storage.objects RLS policies exist ────────────────────
+SELECT is(
+  (SELECT count(*)::int FROM pg_policies
+     WHERE schemaname = 'storage' AND tablename = 'objects'
+       AND policyname LIKE 'documents_objects%'),
+  3,
+  'three documents storage.objects RLS policies exist'
 );
 
 SELECT * FROM finish();
