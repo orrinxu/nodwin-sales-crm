@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **README:** Quick start corrected to point at `apps/web/.env.example`; `setup-guide.md` and `startup-guide.md` added to project structure listing
 - **Smoke test procedure (ORR-452):** `docs/smoke-test.md` — codified 3-check pre-deploy smoke test (branch guard, schema check, route health check + process restart). `docs/runbook-incident.md` updated to reference the smoke procedure in the P-1 response and as a pre-deploy gate.
 
+### Changed
+
+- **Opportunity detail layout rework (ORR-658, T-059):** rebalanced the opportunity detail page so the wide column carries the deal fields and a Communications tab group (Activity/Notes/Calls/Email), and the right rail holds only compact summary cards (Approval, Team, Splits, Stage History, Deal Copilot). The stage progress bar gained a real clickable affordance (hover + tooltip) in place of the "click a stage" caption, and the redundant approval surfacing was trimmed. **Deliberate deviation from T-059:** T-059 specified Documents as a tab alongside Notes/Activity/Call/Email; instead Documents is an **always-visible band** directly under the stage bar (pinned RFP/Proposal/Contract slots + the full grouped list), because deals here are document-centric and burying files in a tab hid the primary artifact. Layout only — no schema, data-layer, or RLS changes.
+
 ## 2026-05-08
 
 ### Added

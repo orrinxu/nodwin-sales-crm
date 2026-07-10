@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
 import { OpportunityDetailWrapper } from "./opportunity-detail-wrapper"
 import type { OpportunityRecord, BusinessUnitOption } from "@/lib/data/opportunities.types"
+import type { DocumentSummary } from "@/lib/data/documents.types"
 import { NON_TERMINAL_STAGES } from "@/lib/opportunity"
 import { getStageLabel } from "@/lib/data/opportunities.types"
 
@@ -130,6 +131,36 @@ describe("OpportunityDetailWrapper", () => {
     it("current stage label appears exactly once (tracker only)", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
       expect(screen.getAllByText("Negotiate")).toHaveLength(1)
+    })
+  })
+
+  describe("documents band (pinned slots)", () => {
+    it("renders RFP / Proposal / Contract pinned slots, empty by default", () => {
+      render(<OpportunityDetailWrapper {...defaultProps} />)
+      expect(screen.getByText("RFP")).toBeInTheDocument()
+      expect(screen.getByText("Proposal")).toBeInTheDocument()
+      expect(screen.getByText("Contract")).toBeInTheDocument()
+      expect(screen.getAllByText("None yet")).toHaveLength(3)
+    })
+
+    it("fills a pinned slot with the most-recent doc + display-only tier badge", () => {
+      const documents: DocumentSummary[] = [
+        { id: "d1", name: "Old RFP.pdf", category: "rfp", mimeType: "application/pdf", sizeBytes: 1000, hasFile: true, driveFileId: null, driveLinkUrl: null, uploadedBy: "u1", uploadedAt: "2026-01-01T00:00:00Z", indexStatus: null },
+        { id: "d2", name: "New RFP.pdf", category: "rfp", mimeType: "application/pdf", sizeBytes: 2000, hasFile: true, driveFileId: null, driveLinkUrl: null, uploadedBy: "u1", uploadedAt: "2026-05-01T00:00:00Z", indexStatus: null },
+      ]
+      render(
+        <OpportunityDetailWrapper
+          {...defaultProps}
+          documents={documents}
+          opportunity={makeOpportunity({ visibilityTier: "confidential" })}
+        />,
+      )
+      // Most-recent doc surfaces in the pinned slot (also listed by FilesModule).
+      expect(screen.getAllByText("New RFP.pdf").length).toBeGreaterThanOrEqual(1)
+      // The other two pinned slots stay empty.
+      expect(screen.getAllByText("None yet")).toHaveLength(2)
+      // Tier badge is the deal's tier, shown for display only.
+      expect(screen.getByText("Confidential")).toBeInTheDocument()
     })
   })
 
