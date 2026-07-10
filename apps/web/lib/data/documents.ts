@@ -1,4 +1,6 @@
 import "server-only"
+import { randomUUID } from "node:crypto"
+import { z } from "zod"
 import { createServerClient as createSsrClient } from "@supabase/ssr"
 import type { Database } from "@/lib/database.types"
 import { createServerClient } from "@/lib/supabase/server"
@@ -248,4 +250,254 @@ function requireSystem(ctx: DocumentCallContext): void {
   if (ctx.source !== "system") {
     throw new Error("This operation is worker-only (requires source: 'system').")
   }
+}
+
+// ── Server-side storage (ORR-653 Phase 1b) ───────────────────────────────────
+//
+// Direct upload / download / delete of file BYTES held in the private
+// `documents` Storage bucket on the VPS. The flow keeps bytes off the Next.js
+// server: the client uploads straight to a short-lived signed URL and downloads
+// from another. Row writes go through the caller's RLS-scoped client (so
+// tier/entity/confidential rules apply); the signed-URL + object operations use
+// the service role AFTER an explicit RLS access check.
+
+const STORAGE_BUCKET = "documents"
+
+/** All document category values, in a UI-friendly order. Mirrors the
+ *  document_category enum; shared with the Files module + upload validation. */
+export const DOCUMENT_CATEGORIES = [
+  "rfp",
+  "proposal",
+  "budget",
+  "contract",
+  "po",
+  "invoice",
+  "presentation",
+  "brand_guidelines",
+  "logo_assets",
+  "rate_card",
+  "other",
+] as const
+export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number]
+export const documentCategorySchema = z.enum(DOCUMENT_CATEGORIES)
+
+export const documentUploadSchema = z
+  .object({
+    opportunityId: z.string().uuid().nullish(),
+    accountId: z.string().uuid().nullish(),
+    name: z.string().trim().min(1).max(500),
+    mimeType: z.string().trim().min(1).max(255),
+    sizeBytes: z.number().int().nonnegative(),
+    category: documentCategorySchema.default("other"),
+  })
+  .refine((v) => Boolean(v.opportunityId) || Boolean(v.accountId), {
+    message: "A document must be linked to an opportunity or an account.",
+  })
+export type DocumentUploadInput = z.infer<typeof documentUploadSchema>
+
+/** Object name inside the bucket: `<entityId>/<uuid>-<safe filename>`. The uuid
+ *  guarantees uniqueness even for identical filenames on the same entity. */
+function storageObjectPath(entityId: string, filename: string): string {
+  const safe = filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-200) || "file"
+  return `${entityId}/${randomUUID()}-${safe}`
+}
+
+export interface StoredDocumentHandle {
+  id: string
+  bucket: string
+  storagePath: string
+  /** Token + URL for a one-shot signed upload straight to Storage. */
+  uploadToken: string
+  signedUrl: string
+}
+
+/** Create the documents ROW for a direct upload and hand back a signed upload
+ *  URL for the client to push bytes to. Verifies the caller can access the
+ *  target entity under RLS first (the documents INSERT policy only checks
+ *  uploaded_by, so entity authorisation is enforced here). */
+export async function createStoredDocument(
+  ctx: DocumentCallContext,
+  input: DocumentUploadInput,
+): Promise<StoredDocumentHandle> {
+  if (!input.opportunityId && !input.accountId) {
+    throw new Error("A document must be linked to an opportunity or an account.")
+  }
+  const supabase = await clientForSource(ctx.source)
+
+  // Entity-access check — the row is only visible to the caller if RLS lets
+  // them see the parent (this also enforces the Confidential-tier fence: an
+  // unauthorised admin can't see a Confidential opp, so can't attach to it).
+  const entityId = (input.opportunityId ?? input.accountId) as string
+  if (input.opportunityId) {
+    const { data, error } = await supabase
+      .from("opportunities").select("id").eq("id", input.opportunityId).maybeSingle()
+    if (error) throw new Error(`Failed to verify opportunity access: ${error.message}`)
+    if (!data) throw new Error("You do not have access to that opportunity.")
+  } else {
+    const { data, error } = await supabase
+      .from("accounts").select("id").eq("id", input.accountId as string).maybeSingle()
+    if (error) throw new Error(`Failed to verify account access: ${error.message}`)
+    if (!data) throw new Error("You do not have access to that account.")
+  }
+
+  const storagePath = storageObjectPath(entityId, input.name)
+
+  const { data: inserted, error: insErr } = await supabase
+    .from("documents")
+    .insert({
+      opportunity_id: input.opportunityId ?? null,
+      account_id: input.accountId ?? null,
+      storage_path: storagePath,
+      size_bytes: input.sizeBytes,
+      name: input.name,
+      mime_type: input.mimeType,
+      category: input.category,
+      uploaded_by: ctx.user.id,
+    })
+    .select("id")
+    .single()
+  if (insErr || !inserted) {
+    throw new Error(`Failed to create document: ${insErr?.message ?? "unknown"}`)
+  }
+
+  const svc = serviceRoleClient()
+  const { data: signed, error: urlErr } = await svc.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUploadUrl(storagePath)
+  if (urlErr || !signed) {
+    // No bytes will ever arrive — don't leave an orphaned row behind.
+    await svc.from("documents").delete().eq("id", inserted.id)
+    throw new Error(`Failed to create upload URL: ${urlErr?.message ?? "unknown"}`)
+  }
+
+  return {
+    id: inserted.id,
+    bucket: STORAGE_BUCKET,
+    storagePath,
+    uploadToken: signed.token,
+    signedUrl: signed.signedUrl,
+  }
+}
+
+/** Short-lived signed download URL for a document the caller may see. Returns
+ *  null when the doc isn't visible/doesn't exist. Drive-only docs fall back to
+ *  their provenance link. */
+export async function createDocumentDownloadUrl(
+  ctx: DocumentCallContext,
+  documentId: string,
+  expiresInSeconds = 300,
+): Promise<{ url: string; name: string } | null> {
+  const supabase = await clientForSource(ctx.source)
+  const { data, error } = await supabase
+    .from("documents")
+    .select("name, storage_path, link_url")
+    .eq("id", documentId)
+    .maybeSingle()
+  if (error) throw new Error(`Failed to load document: ${error.message}`)
+  if (!data) return null
+  if (!data.storage_path) {
+    return data.link_url ? { url: data.link_url, name: data.name } : null
+  }
+  const svc = serviceRoleClient()
+  const { data: signed, error: urlErr } = await svc.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUrl(data.storage_path, expiresInSeconds, { download: data.name })
+  if (urlErr || !signed) {
+    throw new Error(`Failed to sign download URL: ${urlErr?.message ?? "unknown"}`)
+  }
+  return { url: signed.signedUrl, name: data.name }
+}
+
+/** Delete a document. RLS gates the row delete (uploader, or admin on a
+ *  non-Confidential deal); the stored object is removed afterwards. */
+export async function deleteStoredDocument(
+  ctx: DocumentCallContext,
+  documentId: string,
+): Promise<void> {
+  const supabase = await clientForSource(ctx.source)
+  const { data: deleted, error } = await supabase
+    .from("documents")
+    .delete()
+    .eq("id", documentId)
+    .select("storage_path")
+  if (error) throw new Error(`Failed to delete document: ${error.message}`)
+  if (!deleted || deleted.length === 0) {
+    throw new Error("Document not found, or you do not have permission to delete it.")
+  }
+  const path = deleted[0].storage_path
+  if (path) {
+    const { error: rmErr } = await serviceRoleClient()
+      .storage.from(STORAGE_BUCKET).remove([path])
+    if (rmErr) {
+      // Row is already gone — an orphaned object is a minor GC concern, not a
+      // user-facing failure.
+      console.warn(`[documents] could not remove storage object ${path}: ${rmErr.message}`)
+    }
+  }
+}
+
+/** Re-tag a document's category (editable after upload). RLS-gated. */
+export async function updateDocumentCategory(
+  ctx: DocumentCallContext,
+  documentId: string,
+  category: DocumentCategory,
+): Promise<void> {
+  const supabase = await clientForSource(ctx.source)
+  const { data, error } = await supabase
+    .from("documents")
+    .update({ category })
+    .eq("id", documentId)
+    .select("id")
+  if (error) throw new Error(`Failed to update category: ${error.message}`)
+  if (!data || data.length === 0) {
+    throw new Error("Document not found, or you do not have permission to edit it.")
+  }
+}
+
+export interface DocumentSummary {
+  id: string
+  name: string
+  category: DocumentCategory
+  mimeType: string
+  sizeBytes: number | null
+  /** True when bytes are stored on the VPS (vs a Drive-only reference). */
+  hasFile: boolean
+  driveFileId: string | null
+  driveLinkUrl: string | null
+  uploadedBy: string
+  uploadedAt: string
+  indexStatus: IndexStatus | null
+}
+
+/** List the documents attached to an opportunity or account (RLS-scoped). */
+export async function listDocumentsForEntity(
+  ctx: DocumentCallContext,
+  entity: { opportunityId?: string | null; accountId?: string | null },
+): Promise<DocumentSummary[]> {
+  const supabase = await clientForSource(ctx.source)
+  let query = supabase
+    .from("documents")
+    .select(
+      "id, name, category, mime_type, size_bytes, storage_path, drive_file_id, link_url, uploaded_by, uploaded_at, index_status",
+    )
+    .order("uploaded_at", { ascending: false })
+  if (entity.opportunityId) query = query.eq("opportunity_id", entity.opportunityId)
+  else if (entity.accountId) query = query.eq("account_id", entity.accountId)
+  else throw new Error("listDocumentsForEntity requires an opportunityId or accountId")
+
+  const { data, error } = await query
+  if (error) throw new Error(`Failed to list documents: ${error.message}`)
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    name: r.name as string,
+    category: (r.category as DocumentCategory) ?? "other",
+    mimeType: r.mime_type as string,
+    sizeBytes: (r.size_bytes as number) ?? null,
+    hasFile: Boolean(r.storage_path),
+    driveFileId: (r.drive_file_id as string) ?? null,
+    driveLinkUrl: (r.link_url as string) ?? null,
+    uploadedBy: r.uploaded_by as string,
+    uploadedAt: r.uploaded_at as string,
+    indexStatus: (r.index_status as IndexStatus) ?? null,
+  }))
 }
