@@ -19,6 +19,10 @@ const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
 // missing the button hides itself — the rest of the Files module still works.
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID
 const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_PICKER_API_KEY
+// The Picker's "app id" is the GCP project number — the leading segment of the
+// OAuth client id. It is REQUIRED: without it a drive.file grant from the Picker
+// is not associated with this app, so the Drive API returns 404 on download.
+const APP_ID = CLIENT_ID?.split("-")[0]
 
 interface DriveImportButtonProps {
   target: UploadTarget
@@ -41,9 +45,11 @@ async function fetchDriveFile(
   token: string,
 ): Promise<{ blob: Blob; name: string; mimeType: string }> {
   const isNativeGoogleDoc = doc.mimeType.startsWith("application/vnd.google-apps")
+  // supportsAllDrives lets files that live in a Shared Drive download (they 404
+  // without it, even when the user could pick them).
   const endpoint = isNativeGoogleDoc
-    ? `https://www.googleapis.com/drive/v3/files/${doc.id}/export?mimeType=application%2Fpdf`
-    : `https://www.googleapis.com/drive/v3/files/${doc.id}?alt=media`
+    ? `https://www.googleapis.com/drive/v3/files/${doc.id}/export?mimeType=application%2Fpdf&supportsAllDrives=true`
+    : `https://www.googleapis.com/drive/v3/files/${doc.id}?alt=media&supportsAllDrives=true`
   const resp = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } })
   if (!resp.ok) {
     throw new Error(`Google Drive download failed (${resp.status})`)
@@ -115,10 +121,12 @@ export function DriveImportButton({
       const view = new picker.DocsView(picker.ViewId.DOCS)
         .setIncludeFolders(true)
         .setSelectFolderEnabled(false)
+        .setEnableDrives(true)
       new picker.PickerBuilder()
         .enableFeature(picker.Feature.MULTISELECT_ENABLED)
         .setOAuthToken(token)
         .setDeveloperKey(API_KEY!)
+        .setAppId(APP_ID!)
         .setTitle("Select files to import")
         .addView(view)
         .setCallback((data) => {
