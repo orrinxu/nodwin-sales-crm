@@ -8,6 +8,10 @@ const specs = [
   { id: "c", title: "C", defaultColSpan: 6, defaultRowSpan: 3 },
 ]
 
+const specsWithMin = [
+  { id: "a", title: "A", defaultColSpan: 12, defaultRowSpan: 3, minRowSpan: 3 },
+]
+
 describe("mergeLayout", () => {
   it("returns the default layout when nothing is saved", () => {
     expect(mergeLayout(null, specs)).toEqual([
@@ -42,6 +46,13 @@ describe("mergeLayout", () => {
   it("clamps spans to 1..12", () => {
     const merged = mergeLayout([{ id: "a", colSpan: 99, rowSpan: 0 }], specs)
     expect(merged[0]).toEqual({ id: "a", colSpan: 12, rowSpan: 1 })
+  })
+
+  it("enforces a widget's minRowSpan floor against a shorter saved span", () => {
+    // A content-height widget (e.g. the KPI strip) must not be left shorter than
+    // its content needs — a saved rowSpan below the floor is raised to it.
+    const merged = mergeLayout([{ id: "a", colSpan: 12, rowSpan: 1 }], specsWithMin)
+    expect(merged[0]).toEqual({ id: "a", colSpan: 12, rowSpan: 3 })
   })
 
   it("real catalogue: default has one entry per widget", () => {

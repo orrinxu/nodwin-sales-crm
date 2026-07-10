@@ -15,11 +15,17 @@ export interface WidgetSpec {
   title: string
   defaultColSpan: number
   defaultRowSpan: number
+  /**
+   * Floor for rowSpan, enforced on load even against a saved layout. For
+   * content-height widgets (the KPI strip) that would clip/overflow their tile
+   * borders if made shorter than the content needs. Defaults to 1.
+   */
+  minRowSpan?: number
 }
 
 export const DASHBOARD_WIDGETS: WidgetSpec[] = [
   { id: "needs-attention", title: "Needs my attention", defaultColSpan: 12, defaultRowSpan: 3 },
-  { id: "summary-strip", title: "Summary", defaultColSpan: 12, defaultRowSpan: 2 },
+  { id: "summary-strip", title: "Summary", defaultColSpan: 12, defaultRowSpan: 3, minRowSpan: 3 },
   { id: "forecast", title: "Quarter forecast", defaultColSpan: 6, defaultRowSpan: 3 },
   { id: "leaderboard", title: "Team leaderboard", defaultColSpan: 6, defaultRowSpan: 3 },
   { id: "conversion-funnel", title: "Conversion by stage", defaultColSpan: 6, defaultRowSpan: 4 },
@@ -64,12 +70,13 @@ export function mergeLayout(
   const placed = new Set<string>()
 
   for (const entry of saved) {
-    if (!specById.has(entry.id) || placed.has(entry.id)) continue
+    const spec = specById.get(entry.id)
+    if (!spec || placed.has(entry.id)) continue
     placed.add(entry.id)
     result.push({
       id: entry.id,
       colSpan: clamp(entry.colSpan, 1, MAX_COLS),
-      rowSpan: clamp(entry.rowSpan, 1, MAX_ROWS),
+      rowSpan: clamp(entry.rowSpan, spec.minRowSpan ?? 1, MAX_ROWS),
     })
   }
 
