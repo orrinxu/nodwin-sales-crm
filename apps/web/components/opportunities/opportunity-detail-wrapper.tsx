@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Pencil, SendHorizontal, Calendar, FolderOpen, Mail, TriangleAlert, Check, Plus } from "lucide-react"
+import { Pencil, SendHorizontal, Calendar, Mail, TriangleAlert, Check, Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,6 +21,8 @@ import { OpportunityTeamEditor } from "@/components/opportunities/opportunity-te
 import { StageHistoryTimeline } from "@/components/opportunities/stage-history-timeline"
 import { ApprovalCard } from "@/components/opportunities/approval-card"
 import { DealCopilot } from "@/components/opportunities/deal-copilot"
+import { FilesModule } from "@/components/documents/files-module"
+import type { DocumentSummary } from "@/lib/data/documents"
 import type { DealCopilotResult } from "@/lib/ai/deal-copilot"
 import type { EntityOption } from "@/components/entity-combobox"
 import type {
@@ -88,6 +90,7 @@ interface OpportunityDetailWrapperProps {
   updateAction: (id: string, input: unknown) => Promise<OpportunityRecord>
   updateStageAction: (id: string, input: unknown) => Promise<OpportunityRecord>
   activities: ActivityRecord[]
+  documents: DocumentSummary[]
   createActivityAction: (opportunityId: string, input: unknown) => Promise<ActivityRecord>
   searchUsersAction?: (query: string) => Promise<EntityOption[]>
   splits?: OpportunitySplit[]
@@ -319,6 +322,7 @@ export function OpportunityDetailWrapper({
   updateAction,
   updateStageAction,
   activities,
+  documents,
   createActivityAction,
   searchUsersAction,
   splits = [],
@@ -641,7 +645,6 @@ export function OpportunityDetailWrapper({
                     { v: "activity", label: "Activity" },
                     { v: "notes", label: "Notes" },
                     { v: "calls", label: "Calls" },
-                    { v: "files", label: "Files" },
                     { v: "email", label: "Email" },
                   ].map(({ v, label }) => (
                     <TabsTab
@@ -678,10 +681,6 @@ export function OpportunityDetailWrapper({
                   ) : (
                     <p className="py-6 text-center text-xs text-muted-foreground">No calls logged yet. Log one from the Activity tab.</p>
                   )}
-                </TabsPanel>
-
-                <TabsPanel value="files">
-                  <IntegrationTabEmptyState icon={FolderOpen} message="Connect Google Drive to attach and view files on this opportunity." />
                 </TabsPanel>
 
                 <TabsPanel value="email">
@@ -744,6 +743,8 @@ export function OpportunityDetailWrapper({
               )}
             </CardContent>
           </Card>
+
+          <FilesModule opportunityId={opportunity.id} initialDocuments={documents} />
         </div>
       </div>
     </div>

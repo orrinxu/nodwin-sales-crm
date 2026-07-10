@@ -82,6 +82,7 @@ const defaultProps = {
   updateAction: vi.fn(),
   updateStageAction: vi.fn(),
   activities: [],
+  documents: [],
   createActivityAction: vi.fn(),
 }
 
@@ -236,13 +237,15 @@ describe("OpportunityDetailWrapper", () => {
   })
 
   describe("right rail", () => {
-    it("renders all five communication tabs (fully labeled, no truncation)", () => {
+    it("renders the communication tabs (Files is now its own module, not a tab)", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
       expect(screen.getByRole("tab", { name: "Activity" })).toBeInTheDocument()
       expect(screen.getByRole("tab", { name: "Notes" })).toBeInTheDocument()
       expect(screen.getByRole("tab", { name: "Calls" })).toBeInTheDocument()
-      expect(screen.getByRole("tab", { name: "Files" })).toBeInTheDocument()
       expect(screen.getByRole("tab", { name: "Email" })).toBeInTheDocument()
+      // Files moved out of the tab strip into a dedicated bottom-of-stack module.
+      expect(screen.queryByRole("tab", { name: "Files" })).not.toBeInTheDocument()
+      expect(screen.getByText(/^Files \(/)).toBeInTheDocument()
     })
 
     it("keeps Approval, Team, Splits and Stage History as right-rail cards", () => {

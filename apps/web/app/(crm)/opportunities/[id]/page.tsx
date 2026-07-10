@@ -34,6 +34,7 @@ import {
 } from "../copilot-actions"
 import { isDealCopilotConfigured } from "@/lib/ai/deal-copilot"
 import { OpportunityDetailWrapper } from "@/components/opportunities/opportunity-detail-wrapper"
+import { listDocumentsForEntity } from "@/lib/data/documents"
 
 export default async function OpportunityDetailPage({
   params,
@@ -50,7 +51,7 @@ export default async function OpportunityDetailPage({
     notFound()
   }
 
-  const [businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState, enforceGateStatus, dealCopilotConfigured] =
+  const [businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState, enforceGateStatus, dealCopilotConfigured, documents] =
     await Promise.all([
       getBusinessUnitOptions(ctx),
       getActivitiesForOpportunity(ctx, id),
@@ -62,6 +63,7 @@ export default async function OpportunityDetailPage({
       getApprovalActionState(ctx, id),
       getEnforceGateStatus(ctx, id, opportunity.stage),
       isDealCopilotConfigured(),
+      listDocumentsForEntity(ctx, { opportunityId: id }),
     ])
 
   const approvalStatus = approvalStatusLabel(summarizeApprovalStatus(approvals))
@@ -73,6 +75,7 @@ export default async function OpportunityDetailPage({
       updateAction={updateOpportunityAction}
       updateStageAction={updateOpportunityStageAction}
       activities={activities}
+      documents={documents}
       createActivityAction={createActivityAction}
       splits={splits}
       teamMembers={teamMembers}

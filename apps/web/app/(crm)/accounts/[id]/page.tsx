@@ -7,9 +7,9 @@ import {
   getContactsForAccount,
   getOpportunitiesForAccount,
   getOwnerOptions,
-  getAccountLinkedDocuments,
   getAccounts,
 } from "@/lib/data/accounts"
+import { listDocumentsForEntity } from "@/lib/data/documents"
 import { getFieldDefinitions } from "@/lib/data/field-definitions"
 import { getTaxIdTypes, getTaxIdsForAccount } from "@/lib/data/account-tax-ids"
 import { getActivitiesForAccount } from "@/lib/data/activities"
@@ -47,7 +47,7 @@ export default async function AccountDetailPage({
     getContactsForAccount(ctx, id),
     getOpportunitiesForAccount(ctx, id),
     getOwnerOptions(ctx),
-    getAccountLinkedDocuments(ctx, id),
+    listDocumentsForEntity(ctx, { accountId: id }),
     getActivitiesForAccount(ctx, id),
     getAccounts(ctx),
     canManageContacts ? getContactOptions(ctx) : Promise.resolve([]),

@@ -2,7 +2,8 @@
 import { describe, it, expect, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
 import { AccountDetailWrapper } from "./account-detail-wrapper"
-import type { AccountRecord, AccountRelationshipGraph, AccountOpportunity, AccountDocument } from "@/lib/data/accounts"
+import type { AccountRecord, AccountRelationshipGraph, AccountOpportunity } from "@/lib/data/accounts"
+import type { DocumentSummary } from "@/lib/data/documents"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 
 vi.mock("server-only", () => ({}))
@@ -111,15 +112,19 @@ const defaultOpportunities: AccountOpportunity[] = [
   },
 ]
 
-const defaultDocuments: AccountDocument[] = [
+const defaultDocuments: DocumentSummary[] = [
   {
     id: "doc-1",
     name: "Contract.pdf",
     mimeType: "application/pdf",
-    category: "Legal",
+    category: "contract",
+    sizeBytes: 2048,
+    hasFile: true,
+    driveFileId: null,
+    driveLinkUrl: null,
+    uploadedBy: "user-1",
     uploadedAt: "2026-06-01T12:00:00Z",
-    linkUrl: null,
-    driveFileId: "drive-1",
+    indexStatus: null,
   },
 ]
 
@@ -378,10 +383,10 @@ describe("AccountDetailWrapper", () => {
     })
   })
 
-  describe("Documents card", () => {
-    it("renders documents heading with count", () => {
+  describe("Files module", () => {
+    it("renders the Files heading with count", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Documents (1)")).toBeInTheDocument()
+      expect(screen.getByText("Files (1)")).toBeInTheDocument()
     })
 
     it("renders document name", () => {
@@ -389,21 +394,19 @@ describe("AccountDetailWrapper", () => {
       expect(screen.getByText("Contract.pdf")).toBeInTheDocument()
     })
 
-    it("renders document category", () => {
+    it("groups documents by category", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Legal")).toBeInTheDocument()
+      expect(screen.getByText("Contract (1)")).toBeInTheDocument()
     })
 
     it("renders uploaded date", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Jun 1, 2026")).toBeInTheDocument()
+      expect(screen.getByText(/Jun 1, 2026/)).toBeInTheDocument()
     })
 
-    it("does not render documents card when empty", () => {
-      render(
-        <AccountDetailWrapper {...defaultProps} documents={[]} />,
-      )
-      expect(screen.queryByText("Documents")).not.toBeInTheDocument()
+    it("still shows the module (upload surface) when there are no files", () => {
+      render(<AccountDetailWrapper {...defaultProps} documents={[]} />)
+      expect(screen.getByText("Files (0)")).toBeInTheDocument()
     })
   })
 

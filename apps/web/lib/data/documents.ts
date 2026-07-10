@@ -17,7 +17,9 @@ import { env } from "@/lib/security/env"
 export type CallSource = "web" | "mcp" | "webhook" | "system"
 
 export interface DocumentCallContext {
-  user: { id: string; email: string; role: string }
+  // email/role are optional so a page's requireUser() context (where they may be
+  // undefined) satisfies this directly; the storage functions only read id.
+  user: { id: string; email?: string; role?: string }
   source: CallSource
 }
 
@@ -263,23 +265,14 @@ function requireSystem(ctx: DocumentCallContext): void {
 
 const STORAGE_BUCKET = "documents"
 
-/** All document category values, in a UI-friendly order. Mirrors the
- *  document_category enum; shared with the Files module + upload validation. */
-export const DOCUMENT_CATEGORIES = [
-  "rfp",
-  "proposal",
-  "budget",
-  "contract",
-  "po",
-  "invoice",
-  "presentation",
-  "brand_guidelines",
-  "logo_assets",
-  "rate_card",
-  "other",
-] as const
-export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number]
-export const documentCategorySchema = z.enum(DOCUMENT_CATEGORIES)
+// Client-safe shapes live in documents.types.ts (the Files module imports them);
+// re-export so server-side callers can keep importing from "@/lib/data/documents".
+export {
+  DOCUMENT_CATEGORIES,
+  documentCategorySchema,
+} from "./documents.types"
+export type { DocumentCategory, DocumentSummary } from "./documents.types"
+import { documentCategorySchema, type DocumentCategory, type DocumentSummary } from "./documents.types"
 
 export const documentUploadSchema = z
   .object({
@@ -452,21 +445,6 @@ export async function updateDocumentCategory(
   if (!data || data.length === 0) {
     throw new Error("Document not found, or you do not have permission to edit it.")
   }
-}
-
-export interface DocumentSummary {
-  id: string
-  name: string
-  category: DocumentCategory
-  mimeType: string
-  sizeBytes: number | null
-  /** True when bytes are stored on the VPS (vs a Drive-only reference). */
-  hasFile: boolean
-  driveFileId: string | null
-  driveLinkUrl: string | null
-  uploadedBy: string
-  uploadedAt: string
-  indexStatus: IndexStatus | null
 }
 
 /** List the documents attached to an opportunity or account (RLS-scoped). */
