@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ChevronDown } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -9,7 +9,11 @@ import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 interface FormSectionProps {
   title: string
   description?: string
-  /** Collapsible sections start open when true. Ignored when collapsible=false. */
+  /**
+   * Fallback open state used for SSR and when no matchMedia is available (tests).
+   * At runtime the section instead follows the viewport: expanded on desktop,
+   * collapsed on mobile (see the mount effect). Ignored when collapsible=false.
+   */
   defaultOpen?: boolean
   /** false renders a static, always-open section with a plain header. */
   collapsible?: boolean
@@ -36,8 +40,21 @@ export function FormSection({
 }: FormSectionProps) {
   const [open, setOpen] = useState(defaultOpen)
 
+  // Responsive default: on a roomy desktop every section is expanded; on a narrow
+  // phone they collapse so the form isn't an endless scroll. Runs once on mount —
+  // the user's manual toggles stick afterwards. jsdom/SSR (no matchMedia) keep the
+  // `defaultOpen` fallback so tests and the first paint are deterministic.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return
+    const mq = window.matchMedia("(min-width: 768px)")
+    const sync = () => setOpen(mq.matches)
+    sync()
+    mq.addEventListener("change", sync)
+    return () => mq.removeEventListener("change", sync)
+  }, [])
+
   const heading = (
-    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+    <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground">
       {title}
     </h3>
   )
@@ -68,13 +85,13 @@ export function FormSection({
       <div className="flex items-center justify-between gap-2 border-b pb-1.5 pt-1">
         <button
           type="button"
-          className="group flex flex-1 items-center gap-2 cursor-pointer select-none rounded-md transition-colors hover:text-foreground"
+          className="group -mx-1.5 flex flex-1 items-center gap-2 cursor-pointer select-none rounded-md px-1.5 py-1 transition-colors hover:bg-muted"
           onClick={() => setOpen(!open)}
           aria-expanded={open}
         >
           <ChevronDown
             className={cn(
-              "size-3.5 shrink-0 text-muted-foreground transition-transform duration-200",
+              "size-4 shrink-0 text-primary transition-transform duration-200",
               open ? "rotate-0" : "-rotate-90",
             )}
           />
