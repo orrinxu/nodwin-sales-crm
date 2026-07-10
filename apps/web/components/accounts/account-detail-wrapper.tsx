@@ -19,6 +19,7 @@ import { getStageLabel } from "@/lib/data/opportunities.types"
 import { Money } from "@/lib/money"
 import type { AccountRecord, AccountUpdateInput, AccountRelationshipGraph, AccountOpportunity, AccountRelationshipKind, AccountContact } from "@/lib/data/accounts"
 import { FilesModule } from "@/components/documents/files-module"
+import { PinnedDocumentSlots } from "@/components/documents/pinned-document-slots"
 import type { DocumentSummary } from "@/lib/data/documents"
 import type { ContactPickerOption } from "@/lib/data/contacts"
 import type { ActivityRecord } from "@/lib/data/activities"
@@ -164,6 +165,13 @@ export function AccountDetailWrapper({
                 />
               </div>
             </div>
+
+        {/* Documents band — promoted from the page bottom so files are
+            front-and-centre, consistent with the opportunity detail. */}
+        <div className="space-y-3">
+          <PinnedDocumentSlots documents={documents} categories={["rfp", "proposal", "contract"]} />
+          <FilesModule accountId={account.id} initialDocuments={documents} />
+        </div>
 
         <div className="grid gap-6 sm:grid-cols-2">
           <Card>
@@ -427,8 +435,6 @@ export function AccountDetailWrapper({
             <ActivityTimeline activities={activities} />
           </CardContent>
         </Card>
-
-        <FilesModule accountId={account.id} initialDocuments={documents} />
       </div>
     </div>
   )
