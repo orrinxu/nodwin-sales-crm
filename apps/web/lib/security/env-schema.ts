@@ -48,6 +48,12 @@ export const envSchema = z.object({
   NEXT_PUBLIC_LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   NEXT_PUBLIC_ENV: z.string().optional(),
+  // Google Drive import (Picker). Both are public browser values baked at build
+  // time (see Dockerfile ARGs). The OAuth client id drives the per-user consent
+  // popup (drive.file scope); the API key authorises the Picker API. Optional so
+  // the app boots without them — the "Import from Drive" button just hides.
+  NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
+  NEXT_PUBLIC_GOOGLE_PICKER_API_KEY: z.string().optional(),
 })
 
 export type Env = z.infer<typeof envSchema>
