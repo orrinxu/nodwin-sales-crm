@@ -282,6 +282,12 @@ export const documentUploadSchema = z
     mimeType: z.string().trim().min(1).max(255),
     sizeBytes: z.number().int().nonnegative(),
     category: documentCategorySchema.default("other"),
+    // Provenance for files imported from Google Drive. The bytes are still
+    // copied into Storage (storage_path is always set), so these are just a
+    // record of where the file came from — download/RAG use the Storage copy.
+    driveFileId: z.string().trim().min(1).max(255).nullish(),
+    driveFolderId: z.string().trim().min(1).max(255).nullish(),
+    linkUrl: z.string().trim().url().max(2048).nullish(),
   })
   .refine((v) => Boolean(v.opportunityId) || Boolean(v.accountId), {
     message: "A document must be linked to an opportunity or an account.",
@@ -346,6 +352,9 @@ export async function createStoredDocument(
       mime_type: input.mimeType,
       category: input.category,
       uploaded_by: ctx.user.id,
+      drive_file_id: input.driveFileId ?? null,
+      drive_folder_id: input.driveFolderId ?? null,
+      link_url: input.linkUrl ?? null,
     })
     .select("id")
     .single()

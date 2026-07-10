@@ -14,19 +14,18 @@ import {
   SelectItem,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import { createClient } from "@/lib/supabase/client"
 import {
   DOCUMENT_CATEGORIES,
   type DocumentCategory,
   type DocumentSummary,
 } from "@/lib/data/documents.types"
 import {
-  createDocumentUploadAction,
-  finalizeDocumentUploadAction,
   getDocumentDownloadUrlAction,
   deleteDocumentAction,
   updateDocumentCategoryAction,
 } from "@/app/(crm)/documents/actions"
+import { uploadBlobToDocuments, finalizeUpload } from "@/lib/documents/client-upload"
+import { DriveImportButton } from "@/components/documents/drive-import-button"
 
 /** Human labels for each category value. A Map (not a Record) so the dynamic
  *  lookups below aren't flagged as object-injection sinks. */
@@ -99,19 +98,12 @@ export function FilesModule({ opportunityId, accountId, initialDocuments }: File
     for (const file of Array.from(fileList)) {
       setUploading((u) => [...u, file.name])
       try {
-        const res = await createDocumentUploadAction({
-          ...entityRef,
+        await uploadBlobToDocuments(entityRef, file, {
           name: file.name,
-          mimeType: file.type || "application/octet-stream",
-          sizeBytes: file.size,
+          mimeType: file.type,
           category: "other",
         })
-        const supabase = createClient()
-        const { error: upErr } = await supabase.storage
-          .from(res.bucket)
-          .uploadToSignedUrl(res.path, res.token, file)
-        if (upErr) throw new Error(upErr.message)
-        await finalizeDocumentUploadAction(entityRef)
+        await finalizeUpload(entityRef)
       } catch (e) {
         setError(`Couldn't upload ${file.name}: ${(e as Error).message}`)
       } finally {
@@ -174,7 +166,7 @@ export function FilesModule({ opportunityId, accountId, initialDocuments }: File
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>Files ({docs.length})</CardTitle>
-        <div>
+        <div className="flex items-center gap-2">
           <input
             ref={inputRef}
             type="file"
@@ -184,6 +176,13 @@ export function FilesModule({ opportunityId, accountId, initialDocuments }: File
               if (e.target.files?.length) void handleFiles(e.target.files)
               e.target.value = ""
             }}
+          />
+          <DriveImportButton
+            target={entityRef}
+            onFileStart={(n) => setUploading((u) => [...u, n])}
+            onFileDone={(n) => setUploading((u) => u.filter((x) => x !== n))}
+            onError={setError}
+            onComplete={() => startTransition(() => router.refresh())}
           />
           <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()}>
             <Upload className="size-4" />

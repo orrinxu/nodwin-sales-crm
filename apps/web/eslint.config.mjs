@@ -84,7 +84,11 @@ const eslintConfig = defineConfig([
   },
   // Client-side files that need NEXT_PUBLIC_ env vars (Next.js inlines these at build time).
   {
-    files: ["lib/supabase/client.ts", "app/(auth)/login/page.tsx"],
+    files: [
+      "lib/supabase/client.ts",
+      "app/(auth)/login/page.tsx",
+      "components/documents/drive-import-button.tsx",
+    ],
     rules: {
       "node/no-process-env": "off",
     },
