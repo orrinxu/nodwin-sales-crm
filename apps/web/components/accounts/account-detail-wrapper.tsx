@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { Pencil, Globe, MapPin, Briefcase, Mail, FileText, X } from "lucide-react"
+import { Pencil, Globe, MapPin, Briefcase, Mail, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,7 +17,9 @@ import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
 import { RelationshipTree } from "@/components/accounts/relationship-tree"
 import { getStageLabel } from "@/lib/data/opportunities.types"
 import { Money } from "@/lib/money"
-import type { AccountRecord, AccountUpdateInput, AccountRelationshipGraph, AccountOpportunity, AccountDocument, AccountRelationshipKind, AccountContact } from "@/lib/data/accounts"
+import type { AccountRecord, AccountUpdateInput, AccountRelationshipGraph, AccountOpportunity, AccountRelationshipKind, AccountContact } from "@/lib/data/accounts"
+import { FilesModule } from "@/components/documents/files-module"
+import type { DocumentSummary } from "@/lib/data/documents"
 import type { ContactPickerOption } from "@/lib/data/contacts"
 import type { ActivityRecord } from "@/lib/data/activities"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
@@ -33,7 +35,7 @@ interface AccountDetailWrapperProps {
   relationshipGraph: AccountRelationshipGraph | null
   contacts: AccountContact[]
   opportunities: AccountOpportunity[]
-  documents: AccountDocument[]
+  documents: DocumentSummary[]
   ownerName: string | null
   ownerOptions: EntityOption[]
   accountOptions: EntityOption[]
@@ -398,39 +400,6 @@ export function AccountDetailWrapper({
           </Card>
         )}
 
-        {documents.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Documents ({documents.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="divide-y divide-border">
-                {documents.map((doc) => (
-                  <div
-                    key={doc.id}
-                    className="flex items-center justify-between py-2 first:pt-0 last:pb-0"
-                  >
-                    <div className="flex items-center gap-2">
-                      <FileText className="size-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium">{doc.name}</p>
-                        <p className="text-xs text-muted-foreground">{doc.category}</p>
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(doc.uploadedAt).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         {hasRelationships && <RelationshipTree graph={relationshipGraph} />}
 
         {contacts.length === 0 && opportunities.length === 0 && documents.length === 0 && !hasRelationships && !canManageContacts && (
@@ -458,6 +427,8 @@ export function AccountDetailWrapper({
             <ActivityTimeline activities={activities} />
           </CardContent>
         </Card>
+
+        <FilesModule accountId={account.id} initialDocuments={documents} />
       </div>
     </div>
   )
