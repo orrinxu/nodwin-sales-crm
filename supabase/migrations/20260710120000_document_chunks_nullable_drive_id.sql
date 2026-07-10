@@ -1,4 +1,4 @@
--- supabase/migrations/20260711000000_document_chunks_nullable_drive_id.sql
+-- supabase/migrations/20260710120000_document_chunks_nullable_drive_id.sql
 -- HIGH-RISK FILE — see AGENTS.md §6.
 --
 -- RAG ingestion fix (Storage byte source). document_chunks.drive_file_id was
