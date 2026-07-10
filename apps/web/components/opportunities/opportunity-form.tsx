@@ -4,21 +4,13 @@ import { useState, useCallback, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Save, Plus, ChevronDown, ChevronUp } from "lucide-react"
+import { Save, Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-  SheetClose,
-} from "@/components/ui/sheet"
+import { RecordEditDialog } from "@/components/forms/record-edit-dialog"
+import { FormSection } from "@/components/forms/form-section"
 import {
   Select,
   SelectTrigger,
@@ -27,7 +19,7 @@ import {
   SelectItem,
 } from "@/components/ui/select"
 import { EntityCombobox, type EntityOption } from "@/components/entity-combobox"
-import { DualListbox, type DualListboxOption } from "@/components/ui/dual-listbox"
+import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select"
 
 import type { OpportunityRecord, OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/opportunities.types"
 import type { AccountOption } from "@/lib/data/contacts"
@@ -115,7 +107,17 @@ function getDefaultStageProbability(stage: DealStage): number {
   }
 }
 
-const COUNTRY_OPTIONS: DualListboxOption[] = [
+// Commercial/legal fields (margin, barter, execution date, service period,
+// billing entity, entity sales, recurring) surface once a deal reaches Propose.
+const COMMERCIAL_STAGES = new Set<DealStage>([
+  "propose",
+  "negotiate",
+  "verbal_agreement",
+  "closed_won",
+  "closed_lost",
+])
+
+const COUNTRY_OPTIONS: MultiSelectOption[] = [
   { id: "AE", label: "United Arab Emirates" },
   { id: "AR", label: "Argentina" },
   { id: "AU", label: "Australia" },
@@ -191,7 +193,7 @@ export function OpportunityForm({
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showMore, setShowMore] = useState(false)
+  const [showAllFields, setShowAllFields] = useState(false)
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>(
     () => opportunity?.customData ?? {},
   )
@@ -204,7 +206,7 @@ export function OpportunityForm({
     () => opportunity?.serviceType ?? [],
   )
 
-  const serviceTypeOptions: DualListboxOption[] = useMemo(
+  const serviceTypeOptions: MultiSelectOption[] = useMemo(
     // eslint-disable-next-line security/detect-object-injection
     () => SERVICE_TYPES.map((t) => ({ id: t, label: SERVICE_TYPE_LABELS[t] ?? t })),
     [],
@@ -249,6 +251,22 @@ export function OpportunityForm({
   const watchStage = form.watch("stage")
   const watchAccountId = form.watch("accountId")
   const isClosedLost = watchStage === "closed_lost"
+
+  // Reveal commercial/legal fields at Propose+, when editing a deal that already
+  // has such data, or when the user explicitly opts to show everything — so no
+  // field is ever unreachable.
+  const hasCommercialValues =
+    !!opportunity &&
+    (opportunity.estimatedGrossMarginPct != null ||
+      !!opportunity.barterValue ||
+      !!opportunity.executionDate ||
+      !!opportunity.servicePeriodStart ||
+      !!opportunity.servicePeriodEnd ||
+      !!opportunity.billingEntityId ||
+      !!opportunity.entitySalesId ||
+      !!opportunity.recurring)
+  const showCommercial =
+    COMMERCIAL_STAGES.has(watchStage) || showAllFields || hasCommercialValues
 
   const handleStageChange = useCallback((stage: DealStage) => {
     form.setValue("stage", stage)
@@ -301,7 +319,7 @@ export function OpportunityForm({
       setOpen(false)
       form.reset()
       setCustomFieldValues(opportunity?.customData ?? {})
-      setShowMore(false)
+      setShowAllFields(false)
       onSuccess()
     } catch (e) {
       setError(e instanceof Error ? e.message : "An unexpected error occurred")
@@ -312,7 +330,7 @@ export function OpportunityForm({
 
   function handleOpenChange(newOpen: boolean) {
     setOpen(newOpen)
-    setShowMore(false)
+    setShowAllFields(false)
     if (newOpen && opportunity) {
       form.reset({
         name: opportunity.name,
@@ -399,553 +417,403 @@ export function OpportunityForm({
     : undefined
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetTrigger
-        render={
-          (trigger ?? (
-            <Button>
-              <Plus className="size-4" />
-              Create Opportunity
-            </Button>
-          )) as React.ReactElement
-        }
-      />
-      <SheetContent side="right" className="sm:max-w-lg overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>{isEditing ? "Edit Opportunity" : "Create Opportunity"}</SheetTitle>
-          <SheetDescription>
-            {isEditing
-              ? "Update the opportunity details below."
-              : "Fill in the details to create a new opportunity."}
-          </SheetDescription>
-        </SheetHeader>
+    <RecordEditDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      trigger={
+        (trigger ?? (
+          <Button>
+            <Plus className="size-4" />
+            Create Opportunity
+          </Button>
+        )) as React.ReactElement
+      }
+      title={isEditing ? "Edit Opportunity" : "Create Opportunity"}
+      description={
+        isEditing
+          ? "Update the opportunity details below."
+          : "Fill in the details to create a new opportunity."
+      }
+      onSubmit={form.handleSubmit(onSubmit)}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={() => handleOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={pending}>
+            <Save className="size-4" />
+            {pending ? "Saving..." : isEditing ? "Save Changes" : "Create Opportunity"}
+          </Button>
+        </>
+      }
+    >
+      {error && (
+        <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-1 flex-col"
-        >
-          <div className="flex-1 space-y-4 px-4 py-4">
-            {error && (
-              <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-                {error}
-              </div>
-            )}
+      {/* ── Deal details ─────────────────────────────────────────────── */}
+      <FormSection title="Deal details" collapsible={false}>
+        <div className="col-span-full grid gap-1.5">
+          <Label htmlFor="name">
+            Name <span className="text-destructive">*</span>
+          </Label>
+          <Input id="name" {...form.register("name")} placeholder="Deal name" />
+          {form.formState.errors.name && (
+            <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
+          )}
+        </div>
 
-            {/* Name */}
-            <div className="grid gap-1.5">
-              <Label htmlFor="name">
-                Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="name"
-                {...form.register("name")}
-                placeholder="Deal name"
-              />
-              {form.formState.errors.name && (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.name.message}
-                </p>
-              )}
-            </div>
+        <div className="grid gap-1.5">
+          <Label>
+            Account <span className="text-destructive">*</span>
+          </Label>
+          <EntityCombobox
+            items={accountsForCombobox}
+            value={form.getValues("accountId")}
+            valueLabel={opportunity?.accountName ?? undefined}
+            onChange={(v) => {
+              form.setValue("accountId", v ?? "", { shouldValidate: true })
+              form.setValue("primaryContactId", "")
+            }}
+            searchAction={searchAccountsAction}
+            placeholder="Select account"
+            searchPlaceholder="Search accounts..."
+            emptyMessage="No accounts found."
+          />
+          {form.formState.errors.accountId && (
+            <p className="text-xs text-destructive">{form.formState.errors.accountId.message}</p>
+          )}
+        </div>
 
-            {/* Account — EntityCombobox */}
-            <div className="grid gap-1.5">
-              <Label>
-                Account <span className="text-destructive">*</span>
-              </Label>
-              <EntityCombobox
-                items={accountsForCombobox}
-                value={form.getValues("accountId")}
-                valueLabel={opportunity?.accountName ?? undefined}
-                onChange={(v) => {
-                  form.setValue("accountId", v ?? "", { shouldValidate: true })
-                  form.setValue("primaryContactId", "")
-                }}
-                searchAction={searchAccountsAction}
-                placeholder="Select account"
-                searchPlaceholder="Search accounts..."
-                emptyMessage="No accounts found."
-              />
-              {form.formState.errors.accountId && (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.accountId.message}
-                </p>
-              )}
-            </div>
+        <div className="grid gap-1.5">
+          <Label>Primary Contact</Label>
+          <EntityCombobox
+            items={[]}
+            value={form.getValues("primaryContactId") || null}
+            onChange={(v) => form.setValue("primaryContactId", v ?? "", { shouldValidate: true })}
+            searchAction={
+              searchContactsAction
+                ? (query) => searchContactsAction(query, form.getValues("accountId") || undefined)
+                : undefined
+            }
+            placeholder="Select contact"
+            searchPlaceholder="Search contacts..."
+            emptyMessage="No contacts found."
+            disabled={!watchAccountId}
+            onCreate={handleCreateContact}
+            createLabel={(q) => `Create contact "${q}"`}
+          />
+          {!watchAccountId && (
+            <p className="text-xs text-muted-foreground">
+              Select an account first to browse its contacts
+            </p>
+          )}
+        </div>
 
-            {/* Primary Contact — EntityCombobox */}
-            <div className="grid gap-1.5">
-              <Label>Primary Contact</Label>
-              <EntityCombobox
-                items={[]}
-                value={form.getValues("primaryContactId") || null}
-                onChange={(v) => form.setValue("primaryContactId", v ?? "", { shouldValidate: true })}
-                searchAction={
-                  searchContactsAction
-                    ? (query) => searchContactsAction(query, form.getValues("accountId") || undefined)
-                    : undefined
-                }
-                placeholder="Select contact"
-                searchPlaceholder="Search contacts..."
-                emptyMessage="No contacts found."
-                disabled={!watchAccountId}
-                onCreate={handleCreateContact}
-                createLabel={(q) => `Create contact "${q}"`}
-              />
-              {!watchAccountId && (
-                <p className="text-xs text-muted-foreground">
-                  Select an account first to browse its contacts
-                </p>
-              )}
-            </div>
+        <div className="grid gap-1.5">
+          <Label>
+            Sales Unit <span className="text-destructive">*</span>
+          </Label>
+          <Select
+            value={form.getValues("salesUnitId")}
+            onValueChange={(v) => form.setValue("salesUnitId", String(v ?? ""), { shouldValidate: true })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select unit" />
+            </SelectTrigger>
+            <SelectContent>
+              {businessUnits.map((bu) => (
+                <SelectItem key={bu.id} value={bu.id}>{bu.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {form.formState.errors.salesUnitId && (
+            <p className="text-xs text-destructive">{form.formState.errors.salesUnitId.message}</p>
+          )}
+        </div>
 
-            {/* Sales Unit & Owner */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-1.5">
-                <Label>
-                  Sales Unit <span className="text-destructive">*</span>
-                </Label>
-                <Select
-                  value={form.getValues("salesUnitId")}
-                  onValueChange={(v) => form.setValue("salesUnitId", String(v ?? ""), { shouldValidate: true })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {businessUnits.map((bu) => (
-                      <SelectItem key={bu.id} value={bu.id}>
-                        {bu.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {form.formState.errors.salesUnitId && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.salesUnitId.message}
-                  </p>
-                )}
-              </div>
+        <div className="grid gap-1.5">
+          <Label>Owner</Label>
+          <EntityCombobox
+            items={usersProp}
+            value={form.getValues("ownerUserId") || null}
+            valueLabel={opportunity?.ownerName ?? undefined}
+            onChange={(v) => form.setValue("ownerUserId", v ?? "", { shouldValidate: true })}
+            searchAction={searchUsersAction}
+            placeholder="Select owner"
+            searchPlaceholder="Search users..."
+            emptyMessage="No users found."
+          />
+        </div>
 
-              <div className="grid gap-1.5">
-                <Label>Owner</Label>
-                <EntityCombobox
-                  items={usersProp}
-                  value={form.getValues("ownerUserId") || null}
-                  valueLabel={opportunity?.ownerName ?? undefined}
-                  onChange={(v) => form.setValue("ownerUserId", v ?? "", { shouldValidate: true })}
-                  searchAction={searchUsersAction}
-                  placeholder="Select owner"
-                  searchPlaceholder="Search users..."
-                  emptyMessage="No users found."
-                />
-              </div>
-            </div>
+        <div className="grid gap-1.5">
+          <Label>Stage</Label>
+          <Select value={watchStage} onValueChange={(v) => handleStageChange(String(v ?? "") as DealStage)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select stage" />
+            </SelectTrigger>
+            <SelectContent>
+              {DEAL_STAGES.map((s) => (
+                <SelectItem key={s} value={s}>{getStageLabel(s)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-            {/* Stage & Probability */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-1.5">
-                <Label>Stage</Label>
-                <Select
-                  value={watchStage}
-                  onValueChange={(v) => handleStageChange(String(v ?? "") as DealStage)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select stage" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DEAL_STAGES.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {getStageLabel(s)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="probabilityPct">Probability (%)</Label>
+          <Input id="probabilityPct" type="number" min="0" max="100" {...form.register("probabilityPct")} placeholder="0" />
+        </div>
 
-              <div className="grid gap-1.5">
-                <Label htmlFor="probabilityPct">Probability (%)</Label>
-                <Input
-                  id="probabilityPct"
-                  type="number"
-                  min="0"
-                  max="100"
-                  {...form.register("probabilityPct")}
-                  placeholder="0"
-                />
-              </div>
-            </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="amount">Amount</Label>
+          <Input id="amount" type="number" step="0.01" min="0" {...form.register("amount")} placeholder="0.00" />
+        </div>
 
-            {/* Amount & Currency */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-1.5">
-                <Label htmlFor="amount">Amount</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  {...form.register("amount")}
-                  placeholder="0.00"
-                />
-              </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="currency">Currency</Label>
+          <Input id="currency" {...form.register("currency")} placeholder="USD" />
+        </div>
 
-              <div className="grid gap-1.5">
-                <Label htmlFor="currency">Currency</Label>
-                <Input
-                  id="currency"
-                  {...form.register("currency")}
-                  placeholder="USD"
-                />
-              </div>
-            </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="closeDate">Close Date</Label>
+          <Input id="closeDate" type="date" {...form.register("closeDate")} />
+        </div>
 
-            {/* Close Date */}
-            <div className="grid gap-1.5">
-              <Label htmlFor="closeDate">Close Date</Label>
-              <Input
-                id="closeDate"
-                type="date"
-                {...form.register("closeDate")}
-              />
-            </div>
-
-            {/* Progressive disclosure toggle */}
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full justify-start gap-2 text-sm font-medium"
-              onClick={() => setShowMore(!showMore)}
-            >
-              {showMore ? (
-                <ChevronUp className="size-4" />
-              ) : (
-                <ChevronDown className="size-4" />
-              )}
-              More details
-            </Button>
-
-            {/* Section B — More details */}
-            {showMore && (
-              <div className="space-y-4 border-t pt-4">
-                {/* Service Period */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="servicePeriodStart">Service Start</Label>
-                    <Input
-                      id="servicePeriodStart"
-                      type="date"
-                      {...form.register("servicePeriodStart")}
-                    />
-                  </div>
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="servicePeriodEnd">Service End</Label>
-                    <Input
-                      id="servicePeriodEnd"
-                      type="date"
-                      {...form.register("servicePeriodEnd")}
-                    />
-                  </div>
-                </div>
-
-                {/* Execution Date */}
-                <div className="grid gap-1.5">
-                  <Label htmlFor="executionDate">Execution Date</Label>
-                  <Input
-                    id="executionDate"
-                    type="date"
-                    {...form.register("executionDate")}
-                  />
-                </div>
-
-                {/* Estimated Gross Margin */}
-                <div className="grid gap-1.5">
-                  <Label htmlFor="estimatedGrossMarginPct">
-                    Estimated Gross Margin (%)
-                  </Label>
-                  <Input
-                    id="estimatedGrossMarginPct"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="100"
-                    {...form.register("estimatedGrossMarginPct")}
-                    placeholder="0"
-                  />
-                </div>
-
-                {/* Country of Execution */}
-                <div className="grid gap-1.5">
-                  <Label>Country of Execution</Label>
-                  <DualListbox
-                    options={COUNTRY_OPTIONS}
-                    value={countryExecutionValue}
-                    onChange={setCountryExecutionValue}
-                    availableLabel="Available"
-                    chosenLabel="Selected"
-                    searchPlaceholder="Filter..."
-                  />
-                </div>
-
-                {/* Project Type */}
-                <div className="grid gap-1.5">
-                  <Label>Project Type</Label>
-                  <Select
-                    value={form.getValues("projectType") || ""}
-                    onValueChange={(v) => form.setValue("projectType", (v ? String(v) : "") as ProjectType, { shouldValidate: true })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PROJECT_TYPES.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Revenue Category */}
-                <div className="grid gap-1.5">
-                  <Label>Revenue Category</Label>
-                  <Select
-                    value={form.getValues("revenueCategory") || ""}
-                    onValueChange={(v) => form.setValue("revenueCategory", (v ? String(v) : "") as RevenueCategory, { shouldValidate: true })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {REVENUE_CATEGORIES.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c.charAt(0).toUpperCase() + c.slice(1)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Recurring Toggle */}
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                  <div className="grid gap-0.5">
-                    <Label className="text-sm font-medium">Recurring</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Is this a recurring engagement?
-                    </p>
-                  </div>
-                  <label className="inline-flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      aria-label="Recurring"
-                      className="size-4 rounded border-input accent-primary"
-                      checked={watchRecurring ?? false}
-                      onChange={(e) => {
-                        form.setValue("recurring", e.target.checked)
-                        if (!e.target.checked) form.setValue("recurringSplitKind", "" as RecurringSplitKind)
-                      }}
-                    />
-                    <span className="text-sm">Enabled</span>
-                  </label>
-                </div>
-
-                {/* Recurring Split Kind */}
-                {watchRecurring && (
-                  <div className="grid gap-1.5">
-                    <Label>
-                      Recurring Split Kind <span className="text-destructive">*</span>
-                    </Label>
-                    <Select
-                      value={form.getValues("recurringSplitKind") || ""}
-                      onValueChange={(v) => form.setValue("recurringSplitKind", (v ? String(v) : "") as RecurringSplitKind, { shouldValidate: true })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select split kind" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {RECURRING_SPLIT_KINDS.map((k) => (
-                          <SelectItem key={k} value={k}>
-                            {k.charAt(0).toUpperCase() + k.slice(1)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {form.formState.errors.recurringSplitKind && (
-                      <p className="text-xs text-destructive">
-                        {form.formState.errors.recurringSplitKind.message}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Visibility Tier */}
-                <div className="grid gap-1.5">
-                  <Label>Visibility Tier</Label>
-                  <Select
-                    value={form.getValues("visibilityTier") ?? "standard"}
-                    onValueChange={(v) => form.setValue("visibilityTier", (v ? String(v) : "standard") as VisibilityTier, { shouldValidate: true })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Standard" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {VISIBILITY_TIERS.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {t.charAt(0).toUpperCase() + t.slice(1)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Billing Entity */}
-                <div className="grid gap-1.5">
-                  <Label>Billing Entity</Label>
-                  <Select
-                    value={form.getValues("billingEntityId") || ""}
-                    onValueChange={(v) => form.setValue("billingEntityId", String(v ?? ""), { shouldValidate: true })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select billing entity" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">None</SelectItem>
-                      {businessUnits.map((bu) => (
-                        <SelectItem key={bu.id} value={bu.id}>
-                          {bu.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Entity Sales */}
-                <div className="grid gap-1.5">
-                  <Label>Entity Sales</Label>
-                  <Select
-                    value={form.getValues("entitySalesId") || ""}
-                    onValueChange={(v) => form.setValue("entitySalesId", String(v ?? ""), { shouldValidate: true })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select entity sales" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">None</SelectItem>
-                      {businessUnits.map((bu) => (
-                        <SelectItem key={bu.id} value={bu.id}>
-                          {bu.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Barter Value */}
-                <div className="grid gap-1.5">
-                  <Label htmlFor="barterValue">Barter Value</Label>
-                  <Input
-                    id="barterValue"
-                    {...form.register("barterValue")}
-                    placeholder="0.00"
-                  />
-                </div>
-
-                {/* Service Type */}
-                <div className="grid gap-1.5">
-                  <Label>Service Type</Label>
-                  <DualListbox
-                    options={serviceTypeOptions}
-                    value={serviceTypeValue}
-                    onChange={setServiceTypeValue}
-                    availableLabel="Available"
-                    chosenLabel="Selected"
-                    searchPlaceholder="Filter..."
-                  />
-                </div>
-
-                {/* Property Type */}
-                <div className="grid gap-1.5">
-                  <Label>Property Type</Label>
-                  <Select
-                    value={form.getValues("propertyType") || ""}
-                    onValueChange={(v) => form.setValue("propertyType", (v ? String(v) : "") as "" | PropertyType, { shouldValidate: true })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select property type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">None</SelectItem>
-                      {PROPERTY_TYPES.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {/* eslint-disable-next-line security/detect-object-injection */}
-                          {PROPERTY_TYPE_LABELS[t] ?? t}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Description */}
-                <div className="grid gap-1.5">
-                  <Label htmlFor="description">Description</Label>
-                  <textarea
-                    id="description"
-                    className="min-h-[100px] w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 resize-y placeholder:text-muted-foreground"
-                    placeholder="Notes about this opportunity"
-                    {...form.register("description")}
-                  />
-                </div>
-
-                {/* Loss Reason (conditional on Closed Lost) */}
-                {isClosedLost && (
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="lossReason">
-                      Loss Reason <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="lossReason"
-                      {...form.register("lossReason")}
-                      placeholder="Why was this opportunity lost?"
-                    />
-                    {form.formState.errors.lossReason && (
-                      <p className="text-xs text-destructive">
-                        {form.formState.errors.lossReason.message}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Custom Fields */}
-                {fieldDefinitions.length > 0 && (
-                  <CustomFieldsForm
-                    fieldDefinitions={fieldDefinitions}
-                    values={customFieldValues}
-                    onChange={(key, value) =>
-                      setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
-                    }
-                    errors={{}}
-                  />
-                )}
-              </div>
+        {isClosedLost && (
+          <div className="col-span-full grid gap-1.5">
+            <Label htmlFor="lossReason">
+              Loss Reason <span className="text-destructive">*</span>
+            </Label>
+            <Input id="lossReason" {...form.register("lossReason")} placeholder="Why was this opportunity lost?" />
+            {form.formState.errors.lossReason && (
+              <p className="text-xs text-destructive">{form.formState.errors.lossReason.message}</p>
             )}
           </div>
+        )}
+      </FormSection>
 
-          <SheetFooter>
-            <SheetClose
-              render={
-                <Button type="button" variant="outline" disabled={pending}>
-                  Cancel
-                </Button>
-              }
+      {/* ── Classification ───────────────────────────────────────────── */}
+      <FormSection title="Classification" defaultOpen={false}>
+        <div className="col-span-full grid gap-1.5">
+          <Label>Service Type</Label>
+          <MultiSelect
+            options={serviceTypeOptions}
+            value={serviceTypeValue}
+            onChange={setServiceTypeValue}
+            placeholder="Add service types..."
+            emptyMessage="No matching service types."
+          />
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label>Property Type</Label>
+          <Select
+            value={form.getValues("propertyType") || ""}
+            onValueChange={(v) => form.setValue("propertyType", (v ? String(v) : "") as "" | PropertyType, { shouldValidate: true })}
+          >
+            <SelectTrigger><SelectValue placeholder="Select property type" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">None</SelectItem>
+              {PROPERTY_TYPES.map((t) => (
+                // eslint-disable-next-line security/detect-object-injection
+                <SelectItem key={t} value={t}>{PROPERTY_TYPE_LABELS[t] ?? t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label>Project Type</Label>
+          <Select
+            value={form.getValues("projectType") || ""}
+            onValueChange={(v) => form.setValue("projectType", (v ? String(v) : "") as ProjectType, { shouldValidate: true })}
+          >
+            <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+            <SelectContent>
+              {PROJECT_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>{t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label>Revenue Category</Label>
+          <Select
+            value={form.getValues("revenueCategory") || ""}
+            onValueChange={(v) => form.setValue("revenueCategory", (v ? String(v) : "") as RevenueCategory, { shouldValidate: true })}
+          >
+            <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+            <SelectContent>
+              {REVENUE_CATEGORIES.map((c) => (
+                <SelectItem key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label>Visibility Tier</Label>
+          <Select
+            value={form.getValues("visibilityTier") ?? "standard"}
+            onValueChange={(v) => form.setValue("visibilityTier", (v ? String(v) : "standard") as VisibilityTier, { shouldValidate: true })}
+          >
+            <SelectTrigger><SelectValue placeholder="Standard" /></SelectTrigger>
+            <SelectContent>
+              {VISIBILITY_TIERS.map((t) => (
+                <SelectItem key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="col-span-full grid gap-1.5">
+          <Label>Country of Execution</Label>
+          <MultiSelect
+            options={COUNTRY_OPTIONS}
+            value={countryExecutionValue}
+            onChange={setCountryExecutionValue}
+            placeholder="Add countries..."
+            emptyMessage="No matching countries."
+          />
+        </div>
+      </FormSection>
+
+      {/* ── Commercials & legal (stage-gated: Propose onward) ────────── */}
+      {showCommercial ? (
+        <FormSection title="Commercials & legal" defaultOpen>
+          <div className="grid gap-1.5">
+            <Label htmlFor="estimatedGrossMarginPct">Estimated Gross Margin (%)</Label>
+            <Input id="estimatedGrossMarginPct" type="number" step="0.1" min="0" max="100" {...form.register("estimatedGrossMarginPct")} placeholder="0" />
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="barterValue">Barter Value</Label>
+            <Input id="barterValue" {...form.register("barterValue")} placeholder="0.00" />
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="executionDate">Execution Date</Label>
+            <Input id="executionDate" type="date" {...form.register("executionDate")} />
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="servicePeriodStart">Service Start</Label>
+            <Input id="servicePeriodStart" type="date" {...form.register("servicePeriodStart")} />
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="servicePeriodEnd">Service End</Label>
+            <Input id="servicePeriodEnd" type="date" {...form.register("servicePeriodEnd")} />
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label>Billing Entity</Label>
+            <Select
+              value={form.getValues("billingEntityId") || ""}
+              onValueChange={(v) => form.setValue("billingEntityId", String(v ?? ""), { shouldValidate: true })}
+            >
+              <SelectTrigger><SelectValue placeholder="Select billing entity" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">None</SelectItem>
+                {businessUnits.map((bu) => (<SelectItem key={bu.id} value={bu.id}>{bu.name}</SelectItem>))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label>Entity Sales</Label>
+            <Select
+              value={form.getValues("entitySalesId") || ""}
+              onValueChange={(v) => form.setValue("entitySalesId", String(v ?? ""), { shouldValidate: true })}
+            >
+              <SelectTrigger><SelectValue placeholder="Select entity sales" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">None</SelectItem>
+                {businessUnits.map((bu) => (<SelectItem key={bu.id} value={bu.id}>{bu.name}</SelectItem>))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="col-span-full flex items-center justify-between rounded-lg border p-3">
+            <div className="grid gap-0.5">
+              <Label className="text-sm font-medium">Recurring</Label>
+              <p className="text-xs text-muted-foreground">Is this a recurring engagement?</p>
+            </div>
+            <label className="inline-flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                aria-label="Recurring"
+                className="size-4 rounded border-input accent-primary"
+                checked={watchRecurring ?? false}
+                onChange={(e) => {
+                  form.setValue("recurring", e.target.checked)
+                  if (!e.target.checked) form.setValue("recurringSplitKind", "" as RecurringSplitKind)
+                }}
+              />
+              <span className="text-sm">Enabled</span>
+            </label>
+          </div>
+
+          {watchRecurring && (
+            <div className="grid gap-1.5">
+              <Label>Recurring Split Kind <span className="text-destructive">*</span></Label>
+              <Select
+                value={form.getValues("recurringSplitKind") || ""}
+                onValueChange={(v) => form.setValue("recurringSplitKind", (v ? String(v) : "") as RecurringSplitKind, { shouldValidate: true })}
+              >
+                <SelectTrigger><SelectValue placeholder="Select split kind" /></SelectTrigger>
+                <SelectContent>
+                  {RECURRING_SPLIT_KINDS.map((k) => (<SelectItem key={k} value={k}>{k.charAt(0).toUpperCase() + k.slice(1)}</SelectItem>))}
+                </SelectContent>
+              </Select>
+              {form.formState.errors.recurringSplitKind && (
+                <p className="text-xs text-destructive">{form.formState.errors.recurringSplitKind.message}</p>
+              )}
+            </div>
+          )}
+        </FormSection>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowAllFields(true)}
+          className="text-sm font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          + Show commercial &amp; legal fields
+        </button>
+      )}
+
+      {/* ── Description & notes ──────────────────────────────────────── */}
+      <FormSection title="Description & notes" defaultOpen={false}>
+        <div className="col-span-full grid gap-1.5">
+          <Label htmlFor="description">Description</Label>
+          <textarea
+            id="description"
+            className="min-h-[100px] w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 resize-y placeholder:text-muted-foreground"
+            placeholder="Notes about this opportunity"
+            {...form.register("description")}
+          />
+        </div>
+
+        {fieldDefinitions.length > 0 && (
+          <div className="col-span-full">
+            <CustomFieldsForm
+              fieldDefinitions={fieldDefinitions}
+              values={customFieldValues}
+              onChange={(key, value) => setCustomFieldValues((prev) => ({ ...prev, [key]: value }))}
+              errors={{}}
             />
-            <Button type="submit" disabled={pending}>
-              <Save className="size-4" />
-              {pending ? "Saving..." : isEditing ? "Save Changes" : "Create Opportunity"}
-            </Button>
-          </SheetFooter>
-        </form>
-      </SheetContent>
-    </Sheet>
+          </div>
+        )}
+      </FormSection>
+    </RecordEditDialog>
   )
 }

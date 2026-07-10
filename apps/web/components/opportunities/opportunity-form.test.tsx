@@ -70,20 +70,28 @@ function setupUser() {
   return userEvent.setup({ pointerEventsCheck: 0 })
 }
 
-async function openSheet(user: ReturnType<typeof setupUser>) {
+// The full editor is now a centered modal. Opening it clicks the default trigger;
+// when open, the trigger is inert (modal) so the accessible "Create Opportunity"
+// button is the footer submit.
+async function openForm(user: ReturnType<typeof setupUser>) {
   await user.click(screen.getByRole("button", { name: /create opportunity/i }))
+}
+
+// Commercial/legal fields are gated until Propose+. On an early-stage deal they
+// are revealed via the "Show commercial & legal fields" escape hatch.
+async function revealCommercials(user: ReturnType<typeof setupUser>) {
+  const btn = screen.queryByRole("button", { name: /show commercial/i })
+  if (btn) await user.click(btn)
 }
 
 async function fillRequiredFields(user: ReturnType<typeof setupUser>) {
   await user.type(screen.getByLabelText(/name/i), "Test Deal")
 
   const allCombos = screen.getAllByRole("combobox")
-
-  // Account — EntityCombobox [0]
+  // Deal details renders first: [0]=Account, [1]=Contact, [2]=Sales Unit, [3]=Owner, [4]=Stage
   await user.click(allCombos[0])
   await user.click(screen.getByText("Acme Corp"))
 
-  // Sales Unit — Select [2]
   await user.click(allCombos[2])
   await user.click(await screen.findByRole("option", { name: "East Asia Sales" }))
 }
@@ -107,7 +115,7 @@ describe("OpportunityForm", () => {
       expect(screen.getByText("Create Opportunity")).toBeInTheDocument()
     })
 
-    it("renders edit mode trigger button", async () => {
+    it("renders edit mode title when opened", async () => {
       const user = setupUser()
       render(
         <OpportunityForm
@@ -121,11 +129,11 @@ describe("OpportunityForm", () => {
     })
   })
 
-  describe("form fields — section A (essentials)", () => {
+  describe("deal details (essentials)", () => {
     it("renders all essential fields when opened", async () => {
       const user = setupUser()
       render(<OpportunityForm {...defaultProps} />)
-      await openSheet(user)
+      await openForm(user)
 
       expect(
         screen.getByRole("heading", { name: "Create Opportunity" }),
@@ -135,18 +143,12 @@ describe("OpportunityForm", () => {
       expect(screen.getByLabelText(/currency/i)).toBeInTheDocument()
       expect(screen.getByLabelText(/close date/i)).toBeInTheDocument()
       expect(screen.getByLabelText(/probability/i)).toBeInTheDocument()
-      expect(screen.getByText("More details")).toBeInTheDocument()
     })
 
-    it("shows all combobox controls in section A", async () => {
+    it("shows all combobox controls in deal details", async () => {
       const user = setupUser()
-      render(
-        <OpportunityForm
-          {...defaultProps}
-          users={mockUsers}
-        />,
-      )
-      await openSheet(user)
+      render(<OpportunityForm {...defaultProps} users={mockUsers} />)
+      await openForm(user)
 
       const allCombos = screen.getAllByRole("combobox")
       // [0]=Account, [1]=Contact, [2]=Sales Unit, [3]=Owner, [4]=Stage
@@ -156,23 +158,19 @@ describe("OpportunityForm", () => {
     it("disables primary contact combobox when no account is selected", async () => {
       const user = setupUser()
       render(<OpportunityForm {...defaultProps} />)
-      await openSheet(user)
+      await openForm(user)
 
       const allCombos = screen.getAllByRole("combobox")
-      const contactCombo = allCombos[1]
-      expect(contactCombo).toBeDisabled()
-      expect(
-        screen.getByText(/select an account first/i),
-      ).toBeInTheDocument()
+      expect(allCombos[1]).toBeDisabled()
+      expect(screen.getByText(/select an account first/i)).toBeInTheDocument()
     })
 
     it("enables primary contact combobox when account is selected", async () => {
       const user = setupUser()
       render(<OpportunityForm {...defaultProps} />)
-      await openSheet(user)
+      await openForm(user)
 
       const allCombos = screen.getAllByRole("combobox")
-      // Select an account
       await user.click(allCombos[0])
       await user.click(screen.getByText("Acme Corp"))
 
@@ -180,26 +178,22 @@ describe("OpportunityForm", () => {
         const refreshedCombos = screen.getAllByRole("combobox")
         expect(refreshedCombos[1]).not.toBeDisabled()
       })
-      expect(
-        screen.queryByText(/select an account first/i),
-      ).not.toBeInTheDocument()
+      expect(screen.queryByText(/select an account first/i)).not.toBeInTheDocument()
     })
 
     it("clears primary contact when account changes", async () => {
       const user = setupUser()
       render(<OpportunityForm {...defaultProps} />)
-      await openSheet(user)
+      await openForm(user)
 
       let allCombos = screen.getAllByRole("combobox")
       await user.click(allCombos[0])
       await user.click(screen.getByText("Acme Corp"))
 
-      // Now change account to Globex
       allCombos = screen.getAllByRole("combobox")
       await user.click(allCombos[0])
       await user.click(screen.getByText("Globex Inc"))
 
-      // Primary contact should be empty (showing placeholder text)
       await waitFor(() => {
         allCombos = screen.getAllByRole("combobox")
         expect(allCombos[1].textContent).toContain("Select contact")
@@ -207,47 +201,56 @@ describe("OpportunityForm", () => {
     })
   })
 
-  describe("progressive disclosure", () => {
-    it("hides section B fields by default", async () => {
+  describe("progressive disclosure (commercial/legal gated at Propose)", () => {
+    it("gates commercial fields on an early-stage deal", async () => {
       const user = setupUser()
       render(<OpportunityForm {...defaultProps} />)
-      await openSheet(user)
+      await openForm(user)
 
+      // Commercials section is not rendered at qualify; the escape hatch is shown.
       expect(screen.queryByText("Service Start")).not.toBeInTheDocument()
-      expect(screen.queryByText("Country of Execution")).not.toBeInTheDocument()
+      expect(
+        screen.getByRole("button", { name: /show commercial/i }),
+      ).toBeInTheDocument()
     })
 
-    it("reveals section B fields when 'More details' clicked", async () => {
+    it("reveals commercial fields via the escape hatch", async () => {
       const user = setupUser()
       render(<OpportunityForm {...defaultProps} />)
-      await openSheet(user)
-
-      await user.click(screen.getByText("More details"))
+      await openForm(user)
+      await revealCommercials(user)
 
       expect(screen.getByText("Service Start")).toBeInTheDocument()
       expect(screen.getByText("Service End")).toBeInTheDocument()
       expect(screen.getByText("Execution Date")).toBeInTheDocument()
       expect(screen.getByText("Estimated Gross Margin (%)")).toBeInTheDocument()
-      expect(screen.getByText("Country of Execution")).toBeInTheDocument()
-      expect(screen.getByText("Project Type")).toBeInTheDocument()
-      expect(screen.getByText("Revenue Category")).toBeInTheDocument()
+      expect(screen.getByText("Billing Entity")).toBeInTheDocument()
       expect(screen.getByText("Recurring")).toBeInTheDocument()
-      expect(screen.getByText("Visibility Tier")).toBeInTheDocument()
-      expect(screen.getByText("Description")).toBeInTheDocument()
     })
 
-    it("hides section B fields when toggled back", async () => {
+    it("shows commercial fields immediately once stage is Propose+", async () => {
+      const user = setupUser()
+      render(
+        <OpportunityForm
+          {...defaultProps}
+          opportunity={mockOpportunity}
+          updateAction={vi.fn()}
+        />,
+      )
+      await openForm(user)
+      // negotiate ≥ propose → Commercials rendered without the escape hatch.
+      expect(screen.queryByRole("button", { name: /show commercial/i })).not.toBeInTheDocument()
+      expect(screen.getByText("Billing Entity")).toBeInTheDocument()
+    })
+
+    it("keeps classification fields available (mounted) regardless of stage", async () => {
       const user = setupUser()
       render(<OpportunityForm {...defaultProps} />)
-      await openSheet(user)
+      await openForm(user)
 
-      await user.click(screen.getByText("More details"))
-      expect(screen.getByText("Service Start")).toBeInTheDocument()
-
-      await user.click(screen.getByText("More details"))
-      await waitFor(() => {
-        expect(screen.queryByText("Service Start")).not.toBeInTheDocument()
-      })
+      expect(screen.getByText("Service Type")).toBeInTheDocument()
+      expect(screen.getByText("Property Type")).toBeInTheDocument()
+      expect(screen.getByText("Country of Execution")).toBeInTheDocument()
     })
   })
 
@@ -255,7 +258,7 @@ describe("OpportunityForm", () => {
     it("defaults to qualify (10%) on create", async () => {
       const user = setupUser()
       render(<OpportunityForm {...defaultProps} />)
-      await openSheet(user)
+      await openForm(user)
 
       const probInput = screen.getByLabelText(/probability/i) as HTMLInputElement
       expect(probInput.value).toBe("10")
@@ -276,11 +279,10 @@ describe("OpportunityForm", () => {
       async ({ stage, value }) => {
         const user = setupUser()
         render(<OpportunityForm {...defaultProps} />)
-        await openSheet(user)
+        await openForm(user)
 
-        // Stage is combobox[4]
         const allCombos = screen.getAllByRole("combobox")
-        await user.click(allCombos[4])
+        await user.click(allCombos[4]) // Stage
         await user.click(await screen.findByRole("option", { name: stage }))
 
         await waitFor(() => {
@@ -292,15 +294,11 @@ describe("OpportunityForm", () => {
   })
 
   describe("recurring toggle", () => {
-    async function expandSectionB(user: ReturnType<typeof setupUser>) {
-      await openSheet(user)
-      await user.click(screen.getByText("More details"))
-    }
-
     it("hides recurring split kind when recurring is off", async () => {
       const user = setupUser()
       render(<OpportunityForm {...defaultProps} />)
-      await expandSectionB(user)
+      await openForm(user)
+      await revealCommercials(user)
 
       expect(screen.queryByText("Recurring Split Kind")).not.toBeInTheDocument()
     })
@@ -308,18 +306,18 @@ describe("OpportunityForm", () => {
     it("reveals recurring split kind when recurring is enabled", async () => {
       const user = setupUser()
       render(<OpportunityForm {...defaultProps} />)
-      await expandSectionB(user)
+      await openForm(user)
+      await revealCommercials(user)
 
-      const recurringCheckbox = screen.getByRole("checkbox", { name: /recurring/i })
-      await user.click(recurringCheckbox)
-
+      await user.click(screen.getByRole("checkbox", { name: /recurring/i }))
       expect(screen.getByText("Recurring Split Kind")).toBeInTheDocument()
     })
 
     it("hides recurring split kind when toggled back off", async () => {
       const user = setupUser()
       render(<OpportunityForm {...defaultProps} />)
-      await expandSectionB(user)
+      await openForm(user)
+      await revealCommercials(user)
 
       const checkbox = screen.getByRole("checkbox", { name: /recurring/i })
       await user.click(checkbox)
@@ -327,30 +325,24 @@ describe("OpportunityForm", () => {
 
       await user.click(checkbox)
       await waitFor(() => {
-        expect(
-          screen.queryByText("Recurring Split Kind"),
-        ).not.toBeInTheDocument()
+        expect(screen.queryByText("Recurring Split Kind")).not.toBeInTheDocument()
       })
     })
 
     it("shows validation error when recurring is on but no split kind selected", async () => {
       const user = setupUser()
       render(<OpportunityForm {...defaultProps} />)
-      await expandSectionB(user)
+      await openForm(user)
+      await revealCommercials(user)
 
-      const checkbox = screen.getByRole("checkbox", { name: /recurring/i })
-      await user.click(checkbox)
-
+      await user.click(screen.getByRole("checkbox", { name: /recurring/i }))
       expect(screen.getByText("Recurring Split Kind")).toBeInTheDocument()
 
       await fillRequiredFields(user)
-
       await user.click(screen.getByRole("button", { name: /create opportunity/i }))
 
       await waitFor(() => {
-        expect(
-          screen.getByText(/recurring split kind is required/i),
-        ).toBeInTheDocument()
+        expect(screen.getByText(/recurring split kind is required/i)).toBeInTheDocument()
       })
     })
   })
@@ -359,7 +351,7 @@ describe("OpportunityForm", () => {
     it("shows required errors when submitting empty form", async () => {
       const user = setupUser()
       render(<OpportunityForm {...defaultProps} />)
-      await openSheet(user)
+      await openForm(user)
 
       await user.click(screen.getByRole("button", { name: /create opportunity/i }))
 
@@ -375,10 +367,8 @@ describe("OpportunityForm", () => {
         () => new Promise((resolve) => setTimeout(() => resolve({ id: "opp-new" }), 100)),
       ) as unknown as typeof defaultProps.createAction
       const user = setupUser()
-      render(
-        <OpportunityForm {...defaultProps} createAction={createAction} />,
-      )
-      await openSheet(user)
+      render(<OpportunityForm {...defaultProps} createAction={createAction} />)
+      await openForm(user)
       await fillRequiredFields(user)
 
       await user.click(screen.getByRole("button", { name: /create opportunity/i }))
@@ -402,12 +392,11 @@ describe("OpportunityForm", () => {
           users={mockUsers}
         />,
       )
-      await openSheet(user)
+      await openForm(user)
       await fillRequiredFields(user)
 
-      // Select owner
       const allCombos = screen.getAllByRole("combobox")
-      await user.click(allCombos[3])
+      await user.click(allCombos[3]) // Owner
       await user.click(screen.getByText("Alice"))
 
       await user.click(screen.getByRole("button", { name: /create opportunity/i }))
@@ -427,27 +416,22 @@ describe("OpportunityForm", () => {
       })
     })
 
-    it("includes section B fields when provided", async () => {
+    it("includes classification (country) + commercial (gross margin) fields", async () => {
       const createAction = vi.fn().mockResolvedValue({ id: "opp-new" })
       const user = setupUser()
-      render(
-        <OpportunityForm {...defaultProps} createAction={createAction} />,
-      )
-      await openSheet(user)
+      render(<OpportunityForm {...defaultProps} createAction={createAction} />)
+      await openForm(user)
       await fillRequiredFields(user)
 
-      await user.click(screen.getByText("More details"))
+      // Country of Execution — searchable multi-select. Expand Classification so
+      // its dropdown options aren't inside a collapsed (hidden) panel.
+      await user.click(screen.getByRole("button", { name: /classification/i }))
+      await user.click(screen.getByPlaceholderText("Add countries..."))
+      await user.click(await screen.findByRole("option", { name: "India" }))
 
-      await user.click(screen.getByRole("checkbox", { name: "India" }))
-      // Two DualListboxes (Country, Service Type) each render a move button;
-      // Country of Execution renders first, so it is index [0].
-      await user.click(
-        screen.getAllByRole("button", { name: /move selected to chosen/i })[0],
-      )
-      await user.type(
-        screen.getByLabelText("Estimated Gross Margin (%)"),
-        "35",
-      )
+      // Estimated Gross Margin — commercial (gated, reveal first)
+      await revealCommercials(user)
+      await user.type(screen.getByLabelText("Estimated Gross Margin (%)"), "35")
 
       await user.click(screen.getByRole("button", { name: /create opportunity/i }))
 
@@ -464,20 +448,15 @@ describe("OpportunityForm", () => {
     it("includes recurring split kind when recurring is enabled", async () => {
       const createAction = vi.fn().mockResolvedValue({ id: "opp-new" })
       const user = setupUser()
-      render(
-        <OpportunityForm {...defaultProps} createAction={createAction} />,
-      )
-      await openSheet(user)
+      render(<OpportunityForm {...defaultProps} createAction={createAction} />)
+      await openForm(user)
       await fillRequiredFields(user)
-      await user.click(screen.getByText("More details"))
+      await revealCommercials(user)
 
-      const checkbox = screen.getByRole("checkbox", { name: /recurring/i })
-      await user.click(checkbox)
+      await user.click(screen.getByRole("checkbox", { name: /recurring/i }))
 
-      // Recurring Split Kind Select appears — combobox indices shift
-      const allCombos = screen.getAllByRole("combobox")
-      // [5]=Project Type, [6]=Revenue Category, [7]=Recurring Split Kind, [8]=Visibility Tier
-      await user.click(allCombos[7])
+      // Locate the split-kind Select by its placeholder text, then pick Flat.
+      await user.click(screen.getByText("Select split kind"))
       await user.click(await screen.findByRole("option", { name: "Flat" }))
 
       await user.click(screen.getByRole("button", { name: /create opportunity/i }))
@@ -507,7 +486,7 @@ describe("OpportunityForm", () => {
           users={mockUsers}
         />,
       )
-      await openSheet(user)
+      await openForm(user)
 
       const nameInput = screen.getByLabelText(/name/i) as HTMLInputElement
       expect(nameInput.value).toBe("Big Deal")
@@ -538,9 +517,8 @@ describe("OpportunityForm", () => {
           updateAction={updateAction}
         />,
       )
-      await openSheet(user)
+      await openForm(user)
 
-      // Edit form is pre-filled — just change name and submit
       const nameInput = screen.getByLabelText(/name/i) as HTMLInputElement
       await user.clear(nameInput)
       await user.type(nameInput, "Changed Name")
@@ -556,14 +534,10 @@ describe("OpportunityForm", () => {
 
   describe("error handling", () => {
     it("displays error message when createAction throws", async () => {
-      const createAction = vi
-        .fn()
-        .mockRejectedValue(new Error("Server error"))
+      const createAction = vi.fn().mockRejectedValue(new Error("Server error"))
       const user = setupUser()
-      render(
-        <OpportunityForm {...defaultProps} createAction={createAction} />,
-      )
-      await openSheet(user)
+      render(<OpportunityForm {...defaultProps} createAction={createAction} />)
+      await openForm(user)
       await fillRequiredFields(user)
 
       await user.click(screen.getByRole("button", { name: /create opportunity/i }))
@@ -574,17 +548,13 @@ describe("OpportunityForm", () => {
     it("shows generic message for non-Error rejections", async () => {
       const createAction = vi.fn().mockRejectedValue("something broke")
       const user = setupUser()
-      render(
-        <OpportunityForm {...defaultProps} createAction={createAction} />,
-      )
-      await openSheet(user)
+      render(<OpportunityForm {...defaultProps} createAction={createAction} />)
+      await openForm(user)
       await fillRequiredFields(user)
 
       await user.click(screen.getByRole("button", { name: /create opportunity/i }))
 
-      expect(
-        await screen.findByText("An unexpected error occurred"),
-      ).toBeInTheDocument()
+      expect(await screen.findByText("An unexpected error occurred")).toBeInTheDocument()
     })
   })
 
@@ -592,10 +562,8 @@ describe("OpportunityForm", () => {
     it("defaults to 'standard' visibility tier", async () => {
       const createAction = vi.fn().mockResolvedValue({ id: "opp-new" })
       const user = setupUser()
-      render(
-        <OpportunityForm {...defaultProps} createAction={createAction} />,
-      )
-      await openSheet(user)
+      render(<OpportunityForm {...defaultProps} createAction={createAction} />)
+      await openForm(user)
       await fillRequiredFields(user)
 
       await user.click(screen.getByRole("button", { name: /create opportunity/i }))
@@ -608,59 +576,40 @@ describe("OpportunityForm", () => {
     })
   })
 
-  describe("new fields — section B", () => {
-    async function expandSectionB(user: ReturnType<typeof setupUser>) {
-      await openSheet(user)
-      await user.click(screen.getByText("More details"))
-    }
-
-    it("renders Billing Entity select", async () => {
+  describe("classification + commercial fields", () => {
+    it("renders Service Type multi-select (classification, always mounted)", async () => {
       const user = setupUser()
       render(<OpportunityForm {...defaultProps} />)
-      await expandSectionB(user)
-      expect(screen.getByText("Billing Entity")).toBeInTheDocument()
-    })
-
-    it("renders Entity Sales select", async () => {
-      const user = setupUser()
-      render(<OpportunityForm {...defaultProps} />)
-      await expandSectionB(user)
-      expect(screen.getByText("Entity Sales")).toBeInTheDocument()
-    })
-
-    it("renders Barter Value input", async () => {
-      const user = setupUser()
-      render(<OpportunityForm {...defaultProps} />)
-      await expandSectionB(user)
-      expect(screen.getByText("Barter Value")).toBeInTheDocument()
-    })
-
-    it("renders Service Type DualListbox", async () => {
-      const user = setupUser()
-      render(<OpportunityForm {...defaultProps} />)
-      await expandSectionB(user)
+      await openForm(user)
       expect(screen.getByText("Service Type")).toBeInTheDocument()
     })
 
-    it("renders Property Type select", async () => {
+    it("renders Property Type select (classification, always mounted)", async () => {
       const user = setupUser()
       render(<OpportunityForm {...defaultProps} />)
-      await expandSectionB(user)
+      await openForm(user)
       expect(screen.getByText("Property Type")).toBeInTheDocument()
     })
 
-    it("submits billing entity, entity sales, barter value", async () => {
+    it("renders Billing Entity, Entity Sales and Barter Value once commercials revealed", async () => {
+      const user = setupUser()
+      render(<OpportunityForm {...defaultProps} />)
+      await openForm(user)
+      await revealCommercials(user)
+      expect(screen.getByText("Billing Entity")).toBeInTheDocument()
+      expect(screen.getByText("Entity Sales")).toBeInTheDocument()
+      expect(screen.getByText("Barter Value")).toBeInTheDocument()
+    })
+
+    it("submits barter value", async () => {
       const createAction = vi.fn().mockResolvedValue({ id: "opp-new" })
       const user = setupUser()
-      render(
-        <OpportunityForm {...defaultProps} createAction={createAction} />,
-      )
-      await openSheet(user)
+      render(<OpportunityForm {...defaultProps} createAction={createAction} />)
+      await openForm(user)
       await fillRequiredFields(user)
-      await user.click(screen.getByText("More details"))
+      await revealCommercials(user)
 
-      const barterInput = screen.getByLabelText("Barter Value")
-      await user.type(barterInput, "5000")
+      await user.type(screen.getByLabelText("Barter Value"), "5000")
       await user.click(screen.getByRole("button", { name: /create opportunity/i }))
 
       await waitFor(() => {
@@ -679,18 +628,15 @@ describe("OpportunityForm", () => {
           updateAction={vi.fn()}
         />,
       )
-      await openSheet(user)
-      await user.click(screen.getByText("More details"))
-
+      await openForm(user)
+      // Loss Reason now lives in Deal details, visible without any expansion.
       expect(screen.getByText("Loss Reason")).toBeInTheDocument()
     })
 
     it("hides loss reason when stage is not closed_lost", async () => {
       const user = setupUser()
       render(<OpportunityForm {...defaultProps} />)
-      await openSheet(user)
-      await user.click(screen.getByText("More details"))
-
+      await openForm(user)
       expect(screen.queryByText("Loss Reason")).not.toBeInTheDocument()
     })
   })
@@ -699,10 +645,8 @@ describe("OpportunityForm", () => {
     it("defaults to USD", async () => {
       const createAction = vi.fn().mockResolvedValue({ id: "opp-new" })
       const user = setupUser()
-      render(
-        <OpportunityForm {...defaultProps} createAction={createAction} />,
-      )
-      await openSheet(user)
+      render(<OpportunityForm {...defaultProps} createAction={createAction} />)
+      await openForm(user)
       await fillRequiredFields(user)
 
       await user.click(screen.getByRole("button", { name: /create opportunity/i }))

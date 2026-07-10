@@ -130,7 +130,7 @@ function CreateRelationshipTypeDialog({
         <PlusIcon className="h-4 w-4" />
         Add Type
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl text-[15px]">
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <DialogHeader>
             <DialogTitle>Create Relationship Type</DialogTitle>
@@ -139,7 +139,7 @@ function CreateRelationshipTypeDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="rt-code">
                 Code <span className="text-destructive">*</span>
@@ -168,7 +168,7 @@ function CreateRelationshipTypeDialog({
               )}
             </div>
 
-            <div className="grid gap-2">
+            <div className="grid gap-2 sm:col-span-2">
               <Label htmlFor="rt-description">Description</Label>
               <Input
                 id="rt-description"
@@ -248,7 +248,7 @@ function EditRelationshipTypeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl text-[15px]">
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <DialogHeader>
             <DialogTitle>Edit Relationship Type</DialogTitle>
@@ -257,7 +257,7 @@ function EditRelationshipTypeDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label>Code</Label>
               <p className="text-sm text-muted-foreground rounded-md bg-muted px-3 py-2 font-mono">
@@ -275,7 +275,7 @@ function EditRelationshipTypeDialog({
               )}
             </div>
 
-            <div className="grid gap-2">
+            <div className="grid gap-2 sm:col-span-2">
               <Label htmlFor="edit-rt-description">Description</Label>
               <Input id="edit-rt-description" {...form.register("description")} />
             </div>

@@ -165,7 +165,7 @@ function CreateBusinessUnitDialog({
         <PlusIcon className="h-4 w-4" />
         Add Business Unit
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl text-[15px]">
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <DialogHeader>
             <DialogTitle>Create Business Unit</DialogTitle>
@@ -174,8 +174,8 @@ function CreateBusinessUnitDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
+          <div className="grid gap-4 py-4 sm:grid-cols-2">
+            <div className="grid gap-2 sm:col-span-2">
               <Label htmlFor="bu-name">
                 Name <span className="text-destructive">*</span>
               </Label>
@@ -295,7 +295,7 @@ function EditBusinessUnitDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl text-[15px]">
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <DialogHeader>
             <DialogTitle>Edit Business Unit</DialogTitle>
@@ -304,8 +304,8 @@ function EditBusinessUnitDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
+          <div className="grid gap-4 py-4 sm:grid-cols-2">
+            <div className="grid gap-2 sm:col-span-2">
               <Label htmlFor="edit-bu-name">
                 Name <span className="text-destructive">*</span>
               </Label>
