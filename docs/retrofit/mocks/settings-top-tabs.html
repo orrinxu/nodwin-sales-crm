@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nodwin CRM — Settings (top tabs)</title>
+<style>
+  :root{
+    --green:#166534; --green-2:#15803d; --green-tint:#f0f7f2;
+    --ink:#171717; --muted:#737373; --faint:#a3a3a3;
+    --line:#e5e7eb; --line-soft:#eef0f2; --bg:#fafafa; --card:#ffffff;
+    --radius:16px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:var(--font);color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;}
+  .app{display:grid;grid-template-columns:250px 1fr;min-height:100vh;}
+
+  .side{background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;padding:20px 14px;position:sticky;top:0;height:100vh;}
+  .brand{display:flex;align-items:center;gap:12px;padding:6px 8px 22px;}
+  .brand .logo{width:40px;height:40px;border-radius:12px;background:var(--green);display:flex;align-items:center;justify-content:center;color:#fff;font-size:19px;}
+  .brand b{font-size:16px;display:block;line-height:1.15;} .brand span{font-size:13px;color:var(--muted);}
+  .nav a{display:flex;align-items:center;gap:14px;padding:10px 12px;border-radius:10px;color:var(--muted);text-decoration:none;font-size:15px;font-weight:500;}
+  .nav a svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7;}
+  .nav a:hover{background:var(--bg);color:var(--ink);}
+  .userchip{margin-top:auto;display:flex;align-items:center;gap:11px;padding:10px 8px;}
+  .userchip .av{width:38px;height:38px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;}
+  .userchip b{font-size:14px;display:block;} .userchip span{font-size:12px;color:var(--muted);}
+
+  .main{display:flex;flex-direction:column;min-width:0;}
+  .top{display:flex;align-items:center;gap:16px;padding:14px 28px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:20;}
+  .search{flex:1;max-width:620px;display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:11px 16px;color:var(--faint);font-size:15px;}
+  .search svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;}
+  .ticon{width:20px;height:20px;stroke:var(--muted);fill:none;stroke-width:1.8;}
+
+  .wrap{padding:32px 40px 80px;max-width:960px;width:100%;}
+  h1{font-size:30px;margin:0 0 6px;}
+  .sub{color:var(--muted);font-size:15px;margin:0 0 20px;}
+
+  /* horizontal tab strip */
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:28px;position:sticky;top:64px;background:var(--bg);z-index:10;overflow-x:auto;}
+  .tabs button{border:none;background:none;font-family:var(--font);font-size:15px;font-weight:500;color:var(--muted);
+    padding:12px 16px;cursor:pointer;position:relative;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;}
+  .tabs button:hover{color:var(--ink);}
+  .tabs button.on{color:var(--green);border-bottom-color:var(--green);font-weight:600;}
+  .tabs .spacer{flex:1;min-width:16px;}
+  .tabs .devlabel{align-self:center;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;padding:0 8px 0 4px;}
+
+  .panel{display:none;} .panel.on{display:block;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:26px 28px;margin-bottom:22px;}
+  .card h2{font-size:19px;margin:0 0 4px;} .card .desc{color:var(--muted);font-size:14px;margin:0 0 22px;line-height:1.45;}
+  .ptitle{font-size:22px;margin:0 0 18px;}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px 32px;}
+  label.f{display:block;font-size:14px;font-weight:600;margin-bottom:8px;} .req{color:#dc2626;}
+  input.t, select.s{width:100%;border:1px solid var(--line);border-radius:11px;padding:12px 14px;font-size:15px;font-family:var(--font);color:var(--ink);background:#fff;}
+  input.t:focus, select.s:focus{outline:none;border-color:var(--green-2);box-shadow:0 0 0 3px rgba(21,128,61,.12);}
+  select.s{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 14px center;padding-right:40px;}
+  .ro .k{font-size:13px;color:var(--muted);margin-bottom:3px;} .ro .v{font-size:15px;}
+  .pill{display:inline-block;background:#f3f4f6;color:#374151;font-size:13px;font-weight:500;padding:3px 10px;border-radius:999px;}
+
+  .btn{border:none;border-radius:10px;padding:11px 18px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--font);}
+  .btn-primary{background:var(--green);color:#fff;} .btn-ghost{background:#fff;border:1px solid var(--line);color:var(--ink);}
+  .btn-danger-ghost{background:#fff;border:1px solid #fecaca;color:#b91c1c;}
+
+  .gen{display:flex;gap:14px;align-items:flex-end;} .gen .field{flex:1;}
+  .tag-active{background:var(--green-tint);color:var(--green);font-size:12px;font-weight:600;padding:3px 11px;border-radius:999px;}
+  .tag-revoked{background:#fef2f2;color:#b91c1c;font-size:12px;font-weight:600;padding:3px 11px;border-radius:999px;}
+  .tokrow{padding:18px 0;border-top:1px solid var(--line-soft);display:flex;justify-content:space-between;align-items:flex-start;gap:16px;}
+  .tokrow:first-of-type{border-top:none;}
+  .tokrow .name{font-size:15px;font-weight:600;display:flex;align-items:center;gap:10px;}
+  .tokrow code{font-family:var(--mono);font-size:13px;color:var(--muted);display:block;margin:6px 0 4px;}
+  .tokrow .meta{font-size:13px;color:var(--faint);}
+  .revoke{display:inline-flex;align-items:center;gap:6px;border:none;background:none;color:var(--muted);font-size:14px;font-weight:500;cursor:pointer;}
+  .revoke:hover{color:#b91c1c;} .revoke svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;}
+  .reveal{display:none;margin-top:18px;border:1px solid var(--green-2);background:var(--green-tint);border-radius:12px;padding:16px 18px;}
+  .reveal.show{display:block;}
+  .reveal .h{font-size:14px;font-weight:600;color:var(--green);margin-bottom:8px;}
+  .reveal .row{display:flex;gap:10px;align-items:center;}
+  .reveal code{flex:1;font-family:var(--mono);font-size:14px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;word-break:break-all;}
+  .reveal .warn{font-size:12px;color:var(--green);margin-top:8px;}
+  .copybtn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .copybtn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;}
+  .placeholder{color:var(--faint);font-size:14px;padding:8px 0;}
+  .introw{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 0;border-top:1px solid var(--line-soft);}
+  .introw:first-of-type{border-top:none;} .introw b{font-size:15px;} .introw p{margin:4px 0 0;font-size:13px;color:var(--muted);}
+  .tag{font-size:13px;border:1px solid var(--line);border-radius:999px;padding:6px 14px;color:var(--muted);white-space:nowrap;}
+  .linkish{color:var(--green-2);text-decoration:underline;cursor:pointer;font-weight:600;}
+
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:50;}
+  .scrim.show{display:flex;}
+  .dialog{background:#fff;border-radius:16px;padding:26px;width:420px;max-width:90vw;box-shadow:0 20px 50px rgba(0,0,0,.25);}
+  .dialog h3{margin:0 0 8px;font-size:18px;} .dialog p{margin:0 0 22px;font-size:14px;color:var(--muted);line-height:1.5;}
+  .dialog .acts{display:flex;justify-content:flex-end;gap:10px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><div class="logo">🎮</div><div><b>Nodwin</b><span>Sales CRM</span></div></div>
+    <nav class="nav">
+      <a href="#"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M4 5v14M10 5v14M16 5v9"/></svg>Pipeline</a>
+      <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>Opportunities</a>
+      <a href="#"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M9 20v-4h6v4"/></svg>Accounts</a>
+      <a href="#"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M4 20a5 5 0 0110 0"/></svg>Contacts</a>
+      <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>Activities</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Reports</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M12 3l2 5 5 .5-4 3.5 1.5 5L12 14l-4.5 3 1.5-5-4-3.5 5-.5z"/></svg>Knowledge</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Admin</a>
+    </nav>
+    <div class="userchip"><div class="av">OX</div><div><b>orrin.xu</b><span>Admin</span></div></div>
+  </aside>
+
+  <div class="main">
+    <div class="top">
+      <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>Search deals, contacts…</div>
+      <svg class="ticon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>
+      <svg class="ticon" viewBox="0 0 24 24"><path d="M18 8a6 6 0 10-12 0c0 7-3 8-3 8h18s-3-1-3-8M13.7 21a2 2 0 01-3.4 0"/></svg>
+    </div>
+
+    <div class="wrap">
+      <h1>Settings</h1>
+      <p class="sub">Manage your personal preferences.</p>
+
+      <!-- HORIZONTAL TABS -->
+      <div class="tabs">
+        <button class="on" data-tab="profile">Profile</button>
+        <button data-tab="localization">Localization</button>
+        <button data-tab="notifications">Notifications</button>
+        <button data-tab="appearance">Appearance</button>
+        <span class="spacer"></span>
+        <span class="devlabel">Developer</span>
+        <button data-tab="tokens">Access tokens</button>
+        <button data-tab="integrations">Integrations</button>
+        <button data-tab="security">Security</button>
+      </div>
+
+      <!-- PROFILE -->
+      <section class="panel on" data-panel="profile">
+        <div class="card">
+          <h2>Profile</h2>
+          <p class="desc">Your name and job title. Role and entity are managed by your admin.</p>
+          <div class="grid2">
+            <div><label class="f">Name <span class="req">*</span></label><input class="t" value="Orrin Xu"></div>
+            <div><label class="f">Job title</label><input class="t" value="Senior BD"></div>
+          </div>
+          <div class="grid2" style="margin-top:22px">
+            <div class="ro"><div class="k">Email</div><div class="v">orrin.xu@nodwin.com</div></div>
+            <div class="ro"><div class="k">Role</div><div class="v"><span class="pill">Admin</span></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- LOCALIZATION -->
+      <section class="panel" data-panel="localization">
+        <div class="card">
+          <h2>Localization &amp; region</h2>
+          <p class="desc">Display currency converts pipeline totals in your dashboards and reports.</p>
+          <div class="grid2">
+            <div><label class="f">Display currency</label><select class="s"><option>Organisation default</option></select></div>
+            <div><label class="f">Timezone</label><select class="s"><option>Asia/Singapore (GMT+8)</option></select></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- NOTIFICATIONS -->
+      <section class="panel" data-panel="notifications">
+        <div class="card">
+          <h2>Notifications</h2>
+          <p class="desc">Choose how you're notified per event. Changes save as you make them.</p>
+          <p class="placeholder">(Notification matrix — Email / In-app, Slack “Soon”.)</p>
+        </div>
+      </section>
+
+      <!-- APPEARANCE -->
+      <section class="panel" data-panel="appearance">
+        <div class="card">
+          <h2>Appearance</h2>
+          <p class="desc">Theme applies immediately and is saved to your account.</p>
+          <label class="f">Theme</label>
+          <select class="s" style="max-width:220px"><option>System</option><option>Light</option><option>Dark</option></select>
+        </div>
+      </section>
+
+      <!-- TOKENS -->
+      <section class="panel" data-panel="tokens">
+        <div class="card">
+          <h2>Generate a token</h2>
+          <p class="desc">Personal access tokens let an external agent (NanoClaw, OpenClaw, a script) read the CRM <b>as you</b> — it only ever sees what you can see.</p>
+          <div class="gen">
+            <div class="field"><label class="f">Name</label><input class="t" placeholder="e.g. NanoClaw – Telegram"></div>
+            <button class="btn btn-primary" onclick="document.getElementById('reveal').classList.add('show')">Generate</button>
+          </div>
+          <div class="reveal" id="reveal">
+            <div class="h">Copy your token now — you won't be able to see it again.</div>
+            <div class="row">
+              <code id="tokVal">nodpat_9fK2xQ7mZ4vB8nR1sT6wY3jL5hG0dP...</code>
+              <button class="copybtn" onclick="copyTok(this)"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>Copy</button>
+            </div>
+            <div class="warn">Stored as a one-way hash. Once you leave this screen it can't be shown again.</div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Your tokens (2)</h2>
+          <div class="tokrow">
+            <div>
+              <div class="name">nanoclaw - telegram test <span class="tag-active">Active</span></div>
+              <code>nodpat_-sJOjc6e…</code>
+              <div class="meta">Created Jul 11, 2026 · Last used Jul 11, 2026</div>
+            </div>
+            <button class="revoke" onclick="document.getElementById('scrim').classList.add('show')"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>Revoke</button>
+          </div>
+          <div class="tokrow">
+            <div>
+              <div class="name">NanoClaw – Telegram <span class="tag-revoked">Revoked</span></div>
+              <code>nodpat_dWq72–FB…</code>
+              <div class="meta">Created Jul 11, 2026 · Revoked Jul 11, 2026</div>
+            </div>
+            <button class="revoke" style="opacity:.4;cursor:default">Remove</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- INTEGRATIONS -->
+      <section class="panel" data-panel="integrations">
+        <div class="card">
+          <h2>Integrations</h2>
+          <p class="desc">Per-user connections aren't available yet — these are managed centrally for now.</p>
+          <div class="introw"><div><b>Google Workspace</b><p>Drive, Gmail and Calendar are configured by your workspace admin.</p></div><span class="tag">Not connected</span></div>
+          <div class="introw"><div><b>Slack</b><p>Slack workspace connection is managed in Admin settings.</p></div><span class="tag">Managed by admin</span></div>
+          <div class="introw"><div><b>AI agent (MCP) token</b><p>Generate and manage personal tokens on the <span class="linkish" onclick="go('tokens')">Access tokens</span> tab.</p></div><span class="tag">See Access tokens</span></div>
+        </div>
+      </section>
+
+      <!-- SECURITY -->
+      <section class="panel" data-panel="security">
+        <div class="card">
+          <h2>Security &amp; access</h2>
+          <p class="desc">Sign-in is handled by Google. Listing individual active sessions isn't available.</p>
+          <div style="display:flex;gap:12px">
+            <button class="btn btn-ghost">Sign out</button>
+            <button class="btn btn-danger-ghost">Sign out everywhere</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim">
+  <div class="dialog">
+    <h3>Revoke this token?</h3>
+    <p>“nanoclaw - telegram test” will stop working immediately. Any agent or script using it will lose access. This can't be undone.</p>
+    <div class="acts">
+      <button class="btn btn-ghost" onclick="closeRevoke()">Cancel</button>
+      <button class="btn btn-danger-ghost" onclick="closeRevoke()">Revoke token</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const tabs = document.querySelectorAll('.tabs button');
+  const panels = document.querySelectorAll('.panel');
+  function go(tab){
+    tabs.forEach(b=>b.classList.toggle('on', b.dataset.tab===tab));
+    panels.forEach(p=>p.classList.toggle('on', p.dataset.panel===tab));
+  }
+  tabs.forEach(b=>b.addEventListener('click',()=>go(b.dataset.tab)));
+  function copyTok(btn){ const t=document.getElementById('tokVal').textContent; navigator.clipboard&&navigator.clipboard.writeText(t); const o=btn.innerHTML; btn.innerHTML='Copied'; setTimeout(()=>btn.innerHTML=o,1300); }
+  function closeRevoke(){ document.getElementById('scrim').classList.remove('show'); }
+</script>
+</body>
+</html>
