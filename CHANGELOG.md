@@ -41,6 +41,7 @@ ORR-661, and cash-flow milestone follow-ups.
 
 - Reconstructed per-day changelog entries for June 17 – July 11 (#236).
 - `AGENTS.md`: require a per-PR `CHANGELOG.md` entry — added a changelog step to §8.3 and a `## Changelog` field to the §8.4 PR template (#237).
+- Documentation accuracy sweep — deploy/infra: corrected the "migrations are manual / not in the pipeline" claim across `supabase-environments.md`, `deploy/DEPLOYMENT.md`, `deploy/README.md`, and `SUPABASE-SETUP.md` (migrations auto-apply on deploy, ORR-197); README Supabase CLI `1.x`→`2.x` + `deploy.yml` listed (#240).
 
 ## 2026-07-10
 

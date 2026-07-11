@@ -8,7 +8,8 @@ on the VPS**, pushed to ghcr, then rolled out to the staging VPS over SSH.
 - App service to merge into the VPS compose: [`app.service.yml`](./app.service.yml)
 - Runtime env template: [`app.env.example`](./app.env.example)
 - Step-by-step deploy runbook: [`DEPLOYMENT.md`](./DEPLOYMENT.md)
-- Supabase stand-up + migrations (not automated): [`SUPABASE-SETUP.md`](./SUPABASE-SETUP.md)
+- Supabase stand-up (manual, once) + migrations (auto-applied on deploy, ORR-197): [`SUPABASE-SETUP.md`](./SUPABASE-SETUP.md)
+- Migration runner invoked by the pipeline: [`apply-migrations.sh`](./apply-migrations.sh)
 
 Target for this pipeline is **staging**. Prod is a separate ticket.
 
@@ -17,9 +18,13 @@ Target for this pipeline is **staging**. Prod is a separate ticket.
 ```
 push (any branch) ─▶ checks: lint · typecheck · gitleaks
 push to main ──────▶ checks ─▶ build image ─▶ push ghcr (:latest + :sha-<sha>)
-                                     └▶ ssh staging ─▶ docker compose pull app
+                                     └▶ ssh staging ─▶ apply-migrations.sh (idempotent)
+                                                       docker compose pull app
                                                        docker compose up -d app
 ```
+
+Migrations run **before** the app rolls over (`apply-migrations.sh`, tracked by the
+`public._applied_migrations` ledger); a failing migration aborts the deploy.
 
 ## Build-time vs runtime env (read this first)
 
@@ -43,6 +48,8 @@ Non-secret; they ship in the client bundle:
 | `NEXT_PUBLIC_API_URL` | `https://<staging-app-host>/api` |
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://<staging-supabase-host>` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | staging anon / publishable key |
+| `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` | Google OAuth client id (Google sign-in + Drive Picker) |
+| `NEXT_PUBLIC_GOOGLE_PICKER_API_KEY` | Google Picker API key (Drive → Storage import) |
 | `STAGING_COMPOSE_DIR` | absolute path to the compose dir on the VPS |
 
 ### 2. GitHub repo **secrets**

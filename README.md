@@ -96,7 +96,7 @@ Aspirational / SOW targets (stubbed or not yet wired):
 | **Docker Desktop** (or Docker Engine) | 24+ | https://docs.docker.com/get-docker/ |
 | **Node.js** | 20+ | https://nodejs.org |
 | **pnpm** | 10+ | `npm i -g pnpm` |
-| **Supabase CLI** | 1.x | `brew install supabase/tap/supabase` or `npm i -g supabase` |
+| **Supabase CLI** | 2.x | `brew install supabase/tap/supabase` or `npm i -g supabase` |
 
 Docker must be running before you execute any `supabase:*` or `db:*` scripts. The Supabase local stack runs entirely in containers.
 
@@ -126,6 +126,7 @@ See `apps/web/.env.example` for the full list. The minimum to boot locally:
 - `POSTMARK_WEBHOOK_SECRET` (inbound email signature verification)
 - `RESEND_API_KEY` (optional — transactional/outbound email)
 - `ANTHROPIC_API_KEY` (optional — or whichever AI provider you're testing with)
+- `SUPABASE_JWT_SECRET` (optional — required only for the token-authed REST API under `/api/v1/*`; unset returns 503)
 
 Google OAuth is brokered by Supabase Auth; the app never reads Google client credentials directly.
 
@@ -219,7 +220,8 @@ nodwin-crm/
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml             # lint + typecheck + test + RLS test
-│       └── migration-ci.yml   # migration / schema-drift checks
+│       ├── migration-ci.yml   # migration / schema-drift checks
+│       └── deploy.yml         # build → ghcr → SSH → apply-migrations → deploy (DO VPS)
 ├── apps/web/eslint.config.mjs # HIGH-RISK — flat config, do not weaken rules
 ├── .env.example               # documented env vars (no real values)
 └── (config: package.json, tsconfig.json, pnpm-workspace.yaml, etc.)

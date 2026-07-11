@@ -13,8 +13,10 @@ rolls the container over SSH.
 ## 0. Prerequisites (once)
 
 - Staging VPS reachable over SSH, running Docker + the Supabase self-host
-  `docker compose` stack. **Standing that up + applying migrations is manual and
-  not part of the pipeline** — see [`SUPABASE-SETUP.md`](./SUPABASE-SETUP.md) first.
+  `docker compose` stack. **Standing up the Supabase stack is manual (once)** — see
+  [`SUPABASE-SETUP.md`](./SUPABASE-SETUP.md) first. **Migrations, once the stack is
+  up, apply automatically on every deploy** (ORR-197), so there is no manual
+  migration step in routine deploys.
 - You're an admin on the `orrinxu/nodwin-sales-crm` GitHub repo.
 - You know the two staging URLs:
   - **app URL** — where the CRM will be served, e.g. `https://crm-staging.example`
@@ -31,6 +33,8 @@ Repo → **Settings → Secrets and variables → Actions → Variables → New 
 | `NEXT_PUBLIC_API_URL` | `https://<app-url>/api` |
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://<supabase-url>` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | staging anon / publishable key |
+| `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` | Google OAuth client id (used by Google sign-in + the Drive Picker import) |
+| `NEXT_PUBLIC_GOOGLE_PICKER_API_KEY` | Google Picker API key (Drive → Storage import) |
 | `STAGING_COMPOSE_DIR` | absolute path to the compose dir on the VPS, e.g. `/opt/supabase` |
 
 ## 2. Add GitHub **secrets**
@@ -100,7 +104,10 @@ curl -I https://<app-url>/login      # expect HTTP 200
 ## 5. Routine deploys
 
 Just **merge to `main`.** Every merge:
-`checks → build image → push ghcr (:latest + :sha-<sha>) → ssh → compose pull/up app`.
+`checks → build image → push ghcr (:latest + :sha-<sha>) → ssh → apply-migrations → compose pull/up app`.
+The `apply-migrations` step runs [`apply-migrations.sh`](./apply-migrations.sh) on
+the VPS **before** the new container starts, so the app never boots against an
+un-migrated schema (a failing migration aborts the deploy).
 
 Cheap `checks` (lint · typecheck · gitleaks) also run on **every push to any
 branch**, so you get fast feedback before the PR.
