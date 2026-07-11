@@ -16,6 +16,7 @@ ORR-661, and cash-flow milestone follow-ups.
 
 ### Changed
 
+- **Canonical read-only field primitive (UI Convention Retrofit P1-T7, ORR-667, #246):** promoted the opportunity wrapper's local `DField` into shared `DefinitionField` / `DefinitionFieldGrid` in `primitives/definition-grid.tsx` (label/value with `add`/`hide`/`dash` empty modes and the `+ Add` affordance), and adopted them in `opportunity-detail-wrapper.tsx` — removed the local `DField`/`isEmpty` and routed all field rows + the two hand-rolled `<dl>` grids through the primitive. Byte-identical markup; no behaviour or visual change.
 - **Opportunity components use semantic color tokens (UI Convention Retrofit P1-T2, ORR-666, #245):** routed the remaining `amber-*`/`green-*` Tailwind literals in `opportunity-card.tsx`, `opportunity-detail-wrapper.tsx`, and `opportunity-splits-editor.tsx` to the existing `--warning`/`--success` tokens (`bg-warning/*`, `text-warning`, `text-success`). Redundant `dark:` amber variants dropped — the tokens carry their own dark values. Parity change only; no behaviour or layout change.
 
 ### Docs

@@ -23,6 +23,7 @@ import { ApprovalCard } from "@/components/opportunities/approval-card"
 import { DealCopilot } from "@/components/opportunities/deal-copilot"
 import { FilesModule } from "@/components/documents/files-module"
 import { PinnedDocumentSlots } from "@/components/documents/pinned-document-slots"
+import { DefinitionField, DefinitionFieldGrid } from "@/components/primitives/definition-grid"
 import type { DocumentSummary } from "@/lib/data/documents"
 import type { DealCopilotResult } from "@/lib/ai/deal-copilot"
 import type { EntityOption } from "@/components/entity-combobox"
@@ -78,10 +79,6 @@ const EMPTY_MODE: "add" | "hide" | "dash" = "add"
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "—"
   return new Date(dateStr).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
-}
-
-function isEmpty(value: unknown): boolean {
-  return value == null || value === "" || (Array.isArray(value) && value.length === 0)
 }
 
 interface OpportunityDetailWrapperProps {
@@ -142,44 +139,6 @@ function StatCell({
   )
 }
 
-/** A definition-grid field: label over value, hairline row, muted "Add" when empty. */
-function DField({
-  label,
-  value,
-  children,
-  onAdd,
-}: {
-  label: string
-  value?: unknown
-  children?: React.ReactNode
-  onAdd?: () => void
-}) {
-  const empty = children === undefined ? isEmpty(value) : isEmpty(children)
-  if (empty && EMPTY_MODE === "hide") return null
-  return (
-    <div className="flex flex-col gap-[3px] border-b border-border py-[11px] last:border-b-0">
-      <dt className={T.fieldLabel}>{label}</dt>
-      <dd>
-        {empty ? (
-          EMPTY_MODE === "add" && onAdd ? (
-            <button
-              type="button"
-              onClick={onAdd}
-              className="inline-flex items-center gap-1 rounded text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-            >
-              <Plus className="size-3" /> Add
-            </button>
-          ) : (
-            <span className="text-[13.5px] text-muted-foreground">{"—"}</span>
-          )
-        ) : (
-          <span className={T.fieldValue}>{children ?? (value as React.ReactNode)}</span>
-        )}
-      </dd>
-    </div>
-  )
-}
-
 function DefinitionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Card>
@@ -187,7 +146,7 @@ function DefinitionCard({ title, children }: { title: string; children: React.Re
         <CardTitle className={T.cardHeading}>{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <dl className="grid grid-cols-1 gap-x-10 sm:grid-cols-2">{children}</dl>
+        <DefinitionFieldGrid>{children}</DefinitionFieldGrid>
       </CardContent>
     </Card>
   )
@@ -571,28 +530,28 @@ export function OpportunityDetailWrapper({
           <FilesModule opportunityId={opportunity.id} initialDocuments={documents} />
 
           <DefinitionCard title="Deal details">
-            <DField label="Contact" onAdd={openEdit}>{opportunity.primaryContactName ?? undefined}</DField>
-            <DField label="Close date" onAdd={openEdit}>
+            <DefinitionField label="Contact" onAdd={openEdit}>{opportunity.primaryContactName ?? undefined}</DefinitionField>
+            <DefinitionField label="Close date" onAdd={openEdit}>
               {opportunity.closeDate ? formatDate(opportunity.closeDate) : undefined}
-            </DField>
-            <DField label="Loss reason" value={opportunity.lossReason} onAdd={openEdit} />
-            <DField label="Country of execution" onAdd={openEdit}>{countryValue ?? undefined}</DField>
+            </DefinitionField>
+            <DefinitionField label="Loss reason" value={opportunity.lossReason} onAdd={openEdit} />
+            <DefinitionField label="Country of execution" onAdd={openEdit}>{countryValue ?? undefined}</DefinitionField>
           </DefinitionCard>
 
           <DefinitionCard title="Commercials">
-            <DField label="Currency" value={opportunity.currency} />
-            <DField label="Est. gross margin" onAdd={openEdit}>
+            <DefinitionField label="Currency" value={opportunity.currency} />
+            <DefinitionField label="Est. gross margin" onAdd={openEdit}>
               {opportunity.estimatedGrossMarginPct != null ? `${opportunity.estimatedGrossMarginPct}%` : undefined}
-            </DField>
-            <DField label="Barter value" onAdd={openEdit}>{formattedBarter ?? undefined}</DField>
-            <DField label="Recurring" value={opportunity.recurring ? "Yes" : "No"} />
+            </DefinitionField>
+            <DefinitionField label="Barter value" onAdd={openEdit}>{formattedBarter ?? undefined}</DefinitionField>
+            <DefinitionField label="Recurring" value={opportunity.recurring ? "Yes" : "No"} />
           </DefinitionCard>
 
           <DefinitionCard title="Classification">
-            <DField label="Service type" onAdd={openEdit}>{serviceTypeValue ?? undefined}</DField>
-            <DField label="Property type" onAdd={openEdit}>{propertyTypeValue ?? undefined}</DField>
-            <DField label="Billing entity" onAdd={openEdit}>{opportunity.billingEntityName ?? undefined}</DField>
-            <DField label="Entity sales" onAdd={openEdit}>{opportunity.entitySalesName ?? undefined}</DField>
+            <DefinitionField label="Service type" onAdd={openEdit}>{serviceTypeValue ?? undefined}</DefinitionField>
+            <DefinitionField label="Property type" onAdd={openEdit}>{propertyTypeValue ?? undefined}</DefinitionField>
+            <DefinitionField label="Billing entity" onAdd={openEdit}>{opportunity.billingEntityName ?? undefined}</DefinitionField>
+            <DefinitionField label="Entity sales" onAdd={openEdit}>{opportunity.entitySalesName ?? undefined}</DefinitionField>
           </DefinitionCard>
 
           <Card>
@@ -620,10 +579,10 @@ export function OpportunityDetailWrapper({
               <CollapsibleContent>
                 <div className="px-4 pb-4">
                   <Separator className="mb-4" />
-                  <dl className="grid grid-cols-1 gap-x-10 sm:grid-cols-2">
-                    <DField label="Created" value={formatDate(opportunity.createdAt)} />
-                    <DField label="Last modified" value={formatDate(opportunity.updatedAt)} />
-                  </dl>
+                  <DefinitionFieldGrid>
+                    <DefinitionField label="Created" value={formatDate(opportunity.createdAt)} />
+                    <DefinitionField label="Last modified" value={formatDate(opportunity.updatedAt)} />
+                  </DefinitionFieldGrid>
                 </div>
               </CollapsibleContent>
             </Collapsible>
