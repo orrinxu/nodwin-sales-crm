@@ -14,6 +14,10 @@ ORR-661, and cash-flow milestone follow-ups.
 
 ## 2026-07-12
 
+### Added
+
+- **`<SaveBar>` primitive — unified unsaved-changes bar (UI Convention Retrofit P1-T6 / G1, ORR-671, #250):** `primitives/save-bar.tsx` — a fixed bottom bar that slides in while a form/section has unsaved changes and offers Save / Discard (with a saving state), plus unit tests. Implements the app-wide save model (not autosave). Not yet adopted — the opportunity and settings recompositions wire it in.
+
 ### Changed
 
 - **Canonical `<FacetTabs>` primitive (UI Convention Retrofit P1-T5, ORR-669, #249):** promoted the inline underline-facet tab styling into `primitives/facet-tabs.tsx` (`FacetTabs`/`FacetTabsList`/`FacetTabsTab`/`FacetTabsPanel`, layered on `ui/tabs`, with a `locked` glyph affordance for gated tabs), and adopted it in the opportunity Communications tab bar. Byte-identical styling; no behaviour or visual change. Route-sync + rail-slot deferred to the recomposition where they're wired and verifiable.
