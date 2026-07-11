@@ -20,7 +20,7 @@ ORR-661, and cash-flow milestone follow-ups.
 
 ### Docs
 
-- **UI Convention Retrofit — Phase 1 baseline (ORR-664, ORR-665, #244):** added the canonical UI convention at `docs/ui-conventions.md` (canonical primitives, save model, token rules, banked decisions, open conflicts), preserved the signed-off Phase-0 discovery note at `docs/retrofit/phase-0-discovery.md`, and committed the three approved design mocks under `docs/retrofit/mocks/`. Flags an open conflict: the approved opportunity mock puts Files in a facet tab, contradicting banked decision C2 (Files inline) — needs Orrin's call before the Files layout ticket. Docs only; no product code.
+- **UI Convention Retrofit — Phase 1 baseline (ORR-664, ORR-665, #244):** added the canonical UI convention at `docs/ui-conventions.md` (canonical primitives, save model, token rules, banked decisions, open conflicts), preserved the signed-off Phase-0 discovery note at `docs/retrofit/phase-0-discovery.md`, and committed the three approved design mocks under `docs/retrofit/mocks/`. Resolves decision C2 (Orrin, 2026-07-12): the approved mocks are canonical, so Files becomes a facet tab (pinned RFP/Proposal/Contract slots on Overview), superseding the earlier Files-inline position. Docs only; no product code.
 
 ## 2026-07-11
 

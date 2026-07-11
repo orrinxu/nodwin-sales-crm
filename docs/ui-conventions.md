@@ -131,8 +131,11 @@ a 7-stage ramp, injectable brand band in `app/globals.css`). The **only** color 
   control; `<Stepper>` is extracted as **interactive**. This **overrides** the brief's
   "display-only stepper." Stage moves are guarded by `updatingStage`; terminal stages
   disable the tracker (preserve this).
-- **C2 — Files: see §7, now an OPEN conflict.** (The banked position was "keep Files inline";
-  the approved mock reopened this.)
+- **C2 — Files become a facet tab (RESOLVED 2026-07-12, Orrin).** The approved mocks are
+  now the canonical direction; Files moves into a dedicated **Files** facet tab, with pinned
+  RFP/Proposal/Contract slots surfaced on the **Overview** tab (per `opportunity-reorganized.html`).
+  This supersedes the earlier "keep Files inline" position. Upload/Drive-import/re-tag/delete
+  behaviours from discovery §5 must be preserved inside the tab.
 - **C3 — Canonical primitives adopted in Opportunities + Settings only.** Accounts/Contacts
   keep current markup until their Phase-4 retrofit. This consciously leaves two dialects of
   `<RecordHeader>`/`<ReadOnlyField>`/`<FacetTabs>` on parked surfaces — a logged, accepted
@@ -144,15 +147,11 @@ a 7-stage ramp, injectable brand band in `app/globals.css`). The **only** color 
 
 Per the "repo/brief/mock conflict → stop and flag" rule:
 
-- **⚠️ C2 — Files inline vs Files as a facet tab (NEEDS ORRIN).**
-  Banked decision C2 said keep Files **inline**, honoring the repo's deliberate T-059
-  reversal (`opportunity-detail-wrapper.tsx` carries an explicit comment that files were
-  kept inline because these deals are document-centric). **But the approved
-  `opportunity-reorganized.html` mock puts Files in a dedicated facet tab**, with pinned
-  RFP/Proposal/Contract slots surfaced on the Overview tab. The mock is the newer signal
-  and directly contradicts C2. **Do not build the Files layout until Orrin confirms:** (a)
-  Files becomes a tab with pinned slots on Overview (per mock), or (b) Files stays inline
-  (per C2). Blocks the Overview/Files layout tickets (Phase 2). Everything else can proceed.
+- **✅ C2 — RESOLVED 2026-07-12: Files become a facet tab.** Orrin confirmed the approved
+  mocks as the canonical direction. Files moves into a dedicated **Files** tab; pinned
+  RFP/Proposal/Contract slots surface on the **Overview** tab (per `opportunity-reorganized.html`).
+  Preserve the upload → signed-Storage-URL path, Drive Picker, and per-row re-tag/download/delete
+  behaviours (discovery §5) inside the new tab.
 
 - **G2 — Team & Splits: rail vs tab.** Today they live in the right rail; the mock and brief
   move them into a **Team & Splits** tab, slimming the rail to Approval + Copilot. Confirm at
