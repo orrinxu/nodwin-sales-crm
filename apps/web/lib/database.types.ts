@@ -1267,7 +1267,7 @@ export type Database = {
       document_chunks: {
         Row: {
           account_id: string | null
-          category: Database["public"]["Enums"]["document_category"] | null
+          category: string | null
           chunk_index: number
           content: string
           created_at: string
@@ -1288,7 +1288,7 @@ export type Database = {
         }
         Insert: {
           account_id?: string | null
-          category?: Database["public"]["Enums"]["document_category"] | null
+          category?: string | null
           chunk_index: number
           content: string
           created_at?: string
@@ -1309,7 +1309,7 @@ export type Database = {
         }
         Update: {
           account_id?: string | null
-          category?: Database["public"]["Enums"]["document_category"] | null
+          category?: string | null
           chunk_index?: number
           content?: string
           created_at?: string
@@ -1369,7 +1369,7 @@ export type Database = {
       documents: {
         Row: {
           account_id: string | null
-          category: Database["public"]["Enums"]["document_category"]
+          category: string
           created_at: string
           created_by: string | null
           drive_file_id: string | null
@@ -1393,7 +1393,7 @@ export type Database = {
         }
         Insert: {
           account_id?: string | null
-          category?: Database["public"]["Enums"]["document_category"]
+          category?: string
           created_at?: string
           created_by?: string | null
           drive_file_id?: string | null
@@ -1417,7 +1417,7 @@ export type Database = {
         }
         Update: {
           account_id?: string | null
-          category?: Database["public"]["Enums"]["document_category"]
+          category?: string
           created_at?: string
           created_by?: string | null
           drive_file_id?: string | null
@@ -1774,6 +1774,42 @@ export type Database = {
           updated_by?: string | null
           visible_at_stages?: string[] | null
           visible_to_roles?: string[] | null
+        }
+        Relationships: []
+      }
+      file_type_categories: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          display_order: number
+          label: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          display_order?: number
+          label: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          display_order?: number
+          label?: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -3437,7 +3473,7 @@ export type Database = {
         }
         Returns: {
           account_id: string
-          category: Database["public"]["Enums"]["document_category"]
+          category: string
           chunk_index: number
           content: string
           document_id: string

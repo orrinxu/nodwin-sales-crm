@@ -55,7 +55,7 @@ export interface DocumentIndexRow {
   mimeType: string
   opportunityId: string | null
   accountId: string | null
-  category: Database["public"]["Enums"]["document_category"] | null
+  category: string | null
   uploadedBy: string
   indexStatus: IndexStatus
   indexAttempts: number
@@ -204,7 +204,7 @@ export interface ReplaceChunksInput {
   visibilityTier: Database["public"]["Enums"]["visibility_tier"]
   driveFileId: string | null
   uploadedBy: string
-  category: Database["public"]["Enums"]["document_category"] | null
+  category: string | null
   embeddingModel: string
   embeddingDim: number
   chunks: ChunkWrite[]

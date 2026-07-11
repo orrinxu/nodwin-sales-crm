@@ -6,8 +6,9 @@ import type { Database } from "@/lib/database.types"
 
 type IndexStatus = Database["public"]["Enums"]["document_index_status"]
 
-/** All document category values, in a UI-friendly order. Mirrors the
- *  document_category enum; shared with the Files module + upload validation. */
+/** Default document category values (UI-friendly order). After ORR-659 the
+ *  authoritative source is the file_type_categories table; these are fallback
+ *  values used by client components that cannot query the DB directly. */
 export const DOCUMENT_CATEGORIES = [
   "rfp",
   "proposal",
@@ -21,8 +22,8 @@ export const DOCUMENT_CATEGORIES = [
   "rate_card",
   "other",
 ] as const
-export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number]
-export const documentCategorySchema = z.enum(DOCUMENT_CATEGORIES)
+export type DocumentCategory = string
+export const documentCategorySchema = z.string().trim().min(1).max(50)
 
 /** A document as shown in the Files module (RLS-scoped list row). */
 export interface DocumentSummary {

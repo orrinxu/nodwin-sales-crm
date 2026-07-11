@@ -34,7 +34,7 @@ export interface KnowledgeChunk {
   opportunityId: string | null
   accountId: string | null
   visibilityTier: Database["public"]["Enums"]["visibility_tier"]
-  category: Database["public"]["Enums"]["document_category"] | null
+  category: string | null
   content: string
   similarity: number
 }
