@@ -1069,6 +1069,70 @@ export type Database = {
           },
         ]
       }
+      cashflow_milestone: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          currency: string
+          direction: Database["public"]["Enums"]["cashflow_direction"]
+          id: string
+          label: string
+          opportunity_id: string
+          scheduled_month: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by: string
+          currency: string
+          direction: Database["public"]["Enums"]["cashflow_direction"]
+          id?: string
+          label: string
+          opportunity_id: string
+          scheduled_month: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          currency?: string
+          direction?: Database["public"]["Enums"]["cashflow_direction"]
+          id?: string
+          label?: string
+          opportunity_id?: string
+          scheduled_month?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cashflow_milestone_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "ai_usage_daily_rollup"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "cashflow_milestone_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cashflow_milestone_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_account_links: {
         Row: {
           account_id: string
@@ -3508,6 +3572,7 @@ export type Database = {
       approval_step_mode: "any_one" | "all_required"
       approval_step_status: "pending" | "approved" | "rejected" | "skipped"
       business_unit_kind: "sales" | "revenue_recognition" | "ops" | "shared"
+      cashflow_direction: "in" | "out"
       deal_stage:
         | "qualify"
         | "meet_and_present"
@@ -3752,6 +3817,7 @@ export const Constants = {
       approval_step_mode: ["any_one", "all_required"],
       approval_step_status: ["pending", "approved", "rejected", "skipped"],
       business_unit_kind: ["sales", "revenue_recognition", "ops", "shared"],
+      cashflow_direction: ["in", "out"],
       deal_stage: [
         "qualify",
         "meet_and_present",
