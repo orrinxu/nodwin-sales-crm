@@ -1178,6 +1178,44 @@ export type Database = {
           },
         ]
       }
+      cost_of_cash_settings: {
+        Row: {
+          annual_rate: number
+          created_at: string
+          deduction_base: string
+          entity_id: string | null
+          financing_cost_method: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          annual_rate?: number
+          created_at?: string
+          deduction_base?: string
+          entity_id?: string | null
+          financing_cost_method?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          annual_rate?: number
+          created_at?: string
+          deduction_base?: string
+          entity_id?: string | null
+          financing_cost_method?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_of_cash_settings_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cron_job_runs: {
         Row: {
           detail: Json | null

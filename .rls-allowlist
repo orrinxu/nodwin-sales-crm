@@ -121,6 +121,8 @@
 .*fiscal_year.*:USING \(true\)
 .*reporting_currency.*:USING \(true\)
 .*revenue_recognition.*:USING \(true\)
+# Working-capital finance settings — read=all authenticated, write=admin.
+.*cost_of_cash.*:USING \(true\)
 
 # ── admin_b_users_roles_access ────────────────────────────────────────────────
 # Untracked stray file; users/roles config table uses same pattern as other
