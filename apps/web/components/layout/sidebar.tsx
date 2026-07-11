@@ -13,19 +13,9 @@ import {
   Sliders,
   ChevronDown,
   Gamepad2,
-  Globe,
-  Briefcase,
-  LinkIcon,
-  Database,
-  ShieldCheck,
-  KeyRound,
-  Landmark,
-  Coins,
-  ClipboardCheck,
-  Mail,
   Sparkles,
-  Activity,
 } from "lucide-react"
+import { adminSections } from "./admin-nav"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -62,23 +52,6 @@ const navigation = [
   { name: "Activities", href: "/activities", icon: History },
   { name: "Reports", href: "/reports", icon: BarChart3 },
   { name: "Knowledge", href: "/knowledge", icon: Sparkles },
-]
-
-const adminItems = [
-  { name: "Organisation", href: "/admin/organisation", icon: Landmark },
-  { name: "Finance", href: "/admin/finance", icon: Coins },
-  { name: "Users", href: "/admin/users", icon: Users },
-  { name: "Roles & Permissions", href: "/admin/roles", icon: KeyRound },
-  { name: "Custom Fields", href: "/admin/field-definitions", icon: Sliders },
-  { name: "Entities", href: "/admin/entities", icon: Globe },
-  { name: "Business Units", href: "/admin/business-units", icon: Briefcase },
-  { name: "Relationship Types", href: "/admin/relationship-types", icon: LinkIcon },
-  { name: "Approval Workflows", href: "/admin/approval-workflows", icon: ClipboardCheck },
-  { name: "Email", href: "/admin/email", icon: Mail },
-  { name: "AI", href: "/admin/ai", icon: Sparkles },
-  { name: "Deal Health", href: "/admin/deal-health", icon: Activity },
-  { name: "Data Management", href: "/admin/data-management", icon: Database },
-  { name: "Allowed Domains", href: "/admin/allowed-domains", icon: ShieldCheck },
 ]
 
 interface SidebarProps {
@@ -137,25 +110,35 @@ function SidebarNav({ className }: { className?: string }) {
           Admin
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="ml-1 flex flex-col gap-1 border-l border-border pl-5 pt-1">
-            {adminItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                    isActive
-                      ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                  )}
-                >
-                  <item.icon className="size-3.5 shrink-0" />
-                  {item.name}
-                </Link>
-              )
-            })}
+          <div className="ml-1 flex flex-col gap-2 border-l border-border pl-5 pt-1">
+            {adminSections.map((section) => (
+              <Collapsible key={section.label} defaultOpen className="group/section flex flex-col gap-1">
+                <CollapsibleTrigger className="flex items-center gap-1 px-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">
+                  <ChevronDown className="size-3 shrink-0 transition-transform group-data-[state=closed]/section:-rotate-90" />
+                  {section.label}
+                </CollapsibleTrigger>
+                <CollapsibleContent className="flex flex-col gap-1">
+                  {section.items.map((item) => {
+                    const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+                    return (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        className={cn(
+                          "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                          isActive
+                            ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                            : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                        )}
+                      >
+                        <item.icon className="size-3.5 shrink-0" />
+                        {item.name}
+                      </Link>
+                    )
+                  })}
+                </CollapsibleContent>
+              </Collapsible>
+            ))}
           </div>
         </CollapsibleContent>
       </Collapsible>
