@@ -383,6 +383,24 @@ To prevent stale commits and unnecessary merge conflicts, all agents MUST follow
 3. **No already-merged commits in PRs.** If a branch contains commits already merged to main, do NOT submit a PR. Create a fresh branch and cherry-pick only the unmerged commits.
 4. **One branch = one ticket.** Never reuse a branch for multiple tickets.
 
+### 11.5 Worktree hygiene
+
+Git worktrees are keyed to the **unit of work**, not to a named agent. (The earlier per-agent worktree layout drifted hundreds of commits behind main, accumulated stale uncommitted files, and caused HEAD-switch collisions between concurrent instances.) Full guideline: **[`docs/WORKTREES.md`](docs/WORKTREES.md)**. The rules:
+
+1. **Location & naming.** New worktrees live under `~/crm-worktrees/<ticket>` (e.g. `~/crm-worktrees/orr-630`), named after the ticket — never after an agent or tool.
+2. **Permanent worktrees, never delete in cleanup:** the primary `main` checkout and the dedicated `crm-docs` docs worktree.
+3. **One isolated worktree per active ticket**, branched fresh off `origin/main`:
+   ```
+   git worktree add -b feat/orr-xxx ~/crm-worktrees/orr-xxx origin/main
+   ```
+   Never share a worktree between concurrent instances.
+4. **Retire at merge, not later.** When a PR squash-merges, remove the worktree **and** delete the branch in the same step:
+   ```
+   git worktree remove ~/crm-worktrees/orr-xxx && git branch -D feat/orr-xxx
+   ```
+   Local branches are disposable once merged (recoverable from origin/reflog).
+5. **Salvage before force-removing** a dirty worktree: save untracked/uncommitted work to a patch or tarball first.
+
 ---
 
 ## 12. The "vibe coding" failure modes — explicit list
