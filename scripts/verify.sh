@@ -36,5 +36,5 @@ echo "✓ All local verification checks passed."
 echo
 echo "Reminder: if your work touched supabase/migrations/, you MUST also run"
 echo "  supabase db reset --local"
-echo "  curl -s http://localhost:3002/dashboard | grep -ciE 'sidebar|<nav|aside'"
+echo "  curl -s http://localhost:3030/dashboard | grep -ciE 'sidebar|<nav|aside'"
 echo "and paste both outputs into the ticket's closing comment."

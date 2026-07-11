@@ -1,7 +1,7 @@
 # Incident Response Runbook
 
 > Owner: Tech Writer
-> Last updated: 2026-06-05
+> Last updated: 2026-07-11
 
 ## Scope
 
@@ -14,7 +14,7 @@ Before declaring any deploy complete, run the [3-Check Smoke Procedure](smoke-te
 1. **Branch check** — assert the checked-out branch is `main`
 2. **Schema check** — verify migrations are applied and expected tables exist
 3. **Route health check** — curl a `(crm)/` route expecting HTTP 200
-4. **Process restart** — restart PM2 and re-check
+4. **Process restart** — on the production VPS this is `docker compose up -d app` (the container, not PM2); the PM2 restart in `smoke-test.md` applies to the **local-preview** deployment only
 
 If any check fails, do not mark the deploy as done. Follow the failure procedures in
 `docs/smoke-test.md` or escalate per the severity table below.
@@ -65,7 +65,7 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 3. **Check DB health:** confirm the Postgres container is accepting connections (e.g. `docker compose exec db pg_isready`).
 4. **Check recent migrations:** `supabase db diff --db-url "postgresql://postgres:<password>@<vps-host>:5432/postgres"` to confirm schema matches expected state. A failed migration can leave the DB in an inconsistent state.
 5. **Rollback a bad deploy:** re-point the app service image to a previous `:sha-<sha>` tag and run `docker compose up -d app` on the VPS (see `../deploy/DEPLOYMENT.md`).
-6. **Restore from backup** (Supabase): Settings → Database → Backups → select latest backup → Restore. Estimated downtime: 15-30 min.
+6. **Restore from backup** — see [Restore from Backup](#restore-from-backup) below. ⚠️ **TODO:** the self-hosted VPS has no managed backup UI; the concrete backup/restore mechanism (pg_dump cron vs. volume/DO snapshots) is not yet defined — do not assume a one-click restore exists.
 
 ### P-2: Data Breach / RLS Leak
 
@@ -176,14 +176,14 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 
 ### P-10: Migration Failure
 
-**Symptoms:** `pnpm db:migrate` fails in CI/CD. Schema mismatch between local and production.
+**Symptoms:** the deploy's **apply-migrations** step fails (`deploy/apply-migrations.sh`, which the pipeline runs on the VPS before starting the app) — the deploy aborts before the new container comes up. Schema mismatch between local and production.
 
 **Steps:**
 
 1. **Do not deploy** — a failed migration blocks the deploy and must be resolved manually.
 2. **Check the failing migration SQL** — does it reference a table or column that doesn't exist yet? Does it depend on a migration that hasn't run?
 3. **Fix forward** — write a new migration that resolves the issue. Do NOT edit or delete the existing migration file on the `main` branch (migrations are append-only).
-4. **If production is in a broken state** — restore from backup (Supabase Settings → Database → Backups → Restore). Coordinate with Orrin Xu.
+4. **If production is in a broken state** — see [Restore from Backup](#restore-from-backup) (mechanism is a TODO on self-host — coordinate with Orrin Xu before attempting).
 5. **Test locally first** — run `pnpm db:reset` on a clean local environment to verify the full migration chain works.
 
 ## Escalation Contacts
@@ -202,14 +202,26 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 
 ## Recovery Procedures
 
-### Restore from Supabase Backup
+### Restore from Backup
 
-1. Supabase Dashboard → Database → Backups.
-2. Select the latest backup point.
-3. Click "Restore" — this creates a new Supabase project and restores the backup into it.
-4. Update `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `app.env` on the VPS to point to the restored Supabase stack, then `docker compose up -d app`.
-5. Re-run migrations from the backup point forward.
-6. Verify data integrity: spot-check a sample of accounts + opportunities.
+> ⚠️ **TODO — procedure not yet defined for the self-hosted stack.** The steps
+> below described **Supabase Cloud** (managed dashboard → Backups → Restore →
+> new project), which does **not** exist on the self-hosted DigitalOcean VPS.
+> Postgres runs in the `db` container with data on a Docker volume; there is no
+> managed backup UI. Before this section can be trusted in a real incident, the
+> team must decide and document the actual mechanism, e.g.:
+>
+> - a scheduled `pg_dump`/`pg_basebackup` job on the VPS (define location + retention), restored with `pg_restore`/`psql` into the `db` container, **or**
+> - DigitalOcean volume/droplet snapshots (define cadence + restore steps).
+>
+> Until then: **do not attempt an ad-hoc restore — escalate to Orrin Xu.**
+
+Provisional outline once a mechanism exists:
+
+1. Stop the app container so nothing writes during restore: `docker compose stop app`.
+2. Restore the database from the chosen backup source into the `db` container.
+3. Re-run any migrations from the backup point forward (the deploy runner is idempotent — see [`deploy/apply-migrations.sh`](../deploy/apply-migrations.sh)).
+4. `docker compose up -d app` and verify data integrity: spot-check a sample of accounts + opportunities.
 
 ### Manual Rollback of a Deploy
 

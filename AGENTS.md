@@ -198,7 +198,7 @@ The board may also configure Paperclip to require approval before any change to 
 
 ## 7. Verification gate before marking "done"
 
-Before patching any issue to `status=done`, you MUST run `bash scripts/verify.sh` from the repo root and confirm it exits 0. Paste the **last 10 lines** of its output into the closing comment of the ticket. If the work touched `supabase/migrations/`, you must additionally run `supabase db reset --local` and `curl -s http://localhost:3002/dashboard | grep -ciE 'sidebar|<nav|aside'` and paste both outputs in the same comment.
+Before patching any issue to `status=done`, you MUST run `bash scripts/verify.sh` from the repo root and confirm it exits 0. Paste the **last 10 lines** of its output into the closing comment of the ticket. If the work touched `supabase/migrations/`, you must additionally run `supabase db reset --local` and `curl -s http://localhost:3030/dashboard | grep -ciE 'sidebar|<nav|aside'` and paste both outputs in the same comment.
 
 A ticket marked `done` without the verify output in the closing comment is considered **provisional** — the reviewer may reopen it without further discussion. This rule has no exceptions for "the change was small" or "tests don't apply."
 
