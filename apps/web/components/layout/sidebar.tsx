@@ -98,17 +98,31 @@ function SidebarNav({ className }: { className?: string }) {
         onOpenChange={setAdminOpen}
         className="flex flex-col gap-1"
       >
-        <CollapsibleTrigger
-          className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-            isAdminActive
-              ? "text-sidebar-accent-foreground"
-              : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-          )}
-        >
-          <Sliders className={cn("size-4 shrink-0", isAdminActive && "text-primary")} />
-          Admin
-        </CollapsibleTrigger>
+        {/* The label links to the /admin overview; a separate chevron toggles the
+            inline section list, so "Admin" is reachable as a page (not just a toggle). */}
+        <div className="flex items-center gap-1">
+          <Link
+            href="/admin"
+            className={cn(
+              "flex flex-1 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+              pathname === "/admin"
+                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                : isAdminActive
+                  ? "text-sidebar-accent-foreground hover:bg-sidebar-accent"
+                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+            )}
+          >
+            <Sliders className={cn("size-4 shrink-0", isAdminActive && "text-primary")} />
+            Admin
+          </Link>
+          <CollapsibleTrigger
+            aria-label="Toggle admin sections"
+            className={cn(
+              "w-auto justify-center rounded-lg p-2.5 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              isAdminActive && "text-sidebar-accent-foreground",
+            )}
+          />
+        </div>
         <CollapsibleContent>
           <div className="ml-1 flex flex-col gap-2 border-l border-border pl-5 pt-1">
             {adminSections.map((section) => (
