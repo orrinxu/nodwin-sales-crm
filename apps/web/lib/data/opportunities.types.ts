@@ -85,6 +85,8 @@ export interface OpportunityRecord {
   accountId: string
   accountName: string | null
   primaryContactId: string | null
+  /** Resolved contact name (no FK on primary_contact_id → separate lookup); null off the detail fetch. */
+  primaryContactName: string | null
   stage: DealStage
   probabilityPct: number
   /** Decimal string representation of the amount (e.g. "50000.00"). Never a float. */
@@ -95,7 +97,9 @@ export interface OpportunityRecord {
   salesUnitId: string
   revenueRecognitionUnitId: string | null
   billingEntityId: string | null
+  billingEntityName: string | null
   entitySalesId: string | null
+  entitySalesName: string | null
   serviceType: string[] | null
   propertyType: string | null
   barterValue: string | null

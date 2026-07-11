@@ -497,6 +497,7 @@ export function OpportunityForm({
           <EntityCombobox
             items={[]}
             value={form.getValues("primaryContactId") || null}
+            valueLabel={opportunity?.primaryContactName ?? undefined}
             onChange={(v) => form.setValue("primaryContactId", v ?? "", { shouldValidate: true })}
             searchAction={
               searchContactsAction

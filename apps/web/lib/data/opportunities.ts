@@ -67,6 +67,7 @@ function toDomainOpportunity(data: Record<string, unknown>): OpportunityRecord {
     accountId: data.account_id as string,
     accountName: account?.name ?? null,
     primaryContactId: (data.primary_contact_id as string) ?? null,
+    primaryContactName: (data.primary_contact_name as string) ?? null,
     stage: data.stage as DealStage,
     probabilityPct: Number(data.probability_pct ?? 0),
     amount,
@@ -76,7 +77,9 @@ function toDomainOpportunity(data: Record<string, unknown>): OpportunityRecord {
     salesUnitId: data.sales_unit_id as string,
     revenueRecognitionUnitId: (data.revenue_recognition_unit_id as string) ?? null,
     billingEntityId: (data.billing_entity_id as string) ?? null,
+    billingEntityName: (data.billing_entity as { name: string } | null)?.name ?? null,
     entitySalesId: (data.entity_sales_id as string) ?? null,
+    entitySalesName: (data.entity_sales as { name: string } | null)?.name ?? null,
     serviceType: (data.service_type as string[]) ?? null,
     propertyType: (data.property_type as string) ?? null,
     barterValue: data.barter_value != null ? Money.fromAmount(String(data.barter_value), currency).toAmount() : null,
@@ -238,7 +241,9 @@ export async function getOpportunityById(
       created_at,
       updated_at,
       account:account_id ( name ),
-      owner:owner_user_id ( full_name )
+      owner:owner_user_id ( full_name ),
+      billing_entity:billing_entity_id ( name ),
+      entity_sales:entity_sales_id ( name )
     `,
     )
     .eq("id", id)
@@ -251,7 +256,20 @@ export async function getOpportunityById(
     throw new Error(`Failed to load opportunity: ${error.message}`)
   }
 
-  return toDomainOpportunity(data as Record<string, unknown>)
+  // primary_contact_id has no FK to contacts (so it can't be a PostgREST embed —
+  // that was the #208 crash); resolve the contact name in a separate RLS-scoped
+  // read and graft it on so the UI shows a name, never a raw id.
+  const row = data as Record<string, unknown>
+  if (row.primary_contact_id) {
+    const { data: contact } = await supabase
+      .from("contacts")
+      .select("full_name")
+      .eq("id", row.primary_contact_id as string)
+      .maybeSingle()
+    row.primary_contact_name = (contact as { full_name: string } | null)?.full_name ?? null
+  }
+
+  return toDomainOpportunity(row)
 }
 
 export async function getBusinessUnitOptions(

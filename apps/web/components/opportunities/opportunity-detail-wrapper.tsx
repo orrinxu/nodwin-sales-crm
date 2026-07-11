@@ -457,12 +457,6 @@ export function OpportunityDetailWrapper({
       ? `${formatDate(opportunity.servicePeriodStart)} – ${formatDate(opportunity.servicePeriodEnd)}`
       : null
 
-  // Billing entity / entity-sales: only the raw id is available (billing_entity_id
-  // → entities, but this component is only handed business_units). Render a muted
-  // id hint; entity-name resolution is a separate data-layer ticket (ORR gate 2).
-  const entityHint = (id: string | null) =>
-    id ? <span className="text-muted-foreground" title={id}>{`Entity · ${id.slice(0, 8)}…`}</span> : undefined
-
   const countryValue = opportunity.countryExecution
     ? opportunity.countryExecution.split(",").map((c) => COUNTRY_LABELS[c.trim()] ?? c.trim()).join(", ")
     : null
@@ -577,7 +571,7 @@ export function OpportunityDetailWrapper({
           <FilesModule opportunityId={opportunity.id} initialDocuments={documents} />
 
           <DefinitionCard title="Deal details">
-            <DField label="Contact" value={opportunity.primaryContactId} onAdd={openEdit} />
+            <DField label="Contact" onAdd={openEdit}>{opportunity.primaryContactName ?? undefined}</DField>
             <DField label="Close date" onAdd={openEdit}>
               {opportunity.closeDate ? formatDate(opportunity.closeDate) : undefined}
             </DField>
@@ -597,8 +591,8 @@ export function OpportunityDetailWrapper({
           <DefinitionCard title="Classification">
             <DField label="Service type" onAdd={openEdit}>{serviceTypeValue ?? undefined}</DField>
             <DField label="Property type" onAdd={openEdit}>{propertyTypeValue ?? undefined}</DField>
-            <DField label="Billing entity" onAdd={openEdit}>{entityHint(opportunity.billingEntityId)}</DField>
-            <DField label="Entity sales" onAdd={openEdit}>{entityHint(opportunity.entitySalesId)}</DField>
+            <DField label="Billing entity" onAdd={openEdit}>{opportunity.billingEntityName ?? undefined}</DField>
+            <DField label="Entity sales" onAdd={openEdit}>{opportunity.entitySalesName ?? undefined}</DField>
           </DefinitionCard>
 
           <Card>
