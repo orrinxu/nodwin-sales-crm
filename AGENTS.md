@@ -242,6 +242,10 @@ pnpm db:test  # runs RLS policy tests
 
 All four must pass. If any fails, fix it before opening the PR. If a failure is genuinely outside your ticket's scope, document it in the PR and surface it to the board.
 
+**Changelog (mandatory for every user-facing change):**
+
+Append an entry to `CHANGELOG.md` in the same PR — the log is maintained per-PR, never reconstructed in bulk after the fact. Add your bullet under today's `## YYYY-MM-DD` section (create the section if it doesn't exist yet), in the right [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) category (`Added` / `Changed` / `Fixed` / `Removed` / `Security`, plus `CI` / `Docs` as used in this file). Every bullet cites its PR (`#NNN`) and ticket (`ORR-xxx`). Skip only for changes with no observable effect (pure refactors, internal test-only edits) — and say so in the PR's `## Changelog` field.
+
 **Pre-commit hook (mandatory):**
 
 Install the pre-commit hook once per clone. This runs the RLS policy linter before every commit so violations never reach CI.
@@ -265,6 +269,9 @@ Never commit with `--no-verify` to bypass the hook. If the hook fails, fix the R
 
 ## High-risk file changes
 <list any high-risk files modified, or "none">
+
+## Changelog
+<the CHANGELOG.md entry added in this PR, or "none because <reason>">
 
 ## Tests added
 <list of new tests, or "no new tests because <reason>">

@@ -36,6 +36,11 @@ ORR-661, and cash-flow milestone follow-ups.
 
 - Apply DB migrations automatically on deploy (ORR-197, #222).
 
+### Docs
+
+- Reconstructed per-day changelog entries for June 17 – July 11 (#236).
+- `AGENTS.md`: require a per-PR `CHANGELOG.md` entry — added a changelog step to §8.3 and a `## Changelog` field to the §8.4 PR template (#237).
+
 ## 2026-07-10
 
 ### Added
