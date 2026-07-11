@@ -31,6 +31,7 @@ ORR-661, and cash-flow milestone follow-ups.
 - Ingestion now reads file bytes from Supabase Storage and extracts PDF text (#220).
 - Opportunities resolve contact + entity names — never show raw ids (#223).
 - Removed duplicate chevron on admin section headers (#234).
+- Sidebar **Admin** label now links to the `/admin` overview page; a separate chevron toggles the section list (previously clicking Admin only expanded/collapsed the menu) (#239).
 
 ### CI
 
