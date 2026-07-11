@@ -130,6 +130,20 @@ jobs:
             NEXT_PUBLIC_GOOGLE_PICKER_API_KEY=${{ vars.NEXT_PUBLIC_GOOGLE_PICKER_API_KEY }}
             NEXT_PUBLIC_ENV=staging
 
+      # Ship the migration files + runner so the VPS can apply any pending
+      # migrations before the new app comes up. Copied to a scratch dir; the
+      # runner tracks applied files in public._applied_migrations (idempotent).
+      - name: Copy migrations to staging VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.STAGING_SSH_HOST }}
+          username: ${{ secrets.STAGING_SSH_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          port: ${{ secrets.STAGING_SSH_PORT || 22 }}
+          source: "supabase/migrations/*.sql,deploy/apply-migrations.sh"
+          target: "/root/deploy-incoming"
+          overwrite: true
+
       - name: Deploy to staging VPS over SSH
         uses: appleboy/ssh-action@v1
         env:
@@ -147,6 +161,10 @@ jobs:
           script: |
             set -euo pipefail
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            # Apply DB migrations BEFORE the new app starts, so it never boots
+            # against an un-migrated schema. Runner is idempotent (see the
+            # _applied_migrations ledger); a failing migration aborts the deploy.
+            bash /root/deploy-incoming/deploy/apply-migrations.sh /root/deploy-incoming/supabase/migrations
             cd "$COMPOSE_DIR"
             docker compose pull app
             docker compose up -d app

@@ -1,20 +1,38 @@
 # Supabase on the VPS — one-time setup & migrations
 
-**The app deploy pipeline does _not_ manage Supabase.** [`deploy.yml`](../.github/workflows/deploy.yml)
-only builds the app image and runs `docker compose pull app && docker compose up -d app`.
-Standing up the database and **applying migrations are separate, manual steps** —
-this doc covers them.
+**Migrations now apply automatically on deploy** (ORR-197). [`deploy.yml`](../.github/workflows/deploy.yml)
+copies `supabase/migrations/` to the VPS and runs
+[`deploy/apply-migrations.sh`](apply-migrations.sh) — an idempotent runner that
+applies any migration not yet in the `public._applied_migrations` ledger, in
+order, **before** the new app container starts. You only stand up the Supabase
+stack itself by hand (once, per Part 1).
 
 Mental model:
 
 ```
 Supabase self-host stack  ──(you, manually, once)──►  running Postgres + Auth + REST
-app migrations            ──(you, on first setup + after schema changes)──►  schema
+app migrations            ──(CI pipeline, every deploy, idempotent)──►  schema
 app container             ──(CI pipeline, on merge to main)──►  the CRM
 ```
 
-If the app boots but pages 500 with "relation does not exist", **migrations were
-not applied.** That is the most common first-deploy mistake.
+**Bootstrapping an existing DB:** the runner tracks applied migrations in
+`public._applied_migrations`. On a database whose migrations were applied before
+this ledger existed, seed it first so the runner doesn't re-run them:
+
+```sql
+CREATE TABLE IF NOT EXISTS public._applied_migrations (
+  filename text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now());
+-- mark every already-applied migration file as done (no ON CONFLICT harm):
+INSERT INTO public._applied_migrations(filename)
+VALUES ('20250101000000_example.sql'), … ON CONFLICT DO NOTHING;
+```
+
+A **fresh** prod DB needs no seeding — the runner applies everything in order on
+the first deploy. Part 2 below (`supabase db push`) is now only for local/manual
+use; production relies on the pipeline.
+
+If the app boots but pages 500 with "relation does not exist", check the deploy
+log's "apply-migrations" step — a failing migration aborts the deploy (ON_ERROR_STOP).
 
 ---
 
