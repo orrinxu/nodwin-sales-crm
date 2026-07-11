@@ -61,7 +61,9 @@ When built, Slack webhooks (interactivity, slash commands, events) would be veri
 
 #### 6.5.1 Drive
 
-> **Status: unbuilt / planned.** There is no `googleapis` dependency and no Drive folder/permission code in the codebase (`lib/integrations/drive/` is an unwired stub that throws "not configured"). The design below is aspirational.
+> **Status: partially built.** A client-side **Drive → Storage import shipped** (ORR-653, #217): `components/documents/drive-import-button.tsx` opens the Google Picker (per-user OAuth, least-privilege `drive.file` scope, `appId` set for shared drives) and copies each picked file's bytes into the private Supabase Storage `documents` bucket (Section 4.8). So documents can be sourced from Drive today — but the file then lives server-side, not as a Drive reference.
+>
+> What remains **genuinely unbuilt**: server-side folder creation and visibility-tier permission sync (below), and the server byte-fetch seam `lib/integrations/drive/index.ts`, whose `createDriveClient().fetchFile()` still throws `"Google Drive client is not configured"` (no `googleapis` service-account implementation wired in). The folder/permission design below is aspirational.
 
 Per-opportunity folder created at opportunity creation, under a configurable parent folder structure: `/Nodwin CRM/Opportunities/{Entity}/{Account name}/{Opportunity name}/`. Per-account folder created at account creation under `/Nodwin CRM/Accounts/{Account name}/`.
 
@@ -144,7 +146,7 @@ Background work to migrate (no exhaustive list):
 - Audit log compaction (older than 90 days summarised; raw kept indefinitely in a cold store)
 - Scheduled dashboard data refresh
 - AI usage daily rollups for the cost dashboard
-- Salesforce parallel-run sync (during the parallel period only)
+- Salesforce parallel-run sync (during the parallel period only). A `salesforce_connections` config table (instance URL + OAuth state + import status) already exists (`20260618000003_integration_config.sql`); the sync itself is later-phase and not yet built.
 
 ### 6.8 MCP Server (v1.5)
 

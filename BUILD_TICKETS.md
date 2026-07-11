@@ -95,12 +95,12 @@ These tickets establish the repo skeleton. Nothing else can start until these ar
 - **Phase:** Pre-flight
 - **Depends on:** T-001, T-002
 - **Size:** M
-- **Files in scope:** `.github/workflows/ci.yml`, `.github/workflows/secret-scan.yml`
+- **Files in scope:** `.github/workflows/ci.yml`
 - **Approval:** `cto + board`
 - **High-risk file change:** yes (workflows)
 - **Acceptance:**
   - `ci.yml` runs on every PR: install, lint, typecheck, vitest, RLS test runner (placeholder for now), build
-  - `secret-scan.yml` runs gitleaks on every PR
+  - ~~`secret-scan.yml` runs gitleaks on every PR~~ **Descoped** — the standalone `secret-scan.yml` gate was removed (license issue; see CHANGELOG 2026-07-01). No dedicated `secret-scan.yml` exists. (A gitleaks binary scan does still run, but as part of `deploy.yml`'s `checks` job on every push, not as a separate PR gate.)
   - Branch protection on `main`: PRs required, all CI checks must pass
   - CI runs in <5 min on the empty repo
 - **Notes:** Branch protection is configured by the board in GitHub Settings, not in code. Surface a board reminder when this ticket completes.

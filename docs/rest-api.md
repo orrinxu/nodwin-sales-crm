@@ -126,13 +126,17 @@ for (const key of ['NODWIN_CRM_TOKEN', 'NODWIN_CRM_BASE_URL'] as const) {
 **Step 3 — tell the agent it can use it.** Add this to the `CLAUDE.md` **of the
 group that will use it**:
 ```md
-## Nodwin CRM (read-only API)
+## Nodwin CRM (read + write API)
 Query the Nodwin CRM with `Bash`/`curl` — it's a REST API, NOT an MCP tool and
 NOT the web login page. **Never ask the user to log in or for credentials** — the
 bearer token is already in `$NODWIN_CRM_TOKEN`. Call `$NODWIN_CRM_BASE_URL`:
   curl -s "$NODWIN_CRM_BASE_URL/accounts?query=<name>" -H "Authorization: Bearer $NODWIN_CRM_TOKEN"
-Endpoints: /me, /opportunities(?scope=mine), /opportunities/{id},
+Read: /me, /opportunities(?scope=mine), /opportunities/{id},
 /contacts(?query=), /contacts/{id}, /accounts(?query=), /accounts/{id}.
+Write: POST/PATCH /opportunities(/{id}), POST/PATCH /contacts(/{id}),
+POST/PATCH /accounts(/{id}), POST /activities. Send a JSON body, e.g.
+  curl -s -X POST "$NODWIN_CRM_BASE_URL/activities" -H "Authorization: Bearer $NODWIN_CRM_TOKEN" \
+    -H "Content-Type: application/json" -d '{"opportunityId":"…","type":"note","body":"…"}'
 Results are scoped to the token owner — never assume access beyond what returns.
 ```
 > ⚠️ **Which `CLAUDE.md`?** NanoClaw's agent-runner loads `groups/global/CLAUDE.md`
