@@ -9,19 +9,256 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Work in flight on feature branches (not yet merged to `main`): admin landing page,
+ORR-661, and cash-flow milestone follow-ups.
+
+## 2026-07-11
+
 ### Added
 
-- Setup guide: `docs/setup-guide.md` — Google OAuth, Supabase Cloud project creation, and magic link email configuration
-- `.env.example` with all auth, SMTP, and integration environment variables
-- **Startup guide (ORR-408):** `docs/startup-guide.md` — step-by-step local dev setup with environment config, Supabase local stack, seed data, verification checklist, and troubleshooting
-- **Setup guide OAuth fix (ORR-408):** Quick start corrected in `docs/setup-guide.md` — OAuth redirect URI now points to `https://<project-ref>.supabase.co/auth/v1/callback` (Supabase is the broker, not the app); free-tier noted as sufficient for dev sandbox; local Supabase listed as alternative to Cloud project. GCP redirect URI documentation fixed in §2.1 and troubleshooting table
-- **README:** Quick start corrected to point at `apps/web/.env.example`; `setup-guide.md` and `startup-guide.md` added to project structure listing
-- **Smoke test procedure (ORR-452):** `docs/smoke-test.md` — codified 3-check pre-deploy smoke test (branch guard, schema check, route health check + process restart). `docs/runbook-incident.md` updated to reference the smoke procedure in the P-1 response and as a pre-deploy gate.
+- **REST API for external agents:** token-authed read endpoints (Phase 1, #224) and v1 write endpoints — create/update with activity logging (Phase 2, #229). Agent-integration guide added at `docs/rest-api.md` (#226), made explicit that it "works with any agent, not just Claude" (#228), plus NanoClaw wiring gotchas learned in practice (#227).
+- **Cash-flow milestones:** `cashflow_milestone` table + RLS (Phase 1, #232) and working-capital derivation for milestones (Phase 2, #231). Data model + resolved decisions codified against the SOW (#230).
+- **Finance admin section** with cost-of-cash settings (#225).
+- **Grouped admin settings navigation** — the flat admin list regrouped into labelled, collapsible sections (Ticket A, #233).
+- **Documents band on accounts** with a shared pinned-slots component (#221).
 
 ### Changed
 
-- **Admin settings navigation — grouped sections:** the 14 admin items are regrouped from a single flat list into 5 labelled, expanded-and-collapsible sections (Organization, Access & Security, Data, Automation & AI, Integrations). **Deviation from the original flat-list settings nav:** at 14 items a flat list is hard to scan; grouping foundational → operational sections restores scannability. Presentation-only — same items, routes, and icons; no data-layer change. The grouping is a shared config (`components/layout/admin-nav.ts`) consumed by the sidebar and (next) the admin landing page.
-- **Opportunity detail layout rework (ORR-658, T-059):** rebalanced the opportunity detail page so the wide column carries the deal fields and a Communications tab group (Activity/Notes/Calls/Email), and the right rail holds only compact summary cards (Approval, Team, Splits, Stage History, Deal Copilot). The stage progress bar gained a real clickable affordance (hover + tooltip) in place of the "click a stage" caption, and the redundant approval surfacing was trimmed. **Deliberate deviation from T-059:** T-059 specified Documents as a tab alongside Notes/Activity/Call/Email; instead Documents is an **always-visible band** directly under the stage bar (pinned RFP/Proposal/Contract slots + the full grouped list), because deals here are document-centric and burying files in a tab hid the primary artifact. Layout only — no schema, data-layer, or RLS changes.
+- **Opportunity detail layout rebalanced (ORR-658, T-059):** wide column carries deal fields + a Communications tab group; the right rail holds compact summary cards. Documents promoted from a tab to an always-visible band under the stage bar (deliberate deviation from T-059 — deals here are document-centric). Layout only; no schema/RLS change (#219).
+
+### Fixed
+
+- Ingestion now reads file bytes from Supabase Storage and extracts PDF text (#220).
+- Opportunities resolve contact + entity names — never show raw ids (#223).
+- Removed duplicate chevron on admin section headers (#234).
+
+### CI
+
+- Apply DB migrations automatically on deploy (ORR-197, #222).
+
+## 2026-07-10
+
+### Added
+
+- **Server-side document storage (ORR-653):** storage foundation — schema + bucket + RLS (Phase 1, #214); direct-upload data layer + server actions (Phase 1b, #215); Files module UI replacing the old Files tab (Phase 2, #216); import files from Google Drive into Storage (Phase 3, #217).
+- **Full-width record editors** with shared form sections + multi-select across Opportunity/Contact/Account (#212).
+
+### Fixed
+
+- Drive import 404 — set Picker `appId` and support shared drives (#218).
+- Stop clipping widget borders in the dashboard grid (#211).
+- Editor sections expand on desktop, collapse on mobile, with a clearer toggle (#213).
+
+## 2026-07-08
+
+### Added
+
+- Email/password login form (#199) and root redirect by auth state — dashboard vs login (#202).
+- Notes-only composer on account & contact pages (#209).
+
+### Changed
+
+- Seed reworked to a real org scaffold + admin login; fake sample data dropped (#195).
+
+### Fixed
+
+- Select trigger labels resolve automatically (#201); EntityCombobox shows labels, never raw ids (#205).
+- Default to light mode until a preference is set (#200).
+- RSC-safe cookie writes on the server Supabase client (#207); root redirect must not write cookies (#206).
+- Removed the `primary_contact` embed (no FK) (#208); allow creating a contact without filling socials (#203).
+
+### CI/CD
+
+- GitHub-hosted build → staging DigitalOcean VPS deploy pipeline (#194).
+
+### Docs
+
+- Supabase VPS setup + migration guide (#196); deploy docs reconciled to DigitalOcean self-hosted, off Vercel (#198).
+
+## 2026-07-07
+
+### Added
+
+- **Customizable dashboard grid** — draggable/resizable per-user widget layout (#192).
+- **Roles & Permissions administration** — custom roles + permission matrix (#193).
+- Dashboard: summary strip + Conversion-by-Stage funnel (#189); Team Leaderboard widget (#190).
+- Saved views for the opportunity list (#191).
+
+### Docs
+
+- README refresh (#178).
+
+## 2026-07-06
+
+### Added
+
+- **Design system foundation (ORR-651):** warm neutrals, semantic + 7-stage tokens, Inter, base primitives (#179).
+- **Opportunity detail read view** — high-fidelity redesign (ORR-646, #177).
+- **AI Deal Copilot** — summarize / draft follow-up / next best action (#182).
+- **Revenue forecasting & rep scorecards** (#183).
+- Split **Pipeline** (my deals) from **Opportunities** (all) (#181).
+- Pipeline per-stage column totals — count / value / weighted (#184); deal-card health signals — overdue / stale / days-in-stage (#187).
+- Dashboard: quarter forecast tile (#186); "Needs my attention" widget (#185).
+
+### Fixed
+
+- `selectForecastTile` moved to a server-safe module to fix the RSC boundary (#188).
+- Honour the user's date-format preference (#176).
+
+### Docs
+
+- Repo-wide accuracy refresh; documented single production environment (#180).
+
+## 2026-07-05
+
+### Added
+
+- Admin AI providers page — provider selection + endpoint/key wiring (ORR-635, #172).
+- Stuck Deals dashboard widget + admin thresholds (ORR-103, #173).
+
+### Fixed
+
+- Multi-approver RPC materialization, xState bridge, and UI (#168).
+- Consistent page headers across all admin screens (#174).
+- Honour the user's number-format preference, defaulting to international (#175).
+- **Audit high-priority fixes (#171):** re-assert the Confidential fence, atomic split/team write RPCs, `SET NULL` on user-delete FKs, and flaky-test stabilisation.
+
+## 2026-07-04
+
+### Added
+
+- **Document ingestion worker (ORR-620):** pgvector semantic index (ingestion only) (#165).
+- **Cross-deal knowledge search (ORR-621):** tier-filtered retrieval over a self-hosted RAG stack (#166).
+- **Approvals:** template-layer schema (ORR-608 Phase 0, #161); mandatory approval gate before Closed Won (ORR-604 Phase 3c, #158); email/notify the current approver on their turn (Phase 3d, #159); `ApprovalCard` on opportunity detail (ORR-610, #163); admin GUI + enforce-gate (ORR-611 Phase 3, #162).
+- Configurable email transport — SMTP or Resend, set in the admin panel (#160).
+
+### Security
+
+- Closed a Standard-tier leak in knowledge search that shipped in #166 (#167).
+
+### Removed
+
+- Dead "Create Jira Issue" button on opportunities (#164).
+
+## 2026-07-03
+
+### Added
+
+- **Per-user settings page** + display-currency preference (ORR-615, #139).
+- **Two-tier admin RBAC:** Entity Admin role + entity-scoped settings RLS (ORR-618, #142); Entity Admins manage their own entity's users (ORR-619, #145).
+- **Users & Roles admin** — role / entity / manager / status (ORR-617, #141).
+- **Org reporting currency** (group + per-entity) as the FX single-source (ORR-616, #140).
+- Allowed sign-in domains admin GUI (ORR-612, #136).
+- **Approvals:** opportunity approval write path per business entity (ORR-604 Phase 1, #154); manager-based, entity-firewalled approvers (Phase 3a, #156); admins reassign / cancel in-flight approvals (Phase 3b, #157); admin GUI to author per-entity workflows (Phase 2, #155).
+- Opportunities: tabbed communications + real approval history on detail (ORR-613, #137); drag anywhere on a kanban card + clickable title/company links (ORR-609, #133).
+- Contacts: contact fields on the detail read view (ORR-614, #138).
+- Accounts: company-tree visualisation wired into detail (ORR-611, #135); structured tax IDs — `account_tax_ids` + `tax_id_types` (ORR-622, #147); country-driven structured Tax IDs on the form (ORR-623, #152); attach multiple contacts from the account page (ORR-624, #153).
+
+### Fixed
+
+- `account_tax_ids` SELECT mirrors parent read with a `deleted_at` guard (#150).
+- Atomic revenue-schedule replace — fixes a data-loss window (#151).
+- Removed leaked developer UI from the account form (#146); dropped the redundant "Custom Fields" heading inside named sections (#144).
+
+### Docs
+
+- v1 build roadmap / SOW gap-map (#134).
+
+## 2026-07-02
+
+### Added
+
+- Opportunity list search, filter, and sort (Tier 1 #1, #121).
+- Kanban card intelligence — column totals + hot/overdue badges (Tier-1 #2, #127).
+- Log activities from the contact view (Tier-1 #3, #125); activity timeline on account detail (ORR-606, #130).
+- RLS: reps can create and edit their own accounts and contacts (ORR-608, #132).
+
+### Fixed
+
+- Let an owner read back their own opportunity — unbreaks rep deal creation (ORR-605, #129).
+- Stop `/opportunities/[id]` 500 by dropping the broken stage-history embed (#123).
+- Consolidated to a single sidebar-wrapped dashboard at `/dashboard` (#126).
+- Audit reads PostgREST `request.headers` as an object, not an array (ORR-604, #128).
+- Unwrap PostgREST `[{count}]` embeds so `/accounts` stops 500ing (#122).
+
+### CI
+
+- Stop `supabase-start` flaking — exclude heavy services + retry once (ORR-600, #124).
+
+## 2026-07-01
+
+### Added
+
+- OpenAI-compatible AI gateway + `pg_cron` scaffold (ORR-600 #5+#6, #120).
+- RBAC (DB-backed role + domain reconcile) + Confidential-tier masking (ORR-600 #2+#3, #119).
+
+### Changed
+
+- Wire up opportunity detail components; fix seed & opportunity-form tests (ORR-600, #115).
+
+### Fixed
+
+- Resolved schema drift — strict DB types vs `Record<string, unknown>`, UI types, and test mocks (ORR-587).
+
+### CI
+
+- Run checks as parallel jobs under a "CI Pipeline" aggregator (ORR-600, #118).
+- Removed secret scanning (license issue; scope cut for now).
+
+> Note: `main` was consolidated on this date (the `temp-main-merge` integration), which is why the June 17–19 work below carries a July 1 commit date on `main`.
+
+## 2026-06-19
+
+### Added
+
+- Opportunity create/edit form + Salesforce-style detail page (ORR-545 / ORR-554 / ORR-555, #100, #101, #102).
+- New opportunity fields — service type, property type, barter value, entity sales id (ORR-553 / ORR-554).
+- Seed v1 account custom fields into `field_definitions` (ORR-549, #99); EntityCombobox gap-fills (ORR-542, #98).
+- Migration filename validator + CI wiring (ORR-580, #105, #110); auto-generated TS types from the Supabase schema (Phase 3A); verification safety nets — `AGENTS.md` §7 + `verify.sh` (ORR-578).
+
+### Removed
+
+- `sales_initiator_user_id` removed across DB, data layer, types, and docs (ORR-553 / ORR-556 / ORR-588).
+
+### Fixed
+
+- Resolved migration conflicts and policy dependency order; normalised future-dated migration filenames to 2026-06-19; corrected `SECURITY DEFINER`/`INVOKER` on the `set_opportunity_owner_default` trigger.
+- Regenerated malformed fake UUIDs in the sandbox seed (ORR-589); resolved schema drift (ORR-587).
+
+### Tests
+
+- `service_role` RLS tests for `data_management` policies (ORR-584); tests for the new opportunity fields (ORR-554 / ORR-576).
+
+## 2026-06-18
+
+### Added
+
+- **Companies:** companies list page + sidebar nav (ORR-466) and company detail (ORR-467) (#81, #82).
+- **Schema build-out:** `opportunity_revenue_schedule` for custom recurring revenue splits (ORR-491); Data Management schema — `finance_export_config` + `import_jobs` (ORR-527); financial settings tables — `reporting_currency_settings`, `fiscal_year_settings`, `approval_thresholds`, `revenue_recognition_defaults`; integration config — `integration_settings`, `slack_connections`, `email_settings`, `salesforce_connections` (ORR-518, #92); entity branding columns + `relationship_types` lookup + enum→text FK migration (ORR-512); `deleted_at` soft-delete on accounts.
+- **Notification engine (ORR-525):** data access layer, delivery engine, triggers, and server actions (#95); notification/comms schema (ORR-524, #93); Data Management UI (ORR-529, #94).
+- Currency conversion helper (ORR-474); dashboard wired to the shared metrics module with reporting currency (ORR-463, #83).
+- `EntityCombobox` reusable search-or-create picker (ORR-542, #97); extended opportunity create contract with §4.6 fields (ORR-544).
+
+### Fixed
+
+- Wired `metrics.ts` and `reports.ts` to actually convert foreign currencies via `convert.ts` (ORR-456).
+- Cascade-delete trigger skips splits-sum validation (ORR-490); fixed `generateFlatSchedule` spec deviation + naming (ORR-494); wrapped `Menu.Positioner` in `Menu.Portal` (ORR-497); fixed mobile rendering of the app shell + opportunities layout (#96); typecheck/lint/test cleanup (ORR-475).
+- Require `NODE_ENV !== production` before using the `service_role` key; hide Google OAuth in local-preview + add LAN `allowedDevOrigins` (ORR-380).
+
+### Tests
+
+- Expanded visibility tests 38 → 56 covering cross-entity, tier, owner, split-BU, and write-denial (ORR-486).
+
+### Docs
+
+- Startup guide `docs/startup-guide.md` and setup-guide OAuth polish (ORR-408, #88); `.env.example` with auth/SMTP/integration variables; smoke-test procedure `docs/smoke-test.md` + local-preview branch guard, migration step, and 3-check smoke (ORR-452).
+
+## 2026-06-17
+
+### Added
+
+- `fx_rates` table with migration, RLS policies, and tests.
+- CRM app shell / sidebar scaffolding landed (ORR-432, #80).
 
 ## 2026-05-08
 
@@ -54,3 +291,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Queue Phase 9.5 (MCP server) for post-East-Asia rollout. Add `{ user, source }` parameter requirement to `lib/data/` functions in preparation.
+</content>
+</invoke>
