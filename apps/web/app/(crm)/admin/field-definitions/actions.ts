@@ -57,3 +57,50 @@ export async function reorderFieldDefinitionsAction(input: unknown) {
   await reorderFieldDefinitions(ctx, parsed)
   revalidatePath("/admin/field-definitions")
 }
+
+// ── File type categories ──────────────────────────────────────────────────────
+
+import {
+  createFileTypeCategory,
+  createFileTypeCategorySchema,
+  updateFileTypeCategory,
+  updateFileTypeCategorySchema,
+  softDeleteFileTypeCategory,
+  reorderFileTypeCategories,
+  reorderFileTypeCategoriesSchema,
+} from "@/lib/data/file-type-categories"
+
+export async function createFileTypeCategoryAction(input: unknown) {
+  const user = await requireUser()
+  requireRole(user, "admin")
+  const parsed = createFileTypeCategorySchema.parse(input)
+  const ctx = { user, source: "web" as const }
+  await createFileTypeCategory(ctx, parsed)
+  revalidatePath("/admin/field-definitions")
+}
+
+export async function updateFileTypeCategoryAction(input: unknown) {
+  const user = await requireUser()
+  requireRole(user, "admin")
+  const parsed = updateFileTypeCategorySchema.parse(input)
+  const ctx = { user, source: "web" as const }
+  await updateFileTypeCategory(ctx, parsed)
+  revalidatePath("/admin/field-definitions")
+}
+
+export async function deleteFileTypeCategoryAction(code: string) {
+  const user = await requireUser()
+  requireRole(user, "admin")
+  const ctx = { user, source: "web" as const }
+  await softDeleteFileTypeCategory(ctx, code)
+  revalidatePath("/admin/field-definitions")
+}
+
+export async function reorderFileTypeCategoriesAction(input: unknown) {
+  const user = await requireUser()
+  requireRole(user, "admin")
+  const parsed = reorderFileTypeCategoriesSchema.parse(input)
+  const ctx = { user, source: "web" as const }
+  await reorderFileTypeCategories(ctx, parsed)
+  revalidatePath("/admin/field-definitions")
+}
