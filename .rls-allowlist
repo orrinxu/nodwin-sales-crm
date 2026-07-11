@@ -133,6 +133,12 @@
 # Policy is defined in 20260704000000_approval_template_layer.sql.
 .*approval_template_layer.*:USING \(true\)
 
+# ── file_type_categories ──────────────────────────────────────────────────────
+# Reference lookup table (ORR-659): maps document category codes to labels.
+# All authenticated users read; writes are admin-only. Same pattern as
+# currencies, tax_id_types, relationship_types.
+.*file_type_categories.*:USING \(true\)
+
 # ── data_management ────────────────────────────────────────────────────────────
 # finance_export_config is a per-entity configuration table. All authenticated
 # users need read access to discover export configuration. Write is admin-only.
