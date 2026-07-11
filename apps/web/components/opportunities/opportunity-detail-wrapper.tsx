@@ -24,6 +24,7 @@ import { DealCopilot } from "@/components/opportunities/deal-copilot"
 import { FilesModule } from "@/components/documents/files-module"
 import { PinnedDocumentSlots } from "@/components/documents/pinned-document-slots"
 import { DefinitionField, DefinitionFieldGrid } from "@/components/primitives/definition-grid"
+import { RecordHeader } from "@/components/primitives/record-header"
 import type { DocumentSummary } from "@/lib/data/documents"
 import type { DealCopilotResult } from "@/lib/ai/deal-copilot"
 import type { EntityOption } from "@/components/entity-combobox"
@@ -115,29 +116,6 @@ interface OpportunityDetailWrapperProps {
 }
 
 // ── Small presentational primitives (module scope; stable identity) ─────────────
-
-/** One cell of the hairline stat strip: eyebrow label + value + optional sub-line. */
-function StatCell({
-  label,
-  value,
-  sub,
-  valueClassName,
-  className,
-}: {
-  label: string
-  value: React.ReactNode
-  sub?: React.ReactNode
-  valueClassName?: string
-  className?: string
-}) {
-  return (
-    <div className={cn("flex flex-col gap-1 bg-card px-4 py-3", className)}>
-      <span className={T.eyebrow}>{label}</span>
-      <span className={cn(T.statValue, valueClassName)}>{value}</span>
-      {sub ? <span className="text-[11.5px] text-muted-foreground">{sub}</span> : null}
-    </div>
-  )
-}
 
 function DefinitionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -430,58 +408,52 @@ export function OpportunityDetailWrapper({
 
   return (
     <div className="relative flex flex-col gap-4 p-6">
-      {/* ── Header ────────────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h1 className={cn(T.h1, "truncate")}>{opportunity.name}</h1>
-          <p className={cn(T.meta, "mt-1 text-muted-foreground")}>
-            {opportunity.probabilityPct}% probability
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <OpportunityForm
-            opportunity={opportunity}
-            businessUnits={businessUnits}
-            users={users}
-            createAction={async () => { throw new Error("Not available") }}
-            updateAction={updateAction}
-            onSuccess={() => router.refresh()}
-            searchUsersAction={searchUsersAction}
-            trigger={
-              <Button ref={editTriggerRef} variant="outline" size="sm">
-                <Pencil className="size-4" />
-                Edit
+      {/* ── Header + hairline stat strip ──────────────────────────────────────── */}
+      <RecordHeader
+        title={opportunity.name}
+        subtitle={`${opportunity.probabilityPct}% probability`}
+        actions={
+          <>
+            <OpportunityForm
+              opportunity={opportunity}
+              businessUnits={businessUnits}
+              users={users}
+              createAction={async () => { throw new Error("Not available") }}
+              updateAction={updateAction}
+              onSuccess={() => router.refresh()}
+              searchUsersAction={searchUsersAction}
+              trigger={
+                <Button ref={editTriggerRef} variant="outline" size="sm">
+                  <Pencil className="size-4" />
+                  Edit
+                </Button>
+              }
+            />
+            {canSubmitApproval ? (
+              <Button variant="outline" size="sm" onClick={handleSubmitApproval} disabled={approvalPending}>
+                <SendHorizontal className="size-4" />
+                {approvalPending ? "Submitting..." : "Submit for Approval"}
               </Button>
-            }
-          />
-          {canSubmitApproval ? (
-            <Button variant="outline" size="sm" onClick={handleSubmitApproval} disabled={approvalPending}>
-              <SendHorizontal className="size-4" />
-              {approvalPending ? "Submitting..." : "Submit for Approval"}
+            ) : (
+              <Button variant="outline" size="sm" disabled title={approvalStatus === "Pending" ? "Approval in progress" : "Not available"}>
+                <SendHorizontal className="size-4" />
+                Submit for Approval
+              </Button>
+            )}
+            <Button variant="outline" size="sm" disabled title="Coming soon">
+              <Calendar className="size-4" />
+              Set Revenue Schedule
             </Button>
-          ) : (
-            <Button variant="outline" size="sm" disabled title={approvalStatus === "Pending" ? "Approval in progress" : "Not available"}>
-              <SendHorizontal className="size-4" />
-              Submit for Approval
-            </Button>
-          )}
-          <Button variant="outline" size="sm" disabled title="Coming soon">
-            <Calendar className="size-4" />
-            Set Revenue Schedule
-          </Button>
-        </div>
-      </div>
-
-      {/* ── Hairline stat strip ───────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border md:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
-        {/* Amount spans both mobile columns so the 5 cells tile evenly (no stray
-            border-colored slot on a 2-col mobile grid). */}
-        <StatCell label="Amount" value={formattedAmount} valueClassName={T.statAmount} className="col-span-2 md:col-span-1" />
-        <StatCell label="Account" value={opportunity.accountName ?? "—"} />
-        <StatCell label="Owner" value={opportunity.ownerName ?? "Unassigned"} />
-        <StatCell label="Service period" value={servicePeriod ?? <span className="text-muted-foreground">Not set</span>} />
-        <StatCell label="Approval status" value={<ApprovalPill status={approvalStatus} />} />
-      </div>
+          </>
+        }
+        stats={[
+          { label: "Amount", value: formattedAmount, valueClassName: T.statAmount, className: "col-span-2 md:col-span-1" },
+          { label: "Account", value: opportunity.accountName ?? "—" },
+          { label: "Owner", value: opportunity.ownerName ?? "Unassigned" },
+          { label: "Service period", value: servicePeriod ?? <span className="text-muted-foreground">Not set</span> },
+          { label: "Approval status", value: <ApprovalPill status={approvalStatus} /> },
+        ]}
+      />
 
       {/* ── Stage tracker ─────────────────────────────────────────────────────── */}
       <Card>
