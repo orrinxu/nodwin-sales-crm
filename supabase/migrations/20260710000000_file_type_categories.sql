@@ -194,6 +194,9 @@ $$;
 COMMENT ON FUNCTION public.search_document_chunks(vector, text, integer, double precision) IS
   'ORR-621 cross-deal knowledge retrieval (category column migrated to text FK per ORR-659). Returns document_chunks ranked by cosine similarity, filtered in-query to chunks whose opportunity the caller is entitled to via opportunity_visibility (auth.uid()). All tiers gated on membership — Standard is NOT org-open. SECURITY DEFINER; entitlement cannot be spoofed via arguments.';
 
+REVOKE ALL ON FUNCTION public.search_document_chunks(vector, text, integer, double precision) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.search_document_chunks(vector, text, integer, double precision) TO authenticated;
+
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 6. Trigger: audit fields on file_type_categories
 -- ═══════════════════════════════════════════════════════════════════════════════
