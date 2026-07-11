@@ -423,6 +423,24 @@ Both tables have RLS: users see only their own sessions / calls; admin sees all.
 
 ---
 
+### 4.14 Cash-flow Milestone (Handoff / working-capital foundation)
+
+A child table on the opportunity making cash events a first-class primitive: the client payment schedule (`direction = 'in'`) and the vendor/production payout schedule (`direction = 'out'`). The monthly working-capital grid (today hand-keyed into the Project Budget P&L sheet, §5 item 14; the native Handoff module later) becomes a **derived view** of these milestones — one source, two consumers. **The CRM owns the plan (milestones); finance owns the actuals.**
+
+`cashflow_milestone`: `id`, `opportunity_id` (→ opportunity, cascade), `direction` (`cashflow_direction` enum: `in` | `out`), `label` (text), `scheduled_month` (date, normalised to first-of-month; monthly granularity), `amount` (`numeric(20,4)`, `>= 0`; sign carried by `direction`), `currency` (text; inherits the opportunity currency), `sort_order` (int), `created_by` (→ `public.users`), `created_at`, `updated_at`. RLS mirrors `opportunity_revenue_schedule` (visible/editable iff the parent opportunity is) **with the Confidential-tier admin fence** (`AND NOT public.opportunity_is_confidential(opportunity_id)` on the admin branch). The cost-of-cash rate is **not** stored here — it lives in `cost_of_cash_settings` (Admin → Finance) and is injected into the derivation.
+
+**Resolved decisions (2026-07-11):**
+- **D1 — Revenue source of truth.** The opportunity's revenue field is canonical (it mirrors the signed contract) and is freely amendable — clients regularly add/cut services. Milestones are the *timing* of that revenue; the module flags `sum(in) ≠ revenue` after amendments rather than trusting either side. The derivation takes `revenue` as an explicit parameter.
+- **D2 — Cost-of-cash rate.** Default **18%/yr (1.5%/mo)**, configurable in **Admin → Finance** (`cost_of_cash_settings.annual_rate`); injected as a derivation parameter. Effective-dating deferred.
+- **D3 — Financing-cost method.** Placeholder = the **integral method** (`Σ over months of max(0, −cumulative) × monthlyRate`, the area under the negative cumulative curve — correct for lumpy multi-period deals). Exposed as `cost_of_cash_settings.financing_cost_method`; **TBD pending finance sign-off** (a `// TODO(finance)` marks it in code).
+- **D4 — Milestone currency.** v1 inherits the opportunity currency; mixed-currency is **out of scope pending the FX gate** (see `docs/deferred-decisions.md`). The derivation asserts single-currency and throws otherwise.
+- **D5 — Milestones required at handoff?** Optional at save, warned-but-allowed at handoff submit (a workflow decision, not data-model). Separately, the **definition of `closed_won`** (contract signing vs. email confirmation vs. start-of-work — India recognises revenue at start-of-work) is an **open question** affecting revenue recognition + the handoff trigger; out of scope for the milestone table itself (see deferred-decisions).
+- **D6 — Deduction base.** `costOfCash ÷ revenue` (matches the sheet). Configurable via `cost_of_cash_settings.deduction_base`; **may be changed by finance.**
+
+Reserve `id` as the stable handle finance will later reference to post an actual against a planned milestone (variance is a future, finance-owned concern — not built here).
+
+---
+
 ## 5. Feature List
 
 Features are categorised as Must-Have (v1, blocks East Asia launch), Should-Have (v1.5, ships within 8 weeks of v1), Nice-to-Have (v2+, considered after rollout to additional regions begins), or Out-of-Scope (deferred indefinitely).
