@@ -7,7 +7,7 @@ import { Pencil, SendHorizontal, Calendar, Mail, TriangleAlert, Plus } from "luc
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Tabs, TabsList, TabsTab, TabsPanel } from "@/components/ui/tabs"
+import { FacetTabs, FacetTabsList, FacetTabsTab, FacetTabsPanel } from "@/components/primitives/facet-tabs"
 import {
   Collapsible,
   CollapsibleTrigger,
@@ -490,25 +490,21 @@ export function OpportunityDetailWrapper({
           {/* Communications — moved below the deal fields (was in the rail). */}
           <Card>
             <CardContent className="pt-4">
-              <Tabs defaultValue="activity">
-                <TabsList className="w-full justify-start gap-4 rounded-none border-b border-border bg-transparent p-0">
+              <FacetTabs defaultValue="activity">
+                <FacetTabsList>
                   {[
                     { v: "activity", label: "Activity" },
                     { v: "notes", label: "Notes" },
                     { v: "calls", label: "Calls" },
                     { v: "email", label: "Email" },
                   ].map(({ v, label }) => (
-                    <TabsTab
-                      key={v}
-                      value={v}
-                      className="rounded-none border-b-2 border-transparent px-0 py-1.5 text-[13px] data-active:border-primary data-active:bg-transparent data-active:text-foreground data-active:shadow-none"
-                    >
+                    <FacetTabsTab key={v} value={v}>
                       {label}
-                    </TabsTab>
+                    </FacetTabsTab>
                   ))}
-                </TabsList>
+                </FacetTabsList>
 
-                <TabsPanel value="activity" className="space-y-3">
+                <FacetTabsPanel value="activity" className="space-y-3">
                   <ActivityComposer
                     revalidateId={opportunity.id}
                     scope={{ opportunityId: opportunity.id, accountId: opportunity.accountId }}
@@ -516,28 +512,28 @@ export function OpportunityDetailWrapper({
                     onCreated={() => router.refresh()}
                   />
                   <ActivityTimeline activities={activities} />
-                </TabsPanel>
+                </FacetTabsPanel>
 
-                <TabsPanel value="notes">
+                <FacetTabsPanel value="notes">
                   {noteActivities.length > 0 ? (
                     <ActivityTimeline activities={noteActivities} />
                   ) : (
                     <p className="py-6 text-center text-xs text-muted-foreground">No notes yet. Add one from the Activity tab.</p>
                   )}
-                </TabsPanel>
+                </FacetTabsPanel>
 
-                <TabsPanel value="calls">
+                <FacetTabsPanel value="calls">
                   {callActivities.length > 0 ? (
                     <ActivityTimeline activities={callActivities} />
                   ) : (
                     <p className="py-6 text-center text-xs text-muted-foreground">No calls logged yet. Log one from the Activity tab.</p>
                   )}
-                </TabsPanel>
+                </FacetTabsPanel>
 
-                <TabsPanel value="email">
+                <FacetTabsPanel value="email">
                   <IntegrationTabEmptyState icon={Mail} message="Connect Gmail to send and log email from the CRM." />
-                </TabsPanel>
-              </Tabs>
+                </FacetTabsPanel>
+              </FacetTabs>
             </CardContent>
           </Card>
         </div>
