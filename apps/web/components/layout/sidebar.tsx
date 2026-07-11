@@ -112,9 +112,8 @@ function SidebarNav({ className }: { className?: string }) {
         <CollapsibleContent>
           <div className="ml-1 flex flex-col gap-2 border-l border-border pl-5 pt-1">
             {adminSections.map((section) => (
-              <Collapsible key={section.label} defaultOpen className="group/section flex flex-col gap-1">
-                <CollapsibleTrigger className="flex items-center gap-1 px-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">
-                  <ChevronDown className="size-3 shrink-0 transition-transform group-data-[state=closed]/section:-rotate-90" />
+              <Collapsible key={section.label} defaultOpen className="flex flex-col gap-1">
+                <CollapsibleTrigger className="px-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground">
                   {section.label}
                 </CollapsibleTrigger>
                 <CollapsibleContent className="flex flex-col gap-1">
