@@ -107,16 +107,25 @@ for (const key of ['NODWIN_CRM_TOKEN', 'NODWIN_CRM_BASE_URL'] as const) {
 }
 ```
 
-**Step 3 — tell the agent it can use it.** Add to `groups/global/CLAUDE.md`:
+**Step 3 — tell the agent it can use it.** Add this to the `CLAUDE.md` **of the
+group that will use it**:
 ```md
 ## Nodwin CRM (read-only API)
-You can query the Nodwin CRM. Use `Bash`/`curl` with the bearer token in
-`$NODWIN_CRM_TOKEN` against `$NODWIN_CRM_BASE_URL`:
+Query the Nodwin CRM with `Bash`/`curl` — it's a REST API, NOT an MCP tool and
+NOT the web login page. **Never ask the user to log in or for credentials** — the
+bearer token is already in `$NODWIN_CRM_TOKEN`. Call `$NODWIN_CRM_BASE_URL`:
   curl -s "$NODWIN_CRM_BASE_URL/accounts?query=<name>" -H "Authorization: Bearer $NODWIN_CRM_TOKEN"
 Endpoints: /me, /opportunities(?scope=mine), /opportunities/{id},
 /contacts(?query=), /contacts/{id}, /accounts(?query=), /accounts/{id}.
 Results are scoped to the token owner — never assume access beyond what returns.
 ```
+> ⚠️ **Which `CLAUDE.md`?** NanoClaw's agent-runner loads `groups/global/CLAUDE.md`
+> **only for non-main groups** — your *main* group (`is_main = 1`) reads its **own**
+> `groups/<folder>/CLAUDE.md` and skips global. So put the block in that group's
+> file (check `registered_groups` for the folder, e.g. `groups/telegram_main/`).
+> Adding it to `global` too covers any non-main groups. **If the agent responds by
+> asking you to log in, this instruction didn't reach that group's prompt — it's in
+> the wrong `CLAUDE.md`.** (`CLAUDE.md` is read live per message — no restart needed.)
 
 **Step 4 — rebuild the host + restart:**
 ```bash
@@ -164,5 +173,9 @@ The contract is identical for all of them: **base URL + `Authorization: Bearer <
 - **Rate:** be reasonable; there's no hard limit yet, but that may change.
 - **One token per integration** is good hygiene — you can revoke one without
   breaking the others, and `last used` on the tokens screen tells you what's active.
+- **Rotating a token:** revoking it is instant, and the old one immediately returns
+  `401`. If you revoke + regenerate, **update `NODWIN_CRM_TOKEN` in the agent's env**
+  (e.g. NanoClaw's `.env`) — an agent can't update its own container env, so it'll
+  keep failing with the revoked token until you swap it in.
 - **Prod:** this guide points at staging. The production base URL and a note on the
   rotated signing secret will be added when prod is stood up.
