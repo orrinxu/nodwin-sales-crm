@@ -52,7 +52,7 @@ export function MagicLinkForm() {
   if (sent) {
     return (
       <div className="grid gap-4">
-        <div className="rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-400">
+        <div className="rounded-lg bg-success-bg p-3 text-sm text-success-fg">
           <div className="flex items-center gap-2 font-medium">
             <CheckCircle className="size-4" />
             Magic link sent

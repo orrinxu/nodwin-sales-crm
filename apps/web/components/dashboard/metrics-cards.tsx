@@ -29,7 +29,7 @@ export function MetricsCards({ metrics, locale }: MetricsCardsProps) {
       label: "Deals Won",
       value: metrics.dealsWon.toString(),
       icon: CheckCircle2,
-      color: "text-green-500",
+      color: "text-success-fg",
     },
     {
       label: "Deals Lost",

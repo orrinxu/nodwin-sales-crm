@@ -59,9 +59,9 @@ const typeIcons: Record<string, typeof Info> = {
 }
 
 const typeColors: Record<string, string> = {
-  info: "text-blue-500",
-  warning: "text-amber-500",
-  error: "text-red-500",
+  info: "text-info-fg",
+  warning: "text-warning-fg",
+  error: "text-destructive-fg",
   deadletter: "text-purple-500",
 }
 

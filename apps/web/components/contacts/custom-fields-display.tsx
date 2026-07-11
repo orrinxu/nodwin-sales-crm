@@ -79,7 +79,7 @@ function renderValue(value: unknown, def: FieldDefinition) {
     return (
       <span
         className={
-          value ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+          value ? "text-success-fg" : "text-muted-foreground"
         }
       >
         {formatted}

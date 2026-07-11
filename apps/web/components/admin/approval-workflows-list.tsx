@@ -308,7 +308,7 @@ export function ApprovalWorkflowsList({
                       </Badge>
                     )}
                     {w.enforceGate && (
-                      <Badge variant="outline" className="text-xs border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-400">
+                      <Badge variant="outline" className="text-xs border-destructive/30 bg-destructive-bg text-destructive-fg">
                         Gate
                       </Badge>
                     )}

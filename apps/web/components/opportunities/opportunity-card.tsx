@@ -122,9 +122,9 @@ export function OpportunityCard({ opportunity }: OpportunityCardProps) {
                 <span
                   className={`text-xs font-medium ${
                     opportunity.probabilityPct >= 70
-                      ? "text-green-600"
+                      ? "text-success-fg"
                       : opportunity.probabilityPct >= 40
-                        ? "text-amber-600"
+                        ? "text-warning-fg"
                         : "text-muted-foreground"
                   }`}
                 >

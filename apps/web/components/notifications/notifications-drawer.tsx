@@ -45,16 +45,16 @@ const iconMap = {
 }
 
 const colorMap = {
-  info: "text-blue-400",
-  warning: "text-amber-400",
-  error: "text-red-400",
+  info: "text-info-fg",
+  warning: "text-warning-fg",
+  error: "text-destructive-fg",
   deadletter: "text-purple-400",
 }
 
 const bgColorMap = {
-  info: "bg-blue-500/10 border-blue-500/20",
-  warning: "bg-amber-500/10 border-amber-500/20",
-  error: "bg-red-500/10 border-red-500/20",
+  info: "bg-info-bg border-info-fg/20",
+  warning: "bg-warning-bg border-warning-fg/20",
+  error: "bg-destructive-bg border-destructive-fg/20",
   deadletter: "bg-purple-500/10 border-purple-500/20",
 }
 

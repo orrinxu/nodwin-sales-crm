@@ -107,7 +107,7 @@ export function EmailTransportForm({
         </CardHeader>
         <CardContent className="space-y-4">
           {error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-          {saved && <div className="rounded-lg bg-green-500/10 p-3 text-sm text-green-700 dark:text-green-400">Saved.</div>}
+          {saved && <div className="rounded-lg bg-success-bg p-3 text-sm text-success-fg">Saved.</div>}
 
           <div className="grid gap-1.5">
             <Label htmlFor="provider">Provider</Label>
