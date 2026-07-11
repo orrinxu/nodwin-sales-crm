@@ -111,6 +111,7 @@ for the VPS use the `psql` line above.)
 4. Merge to main (or **Actions → Deploy → Run workflow**) → app image rolls out.
 5. Verify: `curl -I https://<app-url>/login` → `200`.
 
-After that, routine deploys are just merge-to-main — **except** when a PR adds a
-migration, where you must run Part 2 again before/with the deploy. Automating that
-is tracked as a follow-up (see the deploy pipeline PR history).
+After that, routine deploys are just merge-to-main — including migration-bearing
+PRs. The deploy pipeline runs [`apply-migrations.sh`](apply-migrations.sh) on the
+VPS before each app rollout (ORR-197), so Part 2 is only for the first box or a
+manual/local push, never a per-migration chore.

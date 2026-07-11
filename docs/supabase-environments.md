@@ -14,13 +14,16 @@
 | Environment  | Supabase                                             | Purpose                     | Migration method                    |
 | ------------ | ---------------------------------------------------- | --------------------------- | ----------------------------------- |
 | **Local**    | Docker via `supabase start`                          | Dev + test + smoke          | `supabase migration up` / `db reset`|
-| **Staging**  | Self-hosted (docker compose) on the DigitalOcean VPS | Pre-prod / UAT              | `supabase db push --db-url <conn>`  |
-| **Production** | Self-hosted on a VPS — **not yet provisioned** (separate ticket) | Live CRM data | `supabase db push --db-url <conn>`  |
+| **Staging**  | Self-hosted (docker compose) on the DigitalOcean VPS | Pre-prod / UAT              | Auto-applied on deploy (ORR-197)    |
+| **Production** | Self-hosted on a VPS — **not yet provisioned** (separate ticket) | Live CRM data | Auto-applied on deploy (ORR-197)    |
 
-Standing up self-hosted Supabase and applying migrations is manual — see
-[`deploy/SUPABASE-SETUP.md`](../deploy/SUPABASE-SETUP.md). The app deploy pipeline
-([`deploy.yml`](../.github/workflows/deploy.yml)) ships only the app container; it
-does **not** run migrations.
+Standing up self-hosted Supabase is manual (once) — see
+[`deploy/SUPABASE-SETUP.md`](../deploy/SUPABASE-SETUP.md). **Migrations, however,
+apply automatically on every deploy** (ORR-197): the app deploy pipeline
+([`deploy.yml`](../.github/workflows/deploy.yml)) copies `supabase/migrations/` to
+the VPS and runs [`deploy/apply-migrations.sh`](../deploy/apply-migrations.sh) — an
+idempotent runner tracked by the `public._applied_migrations` ledger — **before**
+the new app container starts.
 
 ---
 
@@ -58,8 +61,9 @@ pnpm dev -p 3030
 ### Staging (DO VPS)
 
 Staging runs on the VPS itself — you don't "switch" a local `.env` to it. Deploys
-happen via the pipeline (merge to `main`), and migrations are pushed at the VPS
-Postgres. See [`deploy/DEPLOYMENT.md`](../deploy/DEPLOYMENT.md).
+happen via the pipeline (merge to `main`), which applies any pending migrations at
+the VPS Postgres before rolling the app. See
+[`deploy/DEPLOYMENT.md`](../deploy/DEPLOYMENT.md).
 
 ---
 
@@ -73,16 +77,19 @@ Postgres. See [`deploy/DEPLOYMENT.md`](../deploy/DEPLOYMENT.md).
 
 ### Staging
 
-Migrations are applied manually against the self-hosted Postgres (they are **not**
-run by the app deploy). After merging a migration-bearing PR to `main`:
+Migrations are applied **automatically by the app deploy** (ORR-197): merging a
+migration-bearing PR to `main` runs [`deploy/apply-migrations.sh`](../deploy/apply-migrations.sh)
+on the VPS before the new app container starts. No manual `supabase db push` step
+is needed for routine deploys.
+
+For a first-time box (or a manual/local push), the fallback is:
 
 ```bash
 supabase db push --db-url "postgresql://postgres:<password>@<vps-host>:5432/postgres"
 ```
 
-**Golden rule:** apply migrations from `main` after merge, never from a feature
-branch, and never run the dev seed against real data. Full steps + the optional
-seed are in [`deploy/SUPABASE-SETUP.md`](../deploy/SUPABASE-SETUP.md).
+**Golden rule:** never run the dev seed against real data. Full setup + the
+optional seed are in [`deploy/SUPABASE-SETUP.md`](../deploy/SUPABASE-SETUP.md).
 
 ---
 
@@ -126,7 +133,7 @@ Before deploying or declaring a hosting setup complete, run the 3-check smoke pr
 Additionally:
 
 - [ ] `app.env` / `.env.local` points at the correct Supabase instance (not the wrong env).
-- [ ] Supabase migrations are fully applied (`supabase db push --db-url` ran after the last schema change).
+- [ ] Supabase migrations are fully applied (the deploy's `apply-migrations` step succeeded — check the deploy log).
 - [ ] At least one route under `(crm)/` returns 200 (smoke test pass).
 - [ ] Seed data is loaded (local / fresh staging only).
 - [ ] RLS is enforced (local mirrors staging policies).
