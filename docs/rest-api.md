@@ -152,17 +152,50 @@ mcpServers['nodwin_crm'] = {
 
 ---
 
-## 6. Other agents / tools
+## 6. Any agent / tool (not just Claude)
 
-Anything that can make an HTTP request with a header works the same way:
+**The API is LLM- and framework-agnostic.** It's plain HTTP + a bearer token —
+nothing about it is Claude-specific. GPT/OpenAI, Gemini, Llama, LangChain, a shell
+script, n8n, Zapier all work identically. (The NanoClaw example above only mentions
+Claude because NanoClaw's containers happen to run the Claude Agent SDK — the API
+doesn't know or care.)
+
+The contract for **everything** is the same: **base URL + `Authorization: Bearer <token>`.**
 
 - **A script / cron:** `curl` as above; parse the JSON.
-- **OpenClaw / Hermes / custom agent:** register an HTTP tool pointing at the base
-  URL with the `Authorization: Bearer` header, or (if it supports remote MCP) wait
-  for the MCP endpoint.
 - **Zapier / n8n:** an HTTP request node with the bearer header.
+- **OpenClaw / Hermes / other agents:** register an HTTP tool (below), or, if they
+  support remote MCP, wait for the MCP endpoint.
 
-The contract is identical for all of them: **base URL + `Authorization: Bearer <token>`.**
+**Non-Claude example — an OpenAI-style tool/function definition** the model can call:
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "crm_search_accounts",
+    "description": "Search the Nodwin CRM for accounts by name.",
+    "parameters": {
+      "type": "object",
+      "properties": { "query": { "type": "string" } },
+      "required": ["query"]
+    }
+  }
+}
+```
+…and your tool handler makes the call (Python, framework-agnostic):
+```python
+import os, requests
+def crm_search_accounts(query: str):
+    r = requests.get(
+        f"{os.environ['NODWIN_CRM_BASE_URL']}/accounts",
+        params={"query": query},
+        headers={"Authorization": f"Bearer {os.environ['NODWIN_CRM_TOKEN']}"},
+        timeout=15,
+    )
+    r.raise_for_status()
+    return r.json()
+```
+Same token, same endpoints — only the way *your* framework registers the tool differs.
 
 ---
 
