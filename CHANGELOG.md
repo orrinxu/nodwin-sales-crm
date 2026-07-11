@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Admin settings navigation — grouped sections:** the 14 admin items are regrouped from a single flat list into 5 labelled, expanded-and-collapsible sections (Organization, Access & Security, Data, Automation & AI, Integrations). **Deviation from the original flat-list settings nav:** at 14 items a flat list is hard to scan; grouping foundational → operational sections restores scannability. Presentation-only — same items, routes, and icons; no data-layer change. The grouping is a shared config (`components/layout/admin-nav.ts`) consumed by the sidebar and (next) the admin landing page.
 - **Opportunity detail layout rework (ORR-658, T-059):** rebalanced the opportunity detail page so the wide column carries the deal fields and a Communications tab group (Activity/Notes/Calls/Email), and the right rail holds only compact summary cards (Approval, Team, Splits, Stage History, Deal Copilot). The stage progress bar gained a real clickable affordance (hover + tooltip) in place of the "click a stage" caption, and the redundant approval surfacing was trimmed. **Deliberate deviation from T-059:** T-059 specified Documents as a tab alongside Notes/Activity/Call/Email; instead Documents is an **always-visible band** directly under the stage bar (pinned RFP/Proposal/Contract slots + the full grouped list), because deals here are document-centric and burying files in a tab hid the primary artifact. Layout only — no schema, data-layer, or RLS changes.
 
 ## 2026-05-08
