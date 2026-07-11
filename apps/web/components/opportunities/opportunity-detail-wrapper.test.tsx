@@ -44,6 +44,9 @@ function makeOpportunity(overrides: Partial<OpportunityRecord> = {}): Opportunit
     accountId: "acct-1",
     accountName: "Acme Corp",
     primaryContactId: null,
+    primaryContactName: null,
+    billingEntityName: null,
+    entitySalesName: null,
     stage: "negotiate",
     probabilityPct: 75,
     amount: "50000.00",
@@ -240,11 +243,28 @@ describe("OpportunityDetailWrapper", () => {
       expect(screen.getByText("Conference")).toBeInTheDocument()
     })
 
-    it("renders a muted entity id-hint (name resolution is a separate ticket), not a business-unit name", () => {
-      render(<OpportunityDetailWrapper {...defaultProps} opportunity={makeOpportunity({ billingEntityId: "bu-1" })} />)
-      expect(screen.getByText(/Entity ·/)).toBeInTheDocument()
-      // The old bug resolved billing_entity_id against business_units — must not happen now.
-      expect(screen.queryByText("East Asia Sales")).not.toBeInTheDocument()
+    it("renders the resolved billing-entity name, never a raw id", () => {
+      render(
+        <OpportunityDetailWrapper
+          {...defaultProps}
+          opportunity={makeOpportunity({ billingEntityId: "ent-1", billingEntityName: "Nodwin Gaming Pvt Ltd" })}
+        />,
+      )
+      expect(screen.getByText("Nodwin Gaming Pvt Ltd")).toBeInTheDocument()
+      // Never the old raw-id hint.
+      expect(screen.queryByText(/Entity ·/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/ent-1/)).not.toBeInTheDocument()
+    })
+
+    it("renders the resolved primary-contact name, never a raw id", () => {
+      render(
+        <OpportunityDetailWrapper
+          {...defaultProps}
+          opportunity={makeOpportunity({ primaryContactId: "c-1", primaryContactName: "Priya Sharma" })}
+        />,
+      )
+      expect(screen.getByText("Priya Sharma")).toBeInTheDocument()
+      expect(screen.queryByText(/c-1/)).not.toBeInTheDocument()
     })
   })
 
