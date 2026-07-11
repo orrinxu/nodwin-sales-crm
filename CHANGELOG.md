@@ -43,6 +43,7 @@ ORR-661, and cash-flow milestone follow-ups.
 - `AGENTS.md`: require a per-PR `CHANGELOG.md` entry — added a changelog step to §8.3 and a `## Changelog` field to the §8.4 PR template (#237).
 - Documentation accuracy sweep — deploy/infra: corrected the "migrations are manual / not in the pipeline" claim across `supabase-environments.md`, `deploy/DEPLOYMENT.md`, `deploy/README.md`, and `SUPABASE-SETUP.md` (migrations auto-apply on deploy, ORR-197); README Supabase CLI `1.x`→`2.x` + `deploy.yml` listed (#240).
 - Documentation accuracy sweep — runbook: reconciled `docs/runbook-incident.md` to the self-hosted VPS (Docker Compose restart not PM2; deploy apply-migrations not `pnpm db:migrate`; backup/restore flagged as TODO — Cloud-dashboard steps don't apply on self-host); fixed the §7 verification gate + `scripts/verify.sh` to curl port `3030` not `3002` (#241).
+- Documentation accuracy sweep — feature-state: re-audited `docs/ROADMAP.md` to 2026-07-11 (several shipped features were still marked unbuilt); `docs/data-model.md` (drop `sales_initiator_user_id`, rewrite Documents for Supabase Storage, add the missing shipped tables); `docs/security.md` §8.3.1 (Confidential masking, custom Roles & Permissions, Entity Admin, tier-filtered RAG); `docs/integrations.md` (Drive import shipped); `BUILD_TICKETS.md` + `paperclip-org-chart.md` (secret-scan removed); `docs/rest-api.md` (sample now read+write) (#242).
 
 ## 2026-07-10
 
