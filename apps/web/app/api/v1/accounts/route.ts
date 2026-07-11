@@ -1,7 +1,7 @@
 import "server-only"
 import type { NextRequest } from "next/server"
 import { withApiUser } from "@/lib/api/authenticate"
-import { getAccounts } from "@/lib/data/accounts"
+import { getAccounts, createAccount, accountCreateSchema } from "@/lib/data/accounts"
 
 export const runtime = "nodejs"
 
@@ -15,5 +15,15 @@ export async function GET(request: NextRequest) {
       ownerId: p.get("ownerId") ?? undefined,
     })
     return Response.json(result)
+  })
+}
+
+// POST /api/v1/accounts — create an account (accountCreateSchema).
+export async function POST(request: NextRequest) {
+  return withApiUser(request, async (ctx) => {
+    const body = await request.json().catch(() => ({}))
+    const input = accountCreateSchema.parse(body)
+    const record = await createAccount(ctx, input)
+    return Response.json(record, { status: 201 })
   })
 }

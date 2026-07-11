@@ -4,8 +4,8 @@ Connect an AI agent (NanoClaw, OpenClaw, Hermes, a script, a Zapier…) to the C
 so it can **read your deals, contacts, and accounts on your behalf**. This is how
 you get "ask my CRM from Telegram" or "drop an RFP and file it" workflows.
 
-> **Status:** v1 is **read-only** (search + fetch). Write endpoints (create/update,
-> log activities) land in a later phase. Base URL below is **staging**.
+> **Status:** v1 supports **read** (search + fetch) **and write** (create / update
+> records, log activities). Base URL below is **staging**.
 
 ---
 
@@ -51,7 +51,9 @@ curl -s https://nodwin-crm-staging.orrinxu.com/api/v1/me \
 
 ---
 
-## 4. Endpoints (v1, read-only)
+## 4. Endpoints (v1)
+
+**Read:**
 
 | Method & path | What it returns |
 |---|---|
@@ -62,6 +64,20 @@ curl -s https://nodwin-crm-staging.orrinxu.com/api/v1/me \
 | `GET /contacts/{id}` | One contact. |
 | `GET /accounts?query=&industry=&ownerId=` | Accounts, filtered by name (`query`), industry, owner. |
 | `GET /accounts/{id}` | One account. |
+
+**Write** — JSON body; a `400` lists exactly which fields are wrong so an agent can fix and retry. Everything is created/edited **as you** (same permissions as the web app).
+
+| Method & path | Body / effect |
+|---|---|
+| `POST /opportunities` | Create a deal. Needs `accountId` (look it up via `GET /accounts?query=` first), `name`, `amount`, etc. → `201` with the new record. |
+| `PATCH /opportunities/{id}` | Partial update (any subset of the create fields, e.g. `{"stage":"propose"}`). |
+| `POST /contacts` | Create a contact. → `201`. |
+| `PATCH /contacts/{id}` | Partial update. |
+| `POST /accounts` | Create an account. → `201`. |
+| `PATCH /accounts/{id}` | Partial update. |
+| `POST /activities` | Log a note/call against an opportunity/account/contact — e.g. `{"opportunityId":"…","type":"note","body":"…"}`. → `201`. |
+
+The **"drop an RFP → file it as a deal"** flow: `GET /accounts?query=<client>` to get the account id (create it with `POST /accounts` if new), then `POST /opportunities` with the extracted fields.
 
 **Examples:**
 ```bash
@@ -201,8 +217,9 @@ Same token, same endpoints — only the way *your* framework registers the tool 
 
 ## 7. Notes & limits
 
-- **Read-only for now.** Creating/updating records (e.g. "file this RFP as a new
-  deal") is a later phase.
+- **Writes create real records as you.** They go through the same validation and
+  permission rules as the web app — an agent can't do anything you couldn't. A bad
+  body returns `400` with the offending fields, so agents self-correct.
 - **Rate:** be reasonable; there's no hard limit yet, but that may change.
 - **One token per integration** is good hygiene — you can revoke one without
   breaking the others, and `last used` on the tokens screen tells you what's active.

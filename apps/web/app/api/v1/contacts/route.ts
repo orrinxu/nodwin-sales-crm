@@ -1,7 +1,7 @@
 import "server-only"
 import type { NextRequest } from "next/server"
 import { withApiUser } from "@/lib/api/authenticate"
-import { getContacts } from "@/lib/data/contacts"
+import { getContacts, createContact, contactCreateSchema } from "@/lib/data/contacts"
 
 export const runtime = "nodejs"
 
@@ -15,5 +15,15 @@ export async function GET(request: NextRequest) {
       ownerId: p.get("ownerId") ?? undefined,
     })
     return Response.json(result)
+  })
+}
+
+// POST /api/v1/contacts — create a contact (contactCreateSchema).
+export async function POST(request: NextRequest) {
+  return withApiUser(request, async (ctx) => {
+    const body = await request.json().catch(() => ({}))
+    const input = contactCreateSchema.parse(body)
+    const record = await createContact(ctx, input)
+    return Response.json(record, { status: 201 })
   })
 }
