@@ -177,7 +177,7 @@ export function OpportunitySplitsEditor({
           <span
             className={
               totalPct === 100
-                ? "font-semibold text-green-600"
+                ? "font-semibold text-success"
                 : "font-semibold text-destructive"
             }
           >

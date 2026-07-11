@@ -74,7 +74,7 @@ export function OpportunityCard({ opportunity }: OpportunityCardProps) {
                   {hot ? (
                     <Badge
                       variant="secondary"
-                      className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"
+                      className="bg-warning/15 text-warning"
                     >
                       <Flame className="size-3" />
                       Hot
@@ -122,9 +122,9 @@ export function OpportunityCard({ opportunity }: OpportunityCardProps) {
                 <span
                   className={`text-xs font-medium ${
                     opportunity.probabilityPct >= 70
-                      ? "text-green-600"
+                      ? "text-success"
                       : opportunity.probabilityPct >= 40
-                        ? "text-amber-600"
+                        ? "text-warning"
                         : "text-muted-foreground"
                   }`}
                 >
