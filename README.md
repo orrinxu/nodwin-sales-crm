@@ -162,6 +162,7 @@ nodwin-crm/
 │   ├── startup-guide.md       # step-by-step local dev setup
 │   ├── setup-guide.md         # authentication setup (OAuth, self-hosted Supabase, magic link)
 │   ├── data-model.md          # schema reference
+│   ├── rest-api.md            # REST API + agent-integration guide (tokens, endpoints, NanoClaw)
 │   ├── integrations.md        # integration architecture details
 │   ├── security.md            # threat model and pre-launch checklist
 │   ├── runbook-incident.md    # incident response procedures
