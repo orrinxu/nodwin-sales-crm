@@ -49,6 +49,18 @@ Every table with user-visible data has RLS enabled. Policies follow this pattern
 
 Policies are tested with the Supabase "simulate as user" feature for at least three personas (East Asia rep, India admin, external Trinity user) on every schema change. A CI check blocks merge if any RLS policy lacks a corresponding test.
 
+#### 8.3.1 Additional shipped authorization controls
+
+Beyond the base `opportunity_visibility` model, several access controls are wired into RLS in production:
+
+- **Confidential-tier admin masking.** For `visibility_tier = 'confidential'` opportunities, an Admin may see only metadata (existence, owner, value bucket) — never amount, description, or files (SOW §3.2). The admin branch of every opportunity-scoped SELECT policy excludes Confidential deals unless the admin is explicitly entitled (owner / override, via the visibility cache); a metadata-only SECURITY DEFINER function surfaces the permitted fields (`20260619000006_confidential_tier_admin_masking.sql`). The fence is centralised in the `opportunity_is_confidential(uuid)` helper and **re-asserted across every child path** — revenue schedule, audit log, opportunity UPDATE/DELETE, stage history, documents, and cash-flow milestones (`20260705010000_confidential_fence_reassert.sql`) — so the rule lives in one place and cannot drift per-path.
+
+- **Custom Roles & Permissions.** A DB-backed capability model (`roles` / `permissions` / `role_permissions`) sits alongside the base `user_role` enum. RLS and the app gate on capabilities via the SECURITY DEFINER `has_permission(perm_key text)` seam (bypasses RLS, no recursion; granted to `authenticated` / `service_role`) rather than hard-coding role names (`20260707030000_roles_permissions.sql`).
+
+- **Entity Admin two-tier RBAC.** A second admin tier, `entity_admin`, is scoped to the admin's own `primary_entity_id` (via `current_user_entity_id()`). Super Admin (`admin`) may write any row including group-wide defaults; an Entity Admin may write only their own entity's settings rows, never the group-wide (`entity_id IS NULL`) row. Established on `reporting_currency_settings` as the pattern other settings tables follow (`20260703200000_user_role_entity_admin.sql`, `20260703210000_entity_admin_settings_rls.sql`).
+
+- **Tier-filtered knowledge / RAG retrieval as an entitlement control.** The cross-deal semantic search RPC (`search_document_chunks`) applies the tier/entitlement filter **inside** the query, never as a post-filter on an already-fetched top-K. It reuses the canonical `opportunity_visibility` membership table pinned to `auth.uid()` and takes no user-id argument, so membership ⊆ canonical access — it can only under-return, never leak (`20260704030000_knowledge_search.sql`, hardened in `20260704040000_knowledge_search_tier_fix.sql` after a Standard-tier cross-entity leak).
+
 ### 8.4 Pre-Launch Security Checklist
 
 This checklist must be executed before East Asia goes live with real client data. Items marked [BLOCKER] block launch.

@@ -127,8 +127,7 @@ The core unit. Locked from the existing Salesforce schema for v1, with adjustmen
 | primary_contact_id | uuid (FK Contact, nullable) | |
 | stage | enum | qualify \| meet_and_present \| propose \| negotiate \| verbal_agreement \| closed_won \| closed_lost |
 | probability_pct | numeric(5,2) | Default per-stage; overridable on the deal |
-| sales_initiator_user_id | uuid (FK User) NOT NULL | Rep who originated the deal; distinct from `owner_user_id` and used by the visibility model. Always set. |
-| owner_user_id | uuid (FK User) | Primary deal owner |
+| owner_user_id | uuid (FK User) | Primary deal owner. Defaults to `auth.uid()` on insert via trigger. |
 | sales_unit_id | uuid (FK Business Unit) | Primary Sales Unit (revenue split managed separately) |
 | revenue_recognition_unit_id | uuid (FK Business Unit, nullable) | Set later, often at close |
 | ops_unit_id | uuid (FK Business Unit, nullable) | Set on close |
@@ -203,19 +202,23 @@ Calls, notes, emails, meetings, and tasks logged against an Account, Contact, or
 
 ### 4.8 Documents
 
-Documents are stored in Google Drive, not in Supabase Storage. The CRM creates a folder per Opportunity (and optionally per Account) and stores Drive file IDs / metadata. This means: (a) the IT team's existing Drive permissions infrastructure is reused, (b) versioning and collaboration features come for free, (c) if the CRM is ever shut down, the underlying documents remain accessible in Drive.
+As of ORR-653 (`20260710000000_document_storage.sql`), documents are stored **server-side in Supabase Storage** — file bytes live on the VPS in a private `documents` bucket, not only referenced in Google Drive. Google Drive file IDs are now **optional** and are populated only for files imported from Drive (via the client-side Picker → Storage import, Section 6.5.1); direct uploads carry no Drive provenance at all. A CHECK constraint (`documents_source_check`) requires every row to have a source: either `drive_file_id` **or** `storage_path`.
+
+Storage RLS delegates to each document row's own visibility (a Storage object is reachable only if a visible `documents` row references its path), so the Confidential-tier admin masking (Section 8.3) is inherited for free and cannot drift. Bytes are served to the app via server-generated signed URLs.
 
 | Field | Type | Notes |
 |---|---|---|
 | id | uuid (PK) | |
 | opportunity_id | uuid (FK Opportunity, nullable) | |
 | account_id | uuid (FK Account, nullable) | |
-| drive_file_id | text | Google Drive ID; canonical reference |
-| drive_folder_id | text | Parent folder ID |
-| name | text | Display name (synced from Drive) |
+| drive_file_id | text (nullable) | Google Drive ID; set only for Drive-imported files (made nullable in ORR-653) |
+| drive_folder_id | text (nullable) | Parent Drive folder ID; nullable (ORR-653) |
+| storage_path | text (nullable) | Path of the file inside the private `documents` Storage bucket (unique); set for server-stored uploads |
+| size_bytes | bigint (nullable) | Size of the stored file |
+| name | text | Display name |
 | mime_type | text | |
-| category | enum | rfp \| budget \| proposal \| contract \| po \| invoice \| presentation \| other |
-| uploaded_by | uuid (FK User) | |
+| category | enum | rfp \| budget \| proposal \| contract \| po \| invoice \| presentation \| brand_guidelines \| logo_assets \| rate_card \| other |
+| uploaded_by | uuid (FK User) | Uploader; may manage (update/delete) their own file |
 | uploaded_at | timestamptz | |
 | link_url | text (nullable) | If this is a description-link rather than an upload |
 
@@ -362,5 +365,11 @@ This document is scoped to the core entities. The schema also includes a number 
 - `inbound_email_deadletter` — dead-letter table for inbound emails that fail matching or sender verification.
 - `user_notifications` / `user_notification_overrides` / `notification_routing` — in-app notification delivery and per-user channel routing.
 - `ai_daily_caps` / `ai_settings` / `ai_providers` — AI spending caps and admin-configured AI provider settings.
+- `cashflow_milestone` — planned cash events per opportunity (`direction` in = client receipts / out = vendor payouts), with `label`, `scheduled_month`, `amount`, `currency`; source for the working-capital derivation. Parent-opportunity RLS with the Confidential-tier fence (`20260711020000_cashflow_milestone.sql`).
+- **Financial settings** (`20260618000002_financial_settings.sql`): `reporting_currency_settings` (global / per-entity reporting currency; NULL `entity_id` = global default), `fiscal_year_settings` (per-entity FY start month), `revenue_recognition_defaults` (per-entity default split kind + gross-margin %). Plus `cost_of_cash_settings` (working-capital params — `annual_rate`, `financing_cost_method`, `deduction_base`; `20260711010000`) and `stuck_deal_settings` (per-open-stage staleness thresholds for the Stuck Deals widget; `20260705070000`).
+- **Integration config** (`20260618000003_integration_config.sql`): `integration_settings` (org-level feature toggles, key → JSONB), `slack_connections` (Slack workspace connections + event routing), `email_settings` (Resend / SMTP domain + template config), `salesforce_connections` (Salesforce instance connection + OAuth state; sync itself is later-phase).
+- **RBAC** (`20260707030000_roles_permissions.sql`): `roles` (assignable custom roles; `is_system` rows mirror the `user_role` enum), `permissions` (code-defined `category.action` capability catalogue), `role_permissions` (role × permission matrix).
+- `saved_views` — per-user named filter/sort views for the opportunity list (owner-only; `scope`, `filters` JSONB; `20260707010000`).
+- `api_tokens` — hashed bearer tokens for the external-agent REST API (`token_hash`/`token_prefix`, `last_used_at`, `expires_at`, `revoked_at`; `20260711000000`).
 
 ---
