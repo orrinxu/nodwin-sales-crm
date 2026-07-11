@@ -3,10 +3,22 @@ import type { Database } from "@/lib/database.types"
 import { createServerClient as createSsrClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { env } from "../security/env"
+import { getApiUserJwt } from "@/lib/api/request-user"
 
 let warned = false
 
 export async function createServerClient() {
+  // REST-API-token path: a per-user JWT was minted upstream (see lib/api). Use a
+  // stateless client authed with it — no cookies — so RLS runs as that user.
+  const apiJwt = getApiUserJwt()
+  if (apiJwt) {
+    return createSsrClient<Database>(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+      cookies: { getAll: () => [], setAll: () => {} },
+      global: { headers: { Authorization: `Bearer ${apiJwt}` } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+  }
+
   const cookieStore = await cookies()
 
   // Only use service_role for local/preview when NODE_ENV is not production
