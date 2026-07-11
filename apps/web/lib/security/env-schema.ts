@@ -11,6 +11,11 @@ export const envSchema = z.object({
   SUPABASE_URL: z.string().url(),
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  // Self-host Supabase JWT secret (GoTrue's JWT_SECRET). Used to mint a
+  // short-lived per-user JWT for REST-API-token callers so Postgres RLS applies.
+  // Optional so the app boots without it — the token API 503s until it is set.
+  // MUST be rotated off the quick-start default before production.
+  SUPABASE_JWT_SECRET: z.string().optional(),
   POSTMARK_WEBHOOK_SECRET: z.string().min(1),
   RESEND_API_KEY: z.string().optional(),
   RESEND_DOMAIN: z.string().optional(),
