@@ -202,7 +202,7 @@ function ApprovalPill({ status }: { status: string }) {
       : s.includes("reject")
         ? "bg-destructive/10 text-destructive"
         : s.includes("pending")
-          ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"
+          ? "bg-warning/10 text-warning"
           : "bg-muted text-muted-foreground"
   return (
     <span className={cn("inline-flex w-fit items-center rounded-md px-2 py-0.5 text-[12px] font-semibold", tone)}>
@@ -538,15 +538,15 @@ export function OpportunityDetailWrapper({
       </Card>
 
       {enforceGateStatus.isBlocked && (
-        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
-          <TriangleAlert className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div className="flex items-start gap-3 rounded-lg border border-warning/50 bg-warning/10 p-4">
+          <TriangleAlert className="mt-0.5 size-5 shrink-0 text-warning" />
           <div className="space-y-1">
-            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Approval required to advance past this stage</p>
-            <p className="text-xs text-amber-700 dark:text-amber-300">
+            <p className="text-sm font-medium text-warning">Approval required to advance past this stage</p>
+            <p className="text-xs text-warning">
               This stage requires an approved approval before you can move forward. See the{" "}
               <button
                 type="button"
-                className="underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-100"
+                className="underline underline-offset-2 hover:text-warning/80"
                 onClick={() => document.getElementById("approval-history-section")?.scrollIntoView({ behavior: "smooth" })}
               >
                 Approval

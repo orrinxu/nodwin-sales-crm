@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Work in flight on feature branches (not yet merged to `main`): admin landing page,
 ORR-661, and cash-flow milestone follow-ups.
 
+## 2026-07-12
+
+### Changed
+
+- **Opportunity components use semantic color tokens (UI Convention Retrofit P1-T2, ORR-666, #245):** routed the remaining `amber-*`/`green-*` Tailwind literals in `opportunity-card.tsx`, `opportunity-detail-wrapper.tsx`, and `opportunity-splits-editor.tsx` to the existing `--warning`/`--success` tokens (`bg-warning/*`, `text-warning`, `text-success`). Redundant `dark:` amber variants dropped — the tokens carry their own dark values. Parity change only; no behaviour or layout change.
+
 ## 2026-07-11
 
 ### Added
