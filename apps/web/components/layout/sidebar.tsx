@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   KeyRound,
   Landmark,
+  Coins,
   ClipboardCheck,
   Mail,
   Sparkles,
@@ -65,6 +66,7 @@ const navigation = [
 
 const adminItems = [
   { name: "Organisation", href: "/admin/organisation", icon: Landmark },
+  { name: "Finance", href: "/admin/finance", icon: Coins },
   { name: "Users", href: "/admin/users", icon: Users },
   { name: "Roles & Permissions", href: "/admin/roles", icon: KeyRound },
   { name: "Custom Fields", href: "/admin/field-definitions", icon: Sliders },
