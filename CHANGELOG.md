@@ -18,6 +18,10 @@ ORR-661, and cash-flow milestone follow-ups.
 
 - **Opportunity components use semantic color tokens (UI Convention Retrofit P1-T2, ORR-666, #245):** routed the remaining `amber-*`/`green-*` Tailwind literals in `opportunity-card.tsx`, `opportunity-detail-wrapper.tsx`, and `opportunity-splits-editor.tsx` to the existing `--warning`/`--success` tokens (`bg-warning/*`, `text-warning`, `text-success`). Redundant `dark:` amber variants dropped — the tokens carry their own dark values. Parity change only; no behaviour or layout change.
 
+### Docs
+
+- **UI Convention Retrofit — Phase 1 baseline (ORR-664, ORR-665, #244):** added the canonical UI convention at `docs/ui-conventions.md` (canonical primitives, save model, token rules, banked decisions, open conflicts), preserved the signed-off Phase-0 discovery note at `docs/retrofit/phase-0-discovery.md`, and committed the three approved design mocks under `docs/retrofit/mocks/`. Resolves decision C2 (Orrin, 2026-07-12): the approved mocks are canonical, so Files becomes a facet tab (pinned RFP/Proposal/Contract slots on Overview), superseding the earlier Files-inline position. Docs only; no product code.
+
 ## 2026-07-11
 
 ### Added
