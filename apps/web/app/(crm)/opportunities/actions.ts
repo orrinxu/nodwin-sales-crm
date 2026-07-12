@@ -45,7 +45,6 @@ export async function createOpportunityAction(input: unknown) {
   const ctx = { user, source: "web" as const }
   const opportunity = await createOpportunity(ctx, parsed)
   revalidatePath("/opportunities")
-  revalidatePath("/pipeline")
   return opportunity
 }
 
@@ -55,7 +54,6 @@ export async function saveViewAction(input: unknown) {
   const parsed = saveViewInputSchema.parse(input)
   const view = await saveView(ctx, parsed)
   revalidatePath("/opportunities")
-  revalidatePath("/pipeline")
   return view
 }
 
@@ -65,7 +63,6 @@ export async function deleteSavedViewAction(id: unknown) {
   const viewId = z.string().uuid().parse(id)
   await deleteSavedView(ctx, viewId)
   revalidatePath("/opportunities")
-  revalidatePath("/pipeline")
 }
 
 export async function updateOpportunityAction(id: string, input: unknown) {
@@ -138,7 +135,6 @@ export async function updateOpportunityStageAction(
   const ctx = { user, source: "web" as const }
   const opportunity = await updateOpportunityStage(ctx, id, parsed)
   revalidatePath("/opportunities")
-  revalidatePath("/pipeline")
   return opportunity
 }
 
@@ -148,7 +144,6 @@ export async function bulkUpdateOpportunityStageAction(input: unknown) {
   const ctx = { user, source: "web" as const }
   await bulkUpdateOpportunityStage(ctx, parsed)
   revalidatePath("/opportunities")
-  revalidatePath("/pipeline")
 }
 
 export async function bulkDeleteOpportunitiesAction(input: unknown) {
@@ -157,7 +152,6 @@ export async function bulkDeleteOpportunitiesAction(input: unknown) {
   const ctx = { user, source: "web" as const }
   await bulkDeleteOpportunities(ctx, parsed)
   revalidatePath("/opportunities")
-  revalidatePath("/pipeline")
 }
 
 export async function updateOpportunitySplitsAction(

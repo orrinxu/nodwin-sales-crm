@@ -124,6 +124,14 @@ export type OpportunityScope = "mine" | "all"
 
 export interface OpportunityListParams {
   scope?: OpportunityScope
+  /**
+   * Optional inclusive `close_date` lower bound (`YYYY-MM-DD`). Like `scope`,
+   * this only ever NARROWS the RLS-visible set — it never widens access. Used by
+   * the "Closing This Month" preset; deals with a null close_date are excluded.
+   */
+  closeDateFrom?: string
+  /** Optional inclusive `close_date` upper bound (`YYYY-MM-DD`). */
+  closeDateTo?: string
 }
 
 export async function getOpportunities(
@@ -183,6 +191,15 @@ export async function getOpportunities(
   //   const reportIds = await getReportUserIds(ctx) // via users.manager_user_id
   //   query = query.in("owner_user_id", reportIds)
   // }
+
+  // Close-date window (e.g. "Closing This Month"). Also a pure narrowing filter;
+  // rows with a null close_date fall outside the range and are excluded.
+  if (params.closeDateFrom) {
+    query = query.gte("close_date", params.closeDateFrom)
+  }
+  if (params.closeDateTo) {
+    query = query.lte("close_date", params.closeDateTo)
+  }
 
   const { data, error, count } = await query.order("updated_at", {
     ascending: false,

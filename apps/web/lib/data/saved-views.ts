@@ -4,9 +4,10 @@ import { createServerClient } from "@/lib/supabase/server"
 import type { AuthenticatedUser } from "@/lib/security/auth"
 
 /**
- * Per-user saved views for the opportunity/pipeline list. A view is a named,
+ * Per-user saved views for the opportunities list. A view is a named,
  * reusable bundle of the list's filter/sort state, scoped to a list surface
- * (`mine` = /pipeline, `all` = /opportunities). Owner-only — every read/write is
+ * (`mine` = the My Pipeline scope, `all` = the All Deals scope on the unified
+ * Opportunities surface). Owner-only — every read/write is
  * bound to `ctx.user.id` and the `saved_views` RLS enforces it in the database.
  * Mirrors the user-preferences data layer.
  */
