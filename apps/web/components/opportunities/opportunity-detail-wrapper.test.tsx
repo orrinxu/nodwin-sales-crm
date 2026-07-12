@@ -146,23 +146,23 @@ describe("OpportunityDetailWrapper", () => {
   describe("facet tabs", () => {
     it("renders the record facet tabs", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
-      for (const name of ["Overview", "Details", "Files", "Activity", "Team & Splits", "Cash Plan"]) {
+      for (const name of ["Overview", "Details", "Files", "Activity", "Team & Splits", "P&L"]) {
         expect(screen.getByRole("tab", { name })).toBeInTheDocument()
       }
     })
 
-    it("locks the Cash Plan tab until Verbal Agreement", () => {
+    it("locks the P&L tab until Verbal Agreement", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
-      openTab("Cash Plan")
-      expect(screen.getByText("Cash Plan unlocks at Verbal Agreement")).toBeInTheDocument()
+      openTab("P&L")
+      expect(screen.getByText("P&L unlocks at Verbal Agreement")).toBeInTheDocument()
       // Names the current stage so the user knows how far off it is.
       expect(screen.getByText(/currently at Negotiate/)).toBeInTheDocument()
     })
 
-    it("unlocks the Cash Plan tab at/after Verbal Agreement", () => {
+    it("unlocks the P&L tab at/after Verbal Agreement", () => {
       render(<OpportunityDetailWrapper {...defaultProps} opportunity={makeOpportunity({ stage: "verbal_agreement" })} />)
-      openTab("Cash Plan")
-      expect(screen.queryByText("Cash Plan unlocks at Verbal Agreement")).not.toBeInTheDocument()
+      openTab("P&L")
+      expect(screen.queryByText("P&L unlocks at Verbal Agreement")).not.toBeInTheDocument()
     })
   })
 
