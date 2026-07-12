@@ -8,7 +8,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog"
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
-import type { GenerateOpportunityResult } from "@/app/(crm)/opportunities/generate-actions"
+import type { GenerateOpportunityResult, ExtractFileResult } from "@/app/(crm)/opportunities/generate-actions"
 
 // Opportunity Generator — entry flow + review UI (ORR-677, ticket 4/4).
 //
@@ -26,6 +26,9 @@ type FormProps = React.ComponentProps<typeof OpportunityForm>
 
 type Props = Omit<FormProps, "open" | "onOpenChange" | "prefill" | "banner" | "trigger"> & {
   generateAction: (input: { text: string }) => Promise<GenerateOpportunityResult>
+  /** Server-side text extraction for binary uploads (PDF/DOCX). When absent, only
+   *  pasted text and text files work. */
+  extractFileAction?: (formData: FormData) => Promise<ExtractFileResult>
 }
 
 type Phase = "idle" | "chooser" | "input" | "analysing" | "error"
@@ -33,11 +36,16 @@ type Phase = "idle" | "chooser" | "input" | "analysing" | "error"
 const ANALYSE_STEPS = ["Reading document", "Extracting fields", "Matching to your records"]
 
 const TEXT_FILE = /\.(txt|eml|md|markdown|csv|log|json|text)$/i
+const BINARY_FILE = /\.(pdf|docx)$/i
+const DOCX_MIME =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
-export function OpportunityGenerator({ generateAction, ...formProps }: Props) {
+export function OpportunityGenerator({ generateAction, extractFileAction, ...formProps }: Props) {
   const [phase, setPhase] = useState<Phase>("idle")
   const [text, setText] = useState("")
   const [fileName, setFileName] = useState<string | null>(null)
+  // A dropped PDF/DOCX awaiting server-side text extraction on Analyse.
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [analyseStep, setAnalyseStep] = useState(0)
   const [dragging, setDragging] = useState(false)
@@ -52,6 +60,7 @@ export function OpportunityGenerator({ generateAction, ...formProps }: Props) {
   function reset() {
     setText("")
     setFileName(null)
+    setPendingFile(null)
     setErrorMsg(null)
     setAnalyseStep(0)
   }
@@ -65,17 +74,28 @@ export function OpportunityGenerator({ generateAction, ...formProps }: Props) {
   }
 
   async function handleFile(file: File) {
-    if (!TEXT_FILE.test(file.name) && !file.type.startsWith("text/")) {
-      setErrorMsg("For now, drop a text file (.txt, .eml, .md) or paste the text below. PDF/DOCX support is coming.")
+    const isText = TEXT_FILE.test(file.name) || file.type.startsWith("text/")
+    const isBinary =
+      BINARY_FILE.test(file.name) || file.type === "application/pdf" || file.type === DOCX_MIME
+    if (!isText && !isBinary) {
+      setErrorMsg("Drop a PDF, DOCX, or text file (.txt, .eml, .md), or paste the text below.")
       return
     }
     setErrorMsg(null)
-    setText(await file.text())
     setFileName(file.name)
+    if (isText) {
+      // Text files read directly in the browser — no server round-trip.
+      setPendingFile(null)
+      setText(await file.text())
+    } else {
+      // PDF/DOCX are extracted server-side when the user hits Analyse.
+      setText("")
+      setPendingFile(file)
+    }
   }
 
   async function onAnalyse() {
-    if (!text.trim()) {
+    if (!text.trim() && !pendingFile) {
       setErrorMsg("Paste or drop a document first.")
       return
     }
@@ -85,7 +105,24 @@ export function OpportunityGenerator({ generateAction, ...formProps }: Props) {
     const t1 = setTimeout(() => setAnalyseStep(1), 1200)
     const t2 = setTimeout(() => setAnalyseStep(2), 3200)
     try {
-      const res = await generateAction({ text })
+      // A PDF/DOCX is turned into text server-side first; pasted text/text files
+      // are already in `text`.
+      let docText = text
+      if (pendingFile) {
+        if (!extractFileAction) throw new Error("no-extractor")
+        const fd = new FormData()
+        fd.append("file", pendingFile)
+        const ex = await extractFileAction(fd)
+        if (!ex.ok || !ex.text) {
+          clearTimeout(t1)
+          clearTimeout(t2)
+          setPhase("error")
+          setErrorMsg(ex.error ?? "Couldn't read that file. Try another, or paste the text.")
+          return
+        }
+        docText = ex.text
+      }
+      const res = await generateAction({ text: docText })
       clearTimeout(t1)
       clearTimeout(t2)
       if (!res.ok) {
@@ -156,19 +193,19 @@ export function OpportunityGenerator({ generateAction, ...formProps }: Props) {
                 className={`flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed p-4 text-center text-sm transition ${dragging ? "border-primary bg-accent" : "border-muted-foreground/30"}`}
               >
                 <UploadCloud className="size-5 text-muted-foreground" />
-                {fileName ? <span className="font-medium">{fileName}</span> : <span>Drop a text file here, or click to choose</span>}
-                <span className="text-xs text-muted-foreground">.txt, .eml, .md — PDF/DOCX coming soon</span>
+                {fileName ? <span className="font-medium">{fileName}</span> : <span>Drop a PDF, DOCX, or text file here, or click to choose</span>}
+                <span className="text-xs text-muted-foreground">.pdf, .docx, .txt, .eml, .md</span>
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".txt,.eml,.md,.markdown,.csv,.log,.json,text/*"
+                  accept=".pdf,.docx,.txt,.eml,.md,.markdown,.csv,.log,.json,application/pdf,text/*"
                   className="hidden"
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f) }}
                 />
               </div>
               <textarea
                 value={text}
-                onChange={(e) => { setText(e.target.value); setFileName(null) }}
+                onChange={(e) => { setText(e.target.value); setFileName(null); setPendingFile(null) }}
                 placeholder="…or paste the RFP / email chain here."
                 rows={7}
                 className="w-full resize-y rounded-md border bg-transparent p-2 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -176,7 +213,7 @@ export function OpportunityGenerator({ generateAction, ...formProps }: Props) {
               {errorMsg && <p className="text-sm text-destructive">{errorMsg}</p>}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setPhase("chooser")}>Back</Button>
-                <Button type="button" onClick={onAnalyse} disabled={!text.trim()}>
+                <Button type="button" onClick={onAnalyse} disabled={!text.trim() && !pendingFile}>
                   <Sparkles className="size-4" /> Analyse
                 </Button>
               </DialogFooter>

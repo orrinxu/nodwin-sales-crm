@@ -3,6 +3,7 @@
 import { z } from "zod"
 import { requireUser } from "@/lib/security/auth"
 import { extractOpportunityFromText } from "@/lib/ai/opportunity-extraction"
+import { extractText, UnsupportedMimeError, DOCX_MIME } from "@/lib/ingestion/extract"
 import {
   resolveExtractedOpportunity,
   type OpportunityPrefill,
@@ -31,6 +32,57 @@ export interface GenerateOpportunityResult {
   /** No AI provider configured — the UI shows a "configure a provider" hint. */
   unconfigured?: boolean
   error?: string
+}
+
+export interface ExtractFileResult {
+  ok: boolean
+  text?: string
+  error?: string
+}
+
+// Max upload the generator will read server-side. The extracted text still
+// passes through generateOpportunityAction's 200k cap before hitting the model.
+const MAX_FILE_BYTES = 15 * 1024 * 1024
+
+function inferMime(name: string, type: string): string {
+  if (type) return type
+  const lower = name.toLowerCase()
+  if (lower.endsWith(".pdf")) return "application/pdf"
+  if (lower.endsWith(".docx")) return DOCX_MIME
+  return "application/octet-stream"
+}
+
+/**
+ * Extract plain text from an uploaded PDF / DOCX (or text file) for the
+ * Opportunity Generator. Reuses the shared ingestion extractor. Text files are
+ * read on the client; this handles the binary formats. Never creates anything.
+ */
+export async function extractDocumentTextAction(formData: FormData): Promise<ExtractFileResult> {
+  await requireUser()
+
+  const file = formData.get("file")
+  if (!(file instanceof File)) return { ok: false, error: "No file provided." }
+  if (file.size === 0) return { ok: false, error: "That file is empty." }
+  if (file.size > MAX_FILE_BYTES) {
+    return { ok: false, error: "That file is too large — max 15 MB." }
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  const mimeType = inferMime(file.name, file.type)
+
+  try {
+    const segments = await extractText({ bytes, mimeType })
+    const text = segments.map((s) => s.text).join("\n\n").trim()
+    if (!text) {
+      return { ok: false, error: "No readable text found — a scanned PDF has no text layer to read." }
+    }
+    return { ok: true, text }
+  } catch (err) {
+    if (err instanceof UnsupportedMimeError) {
+      return { ok: false, error: "That file type isn't supported. Try a PDF, DOCX, or text file." }
+    }
+    return { ok: false, error: "Couldn't read that file. Try another, or paste the text below." }
+  }
 }
 
 export async function generateOpportunityAction(raw: unknown): Promise<GenerateOpportunityResult> {

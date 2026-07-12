@@ -16,6 +16,7 @@ ORR-661, and cash-flow milestone follow-ups.
 
 ### Added
 
+- **Opportunity Generator now accepts PDF and DOCX uploads (ORR-684):** dropping a real RFP file into the "Generate from a document" flow now works, not just `.txt`/`.eml`/`.md`. A new `extractDocumentTextAction` server action pulls text from the upload via the shared ingestion extractor (`lib/ingestion/extract.ts`) — PDF was already supported there (unpdf); this adds **DOCX** parsing (mammoth), which also benefits document ingestion. Text files are still read in the browser (no round-trip); PDF/DOCX go server-side (15 MB cap, scanned-PDF "no text layer" message). `extractText` was decoupled from the Drive `DriveFile` type to a minimal `{bytes, mimeType}` shape. Chooser copy/accept-list updated; the "PDF/DOCX coming soon" note is gone.
 - **`<SaveBar>` primitive — unified unsaved-changes bar (UI Convention Retrofit P1-T6 / G1, ORR-671, #250):** `primitives/save-bar.tsx` — a fixed bottom bar that slides in while a form/section has unsaved changes and offers Save / Discard (with a saving state), plus unit tests. Implements the app-wide save model (not autosave). Not yet adopted — the opportunity and settings recompositions wire it in.
 
 ### Changed

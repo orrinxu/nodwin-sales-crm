@@ -29,7 +29,7 @@ import { OpportunityCard } from "@/components/opportunities/opportunity-card"
 import { OpportunityColumn } from "@/components/opportunities/opportunity-column"
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
 import { OpportunityGenerator } from "@/components/opportunities/opportunity-generator"
-import type { GenerateOpportunityResult } from "@/app/(crm)/opportunities/generate-actions"
+import type { GenerateOpportunityResult, ExtractFileResult } from "@/app/(crm)/opportunities/generate-actions"
 import { OpportunityQuickCreate } from "@/components/opportunities/opportunity-quick-create"
 
 interface OpportunityBoardProps {
@@ -42,6 +42,7 @@ interface OpportunityBoardProps {
   createAction: (input: OpportunityCreateInput) => Promise<OpportunityRecord>
   /** ORR-677: when provided, "Create Opportunity" opens the AI generator chooser. */
   generateAction?: (input: { text: string }) => Promise<GenerateOpportunityResult>
+  extractFileAction?: (formData: FormData) => Promise<ExtractFileResult>
   updateStageAction: (
     id: string,
     input: { stage: string },
@@ -61,6 +62,7 @@ export function OpportunityBoard({
   users,
   createAction,
   generateAction,
+  extractFileAction,
   updateStageAction,
   searchAccountsAction,
   searchContactsAction,
@@ -157,6 +159,7 @@ export function OpportunityBoard({
               users={users}
               createAction={createAction}
               generateAction={generateAction}
+              extractFileAction={extractFileAction}
               onSuccess={() => router.refresh()}
               searchAccountsAction={searchAccountsAction}
               searchContactsAction={searchContactsAction}

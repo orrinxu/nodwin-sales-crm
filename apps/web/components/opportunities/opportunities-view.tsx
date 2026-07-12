@@ -21,7 +21,7 @@ import { OpportunityBoard } from "@/components/opportunities/opportunity-board"
 import { OpportunityListTable } from "@/components/opportunities/opportunity-list-table"
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
 import { OpportunityGenerator } from "@/components/opportunities/opportunity-generator"
-import type { GenerateOpportunityResult } from "@/app/(crm)/opportunities/generate-actions"
+import type { GenerateOpportunityResult, ExtractFileResult } from "@/app/(crm)/opportunities/generate-actions"
 
 interface OpportunitiesViewProps {
   opportunities: OpportunityRecord[]
@@ -33,6 +33,8 @@ interface OpportunitiesViewProps {
   createAction: (input: OpportunityCreateInput) => Promise<OpportunityRecord>
   /** ORR-677: when provided, "Create Opportunity" opens the AI generator chooser. */
   generateAction?: (input: { text: string }) => Promise<GenerateOpportunityResult>
+  /** ORR-684: server-side text extraction for PDF/DOCX uploads in the generator. */
+  extractFileAction?: (formData: FormData) => Promise<ExtractFileResult>
   updateStageAction: (id: string, input: { stage: string }) => Promise<OpportunityRecord>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
   bulkUpdateStageAction: (input: { ids: string[]; stage: string }) => Promise<void>
@@ -75,6 +77,7 @@ export function OpportunitiesView({
   users,
   createAction,
   generateAction,
+  extractFileAction,
   updateStageAction,
   bulkDeleteAction,
   bulkUpdateStageAction,
@@ -110,6 +113,7 @@ export function OpportunitiesView({
       users={users}
       createAction={createAction}
       generateAction={generateAction}
+      extractFileAction={extractFileAction}
       onSuccess={() => router.refresh()}
       searchAccountsAction={searchAccountsAction}
       searchContactsAction={searchContactsAction}
@@ -195,6 +199,7 @@ export function OpportunitiesView({
           users={users}
           createAction={createAction}
           generateAction={generateAction}
+          extractFileAction={extractFileAction}
           updateStageAction={updateStageAction}
           searchAccountsAction={searchAccountsAction}
           searchContactsAction={searchContactsAction}
