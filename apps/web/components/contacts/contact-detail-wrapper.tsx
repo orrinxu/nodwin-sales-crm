@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useState } from "react"
 import { Pencil, Mail, Phone } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -9,12 +10,15 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { OwnerLink } from "@/components/people/owner-link"
 import { ContactForm } from "@/components/contacts/contact-form"
-import type { ContactRecord, ContactCreateInput, AccountOption } from "@/lib/data/contacts"
-import type { FieldDefinition } from "@/lib/data/field-definitions.types"
-import type { ActivityRecord } from "@/lib/data/activities"
 import { CustomFieldsDisplay } from "@/components/contacts/custom-fields-display"
 import { ActivityComposer } from "@/components/opportunities/activity-composer"
 import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
+import { FacetTabs, FacetTabsList, FacetTabsTab, FacetTabsPanel } from "@/components/primitives/facet-tabs"
+import { RecordHeader } from "@/components/primitives/record-header"
+import { DefinitionField, DefinitionFieldGrid } from "@/components/primitives/definition-grid"
+import type { ContactRecord, ContactCreateInput, AccountOption } from "@/lib/data/contacts"
+import type { FieldDefinition } from "@/lib/data/field-definitions.types"
+import type { ActivityRecord } from "@/lib/data/activities"
 
 interface ContactDetailWrapperProps {
   contact: ContactRecord
@@ -36,14 +40,7 @@ const SOCIAL_LABELS: Record<string, string> = {
   whatsapp: "WhatsApp",
 }
 
-function Field({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="grid gap-1">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-sm font-medium">{value}</dd>
-    </div>
-  )
-}
+const CARD_HEADING = "text-[13.5px] font-semibold tracking-[-0.01em]"
 
 export function ContactDetailWrapper({
   contact,
@@ -56,163 +53,148 @@ export function ContactDetailWrapper({
   createActivityAction,
 }: ContactDetailWrapperProps) {
   const router = useRouter()
+  const [tab, setTab] = useState("details")
 
   const accountName = (id: string) => accounts.find((a) => a.id === id)?.name ?? id
   const primaryAccount = contact.primaryAccountId
     ? accounts.find((a) => a.id === contact.primaryAccountId) ?? null
     : null
-  // Additional account links, excluding the primary (shown separately).
-  const otherLinkedAccountIds = linkedAccountIds.filter(
-    (id) => id !== contact.primaryAccountId,
-  )
+  const otherLinkedAccountIds = linkedAccountIds.filter((id) => id !== contact.primaryAccountId)
   const socialEntries = Object.entries(contact.socials).filter(([, v]) => v)
 
+  const emailEl = contact.email ? (
+    <a href={`mailto:${contact.email}`} className="inline-flex items-center gap-1 text-primary hover:underline">
+      <Mail className="size-3" />
+      {contact.email}
+    </a>
+  ) : undefined
+
+  const phoneEl = contact.phone ? (
+    <a href={`tel:${contact.phone}`} className="inline-flex items-center gap-1 text-primary hover:underline">
+      <Phone className="size-3" />
+      {contact.phone}
+    </a>
+  ) : undefined
+
+  const primaryAccountEl = primaryAccount ? (
+    <Link href={`/accounts/${primaryAccount.id}`} className="text-primary hover:underline">
+      {primaryAccount.name}
+    </Link>
+  ) : undefined
+
+  const ownerEl = <OwnerLink userId={contact.ownerUserId} name={ownerName} />
+
+  const dash = <span className="text-muted-foreground">—</span>
+
+  const editButton = (
+    <ContactForm
+      contact={contact}
+      accounts={accounts}
+      linkedAccountIds={linkedAccountIds}
+      fieldDefinitions={fieldDefinitions}
+      createAction={async () => {
+        throw new Error("Not available")
+      }}
+      updateAction={updateAction}
+      onSuccess={() => router.refresh()}
+      trigger={
+        <Button variant="outline" size="sm">
+          <Pencil className="size-4" />
+          Edit
+        </Button>
+      }
+    />
+  )
+
   return (
-    <div>
-      <div className="flex flex-1 flex-col gap-6 p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {contact.fullName}
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {contact.title ?? "Contact"}
-            </p>
-          </div>
-          <div className="shrink-0">
-            <ContactForm
-              contact={contact}
-              accounts={accounts}
-              linkedAccountIds={linkedAccountIds}
-              fieldDefinitions={fieldDefinitions}
-              createAction={async () => { throw new Error("Not available") }}
-              updateAction={updateAction}
-              onSuccess={() => {
-                router.refresh()
-              }}
-              trigger={
-                <Button variant="outline" size="sm">
-                  <Pencil className="size-4" />
-                  Edit
-                </Button>
-              }
-            />
-          </div>
-        </div>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <dl className="grid grid-cols-2 gap-4">
-              <Field
-                label="Email"
-                value={
-                  contact.email ? (
-                    <a
-                      href={`mailto:${contact.email}`}
-                      className="inline-flex items-center gap-1 text-primary hover:underline"
-                    >
-                      <Mail className="size-3" />
-                      {contact.email}
-                    </a>
-                  ) : (
-                    "—"
-                  )
-                }
-              />
-              <Field
-                label="Phone"
-                value={
-                  contact.phone ? (
-                    <a
-                      href={`tel:${contact.phone}`}
-                      className="inline-flex items-center gap-1 text-primary hover:underline"
-                    >
-                      <Phone className="size-3" />
-                      {contact.phone}
-                    </a>
-                  ) : (
-                    "—"
-                  )
-                }
-              />
-              <Field label="Title" value={contact.title ?? "—"} />
-              <Field
-                label="Primary Account"
-                value={
-                  primaryAccount ? (
-                    <Link
-                      href={`/accounts/${primaryAccount.id}`}
-                      className="text-primary hover:underline"
-                    >
-                      {primaryAccount.name}
-                    </Link>
-                  ) : (
-                    "—"
-                  )
-                }
-              />
-              <Field
-                label="Owner"
-                value={<OwnerLink userId={contact.ownerUserId} name={ownerName} />}
-              />
-            </dl>
+    <div className="relative flex flex-col gap-4 p-6">
+      <RecordHeader
+        title={contact.fullName}
+        subtitle={contact.title ?? "Contact"}
+        actions={editButton}
+        stats={[
+          { label: "Email", value: emailEl ?? dash },
+          { label: "Phone", value: phoneEl ?? dash },
+          { label: "Primary account", value: primaryAccountEl ?? dash },
+          { label: "Owner", value: ownerEl },
+        ]}
+      />
 
-            {otherLinkedAccountIds.length > 0 && (
-              <div className="grid gap-1">
-                <dt className="text-xs text-muted-foreground">Also linked to</dt>
-                <dd className="flex flex-wrap gap-1.5">
-                  {otherLinkedAccountIds.map((id) => (
-                    <Link key={id} href={`/accounts/${id}`}>
-                      <Badge variant="outline" className="hover:bg-accent">
-                        {accountName(id)}
-                      </Badge>
-                    </Link>
-                  ))}
-                </dd>
-              </div>
-            )}
+      <FacetTabs value={tab} onValueChange={(v) => setTab(v as string)}>
+        <FacetTabsList>
+          <FacetTabsTab value="details">Details</FacetTabsTab>
+          <FacetTabsTab value="activity">Activity</FacetTabsTab>
+        </FacetTabsList>
 
-            {socialEntries.length > 0 && (
-              <div className="grid gap-1">
-                <dt className="text-xs text-muted-foreground">Social</dt>
-                <dd className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                  {socialEntries.map(([key, value]) => (
-                    <span key={key}>
-                      <span className="text-muted-foreground">
-                        {/* eslint-disable-next-line security/detect-object-injection -- static label map, key falls back to itself */}
-                        {SOCIAL_LABELS[key.toLowerCase()] ?? key}:
-                      </span>{" "}
-                      {value}
-                    </span>
-                  ))}
-                </dd>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* DETAILS */}
+        <FacetTabsPanel value="details" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-0">
+              <CardTitle className={CARD_HEADING}>Contact details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <DefinitionFieldGrid>
+                <DefinitionField label="Email" emptyMode="dash">{emailEl}</DefinitionField>
+                <DefinitionField label="Phone" emptyMode="dash">{phoneEl}</DefinitionField>
+                <DefinitionField label="Title" value={contact.title} emptyMode="dash" />
+                <DefinitionField label="Primary account" emptyMode="dash">{primaryAccountEl}</DefinitionField>
+                <DefinitionField label="Owner">{ownerEl}</DefinitionField>
+              </DefinitionFieldGrid>
 
-        <CustomFieldsDisplay
-          fieldDefinitions={fieldDefinitions}
-          customData={contact.customData}
-        />
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Notes</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <ActivityComposer
-              revalidateId={contact.id}
-              scope={{ contactId: contact.id, accountId: contact.primaryAccountId }}
-              createAction={createActivityAction}
-              onCreated={() => router.refresh()}
-              notesOnly
-            />
-            <ActivityTimeline activities={activities} />
-          </CardContent>
-        </Card>
-      </div>
+              {otherLinkedAccountIds.length > 0 && (
+                <div className="grid gap-1">
+                  <dt className="text-[11.5px] font-medium text-muted-foreground">Also linked to</dt>
+                  <dd className="flex flex-wrap gap-1.5">
+                    {otherLinkedAccountIds.map((id) => (
+                      <Link key={id} href={`/accounts/${id}`}>
+                        <Badge variant="outline" className="hover:bg-accent">{accountName(id)}</Badge>
+                      </Link>
+                    ))}
+                  </dd>
+                </div>
+              )}
+
+              {socialEntries.length > 0 && (
+                <div className="grid gap-1">
+                  <dt className="text-[11.5px] font-medium text-muted-foreground">Social</dt>
+                  <dd className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                    {socialEntries.map(([key, value]) => (
+                      <span key={key}>
+                        <span className="text-muted-foreground">
+                          {/* eslint-disable-next-line security/detect-object-injection -- static label map, key falls back to itself */}
+                          {SOCIAL_LABELS[key.toLowerCase()] ?? key}:
+                        </span>{" "}
+                        {value}
+                      </span>
+                    ))}
+                  </dd>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <CustomFieldsDisplay fieldDefinitions={fieldDefinitions} customData={contact.customData} />
+        </FacetTabsPanel>
+
+        {/* ACTIVITY */}
+        <FacetTabsPanel value="activity">
+          <Card>
+            <CardHeader className="pb-0">
+              <CardTitle className={CARD_HEADING}>Notes</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <ActivityComposer
+                revalidateId={contact.id}
+                scope={{ contactId: contact.id, accountId: contact.primaryAccountId }}
+                createAction={createActivityAction}
+                onCreated={() => router.refresh()}
+                notesOnly
+              />
+              <ActivityTimeline activities={activities} />
+            </CardContent>
+          </Card>
+        </FacetTabsPanel>
+      </FacetTabs>
     </div>
   )
 }
