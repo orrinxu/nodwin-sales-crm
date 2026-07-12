@@ -1144,6 +1144,60 @@ Detailed acceptance criteria for all tickets in this phase are deliberately defe
 
 ---
 
+## Phase 9.6 — Visibility & Roles Model (discovery-driven, gated)
+
+> Added 2026-07-13 from the Visibility & Roles Phase-0 discovery. **None of these are authorised to build.** Each is blocked pending (a) the project lead ratifying decisions **D1–D6** and (b) the named `cto + board + security` sign-off on the open decision it depends on. The engine discovery, decision codification, and open decisions O1–O4 live on the tracking issue in Paperclip: **ORR-713** (parent, carries the `discovery` + `codification` documents). Ticket → tracking-issue map: **T-140 = ORR-714, T-141 = ORR-715, T-142 = ORR-716, T-143 = ORR-717** (all blocked). Ticket order matters: **T-140 is the prerequisite** that makes the superset-role model (D2/D4) actually work.
+
+### T-140 — Explicit region/group visibility paths in the visibility engine
+
+- **Phase:** 9.6 Visibility & Roles
+- **Depends on:** O1 sign-off; D1–D6 ratification
+- **Status:** BLOCKED — awaiting lead ratification of D1–D6 and `cto + board + security` sign-off on O1
+- **Size:** L
+- **Files in scope:** `supabase/migrations/*` (new migration adding branches to `recompute_visibility_for_opportunity` and/or the `opportunities` SELECT policy), `supabase/tests/*`
+- **Approval:** `cto + board + security`
+- **High-risk file change:** yes
+- **Acceptance:** A `regional_head` sees all opportunities within their region/entity scope (as ratified in O1); `group_sales_lead`/`exec` see group-wide per the ratified tier rule; access is granted via a materialised/engine path (not an unenforced permission); Confidential remains firewalled (D5) — no new principal gains Confidential content; pgTAP proves a group deal owned outside the role-holder's manager subtree is now visible, and that a Confidential deal is still invisible; `rls:check` clean; no widening of any other principal's access.
+- **Notes:** Discovery (Q2) confirmed the engine has **no** explicit region/group path — `regional_head`/`group_sales_lead`/`exec` only see deals via the `manager_user_id` tree (standard tier only), and `opportunities.view_all` is granted but **not enforced by RLS**. This is the gap that must close before D2 (superset role) / D4 (no new role) function. **Not authorised to build until D1–D6 are ratified and `cto + board + security` sign-off on O1 is recorded.** O1 must first decide the region grouping semantics and the tier ceiling (all-except-Confidential vs standard-only).
+
+### T-141 — "Direct reports" self-service roster (My Team via manager chain)
+
+- **Phase:** 9.6 Visibility & Roles
+- **Depends on:** O2 sign-off; D1–D6 ratification
+- **Status:** BLOCKED — awaiting lead ratification of D1–D6 and `cto + board + security` sign-off on O2
+- **Size:** M
+- **Files in scope:** `supabase/migrations/*` (loosen the `manager_user_id` write guard for scoped managers + notification/effective-dating), `apps/web/app/(crm)/.../*` (roster UI), `apps/web/lib/data/users.ts`
+- **Approval:** `cto + board + security`
+- **High-risk file change:** yes
+- **Acceptance:** A manager can add/remove a direct report **only** within the guardrail ratified in O2 (recommendation: reps in the manager's own entity/BU); every change is audited and recomputes visibility; the losing manager is handled per O2 (co-sign/notify); removal semantics (hard vs effective-dated) match O2. Confidential unaffected (D5). `rls:check` clean.
+- **Notes:** D3 = "My Team" reuses the single-parent `manager_user_id` chain; **do not** create a `teams`/`team_members` table (it would desync from the engine). **Name it "direct reports", not "team"** — "team" already means `opportunity_team_members` and, in `get_todays_team_usage`, business_unit. Today `manager_user_id` is Super-Admin-only (`prevent_role_escalation` trigger); this ticket deliberately relaxes that for scoped managers — hence the security gate. Design around two engine caveats: manager visibility is standard-tier only, and the reparent trigger doesn't re-fan subordinates' deals. **Not authorised to build until O2 is decided and signed off.**
+
+### T-142 — Break-glass Confidential self-grant (logged + notify named list)
+
+- **Phase:** 9.6 Visibility & Roles
+- **Depends on:** O3 sign-off; D1–D6 ratification
+- **Status:** BLOCKED — awaiting `cto + board + security` decision on O3 (capability may be declined outright)
+- **Size:** M
+- **Files in scope:** `supabase/migrations/*` (a logged self-grant path onto `confidentiality_override_user_ids` / `opportunity_visibility`), `apps/web/...` (break-glass action + audit + notification)
+- **Approval:** `cto + board + security`
+- **High-risk file change:** yes
+- **Acceptance:** *(pending O3 — if the capability is approved)* a permitted principal can self-grant access to **one specific** Confidential deal; the grant is audited with actor/reason, notifies the deal's named list, and never becomes a blanket role; no change to the default firewall (D5) for anyone who doesn't invoke break-glass; pgTAP proves a non-invoking role still cannot read Confidential.
+- **Notes:** This is a **new capability** touching the Confidential firewall, offered as an accountable alternative to a bypass role (D4/D5). O3 may decide **not** to build it at all. **Not authorised to build until O3 is explicitly approved and signed off.** Must preserve the existing named-individuals-only model as the default.
+
+### T-143 — Entity-scope presets in the Opportunities scope selector
+
+- **Phase:** 9.6 Visibility & Roles
+- **Depends on:** O4 sign-off; D1–D6 ratification; the Opportunities scope selector (shipped, ORR-711)
+- **Status:** BLOCKED — awaiting lead ratification of D1–D6 and sign-off on O4
+- **Size:** S
+- **Files in scope:** `apps/web/lib/opportunity/scope-presets.ts`, `apps/web/app/(crm)/opportunities/page.tsx`, `apps/web/components/opportunities/opportunities-view.tsx`
+- **Approval:** `cto + board`
+- **High-risk file change:** no (scope is a UI filter that must only narrow within access)
+- **Acceptance:** multi-entity users get the entity scope presets ratified in O4; each preset **only narrows** the RLS-visible set (never widens — proven by a test that the scoped result is a subset of All Deals); presets derive from the user's role/entity grants per O4; single-entity users are unaffected.
+- **Notes:** Extends the ORR-711 scope-preset system (`scope-presets.ts`) with per-entity chips for multi-entity users (D1). **Scope, not access** — this must be provably incapable of widening RLS. More meaningful **after** T-140 (so a regional user's "all region" preset has data), but does not hard-depend on it. **Not authorised to build until O4 is decided.**
+
+---
+
 ## What comes after T-135
 
 Phase 9.5 ends with the MCP server reviewed and live. After that:
