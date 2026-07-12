@@ -1,6 +1,6 @@
 /// <reference types="@testing-library/jest-dom/vitest" />
 import { describe, it, expect, vi } from "vitest"
-import { render, screen } from "@testing-library/react"
+import { render, screen, fireEvent } from "@testing-library/react"
 import { AccountDetailWrapper } from "./account-detail-wrapper"
 import type { AccountRecord, AccountRelationshipGraph, AccountOpportunity } from "@/lib/data/accounts"
 import type { DocumentSummary } from "@/lib/data/documents"
@@ -16,6 +16,7 @@ vi.mock("@/components/accounts/account-form", () => ({
   AccountForm: ({ trigger }: { trigger?: React.ReactNode }) => (
     <div data-testid="account-form">{trigger}</div>
   ),
+  TAX_CF_KEYS: [] as string[],
 }))
 
 vi.mock("@/components/contacts/custom-fields-display", () => ({
@@ -161,307 +162,190 @@ const defaultProps = {
   createActivityAction: vi.fn(),
 }
 
-describe("AccountDetailWrapper", () => {
-  describe("smoke", () => {
-    it("renders without throwing", () => {
-      expect(() => <AccountDetailWrapper {...defaultProps} />).not.toThrow()
-    })
-  })
+// The detail body is organised into facet tabs; inactive panels are unmounted.
+const openTab = (name: string | RegExp) => fireEvent.click(screen.getByRole("tab", { name }))
 
-  describe("header", () => {
-    it("renders the account name", () => {
+describe("AccountDetailWrapper", () => {
+  describe("header + rail (always visible)", () => {
+    it("renders the account name heading", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
       expect(screen.getByRole("heading", { name: "Test Corp" })).toBeInTheDocument()
     })
 
-    it("renders the industry badge", () => {
+    it("renders the industry as the header subtitle", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
-      const badges = screen.getAllByText("Technology")
-      expect(badges.length).toBeGreaterThanOrEqual(1)
+      expect(screen.getAllByText("Technology").length).toBeGreaterThanOrEqual(1)
     })
 
-    it("renders the owner name", () => {
+    it("renders the owner in the stat strip", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
-      const ownerEls = screen.getAllByText("Charlie Owner")
-      expect(ownerEls.length).toBeGreaterThanOrEqual(1)
+      expect(screen.getAllByText("Charlie Owner").length).toBeGreaterThanOrEqual(1)
     })
 
     it("renders 'Unassigned' when ownerName is null", () => {
-      render(
-        <AccountDetailWrapper {...defaultProps} ownerName={null} />,
-      )
+      render(<AccountDetailWrapper {...defaultProps} ownerName={null} />)
       expect(screen.getByText("Unassigned")).toBeInTheDocument()
     })
 
-    it("renders edit button", () => {
+    it("renders the edit button + form", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
       expect(screen.getByText("Edit")).toBeInTheDocument()
-    })
-
-    it("renders account form", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
       expect(screen.getByTestId("account-form")).toBeInTheDocument()
     })
-  })
 
-  describe("Overview card", () => {
-    it("displays legal name", () => {
+    it("shows quick-facts + a brand-guidelines slot in the rail", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Test Corporation LLC")).toBeInTheDocument()
-    })
-
-    it("displays website", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      const websiteEls = screen.getAllByText("testcorp.com")
-      expect(websiteEls.length).toBeGreaterThanOrEqual(1)
-    })
-
-    it("displays country", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("US")).toBeInTheDocument()
-    })
-
-    it("displays industry", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      const industryItems = screen.getAllByText("Technology")
-      expect(industryItems.length).toBeGreaterThanOrEqual(1)
-    })
-
-    it("shows em dash for missing legal name", () => {
-      render(
-        <AccountDetailWrapper
-          {...defaultProps}
-          account={makeAccount({ legalName: null })}
-        />,
-      )
-      expect(screen.getByText("\u2014")).toBeInTheDocument()
-    })
-
-    it("shows em dash for missing website", () => {
-      render(
-        <AccountDetailWrapper
-          {...defaultProps}
-          account={makeAccount({ website: null })}
-        />,
-      )
-      expect(screen.getByText("\u2014")).toBeInTheDocument()
+      expect(screen.getByText("Quick facts")).toBeInTheDocument()
+      expect(screen.getByText("Brand Guidelines")).toBeInTheDocument()
+      // legal name + website appear in the rail (and overview) — at least once.
+      expect(screen.getAllByText("Test Corporation LLC").length).toBeGreaterThanOrEqual(1)
+      expect(screen.getAllByText("testcorp.com").length).toBeGreaterThanOrEqual(1)
     })
   })
 
-  describe("Details card", () => {
-    it("displays owner name", () => {
+  describe("facet tabs", () => {
+    it("renders a tab for each area", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
-      const ownerEls = screen.getAllByText("Charlie Owner")
-      expect(ownerEls.length).toBeGreaterThanOrEqual(1)
-    })
-
-    it("displays email domains as badges", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      const domainEls = screen.getAllByText("testcorp.com")
-      expect(domainEls.length).toBeGreaterThanOrEqual(1)
+      for (const name of ["Overview", "Details", "Contacts", "Opportunities", "Files", "Activity"]) {
+        expect(screen.getByRole("tab", { name })).toBeInTheDocument()
+      }
     })
   })
 
-  describe("description card", () => {
-    it("renders description when present", () => {
+  describe("overview tab (default)", () => {
+    it("shows key-details and recent-activity peeks", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("A leading tech company")).toBeInTheDocument()
+      expect(screen.getByText("Key details")).toBeInTheDocument()
+      expect(screen.getByText("View all details")).toBeInTheDocument()
+      expect(screen.getByText("Recent activity")).toBeInTheDocument()
     })
 
-    it("does not render description card when description is null", () => {
-      render(
-        <AccountDetailWrapper
-          {...defaultProps}
-          account={makeAccount({ description: null })}
-        />,
-      )
-      expect(screen.queryByText("Description")).not.toBeInTheDocument()
-    })
-  })
-
-  describe("custom fields", () => {
-    it("renders custom fields display", () => {
+    it("surfaces country and industry", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByTestId("custom-fields-display")).toBeInTheDocument()
+      expect(screen.getAllByText("US").length).toBeGreaterThanOrEqual(1)
+      expect(screen.getAllByText("Technology").length).toBeGreaterThanOrEqual(1)
     })
-  })
 
-  describe("Contacts card", () => {
-    it("renders contacts heading with count", () => {
+    it("'View all details' jumps to the Details tab", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Contacts (2)")).toBeInTheDocument()
+      fireEvent.click(screen.getByText("View all details"))
+      expect(screen.getByText("Account details")).toBeInTheDocument()
     })
 
-    it("renders contact names as links", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Alice Smith")).toBeInTheDocument()
-      expect(screen.getByText("Bob Jones")).toBeInTheDocument()
-    })
-
-    it("renders contact titles", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("CEO")).toBeInTheDocument()
-      expect(screen.getByText("CTO")).toBeInTheDocument()
-    })
-
-    it("renders contact email links", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      const emailLink = screen.getByText("alice@testcorp.com")
-      expect(emailLink.closest("a")).toHaveAttribute("href", "mailto:alice@testcorp.com")
-    })
-
-    it("does not render contacts card when empty", () => {
-      render(
-        <AccountDetailWrapper {...defaultProps} contacts={[]} />,
-      )
-      expect(screen.queryByText("Contacts")).not.toBeInTheDocument()
-    })
-
-    it("shows the Primary badge for a primary contact", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Primary")).toBeInTheDocument()
-    })
-
-    it("hides attach/detach controls for non-admins", () => {
-      render(<AccountDetailWrapper {...defaultProps} canManageContacts={false} />)
-      expect(screen.queryByRole("button", { name: "Attach" })).not.toBeInTheDocument()
-      expect(screen.queryByLabelText("Detach Bob Jones")).not.toBeInTheDocument()
-    })
-
-    it("shows Attach and a detach control for linked (not primary) contacts when admin", () => {
-      render(<AccountDetailWrapper {...defaultProps} canManageContacts={true} />)
-      expect(screen.getByRole("button", { name: "Attach" })).toBeInTheDocument()
-      // Bob is linked → detachable; Alice is primary → not detachable here.
-      expect(screen.getByLabelText("Detach Bob Jones")).toBeInTheDocument()
-      expect(screen.queryByLabelText("Detach Alice Smith")).not.toBeInTheDocument()
-    })
-
-    it("shows the empty state with Attach for admins when there are no contacts", () => {
-      render(<AccountDetailWrapper {...defaultProps} contacts={[]} canManageContacts={true} />)
-      expect(screen.getByText("Contacts (0)")).toBeInTheDocument()
-      expect(screen.getByText(/No contacts attached yet/)).toBeInTheDocument()
-      expect(screen.getByRole("button", { name: "Attach" })).toBeInTheDocument()
-    })
-  })
-
-  describe("Opportunities card", () => {
-    it("renders opportunities heading with count", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Opportunities (1)")).toBeInTheDocument()
-    })
-
-    it("renders opportunity name as link", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Enterprise Deal")).toBeInTheDocument()
-    })
-
-    it("renders stage badge", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Propose")).toBeInTheDocument()
-    })
-
-    it("renders probability", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("60%")).toBeInTheDocument()
-    })
-
-    it("renders formatted amount", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("$100,000.00")).toBeInTheDocument()
-    })
-
-    it("renders close date", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Dec 15, 2026")).toBeInTheDocument()
-    })
-
-    it("does not render opportunities card when empty", () => {
-      render(
-        <AccountDetailWrapper {...defaultProps} opportunities={[]} />,
-      )
-      expect(screen.queryByText("Opportunities")).not.toBeInTheDocument()
-    })
-  })
-
-  describe("Files module", () => {
-    it("renders the Files heading with count", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Files (1)")).toBeInTheDocument()
-    })
-
-    it("renders document name", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      // Appears in both the pinned Contract slot and the full list.
-      expect(screen.getAllByText("Contract.pdf").length).toBeGreaterThanOrEqual(1)
-    })
-
-    it("promotes a Documents band with pinned RFP/Proposal/Contract slots", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("RFP")).toBeInTheDocument()
-      expect(screen.getByText("Proposal")).toBeInTheDocument()
-      // The contract slot is filled; RFP/Proposal are empty.
-      expect(screen.getAllByText("None yet")).toHaveLength(2)
-    })
-
-    it("groups documents by category", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Contract (1)")).toBeInTheDocument()
-    })
-
-    it("renders uploaded date", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
-      expect(screen.getAllByText(/Jun 1, 2026/).length).toBeGreaterThanOrEqual(1)
-    })
-
-    it("still shows the module (upload surface) when there are no files", () => {
-      render(<AccountDetailWrapper {...defaultProps} documents={[]} />)
-      expect(screen.getByText("Files (0)")).toBeInTheDocument()
-    })
-  })
-
-  describe("Relationship tree", () => {
-    it("renders the relationship tree title", () => {
+    it("renders the relationship tree on overview when there are relationships", () => {
       render(<AccountDetailWrapper {...defaultProps} />)
       expect(screen.getByText("Relationship Tree")).toBeInTheDocument()
-    })
-
-    it("renders relationship kind label", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
       expect(screen.getByText("Subsidiary of")).toBeInTheDocument()
-    })
-
-    it("renders related account name", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
       expect(screen.getByText("Parent Inc")).toBeInTheDocument()
-    })
-
-    it("renders relationship notes", () => {
-      render(<AccountDetailWrapper {...defaultProps} />)
       expect(screen.getByText(/Acquired in 2024/)).toBeInTheDocument()
     })
 
     it("does not render the tree when there are no relationships", () => {
-      render(
-        <AccountDetailWrapper {...defaultProps} relationshipGraph={emptyRelationshipGraph} />,
-      )
+      render(<AccountDetailWrapper {...defaultProps} relationshipGraph={emptyRelationshipGraph} />)
       expect(screen.queryByText("Relationship Tree")).not.toBeInTheDocument()
     })
   })
 
-  describe("empty state", () => {
-    it("shows empty message when all linked data is empty", () => {
-      render(
-        <AccountDetailWrapper
-          {...defaultProps}
-          contacts={[]}
-          opportunities={[]}
-          documents={[]}
-          relationshipGraph={emptyRelationshipGraph}
-        />,
-      )
-      expect(
-        screen.getByText("No related contacts, opportunities, documents, or linked accounts yet."),
-      ).toBeInTheDocument()
+  describe("details tab", () => {
+    it("shows account details, description and custom fields", () => {
+      render(<AccountDetailWrapper {...defaultProps} />)
+      openTab("Details")
+      expect(screen.getByText("Account details")).toBeInTheDocument()
+      expect(screen.getByText("A leading tech company")).toBeInTheDocument()
+      expect(screen.getByTestId("custom-fields-display")).toBeInTheDocument()
+      expect(screen.getAllByText("Charlie Owner").length).toBeGreaterThanOrEqual(1)
+    })
+
+    it("omits the description card when description is null", () => {
+      render(<AccountDetailWrapper {...defaultProps} account={makeAccount({ description: null })} />)
+      openTab("Details")
+      expect(screen.queryByText("Description")).not.toBeInTheDocument()
+    })
+
+    it("shows a dash for a missing legal name", () => {
+      render(<AccountDetailWrapper {...defaultProps} account={makeAccount({ legalName: null })} />)
+      openTab("Details")
+      expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1)
+    })
+  })
+
+  describe("contacts tab", () => {
+    it("lists contacts with titles, links and the Primary badge", () => {
+      render(<AccountDetailWrapper {...defaultProps} />)
+      openTab("Contacts")
+      expect(screen.getByText("Contacts (2)")).toBeInTheDocument()
+      expect(screen.getByText("Alice Smith")).toBeInTheDocument()
+      expect(screen.getByText("Bob Jones")).toBeInTheDocument()
+      expect(screen.getByText("CEO")).toBeInTheDocument()
+      expect(screen.getByText("Primary")).toBeInTheDocument()
+      expect(screen.getByText("alice@testcorp.com").closest("a")).toHaveAttribute("href", "mailto:alice@testcorp.com")
+    })
+
+    it("hides attach/detach for non-admins", () => {
+      render(<AccountDetailWrapper {...defaultProps} canManageContacts={false} />)
+      openTab("Contacts")
+      expect(screen.queryByRole("button", { name: "Attach" })).not.toBeInTheDocument()
+      expect(screen.queryByLabelText("Detach Bob Jones")).not.toBeInTheDocument()
+    })
+
+    it("shows Attach + a detach control for linked (not primary) contacts when admin", () => {
+      render(<AccountDetailWrapper {...defaultProps} canManageContacts={true} />)
+      openTab("Contacts")
+      expect(screen.getByRole("button", { name: "Attach" })).toBeInTheDocument()
+      expect(screen.getByLabelText("Detach Bob Jones")).toBeInTheDocument()
+      expect(screen.queryByLabelText("Detach Alice Smith")).not.toBeInTheDocument()
+    })
+
+    it("shows the empty state when there are no contacts", () => {
+      render(<AccountDetailWrapper {...defaultProps} contacts={[]} canManageContacts={true} />)
+      openTab("Contacts")
+      expect(screen.getByText("Contacts (0)")).toBeInTheDocument()
+      expect(screen.getByText(/No contacts attached yet/)).toBeInTheDocument()
+    })
+  })
+
+  describe("opportunities tab", () => {
+    it("lists opportunities with stage, probability, amount and close date", () => {
+      render(<AccountDetailWrapper {...defaultProps} />)
+      openTab("Opportunities")
+      expect(screen.getByText("Opportunities (1)")).toBeInTheDocument()
+      expect(screen.getByText("Enterprise Deal")).toBeInTheDocument()
+      expect(screen.getByText("Propose")).toBeInTheDocument()
+      expect(screen.getByText("60%")).toBeInTheDocument()
+      expect(screen.getByText("$100,000.00")).toBeInTheDocument()
+      expect(screen.getByText("Dec 15, 2026")).toBeInTheDocument()
+    })
+
+    it("shows an empty state when there are no opportunities", () => {
+      render(<AccountDetailWrapper {...defaultProps} opportunities={[]} />)
+      openTab("Opportunities")
+      expect(screen.getByText(/No opportunities for this account yet/)).toBeInTheDocument()
+    })
+  })
+
+  describe("files tab", () => {
+    it("shows the Files module + pinned RFP/Proposal/Contract slots", () => {
+      render(<AccountDetailWrapper {...defaultProps} />)
+      openTab("Files")
+      expect(screen.getByText("Files (1)")).toBeInTheDocument()
+      expect(screen.getAllByText("Contract.pdf").length).toBeGreaterThanOrEqual(1)
+      expect(screen.getByText("RFP")).toBeInTheDocument()
+      expect(screen.getByText("Proposal")).toBeInTheDocument()
+      expect(screen.getByText("Contract (1)")).toBeInTheDocument()
+    })
+
+    it("still shows the module (upload surface) when there are no files", () => {
+      render(<AccountDetailWrapper {...defaultProps} documents={[]} />)
+      openTab("Files")
+      expect(screen.getByText("Files (0)")).toBeInTheDocument()
+    })
+  })
+
+  describe("activity tab", () => {
+    it("renders the Notes composer heading", () => {
+      render(<AccountDetailWrapper {...defaultProps} />)
+      openTab("Activity")
+      expect(screen.getByText("Notes")).toBeInTheDocument()
     })
   })
 })

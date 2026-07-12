@@ -59,11 +59,14 @@ export function PinnedDocumentSlots({
   documents,
   categories,
   visibilityTier,
+  columns = 3,
 }: {
   documents: DocumentSummary[]
   categories: DocumentCategory[]
   /** Optional — omitted (no badge) for records without a tier concept. */
   visibilityTier?: string
+  /** Grid width at the sm breakpoint. Use 1 for a single full-width slot (e.g. the account rail). */
+  columns?: 1 | 2 | 3
 }) {
   async function download(id: string) {
     try {
@@ -75,7 +78,12 @@ export function PinnedDocumentSlots({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div
+      className={cn(
+        "grid grid-cols-1 gap-3",
+        columns === 1 ? "sm:grid-cols-1" : columns === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3",
+      )}
+    >
       {categories.map((cat) => {
         const doc = documents
           .filter((d) => d.category === cat)
