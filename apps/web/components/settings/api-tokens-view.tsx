@@ -28,7 +28,12 @@ function statusOf(t: ApiTokenRecord): { label: string; variant: "default" | "sec
   return { label: "Active", variant: "default" }
 }
 
-export function ApiTokensView({ tokens, createAction, revokeAction }: Props) {
+/**
+ * The token generate/reveal/list UI without page chrome, so it can be dropped
+ * into the standalone `/settings/api-tokens` page (via `ApiTokensView`) or the
+ * "Access tokens" tab of the unified settings page.
+ */
+export function ApiTokensPanel({ tokens, createAction, revokeAction }: Props) {
   const router = useRouter()
   const [name, setName] = useState("")
   const [newToken, setNewToken] = useState<string | null>(null)
@@ -70,18 +75,13 @@ export function ApiTokensView({ tokens, createAction, revokeAction }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-          <KeyRound className="size-5" /> API tokens
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Personal access tokens let an external agent (NanoClaw, OpenClaw, a script) read the CRM
-          <strong> as you</strong> — it only ever sees what you can see. Send it as
-          <code className="mx-1 rounded bg-muted px-1 py-0.5 text-xs">Authorization: Bearer &lt;token&gt;</code>
-          to <code className="rounded bg-muted px-1 py-0.5 text-xs">/api/v1/…</code>.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">
+        Personal access tokens let an external agent (NanoClaw, OpenClaw, a script) read the CRM
+        <strong> as you</strong> — it only ever sees what you can see. Send it as
+        <code className="mx-1 rounded bg-muted px-1 py-0.5 text-xs">Authorization: Bearer &lt;token&gt;</code>
+        to <code className="rounded bg-muted px-1 py-0.5 text-xs">/api/v1/…</code>.
+      </p>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -177,6 +177,20 @@ export function ApiTokensView({ tokens, createAction, revokeAction }: Props) {
           )}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+/** Standalone `/settings/api-tokens` page: the panel with a page header. */
+export function ApiTokensView({ tokens, createAction, revokeAction }: Props) {
+  return (
+    <div className="mx-auto max-w-3xl space-y-6 p-6">
+      <div>
+        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+          <KeyRound className="size-5" /> API tokens
+        </h1>
+      </div>
+      <ApiTokensPanel tokens={tokens} createAction={createAction} revokeAction={revokeAction} />
     </div>
   )
 }

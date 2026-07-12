@@ -30,6 +30,9 @@ import type {
   NotificationEventType,
   NotificationChannel,
 } from "@/lib/data/notifications"
+import { FacetTabs, FacetTabsList, FacetTabsTab, FacetTabsPanel } from "@/components/primitives/facet-tabs"
+import { ApiTokensPanel } from "@/components/settings/api-tokens-view"
+import type { ApiTokenRecord } from "@/lib/data/api-tokens"
 
 const DISPLAY_DEFAULT = "__org_default__"
 const ENTRY_MATCH = "__match_display__"
@@ -56,6 +59,9 @@ interface SettingsViewProps {
     channel: NotificationChannel
     enabled: boolean
   }) => Promise<void>
+  tokens: ApiTokenRecord[]
+  createTokenAction: (input: unknown) => Promise<{ token: string; record: ApiTokenRecord }>
+  revokeTokenAction: (id: string) => Promise<void>
 }
 
 function SavedIndicator({ state }: { state: SaveState }) {
@@ -416,21 +422,31 @@ function AppearanceSection({
 
 // ── Integrations (read-only informational) ──────────────────────────────────────
 
-function IntegrationsSection() {
+function IntegrationsSection({ onOpenTokens }: { onOpenTokens: () => void }) {
+  // Copy reflects what actually ships today (audited 2026-07-12): Drive import is
+  // a live per-user feature; Gmail/Calendar are not connected; Slack delivery is
+  // not available yet; personal access tokens live on the Access tokens tab.
   const rows = [
-    { name: "Google Workspace", detail: "Drive, Gmail and Calendar are configured by your workspace admin.", status: "Not connected" },
-    { name: "Slack", detail: "Slack workspace connection is managed in Admin settings.", status: "Managed by admin" },
-    { name: "AI agent (MCP) token", detail: "Personal MCP tokens for Claude Desktop, Cursor and others.", status: "Coming soon" },
+    {
+      name: "Google Workspace",
+      detail: "Import files from Google Drive on any record — you grant access per file. Gmail and Calendar aren’t connected yet.",
+      status: "Drive only",
+    },
+    {
+      name: "Slack",
+      detail: "Slack notification delivery isn’t available yet.",
+      status: "Coming soon",
+    },
   ]
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Integrations</CardTitle>
-        <CardDescription>Per-user connections aren&rsquo;t available yet — these are managed centrally for now.</CardDescription>
+        <CardDescription>How this CRM connects to the tools you already use.</CardDescription>
       </CardHeader>
       <CardContent className="divide-y">
         {rows.map((r) => (
-          <div key={r.name} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+          <div key={r.name} className="flex items-center justify-between gap-4 py-3 first:pt-0">
             <div>
               <p className="text-sm font-medium">{r.name}</p>
               <p className="text-xs text-muted-foreground">{r.detail}</p>
@@ -438,6 +454,23 @@ function IntegrationsSection() {
             <Badge variant="outline" className="shrink-0">{r.status}</Badge>
           </div>
         ))}
+        <div className="flex items-center justify-between gap-4 py-3 last:pb-0">
+          <div>
+            <p className="text-sm font-medium">Personal access tokens</p>
+            <p className="text-xs text-muted-foreground">
+              Generate and manage tokens for external agents on the{" "}
+              <button
+                type="button"
+                onClick={onOpenTokens}
+                className="font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+              >
+                Access tokens
+              </button>{" "}
+              tab.
+            </p>
+          </div>
+          <Badge variant="outline" className="shrink-0">Available</Badge>
+        </div>
       </CardContent>
     </Card>
   )
@@ -467,7 +500,7 @@ function SecuritySection() {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Security &amp; access</CardTitle>
-        <CardDescription>Sign-in is handled by Google. Listing individual active sessions isn&rsquo;t available.</CardDescription>
+        <CardDescription>You can sign in with Google, an email &amp; password, a magic link, or a one-time email code. Listing individual active sessions isn&rsquo;t available.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap gap-3">
         <Button variant="outline" size="sm" onClick={signOutHere} disabled={pending !== null}>
@@ -491,7 +524,12 @@ export function SettingsView({
   updateLocalizationAction,
   updateAppearanceAction,
   updateNotificationOverrideAction,
+  tokens,
+  createTokenAction,
+  revokeTokenAction,
 }: SettingsViewProps) {
+  const [tab, setTab] = useState("profile")
+
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       <div>
@@ -499,28 +537,59 @@ export function SettingsView({
         <p className="mt-1 text-sm text-muted-foreground">Manage your personal preferences.</p>
       </div>
 
-      <div className="flex max-w-3xl flex-col gap-6">
-        <ProfileSection
-          profile={profile}
-          jobTitle={preferences.jobTitle}
-          updateProfileAction={updateProfileAction}
-        />
-        <LocalizationSection
-          preferences={preferences}
-          currencies={currencies}
-          updateLocalizationAction={updateLocalizationAction}
-        />
-        <NotificationsSection
-          overrides={notificationOverrides}
-          updateNotificationOverrideAction={updateNotificationOverrideAction}
-        />
-        <AppearanceSection
-          preferences={preferences}
-          updateAppearanceAction={updateAppearanceAction}
-        />
-        <IntegrationsSection />
-        <SecuritySection />
-      </div>
+      <FacetTabs value={tab} onValueChange={(v) => setTab(v as string)}>
+        <FacetTabsList>
+          <FacetTabsTab value="profile">Profile</FacetTabsTab>
+          <FacetTabsTab value="localization">Localization</FacetTabsTab>
+          <FacetTabsTab value="notifications">Notifications</FacetTabsTab>
+          <FacetTabsTab value="appearance">Appearance</FacetTabsTab>
+          <FacetTabsTab value="tokens">Access tokens</FacetTabsTab>
+          <FacetTabsTab value="integrations">Integrations</FacetTabsTab>
+          <FacetTabsTab value="security">Security</FacetTabsTab>
+        </FacetTabsList>
+
+        <FacetTabsPanel value="profile" className="max-w-3xl pt-2">
+          <ProfileSection
+            profile={profile}
+            jobTitle={preferences.jobTitle}
+            updateProfileAction={updateProfileAction}
+          />
+        </FacetTabsPanel>
+
+        <FacetTabsPanel value="localization" className="max-w-3xl pt-2">
+          <LocalizationSection
+            preferences={preferences}
+            currencies={currencies}
+            updateLocalizationAction={updateLocalizationAction}
+          />
+        </FacetTabsPanel>
+
+        <FacetTabsPanel value="notifications" className="max-w-3xl pt-2">
+          <NotificationsSection
+            overrides={notificationOverrides}
+            updateNotificationOverrideAction={updateNotificationOverrideAction}
+          />
+        </FacetTabsPanel>
+
+        <FacetTabsPanel value="appearance" className="max-w-3xl pt-2">
+          <AppearanceSection
+            preferences={preferences}
+            updateAppearanceAction={updateAppearanceAction}
+          />
+        </FacetTabsPanel>
+
+        <FacetTabsPanel value="tokens" className="max-w-3xl pt-2">
+          <ApiTokensPanel tokens={tokens} createAction={createTokenAction} revokeAction={revokeTokenAction} />
+        </FacetTabsPanel>
+
+        <FacetTabsPanel value="integrations" className="max-w-3xl pt-2">
+          <IntegrationsSection onOpenTokens={() => setTab("tokens")} />
+        </FacetTabsPanel>
+
+        <FacetTabsPanel value="security" className="max-w-3xl pt-2">
+          <SecuritySection />
+        </FacetTabsPanel>
+      </FacetTabs>
     </div>
   )
 }

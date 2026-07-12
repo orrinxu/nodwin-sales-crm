@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/security/auth"
 import { getUserPreferences, getCurrencyOptions } from "@/lib/data/user-preferences"
 import { getOwnProfile } from "@/lib/data/user-profile"
 import { getUserNotificationOverrides } from "@/lib/data/notifications"
+import { listApiTokens } from "@/lib/data/api-tokens"
 import { SettingsView } from "@/components/settings/settings-view"
 import {
   updateProfileAction,
@@ -9,17 +10,19 @@ import {
   updateAppearanceAction,
   updateNotificationOverrideAction,
 } from "./actions"
+import { createApiTokenAction, revokeApiTokenAction } from "./api-tokens/actions"
 
 // Per-user settings — available to any authenticated user (not admin-gated).
 export default async function SettingsPage() {
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
 
-  const [preferences, profile, currencies, notificationOverrides] = await Promise.all([
+  const [preferences, profile, currencies, notificationOverrides, tokens] = await Promise.all([
     getUserPreferences(ctx),
     getOwnProfile(ctx),
     getCurrencyOptions(ctx),
     getUserNotificationOverrides(ctx, user.id),
+    listApiTokens(ctx),
   ])
 
   return (
@@ -32,6 +35,9 @@ export default async function SettingsPage() {
       updateLocalizationAction={updateLocalizationAction}
       updateAppearanceAction={updateAppearanceAction}
       updateNotificationOverrideAction={updateNotificationOverrideAction}
+      tokens={tokens}
+      createTokenAction={createApiTokenAction}
+      revokeTokenAction={revokeApiTokenAction}
     />
   )
 }
