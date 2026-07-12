@@ -37,6 +37,12 @@ vi.mock("@/components/opportunities/opportunity-form", () => ({
 
 const mockBusinessUnits: BusinessUnitOption[] = [{ id: "bu-1", name: "East Asia Sales" }]
 
+// The record body is organised into facet tabs; inactive panels are unmounted.
+// Helpers to move to a panel before asserting its content.
+function openTab(name: string | RegExp) {
+  fireEvent.click(screen.getByRole("tab", { name }))
+}
+
 function makeOpportunity(overrides: Partial<OpportunityRecord> = {}): OpportunityRecord {
   return {
     id: "opp-1",
@@ -137,8 +143,31 @@ describe("OpportunityDetailWrapper", () => {
     })
   })
 
-  describe("documents band (pinned slots)", () => {
-    it("renders RFP / Proposal / Contract pinned slots, empty by default", () => {
+  describe("facet tabs", () => {
+    it("renders the record facet tabs", () => {
+      render(<OpportunityDetailWrapper {...defaultProps} />)
+      for (const name of ["Overview", "Details", "Files", "Activity", "Team & Splits", "Cash Plan"]) {
+        expect(screen.getByRole("tab", { name })).toBeInTheDocument()
+      }
+    })
+
+    it("locks the Cash Plan tab until Verbal Agreement", () => {
+      render(<OpportunityDetailWrapper {...defaultProps} />)
+      openTab("Cash Plan")
+      expect(screen.getByText("Cash Plan unlocks at Verbal Agreement")).toBeInTheDocument()
+      // Names the current stage so the user knows how far off it is.
+      expect(screen.getByText(/currently at Negotiate/)).toBeInTheDocument()
+    })
+
+    it("unlocks the Cash Plan tab at/after Verbal Agreement", () => {
+      render(<OpportunityDetailWrapper {...defaultProps} opportunity={makeOpportunity({ stage: "verbal_agreement" })} />)
+      openTab("Cash Plan")
+      expect(screen.queryByText("Cash Plan unlocks at Verbal Agreement")).not.toBeInTheDocument()
+    })
+  })
+
+  describe("overview tab (default)", () => {
+    it("shows the pinned document band", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
       expect(screen.getByText("RFP")).toBeInTheDocument()
       expect(screen.getByText("Proposal")).toBeInTheDocument()
@@ -146,6 +175,22 @@ describe("OpportunityDetailWrapper", () => {
       expect(screen.getAllByText("None yet")).toHaveLength(3)
     })
 
+    it("surfaces key details with jump-to-tab links", () => {
+      render(<OpportunityDetailWrapper {...defaultProps} />)
+      expect(screen.getByText("Key details")).toBeInTheDocument()
+      expect(screen.getByText("View all details")).toBeInTheDocument()
+      expect(screen.getByText("Recent activity")).toBeInTheDocument()
+      expect(screen.getByText("Open Activity")).toBeInTheDocument()
+    })
+
+    it("'View all details' jumps to the Details tab", () => {
+      render(<OpportunityDetailWrapper {...defaultProps} />)
+      fireEvent.click(screen.getByText("View all details"))
+      expect(screen.getByText("Deal details")).toBeInTheDocument()
+    })
+  })
+
+  describe("documents band (pinned slots)", () => {
     it("fills a pinned slot with the most-recent doc + display-only tier badge", () => {
       const documents: DocumentSummary[] = [
         { id: "d1", name: "Old RFP.pdf", category: "rfp", mimeType: "application/pdf", sizeBytes: 1000, hasFile: true, driveFileId: null, driveLinkUrl: null, uploadedBy: "u1", uploadedAt: "2026-01-01T00:00:00Z", indexStatus: null },
@@ -158,7 +203,7 @@ describe("OpportunityDetailWrapper", () => {
           opportunity={makeOpportunity({ visibilityTier: "confidential" })}
         />,
       )
-      // Most-recent doc surfaces in the pinned slot (also listed by FilesModule).
+      // Most-recent doc surfaces in the pinned slot on the overview tab.
       expect(screen.getAllByText("New RFP.pdf").length).toBeGreaterThanOrEqual(1)
       // The other two pinned slots stay empty.
       expect(screen.getAllByText("None yet")).toHaveLength(2)
@@ -183,9 +228,10 @@ describe("OpportunityDetailWrapper", () => {
     })
   })
 
-  describe("detail cards", () => {
+  describe("details tab", () => {
     it("renders the focused card headings", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
+      openTab("Details")
       expect(screen.getByText("Deal details")).toBeInTheDocument()
       expect(screen.getByText("Commercials")).toBeInTheDocument()
       expect(screen.getByText("Classification")).toBeInTheDocument()
@@ -195,7 +241,7 @@ describe("OpportunityDetailWrapper", () => {
 
     it("does NOT re-render deduped facts in the detail cards", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
-      // Old duplicate labels are gone from the lower sections.
+      openTab("Details")
       expect(screen.queryByText("Probability (%)")).not.toBeInTheDocument()
       expect(screen.queryByText("Opportunity Owner")).not.toBeInTheDocument()
       expect(screen.queryByText("Account Name")).not.toBeInTheDocument()
@@ -204,7 +250,7 @@ describe("OpportunityDetailWrapper", () => {
   })
 
   describe("close date", () => {
-    it("displays the close date", () => {
+    it("displays the close date in the overview key details", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
       expect(screen.getByText("Jun 30, 2026")).toBeInTheDocument()
     })
@@ -218,11 +264,13 @@ describe("OpportunityDetailWrapper", () => {
   describe("description", () => {
     it("renders description text when present", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
+      openTab("Details")
       expect(screen.getByText("A promising opportunity")).toBeInTheDocument()
     })
 
     it("offers an 'Add a description' affordance when null", () => {
       render(<OpportunityDetailWrapper {...defaultProps} opportunity={makeOpportunity({ description: null })} />)
+      openTab("Details")
       expect(screen.getByText("Add a description")).toBeInTheDocument()
     })
   })
@@ -230,16 +278,19 @@ describe("OpportunityDetailWrapper", () => {
   describe("classification fields", () => {
     it("displays serviceType labels when set", () => {
       render(<OpportunityDetailWrapper {...defaultProps} opportunity={makeOpportunity({ serviceType: ["brand_campaign_and_activation", "pr"] })} />)
+      openTab("Details")
       expect(screen.getByText("Brand Campaign & Activation, PR")).toBeInTheDocument()
     })
 
     it("offers an 'Add' affordance when serviceType is null", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
+      openTab("Details")
       expect(screen.getAllByText("Add").length).toBeGreaterThanOrEqual(1)
     })
 
     it("displays propertyType label when set", () => {
       render(<OpportunityDetailWrapper {...defaultProps} opportunity={makeOpportunity({ propertyType: "conference" })} />)
+      openTab("Details")
       expect(screen.getByText("Conference")).toBeInTheDocument()
     })
 
@@ -250,8 +301,8 @@ describe("OpportunityDetailWrapper", () => {
           opportunity={makeOpportunity({ billingEntityId: "ent-1", billingEntityName: "Nodwin Gaming Pvt Ltd" })}
         />,
       )
+      openTab("Details")
       expect(screen.getByText("Nodwin Gaming Pvt Ltd")).toBeInTheDocument()
-      // Never the old raw-id hint.
       expect(screen.queryByText(/Entity ·/)).not.toBeInTheDocument()
       expect(screen.queryByText(/ent-1/)).not.toBeInTheDocument()
     })
@@ -263,6 +314,7 @@ describe("OpportunityDetailWrapper", () => {
           opportunity={makeOpportunity({ primaryContactId: "c-1", primaryContactName: "Priya Sharma" })}
         />,
       )
+      openTab("Details")
       expect(screen.getByText("Priya Sharma")).toBeInTheDocument()
       expect(screen.queryByText(/c-1/)).not.toBeInTheDocument()
     })
@@ -271,11 +323,13 @@ describe("OpportunityDetailWrapper", () => {
   describe("commercials", () => {
     it("labels barter value", () => {
       render(<OpportunityDetailWrapper {...defaultProps} opportunity={makeOpportunity({ barterValue: "10000.00" })} />)
+      openTab("Details")
       expect(screen.getByText("Barter value")).toBeInTheDocument()
     })
 
     it("displays country execution with labels", () => {
       render(<OpportunityDetailWrapper {...defaultProps} opportunity={makeOpportunity({ countryExecution: "IN, US" })} />)
+      openTab("Details")
       expect(screen.getByText("India, United States")).toBeInTheDocument()
     })
   })
@@ -283,28 +337,45 @@ describe("OpportunityDetailWrapper", () => {
   describe("loss reason", () => {
     it("displays loss reason when set", () => {
       render(<OpportunityDetailWrapper {...defaultProps} opportunity={makeOpportunity({ stage: "closed_lost", lossReason: "Budget cut" })} />)
+      openTab("Details")
       expect(screen.getByText("Budget cut")).toBeInTheDocument()
     })
   })
 
-  describe("right rail", () => {
-    it("renders the communication tabs (Files is now its own module, not a tab)", () => {
+  describe("activity tab", () => {
+    it("renders the composer and timeline sub-segments", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
-      expect(screen.getByRole("tab", { name: "Activity" })).toBeInTheDocument()
-      expect(screen.getByRole("tab", { name: "Notes" })).toBeInTheDocument()
-      expect(screen.getByRole("tab", { name: "Calls" })).toBeInTheDocument()
-      expect(screen.getByRole("tab", { name: "Email" })).toBeInTheDocument()
-      // Files moved out of the tab strip into a dedicated bottom-of-stack module.
-      expect(screen.queryByRole("tab", { name: "Files" })).not.toBeInTheDocument()
-      expect(screen.getByText(/^Files \(/)).toBeInTheDocument()
+      openTab("Activity")
+      expect(screen.getByTestId("activity-composer")).toBeInTheDocument()
+      for (const seg of ["All", "Notes", "Calls", "Email", "Stage history"]) {
+        expect(screen.getByRole("button", { name: seg })).toBeInTheDocument()
+      }
     })
 
-    it("keeps Approval, Team, Splits and Stage History as right-rail cards", () => {
+    it("shows stage history under its sub-segment", () => {
       render(<OpportunityDetailWrapper {...defaultProps} />)
-      expect(screen.getByText("Approval")).toBeInTheDocument()
+      openTab("Activity")
+      fireEvent.click(screen.getByRole("button", { name: "Stage history" }))
+      expect(screen.getByText("No stage changes recorded yet.")).toBeInTheDocument()
+    })
+  })
+
+  describe("team & splits tab", () => {
+    it("renders the team and splits editors", () => {
+      render(<OpportunityDetailWrapper {...defaultProps} updateTeamAction={vi.fn()} updateSplitsAction={vi.fn()} />)
+      openTab("Team & Splits")
       expect(screen.getByText("Opportunity Team")).toBeInTheDocument()
       expect(screen.getByText("Opportunity Splits")).toBeInTheDocument()
-      expect(screen.getByText("Stage History")).toBeInTheDocument()
+    })
+  })
+
+  describe("persistent rail", () => {
+    it("keeps the Approval card in the rail regardless of active tab", () => {
+      render(<OpportunityDetailWrapper {...defaultProps} />)
+      expect(screen.getByText("Approval")).toBeInTheDocument()
+      // Still present after switching tabs.
+      openTab("Details")
+      expect(screen.getByText("Approval")).toBeInTheDocument()
     })
 
     it("shows the read-only 'not submitted' approval state", () => {
