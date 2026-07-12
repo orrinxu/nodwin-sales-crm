@@ -60,7 +60,7 @@ const COUNTRY_LABELS: Record<string, string> = {
   VN: "Vietnam", ZA: "South Africa",
 }
 
-// Cash Plan tab unlocks once the deal reaches Verbal Agreement (mock: reorganized).
+// P&L tab unlocks once the deal reaches Verbal Agreement (labelled "Cash Plan" in the mock).
 const CASH_UNLOCK_STAGE: DealStage = "verbal_agreement"
 
 // ── Type scale ────────────────────────────────────────────────────────────────
@@ -182,7 +182,7 @@ function RelatedListCard({ title, emptyMessage }: { title: string; emptyMessage:
 }
 
 // Honest empty state for a tab whose backing integration isn't built yet
-// (Email → Gmail, Cash Plan → milestone schedule). See docs/ROADMAP.md.
+// (Email → Gmail, P&L → milestone schedule). See docs/ROADMAP.md.
 function IntegrationTabEmptyState({
   icon: Icon,
   title,
@@ -488,7 +488,7 @@ export function OpportunityDetailWrapper({
               <FacetTabsTab value="files">Files</FacetTabsTab>
               <FacetTabsTab value="activity">Activity</FacetTabsTab>
               <FacetTabsTab value="team">Team &amp; Splits</FacetTabsTab>
-              <FacetTabsTab value="cash" locked={!cashUnlocked}>Cash Plan</FacetTabsTab>
+              <FacetTabsTab value="cash" locked={!cashUnlocked}>P&amp;L</FacetTabsTab>
             </FacetTabsList>
 
             {/* OVERVIEW */}
@@ -685,13 +685,13 @@ export function OpportunityDetailWrapper({
                   {cashUnlocked ? (
                     <IntegrationTabEmptyState
                       icon={Calendar}
-                      title="Cash Plan"
+                      title="P&L"
                       message="The P&L summary, editable milestone schedule and approval routing are coming soon — the same view the header's “Set Revenue Schedule” action will open."
                     />
                   ) : (
                     <IntegrationTabEmptyState
                       icon={Lock}
-                      title="Cash Plan unlocks at Verbal Agreement"
+                      title="P&L unlocks at Verbal Agreement"
                       message={`Once the deal reaches Verbal Agreement, this tab becomes the P&L summary, editable milestone schedule and approval routing. The deal is currently at ${getStageLabel(opportunity.stage as DealStage)}.`}
                     />
                   )}
