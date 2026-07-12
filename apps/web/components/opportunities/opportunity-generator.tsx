@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Plus, FileText, Sparkles, PencilLine, UploadCloud, Loader2, CheckCircle2, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -73,7 +73,7 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
     reset()
   }
 
-  async function handleFile(file: File) {
+  const handleFile = useCallback(async (file: File) => {
     const isText = TEXT_FILE.test(file.name) || file.type.startsWith("text/")
     const isBinary =
       BINARY_FILE.test(file.name) || file.type === "application/pdf" || file.type === DOCX_MIME
@@ -92,7 +92,34 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
       setText("")
       setPendingFile(file)
     }
-  }
+  }, [])
+
+  // Whole-viewport drag-and-drop while the document-input step is open, so on a
+  // large screen you can drop the file anywhere, not only on the small box.
+  useEffect(() => {
+    if (phase !== "input") return
+    const onDragOver = (e: DragEvent) => {
+      e.preventDefault()
+      setDragging(true)
+    }
+    const onDragLeave = (e: DragEvent) => {
+      if (e.relatedTarget === null) setDragging(false)
+    }
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault()
+      setDragging(false)
+      const f = e.dataTransfer?.files?.[0]
+      if (f) void handleFile(f)
+    }
+    window.addEventListener("dragover", onDragOver)
+    window.addEventListener("dragleave", onDragLeave)
+    window.addEventListener("drop", onDrop)
+    return () => {
+      window.removeEventListener("dragover", onDragOver)
+      window.removeEventListener("dragleave", onDragLeave)
+      window.removeEventListener("drop", onDrop)
+    }
+  }, [phase, handleFile])
 
   async function onAnalyse() {
     if (!text.trim() && !pendingFile) {
@@ -143,6 +170,14 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
 
   return (
     <>
+      {dragging && phase === "input" && (
+        <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center bg-primary/10 backdrop-blur-sm">
+          <div className="rounded-xl border-2 border-dashed border-primary bg-background px-8 py-6 text-center shadow-lg">
+            <UploadCloud className="mx-auto size-8 text-primary" />
+            <p className="mt-2 font-medium">Drop your document to analyse</p>
+          </div>
+        </div>
+      )}
       <Button onClick={() => { reset(); setPhase("chooser") }}>
         <Plus className="size-4" />
         Create Opportunity
@@ -186,9 +221,6 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
                 <DialogDescription>Paste the text, or drop a text file. You&apos;ll review everything before it saves.</DialogDescription>
               </DialogHeader>
               <div
-                onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f) void handleFile(f) }}
                 onClick={() => fileInputRef.current?.click()}
                 className={`flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed p-4 text-center text-sm transition ${dragging ? "border-primary bg-accent" : "border-muted-foreground/30"}`}
               >

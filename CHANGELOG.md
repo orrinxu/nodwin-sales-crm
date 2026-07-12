@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Work in flight on feature branches (not yet merged to `main`): admin landing page,
 ORR-661, and cash-flow milestone follow-ups.
 
+## 2026-07-13
+
+### Fixed
+
+- **Opportunity Generator RFP uploads failed with a generic "analysing" error (ORR-710):** Next's default **1 MB** server-action body limit rejected real PDF/DOCX uploads before `extractDocumentTextAction` ran. Set `experimental.serverActions.bodySizeLimit` to `16mb` (matching the app's 15 MB extract cap) in `next.config.ts`.
+
+### Changed
+
+- **Generator: drop a document anywhere in the viewport (ORR-710):** while the "Generate from a document" step is open, a dropped file is now accepted **anywhere on screen** (with a full-screen drop overlay), not only on the small dashed box — much easier on large / 1440p displays.
+- **Removed the redundant "Quick Create" from the pipeline board (ORR-710):** superseded by the unified "Create Opportunity" entry (ORR-681). Deleted the orphaned `OpportunityQuickCreate` component and its test.
+
 ## 2026-07-12
 
 ### Added
