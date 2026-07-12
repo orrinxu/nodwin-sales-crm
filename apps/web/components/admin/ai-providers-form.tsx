@@ -11,6 +11,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { modelsFor } from "@/lib/ai/provider-models"
+import { AI_FEATURE_NAMES, FEATURE_LABELS } from "@/lib/ai/features"
+import type { FeatureProviderOverrides } from "@/lib/ai/features"
 import type { AiProviderName, AiProvidersView, AiProviderSafe } from "@/lib/data/ai-providers"
 
 interface Props {
@@ -31,12 +33,17 @@ function toDraft(p: AiProviderSafe): Draft {
 }
 
 const NONE = "__none__"
+const AUTO = "__auto__"
 
 export function AiProvidersForm({ data, saveAction }: Props) {
   const [drafts, setDrafts] = useState<Record<string, Draft>>(
     () => Object.fromEntries(data.providers.map((p) => [p.provider, toDraft(p)])),
   )
   const [primary, setPrimary] = useState<string>(data.primaryProvider ?? NONE)
+  // ORR-674: per-feature provider override (value = provider name, or absent = auto).
+  const [featureOverrides, setFeatureOverrides] = useState<Record<string, string>>(
+    () => ({ ...data.featureProviderOverrides }),
+  )
   const [pending, setPending] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -44,6 +51,22 @@ export function AiProvidersForm({ data, saveAction }: Props) {
   function patch(provider: string, next: Partial<Draft>) {
     // eslint-disable-next-line security/detect-object-injection -- provider is a known AiProviderName from the rendered list, not user input
     setDrafts((d) => ({ ...d, [provider]: { ...d[provider], ...next } }))
+    setSaved(false)
+  }
+
+  function setFeatureOverride(feature: string, provider: string) {
+    setFeatureOverrides((o) => {
+      const next = { ...o }
+      // feature is a known AiFeature from the rendered AI_FEATURE_NAMES list, not user input.
+      if (provider === AUTO) {
+        // eslint-disable-next-line security/detect-object-injection -- feature is a constrained AiFeature literal
+        delete next[feature]
+      } else {
+        // eslint-disable-next-line security/detect-object-injection -- feature is a constrained AiFeature literal
+        next[feature] = provider
+      }
+      return next
+    })
     setSaved(false)
   }
 
@@ -64,6 +87,7 @@ export function AiProvidersForm({ data, saveAction }: Props) {
           }
         }),
         primaryProvider: primary === NONE ? null : (primary as AiProviderName),
+        featureProviderOverrides: featureOverrides as FeatureProviderOverrides,
       })
       setSaved(true)
       setDrafts((d) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, { ...v, apiKey: "" }])))
@@ -118,6 +142,44 @@ export function AiProvidersForm({ data, saveAction }: Props) {
               </p>
             )}
             <p className="text-xs text-muted-foreground">Only enabled providers can be primary.</p>
+          </CardContent>
+        </Card>
+
+        {/* Per-feature model (ORR-674) */}
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Per-feature model</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Pin a specific provider for one AI feature. When set, that provider runs first for
+              that feature (the rest of the chain stays as fallback); <strong>Auto</strong> uses the
+              primary&nbsp;/&nbsp;priority order above.
+            </p>
+            {AI_FEATURE_NAMES.map((feature) => {
+              // eslint-disable-next-line security/detect-object-injection -- feature iterates the constrained AI_FEATURE_NAMES union
+              const label = FEATURE_LABELS[feature]
+              // eslint-disable-next-line security/detect-object-injection -- feature is a constrained AiFeature literal
+              const current = featureOverrides[feature] ?? AUTO
+              return (
+                <div key={feature} className="flex items-center justify-between gap-3">
+                  <span className="text-sm">{label}</span>
+                  <Select value={current} onValueChange={(v) => setFeatureOverride(feature, v ?? AUTO)}>
+                    <SelectTrigger className="max-w-[16rem]" aria-label={label}>
+                      <SelectValue placeholder="Auto (use chain)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={AUTO}>Auto (use chain)</SelectItem>
+                      {primaryOptions.map((p) => (
+                        <SelectItem key={p.provider} value={p.provider}>{p.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )
+            })}
+            <p className="text-xs text-muted-foreground">
+              Only enabled providers can be pinned. A pinned provider that later becomes unavailable
+              is skipped — the feature falls back to the normal chain.
+            </p>
           </CardContent>
         </Card>
 

@@ -7,6 +7,7 @@ export type AiFeature =
   | "summarise_deal"
   | "draft_email"
   | "next_best_action"
+  | "opportunity_extraction"
   | "other"
 
 export type AiCallStatus =

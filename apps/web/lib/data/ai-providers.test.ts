@@ -120,6 +120,34 @@ describe("resolveProviderChain (ordering + fallback)", () => {
     expect(chain[0].baseUrl).toBe("http://db:11434")
     expect(chain[0].model).toBe("env-llama")
   })
+
+  it("per-feature override moves the pinned provider to the front (ORR-674)", async () => {
+    store.providers = [
+      { provider: "claude", enabled: true, priority: 10, api_key: "k-claude", base_url: null, model: "c" },
+      { provider: "gemini", enabled: true, priority: 20, api_key: "k-gem", base_url: null, model: "g" },
+      { provider: "deepseek", enabled: true, priority: 40, api_key: "k-ds", base_url: null, model: "d" },
+    ]
+    store.settings = { feature_provider_overrides: { opportunity_extraction: "deepseek" } }
+    // Without a feature, the global priority order stands.
+    expect((await resolveProviderChain()).map((r) => r.provider)).toEqual(["claude", "gemini", "deepseek"])
+    // The override pins deepseek first for that feature only; the rest stay as fallback.
+    expect((await resolveProviderChain("opportunity_extraction")).map((r) => r.provider)).toEqual([
+      "deepseek", "claude", "gemini",
+    ])
+    // A different feature is unaffected.
+    expect((await resolveProviderChain("draft_email")).map((r) => r.provider)).toEqual([
+      "claude", "gemini", "deepseek",
+    ])
+  })
+
+  it("per-feature override is ignored when the pinned provider is not usable", async () => {
+    store.providers = [
+      { provider: "claude", enabled: true, priority: 10, api_key: "k-claude", base_url: null, model: "c" },
+    ]
+    // gemini is pinned but has no key/row → not in the usable chain → no reorder, no crash.
+    store.settings = { feature_provider_overrides: { opportunity_extraction: "gemini" } }
+    expect((await resolveProviderChain("opportunity_extraction")).map((r) => r.provider)).toEqual(["claude"])
+  })
 })
 
 describe("getAiProviders (masking)", () => {
@@ -175,5 +203,21 @@ describe("updateAiProviders (write-only secrets)", () => {
     await updateAiProviders(ctx, { providers: [], primaryProvider: "gemini" })
     const settingsUpdate = store.updates.find((u) => u.table === "ai_settings")!
     expect(settingsUpdate.patch.primary_provider).toBe("gemini")
+  })
+
+  it("writes the per-feature override map to ai_settings (ORR-674)", async () => {
+    store.settings = { id: "s1", primary_provider: null }
+    await updateAiProviders(ctx, {
+      providers: [],
+      featureProviderOverrides: { opportunity_extraction: "claude" },
+    })
+    const settingsUpdate = store.updates.find((u) => u.table === "ai_settings")!
+    expect(settingsUpdate.patch.feature_provider_overrides).toEqual({ opportunity_extraction: "claude" })
+  })
+
+  it("leaves ai_settings untouched when neither primary nor overrides are sent", async () => {
+    store.settings = { id: "s1", primary_provider: null }
+    await updateAiProviders(ctx, { providers: [{ provider: "claude", enabled: true, priority: 10 }] })
+    expect(store.updates.find((u) => u.table === "ai_settings")).toBeUndefined()
   })
 })
