@@ -75,6 +75,9 @@ COMMENT ON FUNCTION public.get_user_public_profile(uuid) IS
   'set (name/position/entity/email/slack) without the base-table RLS having to '
   'expose sensitive columns. Returns 0 rows for an unknown id.';
 
--- Lock down the default PUBLIC execute grant; only signed-in users may call it.
-REVOKE ALL ON FUNCTION public.get_user_public_profile(uuid) FROM PUBLIC;
+-- Only signed-in users may call it. Revoke from PUBLIC *and* anon explicitly:
+-- Supabase's platform default privileges grant EXECUTE on new public functions
+-- to anon/authenticated/service_role, and REVOKE FROM PUBLIC does NOT remove
+-- that explicit anon grant — so anon must be revoked by name.
+REVOKE ALL ON FUNCTION public.get_user_public_profile(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_user_public_profile(uuid) TO authenticated;
