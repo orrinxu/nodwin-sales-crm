@@ -99,6 +99,39 @@ export function OpportunitiesView({
 
   const showEmptyState = emptyState != null && opportunities.length === 0
 
+  // Single "Create Opportunity" entry, reused by the header (table view) and the
+  // empty state so the create flow is identical everywhere. When a generateAction
+  // is supplied it opens the AI generator chooser (ORR-677); otherwise the plain
+  // create form. The kanban board renders its own equivalent internally.
+  const createControl = generateAction ? (
+    <OpportunityGenerator
+      accounts={accounts}
+      businessUnits={businessUnits}
+      users={users}
+      createAction={createAction}
+      generateAction={generateAction}
+      onSuccess={() => router.refresh()}
+      searchAccountsAction={searchAccountsAction}
+      searchContactsAction={searchContactsAction}
+      searchUsersAction={searchUsersAction}
+      createContactQuickAction={createContactQuickAction}
+      defaultCurrency={defaultCurrency}
+    />
+  ) : (
+    <OpportunityForm
+      accounts={accounts}
+      businessUnits={businessUnits}
+      users={users}
+      createAction={createAction}
+      onSuccess={() => router.refresh()}
+      searchAccountsAction={searchAccountsAction}
+      searchContactsAction={searchContactsAction}
+      searchUsersAction={searchUsersAction}
+      createContactQuickAction={createContactQuickAction}
+      defaultCurrency={defaultCurrency}
+    />
+  )
+
   return (
     <div className="flex flex-1 flex-col">
       <div className="border-b px-4 py-3 lg:px-6">
@@ -111,7 +144,8 @@ export function OpportunitiesView({
               : "View and manage all opportunities in a table.")
           }
           actions={
-            <div className="flex items-center rounded-lg border p-0.5">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center rounded-lg border p-0.5">
             <button
               onClick={() => setViewMode("kanban")}
               className={cn(
@@ -136,6 +170,8 @@ export function OpportunitiesView({
               <ListIcon className="size-4" />
               <span className="hidden sm:inline">Table</span>
             </button>
+              </div>
+              {viewMode === "table" && !showEmptyState ? createControl : null}
             </div>
           }
         />
@@ -147,36 +183,7 @@ export function OpportunitiesView({
             icon={KanbanIcon}
             title={emptyState.title}
             description={emptyState.description}
-            action={
-              generateAction ? (
-                <OpportunityGenerator
-                  accounts={accounts}
-                  businessUnits={businessUnits}
-                  users={users}
-                  createAction={createAction}
-                  generateAction={generateAction}
-                  onSuccess={() => router.refresh()}
-                  searchAccountsAction={searchAccountsAction}
-                  searchContactsAction={searchContactsAction}
-                  searchUsersAction={searchUsersAction}
-                  createContactQuickAction={createContactQuickAction}
-                  defaultCurrency={defaultCurrency}
-                />
-              ) : (
-                <OpportunityForm
-                  accounts={accounts}
-                  businessUnits={businessUnits}
-                  users={users}
-                  createAction={createAction}
-                  onSuccess={() => router.refresh()}
-                  searchAccountsAction={searchAccountsAction}
-                  searchContactsAction={searchContactsAction}
-                  searchUsersAction={searchUsersAction}
-                  createContactQuickAction={createContactQuickAction}
-                  defaultCurrency={defaultCurrency}
-                />
-              )
-            }
+            action={createControl}
           />
         </div>
       ) : viewMode === "kanban" ? (
