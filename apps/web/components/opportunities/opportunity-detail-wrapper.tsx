@@ -50,6 +50,8 @@ import type { DealStage } from "@/lib/opportunity"
 import { Money } from "@/lib/money"
 import { cn } from "@/lib/utils"
 import { usePreferences } from "@/components/providers/preferences-provider"
+import { RevenueScheduleEditor } from "@/components/opportunities/revenue-schedule-editor"
+import type { RevenueScheduleData, ScheduleMonthDTO } from "@/app/(crm)/opportunities/finance-actions"
 
 const COUNTRY_LABELS: Record<string, string> = {
   AE: "United Arab Emirates", AR: "Argentina", AU: "Australia", BD: "Bangladesh",
@@ -64,6 +66,13 @@ const COUNTRY_LABELS: Record<string, string> = {
 
 // P&L tab unlocks once the deal reaches Verbal Agreement (labelled "Cash Plan" in the mock).
 const CASH_UNLOCK_STAGE: DealStage = "verbal_agreement"
+
+// "YYYY-MM-01" → "Mon YYYY" for the read-only revenue-schedule table.
+function revenueMonthLabel(ym: string): string {
+  const [y, m] = ym.split("-")
+  const d = new Date(Number(y), Number(m) - 1, 1)
+  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" })
+}
 
 // ── Type scale ────────────────────────────────────────────────────────────────
 // Centralized half-px scale from the redesign spec, expressed once as shared
@@ -114,6 +123,9 @@ interface OpportunityDetailWrapperProps {
   dealCopilotSummaryAction?: (opportunityId: string) => Promise<DealCopilotResult>
   dealCopilotEmailAction?: (opportunityId: string) => Promise<DealCopilotResult>
   dealCopilotNextBestActionAction?: (opportunityId: string) => Promise<DealCopilotResult>
+  revenueSchedule?: ScheduleMonthDTO[]
+  getRevenueScheduleAction?: (opportunityId: string) => Promise<RevenueScheduleData>
+  saveRevenueScheduleAction?: (opportunityId: string, months: ScheduleMonthDTO[]) => Promise<void>
 }
 
 // ── Small presentational primitives (module scope; stable identity) ─────────────
@@ -260,6 +272,9 @@ export function OpportunityDetailWrapper({
   dealCopilotSummaryAction,
   dealCopilotEmailAction,
   dealCopilotNextBestActionAction,
+  revenueSchedule,
+  getRevenueScheduleAction,
+  saveRevenueScheduleAction,
 }: OpportunityDetailWrapperProps) {
   const router = useRouter()
   const { formatDate } = usePreferences()
@@ -428,10 +443,20 @@ export function OpportunityDetailWrapper({
                 Submit for Approval
               </Button>
             )}
-            <Button variant="outline" size="sm" disabled title="Coming soon">
-              <Calendar className="size-4" />
-              Set Revenue Schedule
-            </Button>
+            {cashUnlocked && getRevenueScheduleAction && saveRevenueScheduleAction ? (
+              <RevenueScheduleEditor
+                opportunityId={opportunity.id}
+                currency={opportunity.currency}
+                getAction={getRevenueScheduleAction}
+                saveAction={saveRevenueScheduleAction}
+                onSaved={() => router.refresh()}
+              />
+            ) : (
+              <Button variant="outline" size="sm" disabled title={cashUnlocked ? "Coming soon" : "Unlocks at Verbal Agreement"}>
+                <Calendar className="size-4" />
+                Set Revenue Schedule
+              </Button>
+            )}
           </>
         }
         stats={[
@@ -681,11 +706,32 @@ export function OpportunityDetailWrapper({
               <Card>
                 <CardContent className="pt-6">
                   {cashUnlocked ? (
-                    <IntegrationTabEmptyState
-                      icon={Calendar}
-                      title="P&L"
-                      message="The P&L summary, editable milestone schedule and approval routing are coming soon — the same view the header's “Set Revenue Schedule” action will open."
-                    />
+                    revenueSchedule && revenueSchedule.length > 0 ? (
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h3 className={T.cardHeading}>Revenue schedule</h3>
+                          <span className="text-xs text-muted-foreground">Full P&amp;L summary &amp; cost milestones coming next.</span>
+                        </div>
+                        <div className="overflow-hidden rounded-lg border">
+                          <table className="w-full text-sm">
+                            <tbody>
+                              {revenueSchedule.map((m) => (
+                                <tr key={m.month} className="border-t first:border-t-0">
+                                  <td className="px-3 py-2 text-muted-foreground">{revenueMonthLabel(m.month)}</td>
+                                  <td className="px-3 py-2 text-right tabular-nums">{opportunity.currency} {m.amount}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ) : (
+                      <IntegrationTabEmptyState
+                        icon={Calendar}
+                        title="No revenue schedule yet"
+                        message="Use the “Set Revenue Schedule” action above to spread this deal’s amount across its service months. The full P&L summary and cost milestones are coming next."
+                      />
+                    )
                   ) : (
                     <IntegrationTabEmptyState
                       icon={Lock}
