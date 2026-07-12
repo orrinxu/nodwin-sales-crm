@@ -13,7 +13,9 @@ import { cn } from "@/lib/utils"
 const FACET_LIST_CLASS =
   "w-full justify-start gap-6 rounded-none border-b border-border bg-transparent p-0"
 const FACET_TAB_CLASS =
-  "rounded-none border-b-2 border-transparent px-0 py-2.5 text-[18px] font-medium text-muted-foreground transition-colors hover:text-foreground data-active:border-primary data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:shadow-none"
+  // -mb-px pulls each tab's 2px underline down onto the list's border-b so the
+  // active underline sits flush with the bar's rule (no doubled/offset hairline).
+  "-mb-px rounded-none border-b-2 border-transparent px-0 py-2.5 text-[18px] font-medium text-muted-foreground transition-colors hover:text-foreground data-active:border-primary data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:shadow-none"
 
 /** Facet tab group root — same behaviour as ui `Tabs`, re-exported for one-import ergonomics. */
 export const FacetTabs = Tabs
