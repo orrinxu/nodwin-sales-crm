@@ -13,7 +13,7 @@ import type { DealStage } from "@/lib/opportunity/stage"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ArrowRight, Calendar, Building2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { formatPreferenceDate, type DateFormatPreference } from "@/lib/format"
+import { usePreferences } from "@/components/providers/preferences-provider"
 import Link from "next/link"
 
 interface Deal {
@@ -29,11 +29,11 @@ interface Deal {
 
 interface RecentDealsProps {
   deals: Deal[]
-  dateFormat: DateFormatPreference
   maxItems?: number
 }
 
-export function RecentDeals({ deals, dateFormat, maxItems = 5 }: RecentDealsProps) {
+export function RecentDeals({ deals, maxItems = 5 }: RecentDealsProps) {
+  const { formatDate } = usePreferences()
   const sorted = [...deals]
     .sort((a, b) => {
       if (!a.closeDate) return 1
@@ -85,7 +85,7 @@ export function RecentDeals({ deals, dateFormat, maxItems = 5 }: RecentDealsProp
                     )}
                     <span className="flex items-center gap-1">
                       <Calendar className="size-3" />
-                      {formatPreferenceDate(deal.closeDate, dateFormat, "TBD")}
+                      {formatDate(deal.closeDate, "TBD")}
                     </span>
                   </div>
                 </div>

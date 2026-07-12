@@ -30,13 +30,9 @@ import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import type { TaxIdType, AccountTaxId } from "@/lib/data/account-tax-ids"
 import type { TaxIdRow } from "@/components/accounts/tax-ids-editor"
 import type { EntityOption } from "@/components/entity-combobox"
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 const CARD_HEADING = "text-[13.5px] font-semibold tracking-[-0.01em]"
-
-function formatDate(iso: string | null): string {
-  if (!iso) return "—"
-  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
-}
 
 /** Peek card header: a section title with a "jump to full tab" affordance. */
 function PeekHeader({ title, cta, onClick }: { title: string; cta: string; onClick: () => void }) {
@@ -106,6 +102,7 @@ export function AccountDetailWrapper({
   createContactAction,
 }: AccountDetailWrapperProps) {
   const router = useRouter()
+  const { formatDate } = usePreferences()
   const [tab, setTab] = useState("overview")
   const [detachingId, setDetachingId] = useState<string | null>(null)
 
@@ -372,7 +369,7 @@ export function AccountDetailWrapper({
                           </div>
                           <div className="text-right">
                             <p className="text-sm font-medium">{Money.fromAmount(opp.amount, opp.currency).toDisplay()}</p>
-                            {opp.closeDate && <p className="text-xs text-muted-foreground">{formatDate(opp.closeDate)}</p>}
+                            {opp.closeDate && <p className="text-xs text-muted-foreground">{formatDate(opp.closeDate, "—")}</p>}
                           </div>
                         </div>
                       ))}

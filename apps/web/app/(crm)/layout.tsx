@@ -1,6 +1,8 @@
 import { requireUser } from "@/lib/security/auth"
+import { getUserPreferences } from "@/lib/data/user-preferences"
 import { Sidebar } from "@/components/layout/sidebar"
 import { CrmHeader } from "@/components/layout/crm-header"
+import { PreferencesProvider } from "@/components/providers/preferences-provider"
 
 // Every route in this group is authenticated (requireUser reads cookies) and
 // renders per-request live data, so none should be statically prerendered.
@@ -14,14 +16,20 @@ export default async function CrmLayout({
   children: React.ReactNode
 }) {
   const user = await requireUser()
+  const preferences = await getUserPreferences({ user, source: "web" })
 
   return (
-    <div className="flex h-screen">
-      <Sidebar user={user} />
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <CrmHeader user={user} />
-        <main className="flex-1 overflow-auto">{children}</main>
+    <PreferencesProvider
+      dateFormat={preferences.dateFormat}
+      timezone={preferences.timezone}
+    >
+      <div className="flex h-screen">
+        <Sidebar user={user} />
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <CrmHeader user={user} />
+          <main className="flex-1 overflow-auto">{children}</main>
+        </div>
       </div>
-    </div>
+    </PreferencesProvider>
   )
 }

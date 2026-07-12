@@ -285,7 +285,7 @@ function LocalizationSection({
         </div>
 
         <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-          Number and date formats apply to your dashboard. Timezone and remaining views are being migrated to these preferences.
+          Number, date, and timezone preferences apply across the app — dates and times render in your selected format and zone.
         </p>
 
         {error && <p className="text-sm text-destructive">{error}</p>}

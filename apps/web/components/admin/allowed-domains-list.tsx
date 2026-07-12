@@ -24,19 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import type { AllowedDomainRecord } from "@/lib/data/allowed-domains"
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "—"
-  try {
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }).format(new Date(dateStr))
-  } catch {
-    return dateStr
-  }
-}
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 interface AllowedDomainsListProps {
   domains: AllowedDomainRecord[]
@@ -105,6 +93,7 @@ export function AllowedDomainsList({
   deleteAction,
 }: AllowedDomainsListProps) {
   const router = useRouter()
+  const { formatDate } = usePreferences()
   const [value, setValue] = useState("")
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -170,7 +159,7 @@ export function AllowedDomainsList({
                 <TableRow key={domain.id}>
                   <TableCell className="font-medium">{domain.domain}</TableCell>
                   <TableCell className="text-muted-foreground">
-                    {formatDate(domain.createdAt)}
+                    {formatDate(domain.createdAt, "—")}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button

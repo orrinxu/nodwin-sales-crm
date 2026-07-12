@@ -5,6 +5,7 @@ import { Phone, StickyNote, Mail, Calendar, CheckSquare, Clock, Layers } from "l
 import Link from "next/link"
 
 import type { ActivityRecord, ActivityType } from "@/lib/data/activities"
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 interface ActivitiesPageProps {
   activities: ActivityRecord[]
@@ -56,7 +57,10 @@ const activityLabels: Record<string, string> = {
   task: "Task",
 }
 
-function formatRelativeTime(dateStr: string): string {
+function formatRelativeTime(
+  dateStr: string,
+  formatAbsolute: (value: string) => string,
+): string {
   const now = Date.now()
   const date = new Date(dateStr).getTime()
   const diffMs = now - date
@@ -68,14 +72,11 @@ function formatRelativeTime(dateStr: string): string {
   if (diffMins < 60) return `${diffMins}m ago`
   if (diffHours < 24) return `${diffHours}h ago`
   if (diffDays < 7) return `${diffDays}d ago`
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
+  return formatAbsolute(dateStr)
 }
 
 export function ActivitiesPage({ activities }: ActivitiesPageProps) {
+  const { formatDate } = usePreferences()
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all")
 
   const filtered = useMemo(
@@ -148,7 +149,7 @@ export function ActivitiesPage({ activities }: ActivitiesPageProps) {
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     <span>{activity.userName ?? "Unknown"}</span>
                     <span>·</span>
-                    <span>{formatRelativeTime(activity.createdAt)}</span>
+                    <span>{formatRelativeTime(activity.createdAt, formatDate)}</span>
                     {duration != null && (
                       <>
                         <span>·</span>

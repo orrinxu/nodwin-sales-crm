@@ -59,27 +59,13 @@ import type {
   FinanceExportConfigUpdateInput,
   ImportJobRecord,
 } from "@/lib/data/data-management"
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 const exportTargetTypes = [
   { value: "accounts", label: "Accounts" },
   { value: "contacts", label: "Contacts" },
   { value: "opportunities", label: "Opportunities" },
 ]
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "—"
-  try {
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(new Date(dateStr))
-  } catch {
-    return dateStr
-  }
-}
 
 const statusBadgeVariant: Record<
   string,
@@ -408,6 +394,7 @@ export function DataManagementList({
   createExportJobAction,
 }: DataManagementListProps) {
   const router = useRouter()
+  const { formatDateTime } = usePreferences()
   const [configSorting, setConfigSorting] = useState<SortingState>([])
   const [jobSorting, setJobSorting] = useState<SortingState>([])
   const [editingConfig, setEditingConfig] =
@@ -529,7 +516,7 @@ export function DataManagementList({
             </Button>
           ),
           cell: ({ row }) =>
-            formatDate(row.getValue("createdAt")),
+            formatDateTime(row.getValue("createdAt"), "—"),
         },
         {
           id: "actions",
@@ -560,7 +547,7 @@ export function DataManagementList({
           },
         },
       ],
-      [],
+      [formatDateTime],
     )
 
   const jobColumns: ColumnDef<ImportJobRecord>[] = useMemo(
@@ -647,7 +634,7 @@ export function DataManagementList({
           </Button>
         ),
         cell: ({ row }) =>
-          formatDate(row.getValue("createdAt")),
+          formatDateTime(row.getValue("createdAt"), "—"),
       },
       {
         id: "error",
@@ -681,7 +668,7 @@ export function DataManagementList({
         },
       },
     ],
-    [expandedJob],
+    [expandedJob, formatDateTime],
   )
 
   const configTable = useReactTable({

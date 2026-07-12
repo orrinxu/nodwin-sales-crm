@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sheet"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 export interface NotificationAlert {
   id: string
@@ -24,7 +25,10 @@ export interface NotificationAlert {
   acknowledged_at: string | null
 }
 
-function relativeTime(dateString: string): string {
+function relativeTime(
+  dateString: string,
+  formatAbsolute: (value: string) => string,
+): string {
   const diff = Date.now() - new Date(dateString).getTime()
   const seconds = Math.floor(diff / 1000)
   if (seconds < 60) return "just now"
@@ -34,7 +38,7 @@ function relativeTime(dateString: string): string {
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   if (days < 7) return `${days}d ago`
-  return new Date(dateString).toLocaleDateString()
+  return formatAbsolute(dateString)
 }
 
 const iconMap = {
@@ -59,6 +63,7 @@ const bgColorMap = {
 }
 
 export function NotificationsDrawer() {
+  const { formatDate } = usePreferences()
   const [open, setOpen] = useState(false)
   const [alerts, setAlerts] = useState<NotificationAlert[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -216,7 +221,7 @@ export function NotificationsDrawer() {
                             {alert.title}
                           </p>
                           <span className="shrink-0 text-[11px] text-muted-foreground">
-                            {relativeTime(alert.created_at)}
+                            {relativeTime(alert.created_at, formatDate)}
                           </span>
                         </div>
                         <p className={cn("mt-0.5 text-xs", isRead ? "text-muted-foreground/70" : "text-muted-foreground")}>
