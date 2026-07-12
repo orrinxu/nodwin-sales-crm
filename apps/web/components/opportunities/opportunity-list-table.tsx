@@ -16,6 +16,7 @@ import {
 import { getStageLabel, type OpportunityRecord } from "@/lib/data/opportunities.types"
 import { Money } from "@/lib/money"
 import { Button } from "@/components/ui/button"
+import { OwnerLink } from "@/components/people/owner-link"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -332,7 +333,13 @@ export function OpportunityListTable({
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           />
         ),
-        cell: ({ row }) => row.getValue("ownerName") ?? "—",
+        cell: ({ row }) => (
+          <OwnerLink
+            userId={row.original.ownerUserId}
+            name={row.original.ownerName}
+            fallback="—"
+          />
+        ),
       },
       {
         accessorKey: "closeDate",

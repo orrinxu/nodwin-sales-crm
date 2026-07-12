@@ -19,6 +19,21 @@ export interface OwnProfileRecord {
   crmInboundEmail: string | null
 }
 
+// A colleague's read-only PUBLIC profile (any authenticated user may read these
+// fields of any user — see get_user_public_profile in
+// 20260712010000_user_public_profile.sql). Sensitive columns (ai caps,
+// crm_inbound_email, custom_data, manager…) are intentionally NOT exposed here.
+export interface PublicProfileRecord {
+  id: string
+  fullName: string | null
+  position: string | null
+  email: string | null
+  entityId: string | null
+  entityName: string | null
+  slackMemberId: string | null
+  slackTeamId: string | null
+}
+
 export const ownProfileUpdateSchema = z.object({
   fullName: z.string().min(1, "Name is required").max(200),
 })
@@ -78,6 +93,44 @@ export async function getOwnProfile(
     entityName,
     businessUnitName,
     crmInboundEmail: (row.crm_inbound_email as string) ?? null,
+  }
+}
+
+// A colleague's public profile for the read-only /people/[userId] page.
+// Reads through get_user_public_profile (SECURITY DEFINER), so any authenticated
+// user resolves any user's public fields regardless of the same-entity table RLS.
+// Returns null for an unknown id (or a malformed one) so the page can notFound().
+export async function getUserProfileById(
+  ctx: UserProfileCallContext,
+  targetUserId: string,
+): Promise<PublicProfileRecord | null> {
+  // Guard the input: a non-uuid would make the rpc throw on the uuid cast.
+  if (!z.string().uuid().safeParse(targetUserId).success) {
+    return null
+  }
+
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .rpc("get_user_public_profile", { target_user_id: targetUserId })
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(`Failed to load user profile: ${error.message}`)
+  }
+  if (!data) {
+    return null
+  }
+
+  return {
+    id: data.id,
+    fullName: data.full_name ?? null,
+    position: data.position ?? null,
+    email: data.email ?? null,
+    entityId: data.entity_id ?? null,
+    entityName: data.entity_name ?? null,
+    slackMemberId: data.slack_member_id ?? null,
+    slackTeamId: data.slack_team_id ?? null,
   }
 }
 

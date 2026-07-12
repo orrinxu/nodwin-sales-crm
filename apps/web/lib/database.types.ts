@@ -3176,10 +3176,13 @@ export type Database = {
           full_name: string | null
           id: string
           manager_user_id: string | null
+          position: string | null
           primary_business_unit_id: string | null
           primary_entity_id: string | null
           primary_role: Database["public"]["Enums"]["user_role"]
           role_id: string | null
+          slack_member_id: string | null
+          slack_team_id: string | null
           updated_at: string
         }
         Insert: {
@@ -3193,10 +3196,13 @@ export type Database = {
           full_name?: string | null
           id: string
           manager_user_id?: string | null
+          position?: string | null
           primary_business_unit_id?: string | null
           primary_entity_id?: string | null
           primary_role?: Database["public"]["Enums"]["user_role"]
           role_id?: string | null
+          slack_member_id?: string | null
+          slack_team_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -3210,10 +3216,13 @@ export type Database = {
           full_name?: string | null
           id?: string
           manager_user_id?: string | null
+          position?: string | null
           primary_business_unit_id?: string | null
           primary_entity_id?: string | null
           primary_role?: Database["public"]["Enums"]["user_role"]
           role_id?: string | null
+          slack_member_id?: string | null
+          slack_team_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -3396,6 +3405,19 @@ export type Database = {
           total_cost_amount: number
           total_cost_currency: string
           total_prompt_tokens: number
+        }[]
+      }
+      get_user_public_profile: {
+        Args: { target_user_id: string }
+        Returns: {
+          email: string
+          entity_id: string
+          entity_name: string
+          full_name: string
+          id: string
+          position: string
+          slack_member_id: string
+          slack_team_id: string
         }[]
       }
       has_permission: { Args: { perm_key: string }; Returns: boolean }

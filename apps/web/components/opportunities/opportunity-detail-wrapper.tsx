@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Pencil, SendHorizontal, Calendar, Mail, TriangleAlert, Plus, ArrowRight, Lock } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { OwnerLink } from "@/components/people/owner-link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { FacetTabs, FacetTabsList, FacetTabsTab, FacetTabsPanel } from "@/components/primitives/facet-tabs"
@@ -439,7 +440,7 @@ export function OpportunityDetailWrapper({
         stats={[
           { label: "Amount", value: formattedAmount, valueClassName: T.statAmount, className: "col-span-2 md:col-span-1" },
           { label: "Account", value: opportunity.accountName ?? "—" },
-          { label: "Owner", value: opportunity.ownerName ?? "Unassigned" },
+          { label: "Owner", value: <OwnerLink userId={opportunity.ownerUserId} name={opportunity.ownerName} /> },
           { label: "Service period", value: servicePeriod ?? <span className="text-muted-foreground">Not set</span> },
           { label: "Approval status", value: <ApprovalPill status={approvalStatus} /> },
         ]}

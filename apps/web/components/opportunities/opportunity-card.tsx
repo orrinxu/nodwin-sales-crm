@@ -6,6 +6,7 @@ import { GripVertical, Building2, DollarSign, User, Flame, Clock, Hourglass } fr
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/primitives/status-badge"
+import { OwnerLink } from "@/components/people/owner-link"
 import type { OpportunityRecord } from "@/lib/data/opportunities.types"
 import { isHotLead } from "@/lib/opportunity/kanban-intel"
 import { overdueLabel, staleLabel } from "@/lib/opportunity/deal-health"
@@ -116,7 +117,13 @@ export function OpportunityCard({ opportunity }: OpportunityCardProps) {
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <User className="size-3 shrink-0" />
                   <span className="truncate">
-                    {opportunity.ownerName ?? "—"}
+                    <OwnerLink
+                      userId={opportunity.ownerUserId}
+                      name={opportunity.ownerName}
+                      fallback="—"
+                      onPointerDown={stopDrag}
+                      className="hover:text-foreground hover:underline"
+                    />
                   </span>
                 </div>
                 <span
