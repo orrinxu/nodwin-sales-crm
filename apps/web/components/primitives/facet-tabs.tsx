@@ -11,7 +11,10 @@ import { cn } from "@/lib/utils"
 // 2026-07-12), with a larger 18px label for prominence; active = semibold +
 // primary-tinted label with a primary underline.
 const FACET_LIST_CLASS =
-  "w-full justify-start gap-6 rounded-none border-b border-border bg-transparent p-0"
+  // h-auto overrides the base ui/tabs `h-9` (36px) — the 18px tabs are taller than
+  // that, so a fixed height drew the border-b rule across the tabs instead of under
+  // them. items-end keeps every tab bottom flush on the rule.
+  "h-auto w-full items-end justify-start gap-6 rounded-none border-b border-border bg-transparent p-0"
 const FACET_TAB_CLASS =
   // -mb-px pulls each tab's 2px underline down onto the list's border-b so the
   // active underline sits flush with the bar's rule (no doubled/offset hairline).
