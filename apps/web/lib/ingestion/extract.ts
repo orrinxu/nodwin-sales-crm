@@ -1,19 +1,27 @@
-import type { DriveFile } from "../integrations/drive/types"
 import type { TextSegment } from "./chunk"
 import { extractText as unpdfExtractText, getDocumentProxy } from "unpdf"
+import mammoth from "mammoth"
 
 const PDF_MIME = "application/pdf"
+export const DOCX_MIME =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
-// ORR-620 v1: NATIVE text extraction only. Anything that needs a binary parser
-// (PDF / PPTX / DOCX) or OCR (text-in-images, scanned decks) is OUT OF SCOPE and
-// a known gap — see PR notes. Google-native Docs/Slides work here as long as the
-// Drive client exports them to a text/* MIME type before handing bytes over.
+/** Minimal shape needed to extract text — a Drive file satisfies it structurally. */
+export interface ExtractableFile {
+  bytes: Uint8Array
+  mimeType: string
+}
+
+// Text extraction handles text/*, PDF (unpdf), and DOCX (mammoth). Anything else
+// that needs a binary parser (PPTX) or OCR (text-in-images, scanned decks) is
+// still OUT OF SCOPE. Google-native Docs/Slides work here as long as the Drive
+// client exports them to a text/* MIME type before handing bytes over.
 
 export class UnsupportedMimeError extends Error {
   constructor(public readonly mimeType: string) {
     super(
-      `Native text extraction does not support "${mimeType}". ORR-620 v1 handles ` +
-        `text/* only; PDF/PPTX/DOCX parsing and OCR are follow-ups.`,
+      `Text extraction does not support "${mimeType}". Handles text/*, PDF, and ` +
+        `DOCX; PPTX parsing and OCR are follow-ups.`,
     )
     this.name = "UnsupportedMimeError"
   }
@@ -37,16 +45,27 @@ export function isNativelyExtractable(mimeType: string): boolean {
  * UnsupportedMimeError for formats that need a parser — the worker marks the
  * document 'failed' with that message rather than indexing garbage.
  */
-export async function extractText(file: DriveFile): Promise<TextSegment[]> {
+export async function extractText(file: ExtractableFile): Promise<TextSegment[]> {
   const mime = file.mimeType.split(";")[0].trim().toLowerCase()
   if (mime === PDF_MIME) {
     return extractPdf(file.bytes)
+  }
+  if (mime === DOCX_MIME) {
+    return extractDocx(file.bytes)
   }
   if (!isNativelyExtractable(file.mimeType)) {
     throw new UnsupportedMimeError(file.mimeType)
   }
   const text = new TextDecoder("utf-8").decode(file.bytes)
   return [{ text }]
+}
+
+/** Extract a DOCX's text via mammoth (raw text, no styling). One segment;
+ *  DOCX carries no reliable page boundaries natively. */
+async function extractDocx(bytes: Uint8Array): Promise<TextSegment[]> {
+  const { value } = await mammoth.extractRawText({ buffer: Buffer.from(bytes) })
+  const text = value.trim()
+  return text.length > 0 ? [{ text }] : []
 }
 
 /** Extract a PDF's text page-by-page via unpdf (pdf.js, no native deps). One

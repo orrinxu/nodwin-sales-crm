@@ -23,7 +23,7 @@ import {
   saveViewAction,
   deleteSavedViewAction,
 } from "./actions"
-import { generateOpportunityAction } from "./generate-actions"
+import { generateOpportunityAction, extractDocumentTextAction } from "./generate-actions"
 
 export default async function OpportunitiesPage() {
   const user = await requireUser()
@@ -63,6 +63,7 @@ export default async function OpportunitiesPage() {
         users={users}
         createAction={createOpportunityAction}
         generateAction={generateOpportunityAction}
+        extractFileAction={extractDocumentTextAction}
         updateStageAction={updateOpportunityStageAction}
         bulkDeleteAction={bulkDeleteOpportunitiesAction}
         bulkUpdateStageAction={bulkUpdateOpportunityStageAction}

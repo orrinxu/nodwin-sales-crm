@@ -23,7 +23,7 @@ import {
   saveViewAction,
   deleteSavedViewAction,
 } from "../opportunities/actions"
-import { generateOpportunityAction } from "../opportunities/generate-actions"
+import { generateOpportunityAction, extractDocumentTextAction } from "../opportunities/generate-actions"
 
 export const metadata = {
   title: "Pipeline - Nodwin CRM",
@@ -69,6 +69,7 @@ export default async function PipelinePage() {
         users={users}
         createAction={createOpportunityAction}
         generateAction={generateOpportunityAction}
+        extractFileAction={extractDocumentTextAction}
         updateStageAction={updateOpportunityStageAction}
         bulkDeleteAction={bulkDeleteOpportunitiesAction}
         bulkUpdateStageAction={bulkUpdateOpportunityStageAction}
