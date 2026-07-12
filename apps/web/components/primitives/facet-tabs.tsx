@@ -6,13 +6,13 @@ import { Lock } from "lucide-react"
 import { Tabs, TabsList, TabsTab, TabsPanel } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 
-// Underline "facet" styling for a record-detail tab bar, layered on ui/tabs.
-// Prominence (15px / medium→semibold / primary-tinted active) matches the
-// approved record-detail mock (docs/retrofit/mocks/opportunity-reorganized.html).
+// Segmented "facet" styling for a record-detail tab bar, layered on ui/tabs.
+// Active tab reads as a filled primary-tint pill (Orrin, 2026-07-12 — chosen over
+// the mock's underline for stronger at-a-glance "where am I" prominence).
 const FACET_LIST_CLASS =
-  "w-full justify-start gap-6 rounded-none border-b border-border bg-transparent p-0"
+  "w-full flex-wrap justify-start gap-1.5 rounded-none border-b border-border bg-transparent p-0 pb-2"
 const FACET_TAB_CLASS =
-  "rounded-none border-b-2 border-transparent px-0 py-2.5 text-[15px] font-medium text-muted-foreground transition-colors hover:text-foreground data-active:border-primary data-active:bg-transparent data-active:font-semibold data-active:text-primary data-active:shadow-none"
+  "rounded-lg px-3.5 py-2 text-base font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-active:bg-primary/10 data-active:font-semibold data-active:text-primary data-active:shadow-none"
 
 /** Facet tab group root — same behaviour as ui `Tabs`, re-exported for one-import ergonomics. */
 export const FacetTabs = Tabs
