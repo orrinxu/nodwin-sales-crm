@@ -258,6 +258,8 @@ Never commit with `--no-verify` to bypass the hook. If the hook fails, fix the R
 
 **Stale branch policy:** PRs with merge conflicts caused by already-merged commits will be closed without review. Open a clean PR from a fresh branch.
 
+**Merging (concurrent-safe — use `scripts/ship-pr.sh <pr>`):** With multiple agents/instances merging, a squash can be silently blocked when another PR lands first — your branch falls behind `main`, branch protection refuses the merge, and `gh pr merge` prints only an *"admin privileges"* hint while still exiting `0`. **Never delete a branch or mirror `main` until the PR state is actually `MERGED`.** Rather than hand-run the sequence, ship with **`scripts/ship-pr.sh <pr-number>`** (from the PR's checked-out branch): it rebases-if-behind, verifies the PR head matches your local HEAD, waits for CI, squash-merges, **confirms `state == MERGED` before deleting the branch**, mirrors `main` to the `nodwin` backup remote, and watches the deploy — looping the rebase→merge across merge races. Flags: `--no-deploy`, `--no-mirror`.
+
 ### 8.4 PR description format
 
 ```
