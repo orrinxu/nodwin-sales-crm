@@ -12,8 +12,8 @@ const nextConfig: NextConfig = {
   experimental: {
     // The Opportunity Generator uploads RFP PDFs/DOCX to a server action; Next's
     // default 1 MB server-action body cap rejected real files (surfacing as a
-    // generic "analysing" error). Match the app's 15 MB extract cap + headroom.
-    serverActions: { bodySizeLimit: "16mb" },
+    // generic "analysing" error). Allow up to 50 MB (the app's upload cap).
+    serverActions: { bodySizeLimit: "50mb" },
   },
 };
 

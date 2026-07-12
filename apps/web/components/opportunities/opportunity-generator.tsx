@@ -226,7 +226,7 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
               >
                 <UploadCloud className="size-5 text-muted-foreground" />
                 {fileName ? <span className="font-medium">{fileName}</span> : <span>Drop a PDF, DOCX, or text file here, or click to choose</span>}
-                <span className="text-xs text-muted-foreground">.pdf, .docx, .txt, .eml, .md</span>
+                <span className="text-xs text-muted-foreground">.pdf, .docx, .txt, .eml, .md · max 50&nbsp;MB</span>
                 <input
                   ref={fileInputRef}
                   type="file"

@@ -16,7 +16,7 @@ ORR-661, and cash-flow milestone follow-ups.
 
 ### Fixed
 
-- **Opportunity Generator RFP uploads failed with a generic "analysing" error (ORR-710):** Next's default **1 MB** server-action body limit rejected real PDF/DOCX uploads before `extractDocumentTextAction` ran. Set `experimental.serverActions.bodySizeLimit` to `16mb` (matching the app's 15 MB extract cap) in `next.config.ts`.
+- **Opportunity Generator RFP uploads failed with a generic "analysing" error (ORR-710):** Next's default **1 MB** server-action body limit rejected real PDF/DOCX uploads before `extractDocumentTextAction` ran. Raised the upload cap to **50 MB** (`experimental.serverActions.bodySizeLimit` + the action's own size check) and surfaced a "max 50 MB" note in the upload step.
 
 ### Changed
 
