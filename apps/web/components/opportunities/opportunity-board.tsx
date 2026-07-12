@@ -28,6 +28,8 @@ import type { EntityOption } from "@/components/entity-combobox"
 import { OpportunityCard } from "@/components/opportunities/opportunity-card"
 import { OpportunityColumn } from "@/components/opportunities/opportunity-column"
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
+import { OpportunityGenerator } from "@/components/opportunities/opportunity-generator"
+import type { GenerateOpportunityResult } from "@/app/(crm)/opportunities/generate-actions"
 import { OpportunityQuickCreate } from "@/components/opportunities/opportunity-quick-create"
 
 interface OpportunityBoardProps {
@@ -38,6 +40,8 @@ interface OpportunityBoardProps {
   businessUnits: BusinessUnitOption[]
   users?: EntityOption[]
   createAction: (input: OpportunityCreateInput) => Promise<OpportunityRecord>
+  /** ORR-677: when provided, "Create Opportunity" opens the AI generator chooser. */
+  generateAction?: (input: { text: string }) => Promise<GenerateOpportunityResult>
   updateStageAction: (
     id: string,
     input: { stage: string },
@@ -56,6 +60,7 @@ export function OpportunityBoard({
   businessUnits,
   users,
   createAction,
+  generateAction,
   updateStageAction,
   searchAccountsAction,
   searchContactsAction,
@@ -145,18 +150,34 @@ export function OpportunityBoard({
             onSuccess={() => router.refresh()}
             searchAccountsAction={searchAccountsAction}
           />
-          <OpportunityForm
-            accounts={accounts}
-            businessUnits={businessUnits}
-            users={users}
-            createAction={createAction}
-            onSuccess={() => router.refresh()}
-            searchAccountsAction={searchAccountsAction}
-            searchContactsAction={searchContactsAction}
-            searchUsersAction={searchUsersAction}
-            createContactQuickAction={createContactQuickAction}
-            defaultCurrency={defaultCurrency}
-          />
+          {generateAction ? (
+            <OpportunityGenerator
+              accounts={accounts}
+              businessUnits={businessUnits}
+              users={users}
+              createAction={createAction}
+              generateAction={generateAction}
+              onSuccess={() => router.refresh()}
+              searchAccountsAction={searchAccountsAction}
+              searchContactsAction={searchContactsAction}
+              searchUsersAction={searchUsersAction}
+              createContactQuickAction={createContactQuickAction}
+              defaultCurrency={defaultCurrency}
+            />
+          ) : (
+            <OpportunityForm
+              accounts={accounts}
+              businessUnits={businessUnits}
+              users={users}
+              createAction={createAction}
+              onSuccess={() => router.refresh()}
+              searchAccountsAction={searchAccountsAction}
+              searchContactsAction={searchContactsAction}
+              searchUsersAction={searchUsersAction}
+              createContactQuickAction={createContactQuickAction}
+              defaultCurrency={defaultCurrency}
+            />
+          )}
         </div>
 
         <div className="flex flex-1 gap-4 overflow-x-auto pb-4">

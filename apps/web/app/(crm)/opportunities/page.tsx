@@ -23,6 +23,7 @@ import {
   saveViewAction,
   deleteSavedViewAction,
 } from "./actions"
+import { generateOpportunityAction } from "./generate-actions"
 
 export default async function OpportunitiesPage() {
   const user = await requireUser()
@@ -61,6 +62,7 @@ export default async function OpportunitiesPage() {
         businessUnits={businessUnits}
         users={users}
         createAction={createOpportunityAction}
+        generateAction={generateOpportunityAction}
         updateStageAction={updateOpportunityStageAction}
         bulkDeleteAction={bulkDeleteOpportunitiesAction}
         bulkUpdateStageAction={bulkUpdateOpportunityStageAction}

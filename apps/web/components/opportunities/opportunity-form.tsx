@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RecordEditDialog } from "@/components/forms/record-edit-dialog"
+import type { OpportunityPrefill } from "@/lib/data/opportunity-extraction-resolver"
 import { FormSection } from "@/components/forms/form-section"
 import {
   Select,
@@ -171,6 +172,14 @@ interface OpportunityFormProps {
   // Pre-fills the currency on a NEW deal (from the user's entry_currency_default
   // preference). Ignored when editing — a saved deal keeps its own currency.
   defaultCurrency?: string
+  // ── Opportunity Generator (ORR-677) — all optional, additive ──
+  /** AI-extracted create-mode values used to pre-fill a NEW deal. Ignored when editing. */
+  prefill?: OpportunityPrefill
+  /** Controlled open state (the generator drives the dialog after "analysing"). */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** Rendered at the top of the dialog body — used for the "AI-generated, review" banner. */
+  banner?: React.ReactNode
 }
 
 export function OpportunityForm({
@@ -189,8 +198,18 @@ export function OpportunityForm({
   createContactQuickAction,
   currentUserId,
   defaultCurrency,
+  prefill,
+  open: controlledOpen,
+  onOpenChange: onOpenChangeProp,
+  banner,
 }: OpportunityFormProps) {
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isControlledOpen = controlledOpen !== undefined
+  const open = isControlledOpen ? controlledOpen : internalOpen
+  const setOpen = (next: boolean) => {
+    if (onOpenChangeProp) onOpenChangeProp(next)
+    if (!isControlledOpen) setInternalOpen(next)
+  }
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showAllFields, setShowAllFields] = useState(false)
@@ -198,12 +217,13 @@ export function OpportunityForm({
     () => opportunity?.customData ?? {},
   )
   const [countryExecutionValue, setCountryExecutionValue] = useState<string[]>(
-    () => opportunity?.countryExecution
-      ? opportunity.countryExecution.split(",").map((s) => s.trim()).filter(Boolean)
-      : [],
+    () => {
+      const raw = opportunity?.countryExecution ?? prefill?.countryExecution
+      return raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : []
+    },
   )
   const [serviceTypeValue, setServiceTypeValue] = useState<string[]>(
-    () => opportunity?.serviceType ?? [],
+    () => opportunity?.serviceType ?? prefill?.serviceType ?? [],
   )
 
   const serviceTypeOptions: MultiSelectOption[] = useMemo(
@@ -216,33 +236,36 @@ export function OpportunityForm({
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
+    // ORR-677: on a NEW deal, `prefill` (AI-extracted) seeds the create fields.
+    // The never-infer four (owner, stage, probability, visibility) are NOT in
+    // prefill and keep their safe defaults.
     defaultValues: {
-      name: opportunity?.name ?? "",
-      accountId: opportunity?.accountId ?? "",
-      primaryContactId: opportunity?.primaryContactId ?? "",
-      salesUnitId: opportunity?.salesUnitId ?? "",
+      name: opportunity?.name ?? prefill?.name ?? "",
+      accountId: opportunity?.accountId ?? prefill?.accountId ?? "",
+      primaryContactId: opportunity?.primaryContactId ?? prefill?.primaryContactId ?? "",
+      salesUnitId: opportunity?.salesUnitId ?? prefill?.salesUnitId ?? "",
       ownerUserId: opportunity?.ownerUserId ?? currentUserId ?? "",
       stage: opportunity?.stage ?? "qualify",
-      amount: opportunity ? String(opportunity.amount) : undefined,
-      currency: opportunity?.currency ?? defaultCurrency ?? "USD",
-      closeDate: opportunity?.closeDate ?? "",
+      amount: opportunity ? String(opportunity.amount) : prefill?.amount ?? undefined,
+      currency: opportunity?.currency ?? prefill?.currency ?? defaultCurrency ?? "USD",
+      closeDate: opportunity?.closeDate ?? prefill?.closeDate ?? "",
       probabilityPct: opportunity?.probabilityPct ?? getDefaultStageProbability(opportunity?.stage ?? "qualify"),
-      description: opportunity?.description ?? "",
-      servicePeriodStart: opportunity?.servicePeriodStart ?? "",
-      servicePeriodEnd: opportunity?.servicePeriodEnd ?? "",
-      executionDate: opportunity?.executionDate ?? "",
-      estimatedGrossMarginPct: opportunity?.estimatedGrossMarginPct ?? undefined,
-      countryExecution: opportunity?.countryExecution ?? "",
-      projectType: (opportunity?.projectType as ProjectType) ?? undefined,
-      revenueCategory: (opportunity?.revenueCategory as RevenueCategory) ?? undefined,
-      recurring: opportunity?.recurring ?? false,
-      recurringSplitKind: (opportunity?.recurringSplitKind as RecurringSplitKind) ?? undefined,
+      description: opportunity?.description ?? prefill?.description ?? "",
+      servicePeriodStart: opportunity?.servicePeriodStart ?? prefill?.servicePeriodStart ?? "",
+      servicePeriodEnd: opportunity?.servicePeriodEnd ?? prefill?.servicePeriodEnd ?? "",
+      executionDate: opportunity?.executionDate ?? prefill?.executionDate ?? "",
+      estimatedGrossMarginPct: opportunity?.estimatedGrossMarginPct ?? prefill?.estimatedGrossMarginPct ?? undefined,
+      countryExecution: opportunity?.countryExecution ?? prefill?.countryExecution ?? "",
+      projectType: (opportunity?.projectType as ProjectType) ?? prefill?.projectType ?? undefined,
+      revenueCategory: (opportunity?.revenueCategory as RevenueCategory) ?? prefill?.revenueCategory ?? undefined,
+      recurring: opportunity?.recurring ?? prefill?.recurring ?? false,
+      recurringSplitKind: (opportunity?.recurringSplitKind as RecurringSplitKind) ?? prefill?.recurringSplitKind ?? undefined,
       visibilityTier: (opportunity?.visibilityTier as VisibilityTier) ?? "standard",
       billingEntityId: opportunity?.billingEntityId ?? "",
       entitySalesId: opportunity?.entitySalesId ?? "",
-      barterValue: opportunity?.barterValue ?? "",
-      serviceType: opportunity?.serviceType?.join(", ") ?? "",
-      propertyType: (opportunity?.propertyType ?? "") as "" | PropertyType,
+      barterValue: opportunity?.barterValue ?? prefill?.barterValue ?? "",
+      serviceType: opportunity?.serviceType?.join(", ") ?? prefill?.serviceType?.join(", ") ?? "",
+      propertyType: (opportunity?.propertyType ?? prefill?.propertyType ?? "") as "" | PropertyType,
       lossReason: opportunity?.lossReason ?? "",
     },
   })
@@ -421,12 +444,16 @@ export function OpportunityForm({
       open={open}
       onOpenChange={handleOpenChange}
       trigger={
-        (trigger ?? (
-          <Button>
-            <Plus className="size-4" />
-            Create Opportunity
-          </Button>
-        )) as React.ReactElement
+        // When the generator drives the dialog (controlled open), render no
+        // built-in trigger — it has its own flow.
+        (isControlledOpen
+          ? (trigger as React.ReactElement | undefined)
+          : ((trigger ?? (
+              <Button>
+                <Plus className="size-4" />
+                Create Opportunity
+              </Button>
+            )) as React.ReactElement))
       }
       title={isEditing ? "Edit Opportunity" : "Create Opportunity"}
       description={
@@ -452,6 +479,7 @@ export function OpportunityForm({
         </>
       }
     >
+      {banner}
       {error && (
         <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
           {error}
