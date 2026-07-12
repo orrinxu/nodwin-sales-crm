@@ -36,6 +36,7 @@ ORR-661, and cash-flow milestone follow-ups.
 
 ### CI
 
+- **`scripts/ship-pr.sh` — retry the post-rebase head-check (#265):** after a rebase + force-push, GitHub lags a few seconds before the PR's `headRefOid` reflects the new commit; the one-shot check read the stale head and aborted (seen shipping #262). Poll the head up to ~30s until it matches local HEAD. Failed safe (no branch deleted) but needed a manual re-run — this makes the rebase path robust for concurrent merges.
 - **`scripts/ship-pr.sh` — concurrent-safe PR shipper (#259):** encodes the safe merge sequence so multiple agents/SSH instances merge identically without the "blocked merge reported as success, branch deleted anyway" failure. Rebases-if-behind → verifies PR head == local HEAD → waits for CI → squash-merges → **confirms `state == MERGED` before deleting the branch** → mirrors `main` to the `nodwin` remote → watches the deploy, looping the rebase→merge across merge races. Documented in `AGENTS.md` §8.3.
 
 ### Docs
