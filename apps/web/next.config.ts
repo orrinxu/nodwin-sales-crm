@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
   // standalone bundle includes workspace deps.
   outputFileTracingRoot: join(import.meta.dirname, "../.."),
   allowedDevOrigins: ["127.0.0.1", "192.168.88.51", "100.126.116.7"],
+  experimental: {
+    // The Opportunity Generator uploads RFP PDFs/DOCX to a server action; Next's
+    // default 1 MB server-action body cap rejected real files (surfacing as a
+    // generic "analysing" error). Allow up to 50 MB (the app's upload cap).
+    serverActions: { bodySizeLimit: "50mb" },
+  },
 };
 
 export default nextConfig;

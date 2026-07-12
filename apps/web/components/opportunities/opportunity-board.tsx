@@ -30,7 +30,6 @@ import { OpportunityColumn } from "@/components/opportunities/opportunity-column
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
 import { OpportunityGenerator } from "@/components/opportunities/opportunity-generator"
 import type { GenerateOpportunityResult, ExtractFileResult } from "@/app/(crm)/opportunities/generate-actions"
-import { OpportunityQuickCreate } from "@/components/opportunities/opportunity-quick-create"
 
 interface OpportunityBoardProps {
   opportunities: OpportunityRecord[]
@@ -145,13 +144,6 @@ export function OpportunityBoard({
     >
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 lg:p-6 lg:pt-0">
         <div className="flex items-center justify-end gap-2">
-          <OpportunityQuickCreate
-            accounts={accounts.map((a) => ({ id: a.id, label: a.name }))}
-            businessUnits={businessUnits}
-            createAction={createAction}
-            onSuccess={() => router.refresh()}
-            searchAccountsAction={searchAccountsAction}
-          />
           {generateAction ? (
             <OpportunityGenerator
               accounts={accounts}

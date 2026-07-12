@@ -42,7 +42,7 @@ export interface ExtractFileResult {
 
 // Max upload the generator will read server-side. The extracted text still
 // passes through generateOpportunityAction's 200k cap before hitting the model.
-const MAX_FILE_BYTES = 15 * 1024 * 1024
+const MAX_FILE_BYTES = 50 * 1024 * 1024
 
 function inferMime(name: string, type: string): string {
   if (type) return type
@@ -64,7 +64,7 @@ export async function extractDocumentTextAction(formData: FormData): Promise<Ext
   if (!(file instanceof File)) return { ok: false, error: "No file provided." }
   if (file.size === 0) return { ok: false, error: "That file is empty." }
   if (file.size > MAX_FILE_BYTES) {
-    return { ok: false, error: "That file is too large — max 15 MB." }
+    return { ok: false, error: "That file is too large — max 50 MB." }
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer())
