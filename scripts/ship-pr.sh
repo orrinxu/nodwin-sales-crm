@@ -92,9 +92,16 @@ while :; do
   fi
 
   local_head="$(git rev-parse HEAD)"
-  pr_head="$(gh pr view "$PR" --json headRefOid -q .headRefOid)"
+  # GitHub lags a few seconds before a just-pushed (esp. force-pushed) head shows
+  # up on the PR, so poll rather than failing on the first stale read.
+  pr_head=""
+  for _ in $(seq 1 10); do
+    pr_head="$(gh pr view "$PR" --json headRefOid -q .headRefOid)"
+    [ "$pr_head" = "$local_head" ] && break
+    sleep 3
+  done
   [ "$pr_head" = "$local_head" ] || \
-    die "PR #$PR head ($pr_head) != local HEAD ($local_head) — push your branch, or check you're on the right PR"
+    die "PR #$PR head ($pr_head) != local HEAD ($local_head) after retries — push your branch, or check you're on the right PR"
 
   log "waiting for CI…"
   set +e
