@@ -35,6 +35,8 @@ import {
 import { isDealCopilotConfigured } from "@/lib/ai/deal-copilot"
 import { OpportunityDetailWrapper } from "@/components/opportunities/opportunity-detail-wrapper"
 import { listDocumentsForEntity } from "@/lib/data/documents"
+import { getCustomSchedule } from "@/lib/data/revenue-schedule"
+import { getRevenueScheduleAction, saveRevenueScheduleAction } from "../finance-actions"
 
 export default async function OpportunityDetailPage({
   params,
@@ -51,7 +53,7 @@ export default async function OpportunityDetailPage({
     notFound()
   }
 
-  const [businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState, enforceGateStatus, dealCopilotConfigured, documents] =
+  const [businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState, enforceGateStatus, dealCopilotConfigured, documents, revenueScheduleRows] =
     await Promise.all([
       getBusinessUnitOptions(ctx),
       getActivitiesForOpportunity(ctx, id),
@@ -64,9 +66,11 @@ export default async function OpportunityDetailPage({
       getEnforceGateStatus(ctx, id, opportunity.stage),
       isDealCopilotConfigured(),
       listDocumentsForEntity(ctx, { opportunityId: id }),
+      getCustomSchedule(id, ctx),
     ])
 
   const approvalStatus = approvalStatusLabel(summarizeApprovalStatus(approvals))
+  const revenueSchedule = revenueScheduleRows.map((r) => ({ month: r.month.slice(0, 10), amount: r.amount }))
 
   return (
     <OpportunityDetailWrapper
@@ -98,6 +102,9 @@ export default async function OpportunityDetailPage({
       dealCopilotSummaryAction={dealCopilotSummaryAction}
       dealCopilotEmailAction={dealCopilotEmailAction}
       dealCopilotNextBestActionAction={dealCopilotNextBestActionAction}
+      revenueSchedule={revenueSchedule}
+      getRevenueScheduleAction={getRevenueScheduleAction}
+      saveRevenueScheduleAction={saveRevenueScheduleAction}
     />
   )
 }
