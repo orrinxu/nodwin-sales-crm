@@ -200,7 +200,6 @@ function UserSection({ user }: SidebarProps) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-56">
           <DropdownMenuItem onClick={() => router.push("/settings")}>Settings</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => router.push("/settings/api-tokens")}>API tokens</DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-destructive"
