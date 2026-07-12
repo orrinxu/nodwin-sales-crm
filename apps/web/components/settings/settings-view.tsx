@@ -32,7 +32,14 @@ import type {
 } from "@/lib/data/notifications"
 import { FacetTabs, FacetTabsList, FacetTabsTab, FacetTabsPanel } from "@/components/primitives/facet-tabs"
 import { ApiTokensPanel } from "@/components/settings/api-tokens-view"
+import { EntityCombobox } from "@/components/entity-combobox"
 import type { ApiTokenRecord } from "@/lib/data/api-tokens"
+
+// IANA timezone list for the localization combobox. Guarded for runtimes without
+// Intl.supportedValuesOf (falls back to an empty list rather than throwing).
+const TIMEZONE_OPTIONS = (
+  typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : []
+).map((tz) => ({ id: tz, name: tz }))
 
 const DISPLAY_DEFAULT = "__org_default__"
 const ENTRY_MATCH = "__match_display__"
@@ -244,8 +251,15 @@ function LocalizationSection({
 
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="grid gap-1.5">
-            <Label htmlFor="timezone">Timezone</Label>
-            <Input id="timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)} placeholder="e.g. Asia/Singapore" />
+            <Label>Timezone</Label>
+            <EntityCombobox
+              items={TIMEZONE_OPTIONS}
+              value={timezone || null}
+              onChange={(v) => setTimezone(v ?? "")}
+              placeholder="Select timezone…"
+              searchPlaceholder="Search timezones…"
+              emptyMessage="No matching timezone."
+            />
           </div>
           <div className="grid gap-1.5">
             <Label>Number format</Label>
