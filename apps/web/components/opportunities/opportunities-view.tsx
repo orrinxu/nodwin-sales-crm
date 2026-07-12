@@ -20,6 +20,8 @@ import { EmptyState } from "@/components/primitives/empty-state"
 import { OpportunityBoard } from "@/components/opportunities/opportunity-board"
 import { OpportunityListTable } from "@/components/opportunities/opportunity-list-table"
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
+import { OpportunityGenerator } from "@/components/opportunities/opportunity-generator"
+import type { GenerateOpportunityResult } from "@/app/(crm)/opportunities/generate-actions"
 
 interface OpportunitiesViewProps {
   opportunities: OpportunityRecord[]
@@ -29,6 +31,8 @@ interface OpportunitiesViewProps {
   businessUnits: BusinessUnitOption[]
   users?: EntityOption[]
   createAction: (input: OpportunityCreateInput) => Promise<OpportunityRecord>
+  /** ORR-677: when provided, "Create Opportunity" opens the AI generator chooser. */
+  generateAction?: (input: { text: string }) => Promise<GenerateOpportunityResult>
   updateStageAction: (id: string, input: { stage: string }) => Promise<OpportunityRecord>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
   bulkUpdateStageAction: (input: { ids: string[]; stage: string }) => Promise<void>
@@ -70,6 +74,7 @@ export function OpportunitiesView({
   businessUnits,
   users,
   createAction,
+  generateAction,
   updateStageAction,
   bulkDeleteAction,
   bulkUpdateStageAction,
@@ -143,18 +148,34 @@ export function OpportunitiesView({
             title={emptyState.title}
             description={emptyState.description}
             action={
-              <OpportunityForm
-                accounts={accounts}
-                businessUnits={businessUnits}
-                users={users}
-                createAction={createAction}
-                onSuccess={() => router.refresh()}
-                searchAccountsAction={searchAccountsAction}
-                searchContactsAction={searchContactsAction}
-                searchUsersAction={searchUsersAction}
-                createContactQuickAction={createContactQuickAction}
-                defaultCurrency={defaultCurrency}
-              />
+              generateAction ? (
+                <OpportunityGenerator
+                  accounts={accounts}
+                  businessUnits={businessUnits}
+                  users={users}
+                  createAction={createAction}
+                  generateAction={generateAction}
+                  onSuccess={() => router.refresh()}
+                  searchAccountsAction={searchAccountsAction}
+                  searchContactsAction={searchContactsAction}
+                  searchUsersAction={searchUsersAction}
+                  createContactQuickAction={createContactQuickAction}
+                  defaultCurrency={defaultCurrency}
+                />
+              ) : (
+                <OpportunityForm
+                  accounts={accounts}
+                  businessUnits={businessUnits}
+                  users={users}
+                  createAction={createAction}
+                  onSuccess={() => router.refresh()}
+                  searchAccountsAction={searchAccountsAction}
+                  searchContactsAction={searchContactsAction}
+                  searchUsersAction={searchUsersAction}
+                  createContactQuickAction={createContactQuickAction}
+                  defaultCurrency={defaultCurrency}
+                />
+              )
             }
           />
         </div>
@@ -166,6 +187,7 @@ export function OpportunitiesView({
           businessUnits={businessUnits}
           users={users}
           createAction={createAction}
+          generateAction={generateAction}
           updateStageAction={updateStageAction}
           searchAccountsAction={searchAccountsAction}
           searchContactsAction={searchContactsAction}
