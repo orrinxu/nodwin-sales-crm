@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation"
 import { Search, Trash2Icon, Users, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { OwnerLink } from "@/components/people/owner-link"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import {
@@ -175,7 +176,13 @@ export function ContactsList({
       {
         accessorKey: "ownerName",
         header: "Owner",
-        cell: ({ row }) => row.getValue("ownerName") ?? "—",
+        cell: ({ row }) => (
+          <OwnerLink
+            userId={row.original.ownerUserId}
+            name={row.original.ownerName}
+            fallback="—"
+          />
+        ),
       },
       {
         accessorKey: "createdAt",

@@ -7,6 +7,7 @@ import { Pencil, Mail, Phone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { OwnerLink } from "@/components/people/owner-link"
 import { ContactForm } from "@/components/contacts/contact-form"
 import type { ContactRecord, ContactCreateInput, AccountOption } from "@/lib/data/contacts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
@@ -152,7 +153,10 @@ export function ContactDetailWrapper({
                   )
                 }
               />
-              <Field label="Owner" value={ownerName ?? "Unassigned"} />
+              <Field
+                label="Owner"
+                value={<OwnerLink userId={contact.ownerUserId} name={ownerName} />}
+              />
             </dl>
 
             {otherLinkedAccountIds.length > 0 && (
