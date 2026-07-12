@@ -4,7 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
 import { RevenueScheduleEditor } from "./revenue-schedule-editor"
-import type { RevenueScheduleData } from "@/app/(crm)/opportunities/finance-actions"
+import type { RevenueScheduleData, ScheduleMonthDTO } from "@/app/(crm)/opportunities/finance-actions"
 
 const BALANCED: RevenueScheduleData = {
   months: [
@@ -18,8 +18,10 @@ const BALANCED: RevenueScheduleData = {
 }
 
 function renderEditor(data: RevenueScheduleData) {
-  const getAction = vi.fn(async () => data)
-  const saveAction = vi.fn(async () => {})
+  const getAction = vi.fn<(opportunityId: string) => Promise<RevenueScheduleData>>(async () => data)
+  const saveAction = vi.fn<(opportunityId: string, months: ScheduleMonthDTO[]) => Promise<void>>(
+    async () => {},
+  )
   render(
     <RevenueScheduleEditor
       opportunityId="opp-1"
