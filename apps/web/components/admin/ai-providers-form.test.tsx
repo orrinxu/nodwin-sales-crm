@@ -29,6 +29,7 @@ function makeView(overrides: Partial<AiProvidersView> = {}): AiProvidersView {
       provider({ provider: "ollama_local", label: "Ollama", selfHosted: true }),
     ],
     primaryProvider: null,
+    featureProviderOverrides: {},
     ...overrides,
   }
 }
@@ -93,5 +94,51 @@ describe("AiProvidersForm — model picker", () => {
       providers: { provider: string; model: string }[]
     }
     expect(payload.providers[0].model).toBe("claude-opus-4-8")
+  })
+})
+
+describe("AiProvidersForm — per-feature model (ORR-674)", () => {
+  it("saves a pinned provider for a feature and passes existing overrides through", async () => {
+    const saveAction = vi.fn().mockResolvedValue(undefined)
+    const data = makeView({
+      providers: [provider({ provider: "claude", label: "Claude (Anthropic)", enabled: true })],
+      featureProviderOverrides: { summarise_deal: "claude" },
+    })
+    render(<AiProvidersForm data={data} saveAction={saveAction} />)
+
+    // Pin Claude for the opportunity-generator (document extraction) feature.
+    await userEvent.click(screen.getByRole("combobox", { name: /opportunity generator/i }))
+    await userEvent.click(await screen.findByRole("option", { name: "Claude (Anthropic)" }))
+
+    await userEvent.click(screen.getByRole("button", { name: /save providers/i }))
+    await waitFor(() => expect(saveAction).toHaveBeenCalledTimes(1))
+
+    const payload = saveAction.mock.calls[0][0] as {
+      featureProviderOverrides: Record<string, string>
+    }
+    expect(payload.featureProviderOverrides).toEqual({
+      summarise_deal: "claude",
+      opportunity_extraction: "claude",
+    })
+  })
+
+  it("removes a feature override when set back to Auto", async () => {
+    const saveAction = vi.fn().mockResolvedValue(undefined)
+    const data = makeView({
+      providers: [provider({ provider: "claude", label: "Claude (Anthropic)", enabled: true })],
+      featureProviderOverrides: { opportunity_extraction: "claude" },
+    })
+    render(<AiProvidersForm data={data} saveAction={saveAction} />)
+
+    await userEvent.click(screen.getByRole("combobox", { name: /opportunity generator/i }))
+    await userEvent.click(await screen.findByRole("option", { name: /auto/i }))
+
+    await userEvent.click(screen.getByRole("button", { name: /save providers/i }))
+    await waitFor(() => expect(saveAction).toHaveBeenCalledTimes(1))
+
+    const payload = saveAction.mock.calls[0][0] as {
+      featureProviderOverrides: Record<string, string>
+    }
+    expect(payload.featureProviderOverrides).toEqual({})
   })
 })

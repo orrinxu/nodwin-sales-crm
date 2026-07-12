@@ -4,8 +4,12 @@ import { createServerClient as createSsrClient } from "@supabase/ssr"
 import { createServerClient } from "@/lib/supabase/server"
 import { env } from "@/lib/security/env"
 import type { Database } from "@/lib/database.types"
+import type { AiFeature } from "@/lib/ai/types"
+import { AI_FEATURE_NAMES } from "@/lib/ai/features"
+import type { FeatureProviderOverrides } from "@/lib/ai/features"
 
 // ORR-635 admin-configurable AI providers + selection (primary + fallback chain).
+// ORR-674 per-feature provider override (pin a provider for one AI feature).
 // Config resolves DB-first (ai_providers), env-fallback. API keys are admin-only
 // (RLS); the admin UI only ever sees whether each key is SET.
 
@@ -15,6 +19,12 @@ export type AiProviderName =
 export const AI_PROVIDER_NAMES: AiProviderName[] = [
   "claude", "gemini", "kimi", "deepseek", "openai_compatible", "ollama_local",
 ]
+
+// AI_FEATURE_NAMES, FEATURE_LABELS, and FeatureProviderOverrides live in the
+// client-safe @/lib/ai/features module (this module is server-only). Re-exported
+// for existing server-side importers.
+export { AI_FEATURE_NAMES, FEATURE_LABELS } from "@/lib/ai/features"
+export type { FeatureProviderOverrides } from "@/lib/ai/features"
 
 /** Providers that need a base_url (ip:port) endpoint — the self-hosted ones. */
 export const SELF_HOSTED_PROVIDERS: AiProviderName[] = ["openai_compatible", "ollama_local"]
@@ -84,12 +94,35 @@ async function primaryProvider(supabase: Db): Promise<AiProviderName | null> {
 }
 
 /**
+ * The admin-configured { feature -> provider } override map (ORR-674). Read as a
+ * Map (not a plain record) so per-feature lookups don't trip object-injection
+ * lint, and validated against the known feature/provider unions so a stale or
+ * hand-edited jsonb value can't inject an unknown provider into the chain.
+ */
+async function featureOverrides(supabase: Db): Promise<Map<AiFeature, AiProviderName>> {
+  const { data } = await supabase
+    .from("ai_settings")
+    .select("feature_provider_overrides")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const raw = (data?.feature_provider_overrides ?? {}) as Record<string, unknown>
+  const map = new Map<AiFeature, AiProviderName>()
+  for (const [key, value] of Object.entries(raw)) {
+    const feature = AI_FEATURE_NAMES.find((f) => f === key)
+    const provider = AI_PROVIDER_NAMES.find((p) => p === value)
+    if (feature && provider) map.set(feature, provider)
+  }
+  return map
+}
+
+/**
  * The ordered provider fallback chain, resolved DB-then-env. Enabled DB
  * providers (primary first, then priority asc); if none are enabled, falls back
  * to any env-configured provider (backward compat before an admin configures).
  * Only usable providers (self-hosted need base_url, cloud need api_key) survive.
  */
-export async function resolveProviderChain(): Promise<ResolvedProvider[]> {
+export async function resolveProviderChain(feature?: AiFeature): Promise<ResolvedProvider[]> {
   const supabase = serviceRoleClient()
   const { data: rows } = await supabase.from("ai_providers").select("*")
   const byName = new Map<string, Row>((rows ?? []).map((r) => [r.provider, r]))
@@ -124,10 +157,24 @@ export async function resolveProviderChain(): Promise<ResolvedProvider[]> {
   // Availability guard: if the admin enabled providers but none are usable
   // (missing key/endpoint), don't take AI fully offline — fall back to any
   // env/DB-usable provider rather than returning an empty chain (CTO MEDIUM).
-  if (resolved.length === 0 && enabled.length > 0) {
-    return usableChain()
+  const finalChain = resolved.length === 0 && enabled.length > 0 ? usableChain() : resolved
+
+  // Per-feature override (ORR-674): if this feature pins a provider and that
+  // provider is present + usable in the chain, move it to the front. Fallback
+  // order (and cap degrade-to-ollama in the router) is otherwise untouched — an
+  // override reorders, it never removes the resilience of the rest of the chain.
+  if (feature) {
+    const overrides = await featureOverrides(supabase)
+    const pinned = overrides.get(feature)
+    if (pinned) {
+      const idx = finalChain.findIndex((r) => r.provider === pinned)
+      if (idx > 0) {
+        const [picked] = finalChain.splice(idx, 1)
+        finalChain.unshift(picked)
+      }
+    }
   }
-  return resolved
+  return finalChain
 }
 
 // ── Admin UI (masked) ─────────────────────────────────────────────────────────
@@ -146,6 +193,8 @@ export interface AiProviderSafe {
 export interface AiProvidersView {
   providers: AiProviderSafe[]
   primaryProvider: AiProviderName | null
+  /** ORR-674: current { feature -> provider } overrides for the admin form. */
+  featureProviderOverrides: FeatureProviderOverrides
 }
 
 export async function getAiProviders(ctx: AiProviderCallContext): Promise<AiProvidersView> {
@@ -174,10 +223,18 @@ export async function getAiProviders(ctx: AiProviderCallContext): Promise<AiProv
       configured: isUsable(p, baseUrl, apiKeySet ? "set" : null),
     }
   })
-  return { providers, primaryProvider: await primaryProvider(supabase) }
+  const [primary, overrides] = await Promise.all([primaryProvider(supabase), featureOverrides(supabase)])
+  return {
+    providers,
+    primaryProvider: primary,
+    featureProviderOverrides: Object.fromEntries(overrides) as FeatureProviderOverrides,
+  }
 }
 
 const providerEnum = z.enum(["claude", "gemini", "kimi", "deepseek", "openai_compatible", "ollama_local"])
+const featureEnum = z.enum([
+  "search", "summarise_deal", "draft_email", "next_best_action", "opportunity_extraction", "other",
+])
 
 export const aiProvidersUpdateSchema = z.object({
   providers: z.array(
@@ -191,6 +248,9 @@ export const aiProvidersUpdateSchema = z.object({
     }),
   ),
   primaryProvider: providerEnum.nullable().optional(),
+  // ORR-674: full replace of the { feature -> provider } override map. Omit to
+  // leave overrides untouched; send {} to clear all.
+  featureProviderOverrides: z.record(featureEnum, providerEnum).optional(),
 })
 export type AiProvidersUpdateInput = z.input<typeof aiProvidersUpdateSchema>
 
@@ -212,15 +272,23 @@ export async function updateAiProviders(
     if (error) throw new Error(`Failed to update provider ${p.provider}: ${error.message}`)
   }
 
-  if (parsed.primaryProvider !== undefined) {
+  // Provider SELECTION (primary + per-feature overrides) both live on the
+  // singleton ai_settings row — write whichever the caller sent in one upsert.
+  const settingsPatch: Database["public"]["Tables"]["ai_settings"]["Update"] = {}
+  if (parsed.primaryProvider !== undefined) settingsPatch.primary_provider = parsed.primaryProvider
+  if (parsed.featureProviderOverrides !== undefined) {
+    settingsPatch.feature_provider_overrides = parsed.featureProviderOverrides
+  }
+
+  if (Object.keys(settingsPatch).length > 0) {
     const { data: existing } = await supabase
       .from("ai_settings").select("id").order("updated_at", { ascending: false }).limit(1).maybeSingle()
     if (existing) {
-      const { error } = await supabase.from("ai_settings").update({ primary_provider: parsed.primaryProvider }).eq("id", existing.id)
-      if (error) throw new Error(`Failed to set primary provider: ${error.message}`)
+      const { error } = await supabase.from("ai_settings").update(settingsPatch).eq("id", existing.id)
+      if (error) throw new Error(`Failed to update AI provider selection: ${error.message}`)
     } else {
-      const { error } = await supabase.from("ai_settings").insert({ primary_provider: parsed.primaryProvider, created_by: ctx.user.id })
-      if (error) throw new Error(`Failed to set primary provider: ${error.message}`)
+      const { error } = await supabase.from("ai_settings").insert({ ...settingsPatch, created_by: ctx.user.id })
+      if (error) throw new Error(`Failed to update AI provider selection: ${error.message}`)
     }
   }
 }

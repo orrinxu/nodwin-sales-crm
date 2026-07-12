@@ -380,6 +380,7 @@ export type Database = {
           embeddings_api_key: string | null
           embeddings_base_url: string | null
           embeddings_model: string | null
+          feature_provider_overrides: Json
           generation_api_key: string | null
           generation_base_url: string | null
           generation_model: string | null
@@ -397,6 +398,7 @@ export type Database = {
           embeddings_api_key?: string | null
           embeddings_base_url?: string | null
           embeddings_model?: string | null
+          feature_provider_overrides?: Json
           generation_api_key?: string | null
           generation_base_url?: string | null
           generation_model?: string | null
@@ -414,6 +416,7 @@ export type Database = {
           embeddings_api_key?: string | null
           embeddings_base_url?: string | null
           embeddings_model?: string | null
+          feature_provider_overrides?: Json
           generation_api_key?: string | null
           generation_base_url?: string | null
           generation_model?: string | null
@@ -3560,6 +3563,7 @@ export type Database = {
         | "draft_email"
         | "next_best_action"
         | "other"
+        | "opportunity_extraction"
       ai_provider:
         | "claude"
         | "gemini"
@@ -3803,6 +3807,7 @@ export const Constants = {
         "draft_email",
         "next_best_action",
         "other",
+        "opportunity_extraction",
       ],
       ai_provider: [
         "claude",
