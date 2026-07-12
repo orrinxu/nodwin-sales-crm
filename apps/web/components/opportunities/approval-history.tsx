@@ -1,3 +1,5 @@
+"use client"
+
 import { Badge } from "@/components/ui/badge"
 import { Users } from "lucide-react"
 import type {
@@ -5,15 +7,7 @@ import type {
   ApprovalInstanceStatus,
   ApprovalStepStatus,
 } from "@/lib/data/approvals"
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "\u2014"
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  })
-}
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 function instanceBadgeVariant(
   status: ApprovalInstanceStatus,
@@ -63,6 +57,8 @@ interface ApprovalHistoryProps {
 }
 
 export function ApprovalHistory({ instances }: ApprovalHistoryProps) {
+  const { formatDate } = usePreferences()
+
   if (instances.length === 0) {
     return (
       <p className="text-xs text-muted-foreground">
@@ -85,8 +81,8 @@ export function ApprovalHistory({ instances }: ApprovalHistoryProps) {
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {instance.triggeredByName
-              ? `Submitted by ${instance.triggeredByName} \u00b7 ${formatDate(instance.createdAt)}`
-              : `Submitted ${formatDate(instance.createdAt)}`}
+              ? `Submitted by ${instance.triggeredByName} \u00b7 ${formatDate(instance.createdAt, "—")}`
+              : `Submitted ${formatDate(instance.createdAt, "—")}`}
           </p>
 
           {instance.steps.length > 0 && (
@@ -118,7 +114,7 @@ export function ApprovalHistory({ instances }: ApprovalHistoryProps) {
                     <p key={decision.id} className="mt-1 text-[11px] text-muted-foreground">
                       <span className="capitalize">{decision.decision}</span>
                       {decision.decidedByName ? ` by ${decision.decidedByName}` : ""}
-                      {` \u00b7 ${formatDate(decision.createdAt)}`}
+                      {` \u00b7 ${formatDate(decision.createdAt, "\u2014")}`}
                       {decision.comment ? ` \u2014 ${decision.comment}` : ""}
                     </p>
                   ))}

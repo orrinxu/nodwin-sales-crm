@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 interface AdminAlertsPageProps {
   alerts: AdminAlert[]
@@ -38,7 +39,10 @@ interface AdminAlertsPageProps {
   acknowledgeAllAction: () => Promise<void>
 }
 
-function relativeTime(dateString: string): string {
+function relativeTime(
+  dateString: string,
+  formatAbsolute: (value: string) => string,
+): string {
   const diff = Date.now() - new Date(dateString).getTime()
   const seconds = Math.floor(diff / 1000)
   if (seconds < 60) return "just now"
@@ -48,7 +52,7 @@ function relativeTime(dateString: string): string {
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   if (days < 7) return `${days}d ago`
-  return new Date(dateString).toLocaleDateString()
+  return formatAbsolute(dateString)
 }
 
 const typeIcons: Record<string, typeof Info> = {
@@ -82,6 +86,7 @@ export function AdminAlertsPage({
   acknowledgeAllAction,
 }: AdminAlertsPageProps) {
   const router = useRouter()
+  const { formatDate } = usePreferences()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [showAcknowledged, setShowAcknowledged] = useState(false)
@@ -199,7 +204,7 @@ export function AdminAlertsPage({
         header: "Created",
         cell: ({ row }) => (
           <span className="whitespace-nowrap text-xs text-muted-foreground">
-            {relativeTime(row.getValue<string>("createdAt"))}
+            {relativeTime(row.getValue<string>("createdAt"), formatDate)}
           </span>
         ),
       },
@@ -210,7 +215,7 @@ export function AdminAlertsPage({
           const acknowledgedAt = row.getValue<string | null>("acknowledgedAt")
           return acknowledgedAt ? (
             <span className="text-xs text-muted-foreground">
-              Read {relativeTime(acknowledgedAt)}
+              Read {relativeTime(acknowledgedAt, formatDate)}
             </span>
           ) : (
             <Badge variant="default" className="h-5 px-1.5 text-[10px]">
@@ -248,7 +253,7 @@ export function AdminAlertsPage({
         },
       },
     ],
-    [handleAcknowledgeOne, acknowledgingIds],
+    [handleAcknowledgeOne, acknowledgingIds, formatDate],
   )
 
   const table = useReactTable({

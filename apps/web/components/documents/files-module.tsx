@@ -26,6 +26,7 @@ import {
 } from "@/app/(crm)/documents/actions"
 import { uploadBlobToDocuments, finalizeUpload } from "@/lib/documents/client-upload"
 import { DriveImportButton } from "@/components/documents/drive-import-button"
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 /** Human labels for each category value. A Map (not a Record) so the dynamic
  *  lookups below aren't flagged as object-injection sinks. */
@@ -52,14 +53,6 @@ function formatBytes(n: number | null): string {
   return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  })
-}
-
 interface FilesModuleProps {
   /** Exactly one of these identifies the parent record. */
   opportunityId?: string
@@ -75,6 +68,7 @@ interface FilesModuleProps {
  */
 export function FilesModule({ opportunityId, accountId, initialDocuments }: FilesModuleProps) {
   const router = useRouter()
+  const { formatDate } = usePreferences()
   const [docs, setDocs] = useState(initialDocuments)
   const [syncedFrom, setSyncedFrom] = useState(initialDocuments)
   const [dragOver, setDragOver] = useState(false)

@@ -93,7 +93,9 @@ describe("SettingsView", () => {
     await openTab("Notifications")
     expect(screen.getByText(/Slack delivery is coming soon/)).toBeInTheDocument()
     await openTab("Localization")
-    expect(screen.getByText(/Number and date formats apply to your dashboard/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/Number, date, and timezone preferences apply across the app/),
+    ).toBeInTheDocument()
   })
 
   it("Integrations copy is accurate and links to the Access tokens tab", async () => {

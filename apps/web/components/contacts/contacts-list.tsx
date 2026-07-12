@@ -41,25 +41,13 @@ import {
 import { Card } from "@/components/ui/card"
 import { ContactForm } from "@/components/contacts/contact-form"
 import type { AccountOption, ContactListRecord, ContactCreateInput, ContactRecord } from "@/lib/data/contacts"
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 interface ContactsListProps {
   contacts: ContactListRecord[]
   accounts: AccountOption[]
   createAction: (input: ContactCreateInput) => Promise<ContactRecord>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "—"
-  try {
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }).format(new Date(dateStr))
-  } catch {
-    return dateStr
-  }
 }
 
 export function ContactsList({
@@ -69,6 +57,7 @@ export function ContactsList({
   bulkDeleteAction,
 }: ContactsListProps) {
   const router = useRouter()
+  const { formatDate } = usePreferences()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isPending, setIsPending] = useState(false)
@@ -187,10 +176,10 @@ export function ContactsList({
       {
         accessorKey: "createdAt",
         header: "Created",
-        cell: ({ row }) => formatDate(row.getValue("createdAt")),
+        cell: ({ row }) => formatDate(row.getValue("createdAt"), "—"),
       },
     ],
-    [router],
+    [router, formatDate],
   )
 
   // TanStack Table is a compatible library; this is a known false positive.

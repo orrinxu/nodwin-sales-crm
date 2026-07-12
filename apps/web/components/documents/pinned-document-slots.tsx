@@ -5,6 +5,7 @@ import { FileText } from "lucide-react"
 import { getDocumentDownloadUrlAction } from "@/app/(crm)/documents/actions"
 import { type DocumentCategory, type DocumentSummary } from "@/lib/data/documents.types"
 import { cn } from "@/lib/utils"
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 const PINNED_LABELS = new Map<DocumentCategory, string>([
   ["rfp", "RFP"],
@@ -26,10 +27,6 @@ function formatBytes(n: number | null): string {
   if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`
   if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`
   return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
 }
 
 /** Display-only visibility-tier chip. Never gates access — RLS does that. */
@@ -68,6 +65,8 @@ export function PinnedDocumentSlots({
   /** Grid width at the sm breakpoint. Use 1 for a single full-width slot (e.g. the account rail). */
   columns?: 1 | 2 | 3
 }) {
+  const { formatDate } = usePreferences()
+
   async function download(id: string) {
     try {
       const { url } = await getDocumentDownloadUrlAction(id)

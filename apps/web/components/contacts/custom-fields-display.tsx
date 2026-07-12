@@ -3,32 +3,30 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 interface CustomFieldsDisplayProps {
   fieldDefinitions: FieldDefinition[]
   customData: Record<string, unknown>
 }
 
-function formatValue(value: unknown, def: FieldDefinition): string {
+type DateFormatter = (value: string | Date | null | undefined, fallback?: string) => string
+
+function formatValue(
+  value: unknown,
+  def: FieldDefinition,
+  formatDate: DateFormatter,
+  formatDateTime: DateFormatter,
+): string {
   if (value === null || value === undefined) return "—"
 
   switch (def.dataType) {
     case "boolean":
       return value ? "Yes" : "No"
     case "date":
-      return new Date(value as string).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
+      return formatDate(value as string, "—")
     case "datetime":
-      return new Date(value as string).toLocaleString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+      return formatDateTime(value as string, "—")
     case "currency":
       return new Intl.NumberFormat("en-US", {
         style: "currency",
@@ -47,8 +45,13 @@ function formatValue(value: unknown, def: FieldDefinition): string {
   }
 }
 
-function renderValue(value: unknown, def: FieldDefinition) {
-  const formatted = formatValue(value, def)
+function renderValue(
+  value: unknown,
+  def: FieldDefinition,
+  formatDate: DateFormatter,
+  formatDateTime: DateFormatter,
+) {
+  const formatted = formatValue(value, def, formatDate, formatDateTime)
 
   if (formatted === "—") return formatted
 
@@ -117,6 +120,8 @@ export function CustomFieldsDisplay({
   fieldDefinitions,
   customData,
 }: CustomFieldsDisplayProps) {
+  const { formatDate, formatDateTime } = usePreferences()
+
   if (fieldDefinitions.length === 0) return null
 
   const hasValues = fieldDefinitions.some((def) => customData[def.key] !== undefined && customData[def.key] !== null)
@@ -137,7 +142,7 @@ export function CustomFieldsDisplay({
                 <Label className="text-muted-foreground text-xs">
                   {def.label}
                 </Label>
-                {renderValue(value, def)}
+                {renderValue(value, def, formatDate, formatDateTime)}
               </div>
             )
           })}

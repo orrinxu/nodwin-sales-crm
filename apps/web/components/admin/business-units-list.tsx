@@ -62,19 +62,7 @@ import type {
 } from "@/lib/data/business-units"
 import { businessUnitKinds } from "@/lib/shared/business-unit-kinds"
 import type { BusinessUnitKind } from "@/lib/shared/business-unit-kinds"
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "—"
-  try {
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }).format(new Date(dateStr))
-  } catch {
-    return dateStr
-  }
-}
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 function kindLabel(kind: BusinessUnitKind): string {
   return kind.replace(/_/g, " ")
@@ -429,6 +417,7 @@ export function BusinessUnitsList({
   updateAction,
   deactivateAction,
 }: BusinessUnitsListProps) {
+  const { formatDate } = usePreferences()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [sorting, setSorting] = useState<SortingState>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -553,7 +542,7 @@ export function BusinessUnitsList({
             <ArrowUpDown className="ml-2 size-4" />
           </Button>
         ),
-        cell: ({ row }) => formatDate(row.getValue("createdAt")),
+        cell: ({ row }) => formatDate(row.getValue("createdAt"), "—"),
       },
       {
         id: "actions",
@@ -584,7 +573,7 @@ export function BusinessUnitsList({
         },
       },
     ],
-    [],
+    [formatDate],
   )
 
   const table = useReactTable({

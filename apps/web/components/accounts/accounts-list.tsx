@@ -46,19 +46,7 @@ import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import type { TaxIdType } from "@/lib/data/account-tax-ids"
 import type { TaxIdRow } from "@/components/accounts/tax-ids-editor"
 import type { EntityOption } from "@/components/entity-combobox"
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "—"
-  try {
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }).format(new Date(dateStr))
-  } catch {
-    return dateStr
-  }
-}
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 interface AccountsListProps {
   accounts: AccountListRecord[]
@@ -86,6 +74,7 @@ export function AccountsList({
   bulkDeleteAction,
 }: AccountsListProps) {
   const router = useRouter()
+  const { formatDate } = usePreferences()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [sorting, setSorting] = useState<SortingState>([])
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -214,7 +203,7 @@ export function AccountsList({
             <ArrowUpDown className="ml-2 size-4" />
           </Button>
         ),
-        cell: ({ row }) => formatDate(row.getValue("createdAt")),
+        cell: ({ row }) => formatDate(row.getValue("createdAt"), "—"),
       },
       {
         accessorKey: "website",
@@ -251,7 +240,7 @@ export function AccountsList({
         cell: ({ row }) => row.getValue("ownerName") ?? "—",
       },
     ],
-    [router],
+    [router, formatDate],
   )
 
   // TanStack Table is a compatible library; this is a known false positive.

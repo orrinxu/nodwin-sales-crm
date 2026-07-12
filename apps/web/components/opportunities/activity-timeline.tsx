@@ -3,6 +3,7 @@
 import { Phone, StickyNote, Mail, Calendar, CheckSquare, Clock } from "lucide-react"
 
 import type { ActivityRecord } from "@/lib/data/activities"
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 interface ActivityTimelineProps {
   activities: ActivityRecord[]
@@ -26,7 +27,10 @@ const activityLabels: Record<string, string> = {
   task: "Task",
 }
 
-function formatRelativeTime(dateStr: string): string {
+function formatRelativeTime(
+  dateStr: string,
+  formatAbsolute: (value: string) => string,
+): string {
   const now = Date.now()
   const date = new Date(dateStr).getTime()
   const diffMs = now - date
@@ -38,14 +42,12 @@ function formatRelativeTime(dateStr: string): string {
   if (diffMins < 60) return `${diffMins}m ago`
   if (diffHours < 24) return `${diffHours}h ago`
   if (diffDays < 7) return `${diffDays}d ago`
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
+  return formatAbsolute(dateStr)
 }
 
 export function ActivityTimeline({ activities }: ActivityTimelineProps) {
+  const { formatDate } = usePreferences()
+
   if (activities.length === 0) {
     return (
       <div className="py-8 text-center text-sm text-muted-foreground">
@@ -84,7 +86,7 @@ export function ActivityTimeline({ activities }: ActivityTimelineProps) {
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span>{activity.userName ?? "Unknown"}</span>
                   <span>·</span>
-                  <span>{formatRelativeTime(activity.createdAt)}</span>
+                  <span>{formatRelativeTime(activity.createdAt, formatDate)}</span>
                   {duration != null && (
                     <>
                       <span>·</span>

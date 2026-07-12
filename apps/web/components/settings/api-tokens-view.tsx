@@ -10,16 +10,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import type { ApiTokenRecord } from "@/lib/data/api-tokens"
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 interface Props {
   tokens: ApiTokenRecord[]
   createAction: (input: unknown) => Promise<{ token: string; record: ApiTokenRecord }>
   revokeAction: (id: string) => Promise<void>
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return "—"
-  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
 }
 
 function statusOf(t: ApiTokenRecord): { label: string; variant: "default" | "secondary" | "destructive" | "outline" } {
@@ -35,6 +31,7 @@ function statusOf(t: ApiTokenRecord): { label: string; variant: "default" | "sec
  */
 export function ApiTokensPanel({ tokens, createAction, revokeAction }: Props) {
   const router = useRouter()
+  const { formatDate } = usePreferences()
   const [name, setName] = useState("")
   const [newToken, setNewToken] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -156,8 +153,8 @@ export function ApiTokensPanel({ tokens, createAction, revokeAction }: Props) {
                       </div>
                       <p className="mt-0.5 font-mono text-xs text-muted-foreground">{t.tokenPrefix}…</p>
                       <p className="text-xs text-muted-foreground">
-                        Created {formatDate(t.createdAt)} · Last used {formatDate(t.lastUsedAt)}
-                        {t.expiresAt && ` · Expires ${formatDate(t.expiresAt)}`}
+                        Created {formatDate(t.createdAt, "—")} · Last used {formatDate(t.lastUsedAt, "—")}
+                        {t.expiresAt && ` · Expires ${formatDate(t.expiresAt, "—")}`}
                       </p>
                     </div>
                     {revocable && (

@@ -54,3 +54,32 @@ describe("formatPreferenceDateTime", () => {
     expect(formatPreferenceDateTime(null, "iso", "—")).toBe("—")
   })
 })
+
+describe("timezone awareness", () => {
+  // A fixed UTC instant near the day boundary: 2026-07-03 20:00 UTC.
+  // In Asia/Kolkata (+5:30) this is already 2026-07-04 01:30; in UTC it is
+  // still 2026-07-03. So an explicit timeZone shifts the rendered calendar day.
+  const instant = new Date("2026-07-03T20:00:00Z")
+
+  it("renders the date in the supplied IANA zone", () => {
+    expect(formatPreferenceDate(instant, "iso", "", "UTC")).toBe("2026-07-03")
+    expect(formatPreferenceDate(instant, "iso", "", "Asia/Kolkata")).toBe("2026-07-04")
+    expect(formatPreferenceDate(instant, "iso", "", "America/Los_Angeles")).toBe("2026-07-03")
+  })
+
+  it("renders both date and time in the supplied zone", () => {
+    expect(formatPreferenceDateTime(instant, "iso", "", "UTC")).toBe("2026-07-03, 20:00")
+    expect(formatPreferenceDateTime(instant, "iso", "", "Asia/Kolkata")).toBe("2026-07-04, 01:30")
+  })
+
+  it("no timezone is identical to null/undefined timezone (ambient-zone parity)", () => {
+    // Whatever the ambient zone, omitting the arg must equal passing null/undefined,
+    // so users with no timezone preference see exactly today's behaviour.
+    const bare = formatPreferenceDate(instant, "us")
+    expect(formatPreferenceDate(instant, "us", "", null)).toBe(bare)
+    expect(formatPreferenceDate(instant, "us", "", undefined)).toBe(bare)
+    const bareDt = formatPreferenceDateTime(instant, "us")
+    expect(formatPreferenceDateTime(instant, "us", "", null)).toBe(bareDt)
+    expect(formatPreferenceDateTime(instant, "us", "", undefined)).toBe(bareDt)
+  })
+})

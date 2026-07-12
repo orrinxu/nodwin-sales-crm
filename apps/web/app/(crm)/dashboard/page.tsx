@@ -9,7 +9,7 @@ import { getStuckDeals } from "@/lib/data/stuck-deals"
 import { getNeedsAttention } from "@/lib/data/needs-attention"
 import { getForecastData } from "@/lib/data/forecast"
 import { getConversionFunnel } from "@/lib/data/conversion"
-import { getNumberFormat, getDateFormat } from "@/lib/data/user-preferences"
+import { getNumberFormat } from "@/lib/data/user-preferences"
 import { numberFormatLocale } from "@/lib/format"
 import { SummaryStrip } from "@/components/dashboard/summary-strip"
 import { selectSummaryStrip } from "@/components/dashboard/summary-strip-data"
@@ -31,7 +31,7 @@ export default async function DashboardPage() {
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
 
-  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, needsAttention, forecast, conversionFunnel, savedLayout, numberFormat, dateFormat] = await Promise.all([
+  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, needsAttention, forecast, conversionFunnel, savedLayout, numberFormat] = await Promise.all([
     getPipelineMetrics(ctx),
     getPipelineSummary(ctx),
     getRecentDeals(ctx),
@@ -42,7 +42,6 @@ export default async function DashboardPage() {
     getConversionFunnel(),
     getDashboardLayout(ctx),
     getNumberFormat(ctx),
-    getDateFormat(ctx),
   ])
 
   // Use the same resolved currency the metrics were converted into, so the
@@ -101,7 +100,6 @@ export default async function DashboardPage() {
         <StuckDeals
           totalAtRisk={fmt.format(stuck.totalValueAtRisk)}
           unconvertibleCount={stuck.unconvertibleCount}
-          dateFormat={dateFormat}
           deals={stuck.deals.map((d) => ({
             id: d.id,
             name: d.name,
@@ -126,7 +124,6 @@ export default async function DashboardPage() {
       id: "activity",
       node: (
         <ActivityTimeline
-          dateFormat={dateFormat}
           activities={activities.map((a) => ({
             id: a.id,
             type: a.type,
@@ -143,7 +140,6 @@ export default async function DashboardPage() {
       id: "recent-deals",
       node: (
         <RecentDeals
-          dateFormat={dateFormat}
           deals={deals.map((d) => ({
             id: d.id,
             name: d.name,

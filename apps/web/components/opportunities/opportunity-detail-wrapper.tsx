@@ -49,6 +49,7 @@ import { DEAL_STAGES, NON_TERMINAL_STAGES, TERMINAL_STAGES } from "@/lib/opportu
 import type { DealStage } from "@/lib/opportunity"
 import { Money } from "@/lib/money"
 import { cn } from "@/lib/utils"
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 const COUNTRY_LABELS: Record<string, string> = {
   AE: "United Arab Emirates", AR: "Argentina", AU: "Australia", BD: "Bangladesh",
@@ -81,11 +82,6 @@ const T = {
 
 // Empty-field policy (gate 1). Flip in ONE place: "add" | "hide" | "dash".
 const EMPTY_MODE: "add" | "hide" | "dash" = "add"
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "—"
-  return new Date(dateStr).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
-}
 
 interface OpportunityDetailWrapperProps {
   opportunity: OpportunityRecord
@@ -266,6 +262,7 @@ export function OpportunityDetailWrapper({
   dealCopilotNextBestActionAction,
 }: OpportunityDetailWrapperProps) {
   const router = useRouter()
+  const { formatDate } = usePreferences()
   const [updatingStage, setUpdatingStage] = useState(false)
   const [approvalPending, setApprovalPending] = useState(false)
   const [activeTab, setActiveTab] = useState("overview")
@@ -374,7 +371,7 @@ export function OpportunityDetailWrapper({
 
   const servicePeriod =
     opportunity.servicePeriodStart || opportunity.servicePeriodEnd
-      ? `${formatDate(opportunity.servicePeriodStart)} – ${formatDate(opportunity.servicePeriodEnd)}`
+      ? `${formatDate(opportunity.servicePeriodStart, "—")} – ${formatDate(opportunity.servicePeriodEnd, "—")}`
       : null
 
   const countryValue = opportunity.countryExecution
@@ -508,7 +505,7 @@ export function OpportunityDetailWrapper({
                   <DefinitionFieldGrid>
                     <DefinitionField label="Currency" value={opportunity.currency} />
                     <DefinitionField label="Close date" onAdd={openEdit}>
-                      {opportunity.closeDate ? formatDate(opportunity.closeDate) : undefined}
+                      {opportunity.closeDate ? formatDate(opportunity.closeDate, "—") : undefined}
                     </DefinitionField>
                     <DefinitionField label="Service type" onAdd={openEdit}>{serviceTypeValue ?? undefined}</DefinitionField>
                     <DefinitionField label="Recurring" value={opportunity.recurring ? "Yes" : "No"} />
@@ -535,7 +532,7 @@ export function OpportunityDetailWrapper({
               <DefinitionCard title="Deal details">
                 <DefinitionField label="Contact" onAdd={openEdit}>{opportunity.primaryContactName ?? undefined}</DefinitionField>
                 <DefinitionField label="Close date" onAdd={openEdit}>
-                  {opportunity.closeDate ? formatDate(opportunity.closeDate) : undefined}
+                  {opportunity.closeDate ? formatDate(opportunity.closeDate, "—") : undefined}
                 </DefinitionField>
                 <DefinitionField label="Loss reason" value={opportunity.lossReason} onAdd={openEdit} />
                 <DefinitionField label="Country of execution" onAdd={openEdit}>{countryValue ?? undefined}</DefinitionField>
@@ -583,8 +580,8 @@ export function OpportunityDetailWrapper({
                     <div className="px-4 pb-4">
                       <Separator className="mb-4" />
                       <DefinitionFieldGrid>
-                        <DefinitionField label="Created" value={formatDate(opportunity.createdAt)} />
-                        <DefinitionField label="Last modified" value={formatDate(opportunity.updatedAt)} />
+                        <DefinitionField label="Created" value={formatDate(opportunity.createdAt, "—")} />
+                        <DefinitionField label="Last modified" value={formatDate(opportunity.updatedAt, "—")} />
                       </DefinitionFieldGrid>
                     </div>
                   </CollapsibleContent>

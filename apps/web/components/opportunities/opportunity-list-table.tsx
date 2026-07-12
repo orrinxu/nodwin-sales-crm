@@ -51,6 +51,7 @@ import type {
   SavedViewFilters,
   SavedViewScope,
 } from "@/lib/data/saved-views"
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 interface OpportunityListTableProps {
   opportunities: OpportunityRecord[]
@@ -78,19 +79,6 @@ function formatCurrency(amount: string, currency: string): string {
     return Money.fromAmount(amount, currency).toDisplay()
   } catch {
     return `${currency} ${amount}`
-  }
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "—"
-  try {
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }).format(new Date(dateStr))
-  } catch {
-    return dateStr
   }
 }
 
@@ -137,6 +125,7 @@ export function OpportunityListTable({
   deleteSavedViewAction,
 }: OpportunityListTableProps) {
   const router = useRouter()
+  const { formatDate } = usePreferences()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [sorting, setSorting] = useState<SortingState>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -349,10 +338,10 @@ export function OpportunityListTable({
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           />
         ),
-        cell: ({ row }) => formatDate(row.getValue("closeDate")),
+        cell: ({ row }) => formatDate(row.getValue("closeDate"), "—"),
       },
     ],
-    [router],
+    [router, formatDate],
   )
 
   const handleBulkDelete = useCallback(async () => {

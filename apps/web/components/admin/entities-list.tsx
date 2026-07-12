@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/dialog"
 import { Card } from "@/components/ui/card"
 import type { EntityRecord, EntityCreateInput, EntityUpdateInput } from "@/lib/data/entities"
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 const currencies = [
   "USD", "EUR", "GBP", "INR", "CAD", "AUD", "SGD", "HKD", "JPY", "CNY",
@@ -75,19 +76,6 @@ const months = [
   { value: 11, label: "November" },
   { value: 12, label: "December" },
 ]
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "—"
-  try {
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }).format(new Date(dateStr))
-  } catch {
-    return dateStr
-  }
-}
 
 const emptyToNull = (v: string) => (v === "" ? null : v)
 
@@ -521,6 +509,7 @@ export function EntitiesList({
   updateAction,
   deactivateAction,
 }: EntitiesListProps) {
+  const { formatDate } = usePreferences()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [sorting, setSorting] = useState<SortingState>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -644,7 +633,7 @@ export function EntitiesList({
             <ArrowUpDown className="ml-2 size-4" />
           </Button>
         ),
-        cell: ({ row }) => formatDate(row.getValue("createdAt")),
+        cell: ({ row }) => formatDate(row.getValue("createdAt"), "—"),
       },
       {
         id: "actions",
@@ -675,7 +664,7 @@ export function EntitiesList({
         },
       },
     ],
-    [],
+    [formatDate],
   )
 
   const table = useReactTable({

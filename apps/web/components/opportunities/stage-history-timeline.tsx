@@ -12,6 +12,7 @@ import {
 import { Card } from "@/components/ui/card"
 import { getStageLabel } from "@/lib/data/opportunities.types"
 import type { StageHistoryRecord } from "@/lib/data/opportunity-stage-history"
+import { usePreferences } from "@/components/providers/preferences-provider"
 
 interface StageHistoryTimelineProps {
   history: StageHistoryRecord[]
@@ -53,35 +54,15 @@ const eventConfig: Record<string, { icon: typeof ArrowUp; color: string; label: 
   },
 }
 
-function formatDateTime(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  })
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  const today = new Date()
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-
-  if (d.toDateString() === today.toDateString()) return "Today"
-  if (d.toDateString() === yesterday.toDateString()) return "Yesterday"
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: d.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
-  })
-}
-
-function groupByDate(entries: StageHistoryRecord[]): Map<string, StageHistoryRecord[]> {
+// Groups relative-label the header (Today/Yesterday) and fall back to the
+// user's preferred date format for older days.
+function groupByDate(
+  entries: StageHistoryRecord[],
+  dateLabel: (iso: string) => string,
+): Map<string, StageHistoryRecord[]> {
   const groups = new Map<string, StageHistoryRecord[]>()
   for (const entry of entries) {
-    const dateKey = formatDate(entry.createdAt)
+    const dateKey = dateLabel(entry.createdAt)
     const group = groups.get(dateKey) ?? []
     group.push(entry)
     groups.set(dateKey, group)
@@ -90,6 +71,8 @@ function groupByDate(entries: StageHistoryRecord[]): Map<string, StageHistoryRec
 }
 
 export function StageHistoryTimeline({ history }: StageHistoryTimelineProps) {
+  const { formatDate, formatDateTime } = usePreferences()
+
   if (history.length === 0) {
     return (
       <p className="py-6 text-center text-sm text-muted-foreground">
@@ -98,7 +81,18 @@ export function StageHistoryTimeline({ history }: StageHistoryTimelineProps) {
     )
   }
 
-  const groups = groupByDate(history)
+  const dateLabel = (iso: string): string => {
+    const d = new Date(iso)
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    if (d.toDateString() === today.toDateString()) return "Today"
+    if (d.toDateString() === yesterday.toDateString()) return "Yesterday"
+    return formatDate(iso)
+  }
+
+  const groups = groupByDate(history, dateLabel)
 
   return (
     <div className="py-4">
