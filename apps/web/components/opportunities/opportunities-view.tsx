@@ -14,6 +14,11 @@ import type {
   SavedViewFilters,
   SavedViewScope,
 } from "@/lib/data/saved-views"
+import {
+  SCOPE_PRESET_ORDER,
+  SCOPE_PRESETS,
+  type OpportunityScopeKey,
+} from "@/lib/opportunity/scope-presets"
 import { cn } from "@/lib/utils"
 import { SectionHeader } from "@/components/primitives/section-header"
 import { EmptyState } from "@/components/primitives/empty-state"
@@ -24,6 +29,11 @@ import { OpportunityGenerator } from "@/components/opportunities/opportunity-gen
 import type { GenerateOpportunityResult, ExtractFileResult } from "@/app/(crm)/opportunities/generate-actions"
 
 interface OpportunitiesViewProps {
+  /**
+   * Active scope preset (ORR-711). When provided, the scope chips
+   * (My Pipeline / All Deals / Closing This Month) render and drive the URL.
+   */
+  scope?: OpportunityScopeKey
   opportunities: OpportunityRecord[]
   /** FX-normalised per-stage totals for the board columns (count / value / weighted). */
   stageTotals?: StageTotals
@@ -70,6 +80,7 @@ interface OpportunitiesViewProps {
 type ViewMode = "kanban" | "table"
 
 export function OpportunitiesView({
+  scope,
   opportunities,
   stageTotals,
   accounts,
@@ -99,6 +110,31 @@ export function OpportunitiesView({
   const [viewMode, setViewMode] = useState<ViewMode>(
     defaultView === "table" ? "table" : "kanban",
   )
+
+  // Toggling Board/Table stays instant (same data, no refetch) but syncs the
+  // `view` query param so the choice survives reload / share — no navigation.
+  function selectView(next: ViewMode) {
+    setViewMode(next)
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search)
+      params.set("view", next === "kanban" ? "board" : "table")
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}?${params.toString()}`,
+      )
+    }
+  }
+
+  // Switching scope loads a different (scoped) list, so it's a real navigation.
+  // The current view is preserved — scope and view are orthogonal.
+  function selectScope(next: OpportunityScopeKey) {
+    if (next === scope) return
+    const params = new URLSearchParams()
+    params.set("scope", next)
+    params.set("view", viewMode === "kanban" ? "board" : "table")
+    router.push(`/opportunities?${params.toString()}`)
+  }
 
   const showEmptyState = emptyState != null && opportunities.length === 0
 
@@ -148,10 +184,34 @@ export function OpportunitiesView({
               : "View and manage all opportunities in a table.")
           }
           actions={
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              {scope != null ? (
+                <div className="flex items-center rounded-lg border p-0.5">
+                  {SCOPE_PRESET_ORDER.map((key) => {
+                    // eslint-disable-next-line security/detect-object-injection -- key iterates the constrained SCOPE_PRESET_ORDER union, not user input
+                    const preset = SCOPE_PRESETS[key]
+                    const active = key === scope
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => selectScope(key)}
+                        aria-pressed={active}
+                        className={cn(
+                          "inline-flex items-center rounded-md px-2.5 py-1.5 text-sm transition-colors",
+                          active
+                            ? "bg-muted text-foreground shadow-xs"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {preset.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : null}
               <div className="flex items-center rounded-lg border p-0.5">
             <button
-              onClick={() => setViewMode("kanban")}
+              onClick={() => selectView("kanban")}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors",
                 viewMode === "kanban"
@@ -163,7 +223,7 @@ export function OpportunitiesView({
               <span className="hidden sm:inline">Kanban</span>
             </button>
             <button
-              onClick={() => setViewMode("table")}
+              onClick={() => selectView("table")}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors",
                 viewMode === "table"

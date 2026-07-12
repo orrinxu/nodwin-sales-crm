@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen } from "@testing-library/react"
+import { render, screen, fireEvent } from "@testing-library/react"
 import type { OpportunityRecord } from "@/lib/data/opportunities.types"
 import { OpportunitiesView } from "./opportunities-view"
 
+const pushSpy = vi.fn()
 vi.mock("server-only", () => ({}))
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), push: pushSpy }),
 }))
 
 // Stub the heavy board/table bodies — this test only asserts which one the
@@ -103,5 +104,40 @@ describe("OpportunitiesView — defaultView", () => {
     )
     expect(screen.getByText("You don't own any deals yet")).toBeInTheDocument()
     expect(screen.queryByTestId("board")).not.toBeInTheDocument()
+  })
+})
+
+describe("OpportunitiesView — scope chips", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("does not render chips when scope is omitted", () => {
+    render(<OpportunitiesView {...baseProps} />)
+    expect(screen.queryByText("My Pipeline")).not.toBeInTheDocument()
+    expect(screen.queryByText("All Deals")).not.toBeInTheDocument()
+  })
+
+  it("renders all three chips and marks the active one when scope is set", () => {
+    render(<OpportunitiesView {...baseProps} scope="all-deals" defaultView="table" />)
+    expect(screen.getByText("My Pipeline")).toBeInTheDocument()
+    expect(screen.getByText("All Deals")).toBeInTheDocument()
+    expect(screen.getByText("Closing This Month")).toBeInTheDocument()
+    expect(screen.getByText("All Deals")).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByText("My Pipeline")).toHaveAttribute("aria-pressed", "false")
+  })
+
+  it("navigates to the chosen scope while preserving the current view", () => {
+    render(<OpportunitiesView {...baseProps} scope="all-deals" defaultView="table" />)
+    fireEvent.click(screen.getByText("My Pipeline"))
+    expect(pushSpy).toHaveBeenCalledWith(
+      "/opportunities?scope=my-pipeline&view=table",
+    )
+  })
+
+  it("does not navigate when clicking the already-active scope", () => {
+    render(<OpportunitiesView {...baseProps} scope="all-deals" defaultView="table" />)
+    fireEvent.click(screen.getByText("All Deals"))
+    expect(pushSpy).not.toHaveBeenCalled()
   })
 })

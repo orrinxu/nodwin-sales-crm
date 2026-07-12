@@ -4,7 +4,6 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
   LayoutDashboard,
-  Kanban,
   Target,
   Users,
   Building2,
@@ -42,9 +41,9 @@ import { useState } from "react"
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  // Pipeline = the current user's own deals (personal board). Opportunities =
-  // all deals across the group the user can access.
-  { name: "Pipeline", href: "/pipeline", icon: Kanban },
+  // Unified Opportunities surface (ORR-711): scope chips (My Pipeline / All
+  // Deals / Closing This Month) + Board/Table view. The old /pipeline page
+  // folded into here; "My Pipeline · Board" is the default landing.
   { name: "Opportunities", href: "/opportunities", icon: Target },
 
   { name: "Accounts", href: "/accounts", icon: Building2 },

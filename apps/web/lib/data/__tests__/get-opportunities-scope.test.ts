@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 vi.mock("server-only", () => ({}))
 
 const mockEq = vi.fn()
+const mockGte = vi.fn()
+const mockLte = vi.fn()
 const mockOrder = vi.fn()
 const mockSelect = vi.fn()
 const mockFrom = vi.fn()
@@ -24,10 +26,18 @@ const mockDbRow = {
 }
 
 function buildBuilder() {
-  // select() and eq() return the chainable builder; order() is terminal.
-  const builder = { select: mockSelect, eq: mockEq, order: mockOrder }
+  // select()/eq()/gte()/lte() return the chainable builder; order() is terminal.
+  const builder = {
+    select: mockSelect,
+    eq: mockEq,
+    gte: mockGte,
+    lte: mockLte,
+    order: mockOrder,
+  }
   mockSelect.mockReturnValue(builder)
   mockEq.mockReturnValue(builder)
+  mockGte.mockReturnValue(builder)
+  mockLte.mockReturnValue(builder)
   mockOrder.mockResolvedValue({ data: [mockDbRow], error: null, count: 1 })
   mockFrom.mockReturnValue(builder)
 }
@@ -68,5 +78,25 @@ describe("getOpportunities — owner scope filter", () => {
     await getOpportunities(defaultCtx)
 
     expect(mockEq).not.toHaveBeenCalledWith("owner_user_id", expect.anything())
+  })
+
+  it("applies an inclusive close_date window when closeDateFrom/To are given", async () => {
+    const { getOpportunities } = await import("../opportunities")
+    await getOpportunities(defaultCtx, {
+      scope: "all",
+      closeDateFrom: "2026-07-01",
+      closeDateTo: "2026-07-31",
+    })
+
+    expect(mockGte).toHaveBeenCalledWith("close_date", "2026-07-01")
+    expect(mockLte).toHaveBeenCalledWith("close_date", "2026-07-31")
+  })
+
+  it("does not filter on close_date when no window is given", async () => {
+    const { getOpportunities } = await import("../opportunities")
+    await getOpportunities(defaultCtx, { scope: "all" })
+
+    expect(mockGte).not.toHaveBeenCalled()
+    expect(mockLte).not.toHaveBeenCalled()
   })
 })
