@@ -64,12 +64,16 @@ describe("SettingsView", () => {
     expect(screen.getByText("rep-abc123@crm.nodwin.com")).toBeInTheDocument()
   })
 
-  it("saves the profile", async () => {
+  it("saves the profile via the unsaved-changes bar after an edit", async () => {
     const props = makeProps()
     render(<SettingsView {...props} />)
-    await userEvent.click(screen.getByRole("button", { name: "Save profile" }))
+    // The SaveBar only appears once a field is dirty.
+    const nameInput = screen.getByDisplayValue("Sales Rep")
+    await userEvent.clear(nameInput)
+    await userEvent.type(nameInput, "New Name")
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }))
     await waitFor(() => {
-      expect(props.updateProfileAction).toHaveBeenCalledWith({ fullName: "Sales Rep", jobTitle: null })
+      expect(props.updateProfileAction).toHaveBeenCalledWith({ fullName: "New Name", jobTitle: null })
     })
   })
 

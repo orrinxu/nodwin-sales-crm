@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { SaveBar } from "@/components/primitives/save-bar"
 import {
   Select,
   SelectContent,
@@ -105,8 +106,21 @@ function ProfileSection({
   const router = useRouter()
   const [fullName, setFullName] = useState(profile.fullName ?? "")
   const [jobTitle, setJobTitle] = useState(initialJobTitle ?? "")
+  // Baseline of the last-saved values; the SaveBar shows while the fields differ.
+  const [baseline, setBaseline] = useState({
+    fullName: profile.fullName ?? "",
+    jobTitle: initialJobTitle ?? "",
+  })
   const [state, setState] = useState<SaveState>("idle")
   const [error, setError] = useState<string | null>(null)
+
+  const dirty = fullName !== baseline.fullName || jobTitle !== baseline.jobTitle
+
+  function discard() {
+    setFullName(baseline.fullName)
+    setJobTitle(baseline.jobTitle)
+    setError(null)
+  }
 
   async function onSave() {
     if (!fullName.trim()) {
@@ -116,7 +130,11 @@ function ProfileSection({
     setState("saving")
     setError(null)
     try {
-      await updateProfileAction({ fullName: fullName.trim(), jobTitle: jobTitle.trim() || null })
+      const next = { fullName: fullName.trim(), jobTitle: jobTitle.trim() }
+      await updateProfileAction({ fullName: next.fullName, jobTitle: next.jobTitle || null })
+      setFullName(next.fullName)
+      setJobTitle(next.jobTitle)
+      setBaseline(next)
       setState("saved")
       router.refresh()
     } catch (err) {
@@ -165,11 +183,13 @@ function ProfileSection({
           )}
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
-        <div className="flex items-center gap-3">
-          <Button onClick={onSave} disabled={state === "saving"} size="sm">Save profile</Button>
-          <SavedIndicator state={state} />
-        </div>
       </CardContent>
+      <SaveBar
+        open={dirty}
+        saving={state === "saving"}
+        onSave={onSave}
+        onDiscard={discard}
+      />
     </Card>
   )
 }
@@ -191,8 +211,32 @@ function LocalizationSection({
   const [timezone, setTimezone] = useState(preferences.timezone ?? "")
   const [numberFormat, setNumberFormat] = useState(preferences.numberFormat)
   const [dateFormat, setDateFormat] = useState(preferences.dateFormat)
+  // Baseline of the last-saved values; the SaveBar shows while any field differs.
+  const [baseline, setBaseline] = useState({
+    displayCurrency: preferences.displayCurrency ?? DISPLAY_DEFAULT,
+    entryCurrency: preferences.entryCurrencyDefault ?? ENTRY_MATCH,
+    timezone: preferences.timezone ?? "",
+    numberFormat: preferences.numberFormat,
+    dateFormat: preferences.dateFormat,
+  })
   const [state, setState] = useState<SaveState>("idle")
   const [error, setError] = useState<string | null>(null)
+
+  const dirty =
+    displayCurrency !== baseline.displayCurrency ||
+    entryCurrency !== baseline.entryCurrency ||
+    timezone !== baseline.timezone ||
+    numberFormat !== baseline.numberFormat ||
+    dateFormat !== baseline.dateFormat
+
+  function discard() {
+    setDisplayCurrency(baseline.displayCurrency)
+    setEntryCurrency(baseline.entryCurrency)
+    setTimezone(baseline.timezone)
+    setNumberFormat(baseline.numberFormat)
+    setDateFormat(baseline.dateFormat)
+    setError(null)
+  }
 
   async function onSave() {
     setState("saving")
@@ -205,6 +249,7 @@ function LocalizationSection({
         numberFormat,
         dateFormat,
       })
+      setBaseline({ displayCurrency, entryCurrency, timezone, numberFormat, dateFormat })
       setState("saved")
       router.refresh()
     } catch (err) {
@@ -289,11 +334,13 @@ function LocalizationSection({
         </p>
 
         {error && <p className="text-sm text-destructive">{error}</p>}
-        <div className="flex items-center gap-3">
-          <Button onClick={onSave} disabled={state === "saving"} size="sm">Save localization</Button>
-          <SavedIndicator state={state} />
-        </div>
       </CardContent>
+      <SaveBar
+        open={dirty}
+        saving={state === "saving"}
+        onSave={onSave}
+        onDiscard={discard}
+      />
     </Card>
   )
 }
