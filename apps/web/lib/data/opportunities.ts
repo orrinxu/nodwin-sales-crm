@@ -655,6 +655,40 @@ export async function updateOpportunity(
   const updated = await getOpportunityById(ctx, id)
   if (!updated) throw new Error("Opportunity not found after update")
 
+  // A stage change made through the general update path must record history and
+  // notify, exactly like the dedicated updateOpportunityStage. Otherwise a stage
+  // moved via the full-edit form silently skips the audit trail + notification.
+  if (parsed.stage !== undefined && parsed.stage !== existing.stage) {
+    const toStage = parsed.stage
+    const event = determineStageEvent(existing.stage, toStage)
+
+    try {
+      await insertStageHistoryEntry(ctx, {
+        opportunityId: id,
+        fromStage: existing.stage,
+        toStage,
+        event,
+        createdBy: ctx.user.id,
+      })
+    } catch (historyError) {
+      console.error(
+        "Stage updated but failed to record history:",
+        historyError instanceof Error ? historyError.message : historyError,
+      )
+    }
+
+    import("../notifications/triggers").then(({ notifyStageChange }) =>
+      notifyStageChange({
+        opportunityId: id,
+        opportunityName: existing.name,
+        fromStage: existing.stage,
+        toStage,
+        event,
+        ownerUserId: existing.ownerUserId ?? ctx.user.id,
+      }),
+    )
+  }
+
   if (
     parsed.ownerUserId !== undefined &&
     parsed.ownerUserId !== existing.ownerUserId
