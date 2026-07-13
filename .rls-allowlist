@@ -64,6 +64,12 @@
 .*entities.*:USING \(true\)
 .*business_units.*:USING \(true\)
 
+# ── regions ────────────────────────────────────────────────────────────────────
+# regions is an organizational lookup table (ORR-714). All authenticated users
+# need read access to render the scope selector and resolve the region-visibility
+# helper. Write access is Super-Admin-only. Same pattern as entities / business_units.
+.*region_group_visibility.*:USING \(true\)
+
 # ── fx_rates ──────────────────────────────────────────────────────────────────
 # FX rates is a lookup table for currency conversion. All authenticated users
 # need read access to reference exchange rates. Write access is finance/admin only.
