@@ -52,6 +52,7 @@ interface OpportunitiesViewProps {
   searchContactsAction?: (query: string, accountId?: string) => Promise<EntityOption[]>
   searchUsersAction?: (query: string) => Promise<EntityOption[]>
   createContactQuickAction?: (input: { fullName: string; email?: string; accountId?: string }) => Promise<EntityOption>
+  createAccountQuickAction?: (input: { name: string }) => Promise<EntityOption>
   defaultCurrency?: string
   /** Which view to open on first render. Defaults to the board (kanban). */
   defaultView?: "board" | "table"
@@ -96,6 +97,7 @@ export function OpportunitiesView({
   searchContactsAction,
   searchUsersAction,
   createContactQuickAction,
+  createAccountQuickAction,
   defaultCurrency,
   defaultView = "board",
   title = "Opportunities",
@@ -155,6 +157,7 @@ export function OpportunitiesView({
       searchContactsAction={searchContactsAction}
       searchUsersAction={searchUsersAction}
       createContactQuickAction={createContactQuickAction}
+      createAccountQuickAction={createAccountQuickAction}
       defaultCurrency={defaultCurrency}
     />
   ) : (
@@ -168,6 +171,7 @@ export function OpportunitiesView({
       searchContactsAction={searchContactsAction}
       searchUsersAction={searchUsersAction}
       createContactQuickAction={createContactQuickAction}
+      createAccountQuickAction={createAccountQuickAction}
       defaultCurrency={defaultCurrency}
     />
   )
@@ -265,6 +269,7 @@ export function OpportunitiesView({
           searchContactsAction={searchContactsAction}
           searchUsersAction={searchUsersAction}
           createContactQuickAction={createContactQuickAction}
+          createAccountQuickAction={createAccountQuickAction}
           defaultCurrency={defaultCurrency}
         />
       ) : (

@@ -24,6 +24,7 @@ import {
 } from "@/lib/data/activities"
 import { searchAccountOptions, searchContactOptions, createContact, contactCreateSchema } from "@/lib/data/contacts"
 import type { ContactCallContext } from "@/lib/data/contacts"
+import { createAccount, accountCreateSchema } from "@/lib/data/accounts"
 import {
   submitOpportunityForApproval,
   recordApprovalDecision,
@@ -215,4 +216,20 @@ export async function createContactQuickAction(input: { fullName: string; email?
   const contact = await createContact(ctx, parsed)
   revalidatePath("/opportunities")
   return { id: contact.id, name: contact.fullName }
+}
+
+// Inline quick-create for the Account relation picker (ORR — creatable combobox).
+// Reuses the existing createAccount data path (RLS + created_by trigger + audit);
+// owner defaults to the current user. Returns the EntityOption shape the
+// EntityCombobox onCreate expects.
+export async function createAccountQuickAction(input: { name: string }) {
+  const user = await requireUser()
+  const parsed = accountCreateSchema.parse({
+    name: input.name,
+    accountOwnerUserId: user.id,
+  })
+  const ctx = { user, source: "web" as const }
+  const account = await createAccount(ctx, parsed)
+  revalidatePath("/opportunities")
+  return { id: account.id, name: account.name }
 }
