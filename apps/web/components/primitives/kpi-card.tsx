@@ -37,11 +37,23 @@ export function KpiCard({
 }: KpiCardProps) {
   return (
     <Card className={className}>
-      <CardContent className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          <p className="text-caption font-medium text-muted-foreground">
+      <CardContent className="space-y-2">
+        {/*
+         * Header row: label + icon only. The value lives on its own line below
+         * so a wide currency figure never shares a horizontal band with the
+         * icon (which would clip/overlap it on narrow ~390px cards).
+         */}
+        <div className="flex items-center justify-between gap-2">
+          <p className="min-w-0 text-caption font-medium text-muted-foreground">
             {label}
           </p>
+          {Icon ? (
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+              <Icon className="size-4" />
+            </span>
+          ) : null}
+        </div>
+        <div className="min-w-0 space-y-1">
           <p className="text-title tabular-nums">{value}</p>
           {delta ? (
             <p
@@ -61,11 +73,6 @@ export function KpiCard({
             <p className="text-caption text-muted-foreground">{hint}</p>
           ) : null}
         </div>
-        {Icon ? (
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-            <Icon className="size-4" />
-          </span>
-        ) : null}
       </CardContent>
     </Card>
   )
