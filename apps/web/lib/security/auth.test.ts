@@ -26,6 +26,15 @@ vi.mock("next/headers", () => ({
   ),
 }))
 
+// redirect() is a control-flow throw in real Next; mock it to throw a marker so
+// tests can assert both that it was called and that execution halted there.
+const mockRedirect = vi.fn((url: string) => {
+  throw new Error(`NEXT_REDIRECT:${url}`)
+})
+vi.mock("next/navigation", () => ({
+  redirect: (url: string) => mockRedirect(url),
+}))
+
 vi.mock("@supabase/ssr", () => ({
   createServerClient: vi.fn(() => mockClient),
 }))
@@ -126,7 +135,7 @@ describe("requireUser", () => {
     expect(result.role).toBeUndefined()
   })
 
-  it("throws UnauthorisedError when no session exists", async () => {
+  it("redirects to /login (page context) when no session exists", async () => {
     mockGetUser.mockResolvedValue({
       data: { user: null },
       error: { message: "Auth session missing" },
@@ -134,10 +143,12 @@ describe("requireUser", () => {
 
     const { requireUser } = await import("./auth")
 
-    await expect(requireUser()).rejects.toThrow(UnauthorisedError)
+    // Page/server-action path (no request) redirects instead of throwing a 500.
+    await expect(requireUser()).rejects.toThrow("NEXT_REDIRECT:/login")
+    expect(mockRedirect).toHaveBeenCalledWith("/login")
   })
 
-  it("throws UnauthorisedError when user is null", async () => {
+  it("redirects to /login (page context) when user is null", async () => {
     mockGetUser.mockResolvedValue({
       data: { user: null },
       error: null,
@@ -145,7 +156,26 @@ describe("requireUser", () => {
 
     const { requireUser } = await import("./auth")
 
-    await expect(requireUser()).rejects.toThrow(UnauthorisedError)
+    await expect(requireUser()).rejects.toThrow("NEXT_REDIRECT:/login")
+    expect(mockRedirect).toHaveBeenCalledWith("/login")
+  })
+
+  it("throws UnauthorisedError (not redirect) for API callers that pass a request", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: null },
+      error: null,
+    })
+
+    const mockRequest = {
+      headers: { get: () => "" },
+    }
+
+    const { requireUser } = await import("./auth")
+
+    await expect(
+      requireUser(mockRequest as unknown as import("next/server").NextRequest),
+    ).rejects.toThrow(UnauthorisedError)
+    expect(mockRedirect).not.toHaveBeenCalled()
   })
 
   it("parses cookies from NextRequest when provided", async () => {
