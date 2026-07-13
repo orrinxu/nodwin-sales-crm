@@ -1148,11 +1148,13 @@ Detailed acceptance criteria for all tickets in this phase are deliberately defe
 
 > Added 2026-07-13 from the Visibility & Roles Phase-0 discovery. **None of these are authorised to build.** Each is blocked pending (a) the project lead ratifying decisions **D1–D6** and (b) the named `cto + board + security` sign-off on the open decision it depends on. The engine discovery, decision codification, and open decisions O1–O4 live on the tracking issue in Paperclip: **ORR-713** (parent, carries the `discovery` + `codification` documents). Ticket → tracking-issue map: **T-140 = ORR-714, T-141 = ORR-715, T-142 = ORR-716, T-143 = ORR-717** (all blocked). Ticket order matters: **T-140 is the prerequisite** that makes the superset-role model (D2/D4) actually work.
 
+> **⚡ Update 2026-07-13 (evening) — RATIFIED.** The project lead ratified **D1–D6** and all four open decisions **O1–O4** (recorded on ORR-713, which is now `done`; the codification carries the ratification, though it was captured as an ORR-713 comment because the board document API was 500ing). **T-140 is DONE** — region/group engine shipped (ORR-714, #281) + Regions admin UI (ORR-720, #282), live on staging. **T-141 / T-142 / T-143 are UNBLOCKED and authorised to build** — each Status line below carries its ratified decision. Recommended build order: **T-143 (S) → T-142 (M) → T-141 (M, highest-risk)**.
+
 ### T-140 — Explicit region/group visibility paths in the visibility engine
 
 - **Phase:** 9.6 Visibility & Roles
 - **Depends on:** O1 sign-off; D1–D6 ratification
-- **Status:** BLOCKED — awaiting lead ratification of D1–D6 and `cto + board + security` sign-off on O1
+- **Status:** DONE (2026-07-13) — D1–D6 + O1 ratified; region/group engine shipped (ORR-714, #281) + Regions admin UI (ORR-720, #282). O1 resolved: full regions feature (regions group multiple entities), read tier = all-except-Confidential (D5 preserved), additive RLS policy short-circuit. Live on staging.
 - **Size:** L
 - **Files in scope:** `supabase/migrations/*` (new migration adding branches to `recompute_visibility_for_opportunity` and/or the `opportunities` SELECT policy), `supabase/tests/*`
 - **Approval:** `cto + board + security`
@@ -1164,7 +1166,7 @@ Detailed acceptance criteria for all tickets in this phase are deliberately defe
 
 - **Phase:** 9.6 Visibility & Roles
 - **Depends on:** O2 sign-off; D1–D6 ratification
-- **Status:** BLOCKED — awaiting lead ratification of D1–D6 and `cto + board + security` sign-off on O2
+- **Status:** TODO — UNBLOCKED (2026-07-13). O2 ratified: managers may self-serve their direct-reports roster **only within their own entity/BU**; a removal/reassignment **notifies the losing manager** (no admin co-sign — no approval bottleneck); membership is **effective-dated** (from/to), not a hard delete, so period reports stay accurate under materialised visibility. The ticket must also fix the subordinate recompute fan-out gap. Ready to build.
 - **Size:** M
 - **Files in scope:** `supabase/migrations/*` (loosen the `manager_user_id` write guard for scoped managers + notification/effective-dating), `apps/web/app/(crm)/.../*` (roster UI), `apps/web/lib/data/users.ts`
 - **Approval:** `cto + board + security`
@@ -1176,7 +1178,7 @@ Detailed acceptance criteria for all tickets in this phase are deliberately defe
 
 - **Phase:** 9.6 Visibility & Roles
 - **Depends on:** O3 sign-off; D1–D6 ratification
-- **Status:** BLOCKED — awaiting `cto + board + security` decision on O3 (capability may be declined outright)
+- **Status:** TODO — UNBLOCKED (2026-07-13). O3 ratified: **BUILD** the break-glass self-grant — a permitted principal may self-grant access to **one specific** Confidential deal, every grant audit-logged and notifying the deal's named list, never a blanket role. Must not weaken the default fence (owner + `confidentiality_override_user_ids`), just centralized in #280/#288. Ready to build.
 - **Size:** M
 - **Files in scope:** `supabase/migrations/*` (a logged self-grant path onto `confidentiality_override_user_ids` / `opportunity_visibility`), `apps/web/...` (break-glass action + audit + notification)
 - **Approval:** `cto + board + security`
@@ -1188,7 +1190,7 @@ Detailed acceptance criteria for all tickets in this phase are deliberately defe
 
 - **Phase:** 9.6 Visibility & Roles
 - **Depends on:** O4 sign-off; D1–D6 ratification; the Opportunities scope selector (shipped, ORR-711)
-- **Status:** BLOCKED — awaiting lead ratification of D1–D6 and sign-off on O4
+- **Status:** TODO — UNBLOCKED (2026-07-13). O4 ratified: the scope selector's entity presets **auto-derive from the user's role + entity grants** (no manual admin config), so they stay in sync with grants. Ready to build.
 - **Size:** S
 - **Files in scope:** `apps/web/lib/opportunity/scope-presets.ts`, `apps/web/app/(crm)/opportunities/page.tsx`, `apps/web/components/opportunities/opportunities-view.tsx`
 - **Approval:** `cto + board`
