@@ -39,6 +39,10 @@ export interface RecentDealRecord {
   stage: DealStage
   stageLabel: string
   amount: number
+  /** Currency the `amount` is expressed in — the reporting currency when the
+   *  deal was convertible, otherwise the deal's own currency (so the caller
+   *  never formats a raw foreign amount under the reporting-currency symbol). */
+  currency: string
   probabilityPct: number
   closeDate: string | null
 }
@@ -192,7 +196,6 @@ export async function getPipelineMetrics(ctx: DashboardContext): Promise<Pipelin
   let dealsWon = 0
   let dealsLost = 0
   let totalAmount = 0
-  let activeCount = 0
 
   for (const opp of deals) {
     totalAmount += opp.amount
@@ -203,14 +206,17 @@ export async function getPipelineMetrics(ctx: DashboardContext): Promise<Pipelin
       dealsLost++
     } else {
       pipelineValue += opp.amount
-      activeCount++
     }
   }
 
   const totalDeals = dealsWon + dealsLost
   const winRate = totalDeals > 0 ? Math.round((dealsWon / totalDeals) * 100) : 0
 
-  const avgDealSize = computeAverage(totalAmount, dealsWon + activeCount)
+  // `totalAmount` sums every converted deal (won + lost + active), so the
+  // average must divide by that same population — `deals.length`. The old
+  // denominator (dealsWon + activeCount) omitted lost deals and inflated the
+  // average against a numerator that included them.
+  const avgDealSize = computeAverage(totalAmount, deals.length)
 
   return {
     pipelineValue,
@@ -297,6 +303,7 @@ export async function getRecentDeals(
       id,
       name,
       amount,
+      currency,
       stage,
       probability_pct,
       close_date,
@@ -309,20 +316,52 @@ export async function getRecentDeals(
     throw new Error(`Failed to load recent deals: ${error.message}`)
   }
 
-  return ((rawDeals ?? []) as Array<Record<string, unknown>>).map((d) => {
+  const rows = (rawDeals ?? []) as Array<Record<string, unknown>>
+
+  // Convert each deal into the reporting currency so amounts aren't rendered
+  // under the wrong symbol. Unlike the aggregate metrics, a recent-deals row is
+  // never dropped when there's no rate — it keeps its own currency so the caller
+  // can format it correctly rather than mixing it into the reporting total.
+  const reportingCurrency = await resolveReportingCurrency(ctx)
+  const currencies = new Set<string>([reportingCurrency])
+  for (const d of rows) currencies.add((d.currency as string) ?? reportingCurrency)
+  const scaleMap = await getCurrencyScaleMap(currencies)
+  const rateCache = new Map<string, RawRate | null>()
+
+  const deals: RecentDealRecord[] = []
+  for (const d of rows) {
     const account = d.account as { name: string } | null
     const stage = (d.stage as DealStage) ?? "qualify"
-    return {
+    // eslint-disable-next-line custom/no-unsafe-numeric-coercion -- display figure, coerced as the prior getRecentDeals did, then fed into the bigint-safe convertAmount for the actual money math
+    const origAmount = Number(d.amount ?? 0)
+    const origCurrency = (d.currency as string) ?? reportingCurrency
+    const closeDate = (d.close_date as string) ?? null
+    const asOfDate = closeDate ?? new Date().toISOString().slice(0, 10)
+
+    const { convertedAmount } = await convertAmount(
+      origAmount,
+      origCurrency,
+      reportingCurrency,
+      asOfDate,
+      scaleMap,
+      rateCache,
+    )
+    const converted = convertedAmount !== null
+
+    deals.push({
       id: d.id as string,
       name: d.name as string,
       company: account?.name ?? null,
       stage,
       stageLabel: getStageLabel(stage),
-      amount: Number(d.amount ?? 0),
+      amount: converted ? convertedAmount : origAmount,
+      currency: converted ? reportingCurrency : origCurrency,
       probabilityPct: Number(d.probability_pct ?? 0),
-      closeDate: (d.close_date as string) ?? null,
-    }
-  })
+      closeDate,
+    })
+  }
+
+  return deals
 }
 
 const ACTIVITY_SELECT = `
