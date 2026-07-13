@@ -5,6 +5,7 @@ vi.mock("server-only", () => ({}))
 import {
   normalizeScheduledMonth,
   toWorkingCapitalInput,
+  revenueScheduleToInflows,
   type CashflowMilestoneRecord,
 } from "./cashflow-milestones"
 
@@ -54,5 +55,25 @@ describe("toWorkingCapitalInput", () => {
 
   it("maps an empty set to an empty array", () => {
     expect(toWorkingCapitalInput([])).toEqual([])
+  })
+})
+
+describe("revenueScheduleToInflows", () => {
+  it("turns each scheduled month into a direction:in event in the deal's currency", () => {
+    const out = revenueScheduleToInflows(
+      [
+        { month: "2026-09-01", amount: "34500.0000" },
+        { month: "2026-10-01", amount: "34500.0000" },
+      ],
+      "INR",
+    )
+    expect(out).toEqual([
+      { direction: "in", scheduledMonth: "2026-09-01", amount: "34500.0000", currency: "INR" },
+      { direction: "in", scheduledMonth: "2026-10-01", amount: "34500.0000", currency: "INR" },
+    ])
+  })
+
+  it("maps an empty schedule to an empty array", () => {
+    expect(revenueScheduleToInflows([], "USD")).toEqual([])
   })
 })

@@ -8,6 +8,7 @@ import {
   type WorkingCapitalResult,
 } from "@/lib/finance/working-capital"
 import { getCostOfCashSettings } from "@/lib/data/finance-settings"
+import { getCustomSchedule } from "@/lib/data/revenue-schedule"
 import type { OpportunityCallContext } from "./opportunities"
 
 // RLS-backed CRUD for cash-flow milestones (SOW §4.14). A milestone is a child
@@ -94,6 +95,21 @@ export function toWorkingCapitalInput(
     scheduledMonth: m.scheduledMonth,
     amount: m.amount,
     currency: m.currency as CurrencyCode,
+  }))
+}
+
+/** Pure bridge: a deal's revenue schedule is its plan of cash INFLOWS, so each
+ *  scheduled month becomes a direction:"in" event in the deal's currency. Exported
+ *  for testing and reuse by getWorkingCapitalForOpportunity. */
+export function revenueScheduleToInflows(
+  schedule: { month: string; amount: string }[],
+  currency: CurrencyCode,
+): CashflowMilestone[] {
+  return schedule.map((r) => ({
+    direction: "in",
+    scheduledMonth: r.month,
+    amount: r.amount,
+    currency,
   }))
 }
 
@@ -226,22 +242,30 @@ export async function deleteCashflowMilestone(
   if (error) throw new Error(`Failed to delete cash-flow milestone: ${error.message}`)
 }
 
-/** Derive the working-capital position for an opportunity from its milestones,
- *  the deal's revenue, and the group-wide cost-of-cash rate. This is the read
- *  seam that feeds the working-capital grid. Empty milestone set → a zeroed
- *  result. Throws if any milestone's currency differs from the deal's. */
+/** Derive the working-capital position for an opportunity from its cash events —
+ *  the revenue schedule (inflows) netted against its cost milestones (outflows) —
+ *  plus the deal's revenue and the group-wide cost-of-cash rate. This is the read
+ *  seam that feeds the working-capital grid. No cash events → a zeroed result.
+ *  Throws if any milestone's currency differs from the deal's. */
 export async function getWorkingCapitalForOpportunity(
   opportunityId: string,
   ctx: OpportunityCallContext,
 ): Promise<WorkingCapitalResult> {
   const supabase = await createServerClient()
-  const { revenue } = await fetchOpportunityMoney(supabase, opportunityId)
-  const [settings, milestones] = await Promise.all([
+  const { currency, revenue } = await fetchOpportunityMoney(supabase, opportunityId)
+  const [settings, milestones, schedule] = await Promise.all([
     getCostOfCashSettings(ctx),
     listCashflowMilestones(opportunityId, ctx),
+    getCustomSchedule(opportunityId, ctx),
   ])
-  return deriveWorkingCapital(toWorkingCapitalInput(milestones), {
-    annualRate: settings.annualRate,
-    revenue,
-  })
+
+  // Bridge: fold the revenue schedule in as cash inflows alongside the cost
+  // milestones (outflows) so the derived cumulative position nets both sides. The
+  // schedule shares the deal's currency (validated against the deal amount on save).
+  const scheduleInflows = revenueScheduleToInflows(schedule, currency as CurrencyCode)
+
+  return deriveWorkingCapital(
+    [...scheduleInflows, ...toWorkingCapitalInput(milestones)],
+    { annualRate: settings.annualRate, revenue },
+  )
 }
