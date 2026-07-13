@@ -16,6 +16,7 @@ ORR-661, and cash-flow milestone follow-ups.
 
 ### Fixed
 
+- **App felt slower over the last ~2 days — per-page auth/preference round-trips (ORR-709):** ORR-679 (timezone rendering) added a `getUserPreferences()` read to the `(crm)` layout, putting a new serial DB round-trip on the critical render path of **every** CRM page. Root-caused with round-trip counting and fixed by memoizing the hot path per request with React `cache()`: `requireUser()`'s cookie path is now resolved once per request (previously the layout **and** each page each re-ran `auth.getUser()` + `current_user_role()`), and the four `user_preferences` readers (`getUserPreferences` / `getDisplayCurrency` / `getNumberFormat` / `getDateFormat`) now share a single cached `select *` (the dashboard previously read that one row 3× as separate queries). Net: every page does auth **once** + preferences **once** — faster than the pre-ORR-679 baseline, with the timezone feature intact. Ruled out (indexed correctly, genuinely parallel): the new `opportunity_revenue_schedule` / `cashflow_milestone` tables and the opp-detail `Promise.all`.
 - **Opportunity Generator RFP uploads failed with a generic "analysing" error (ORR-710):** Next's default **1 MB** server-action body limit rejected real PDF/DOCX uploads before `extractDocumentTextAction` ran. Raised the upload cap to **50 MB** (`experimental.serverActions.bodySizeLimit` + the action's own size check) and surfaced a "max 50 MB" note in the upload step.
 
 ### Changed

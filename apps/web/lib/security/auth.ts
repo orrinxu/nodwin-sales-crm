@@ -28,45 +28,14 @@ const LOCAL_PREVIEW_ADMIN: AuthenticatedUser = {
   role: "admin",
 }
 
-export async function requireUser(
-  request?: NextRequest,
+// Given an authed Supabase client, resolve the current user + role. Shared by
+// both the request-header path (API routes) and the cookie path (server
+// components/actions) so the two stay identical. `auth.getUser()` is an HTTP
+// round-trip to GoTrue and `current_user_role()` is a DB round-trip — together
+// they are the per-request auth cost we want to pay at most once.
+async function resolveUser(
+  supabase: ReturnType<typeof createServerClient>,
 ): Promise<AuthenticatedUser> {
-  if (env.NODE_ENV !== "production" && env.NEXT_PUBLIC_ENV === "local-preview") {
-    return LOCAL_PREVIEW_ADMIN
-  }
-
-  let supabase
-  if (request) {
-    supabase = createServerClient(
-      env.SUPABASE_URL,
-      env.SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll: () => {
-            const cookieHeader = request.headers.get("cookie") ?? ""
-            return cookieHeader.split("; ").filter(Boolean).map((c) => {
-              const eq = c.indexOf("=")
-              return { name: c.slice(0, eq), value: c.slice(eq + 1) }
-            })
-          },
-          setAll: () => {},
-        },
-      },
-    )
-  } else {
-    const cookieStore = await cookies()
-    supabase = createServerClient(
-      env.SUPABASE_URL,
-      env.SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll: () => cookieStore.getAll(),
-          setAll: () => {},
-        },
-      },
-    )
-  }
-
   const { data, error } = await supabase.auth.getUser()
   if (error || !data.user) {
     throw new UnauthorisedError("Authentication required")
@@ -89,6 +58,49 @@ export async function requireUser(
     email: user.email ?? undefined,
     role,
   }
+}
+
+// Cookie-path resolution, memoized per request with React cache(). Server
+// components (the (crm) layout AND every page under it) each call requireUser(),
+// so without this each render pays the auth.getUser() + current_user_role()
+// round-trips 2×+. cache() dedupes them to one resolution per request. Only the
+// no-argument (cookie) path is cacheable; the request-header path below passes a
+// per-call NextRequest and stays uncached (each API request is its own scope).
+const resolveUserFromCookies = cache(async (): Promise<AuthenticatedUser> => {
+  const cookieStore = await cookies()
+  const supabase = createServerClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+    cookies: {
+      getAll: () => cookieStore.getAll(),
+      setAll: () => {},
+    },
+  })
+  return resolveUser(supabase)
+})
+
+export async function requireUser(
+  request?: NextRequest,
+): Promise<AuthenticatedUser> {
+  if (env.NODE_ENV !== "production" && env.NEXT_PUBLIC_ENV === "local-preview") {
+    return LOCAL_PREVIEW_ADMIN
+  }
+
+  if (!request) {
+    return resolveUserFromCookies()
+  }
+
+  const supabase = createServerClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+    cookies: {
+      getAll: () => {
+        const cookieHeader = request.headers.get("cookie") ?? ""
+        return cookieHeader.split("; ").filter(Boolean).map((c) => {
+          const eq = c.indexOf("=")
+          return { name: c.slice(0, eq), value: c.slice(eq + 1) }
+        })
+      },
+      setAll: () => {},
+    },
+  })
+  return resolveUser(supabase)
 }
 
 export function requireRole(
