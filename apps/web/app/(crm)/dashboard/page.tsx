@@ -22,16 +22,15 @@ import { ForecastTile } from "@/components/dashboard/forecast-tile"
 import { selectForecastTile } from "@/components/dashboard/forecast-tile-data"
 import { ConversionFunnel } from "@/components/dashboard/conversion-funnel"
 import { RepLeaderboard } from "@/components/dashboard/rep-leaderboard"
-import { getDashboardLayout } from "@/lib/data/dashboard-layout"
-import { DashboardGrid } from "@/components/dashboard/dashboard-grid"
-import { DASHBOARD_WIDGETS, mergeLayout } from "@/components/dashboard/dashboard-widgets"
-import { saveDashboardLayoutAction, resetDashboardLayoutAction } from "./actions"
+import { DashboardTabs } from "@/components/dashboard/dashboard-tabs"
+import { DashboardSection } from "@/components/dashboard/dashboard-section"
+import { Card, CardContent } from "@/components/ui/card"
 
 export default async function DashboardPage() {
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
 
-  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, needsAttention, forecast, conversionFunnel, savedLayout, numberFormat] = await Promise.all([
+  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, needsAttention, forecast, conversionFunnel, numberFormat] = await Promise.all([
     getPipelineMetrics(ctx),
     getPipelineSummary(ctx),
     getRecentDeals(ctx),
@@ -40,7 +39,6 @@ export default async function DashboardPage() {
     getNeedsAttention(ctx),
     getForecastData(ctx),
     getConversionFunnel(),
-    getDashboardLayout(ctx),
     getNumberFormat(ctx),
   ])
 
@@ -56,122 +54,111 @@ export default async function DashboardPage() {
     maximumFractionDigits: 0,
   })
 
-  // Each dashboard widget, keyed by its catalogue id (see DASHBOARD_WIDGETS).
-  // The server renders the nodes; DashboardGrid arranges them on a draggable,
-  // resizable 12-column grid whose layout persists per user.
-  const widgets = [
-    {
-      id: "needs-attention",
-      node: (
+  // ── "My focus" — the single-rep hub, action-first (SOW §17 per-user tier) ──
+  const myFocus = (
+    <div className="space-y-6">
+      <DashboardSection label="Needs your attention">
         <NeedsAttention
           stale={needsAttention.stale}
           overdue={needsAttention.overdue}
           approvals={needsAttention.approvals}
           total={needsAttention.total}
         />
-      ),
-    },
-    {
-      id: "summary-strip",
-      node: <SummaryStrip data={selectSummaryStrip(pipelineMetrics, forecastTile)} locale={locale} />,
-    },
-    {
-      id: "forecast",
-      node: <ForecastTile data={forecastTile} locale={locale} />,
-    },
-    {
-      id: "leaderboard",
-      node: (
+      </DashboardSection>
+
+      <DashboardSection label="My numbers">
+        <div className="space-y-4">
+          <SummaryStrip data={selectSummaryStrip(pipelineMetrics, forecastTile)} locale={locale} />
+          <ForecastTile data={forecastTile} locale={locale} />
+        </div>
+      </DashboardSection>
+
+      <DashboardSection label="My pipeline">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <PipelineChart stages={pipelineSummary.stages} currency={currency} locale={locale} />
+          <StuckDeals
+            totalAtRisk={fmt.format(stuck.totalValueAtRisk)}
+            unconvertibleCount={stuck.unconvertibleCount}
+            deals={stuck.deals.map((d) => ({
+              id: d.id,
+              name: d.name,
+              company: d.company,
+              stage: d.stage,
+              stageLabel: d.stageLabel,
+              amount: fmt.format(d.amount),
+              daysSinceLastActivity: d.daysSinceLastActivity,
+              thresholdDays: d.thresholdDays,
+              hasActivity: d.hasActivity,
+              reasons: d.reasons,
+              closeDate: d.closeDate,
+            }))}
+          />
+        </div>
+      </DashboardSection>
+
+      <DashboardSection label="Recent">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <ActivityTimeline
+            activities={activities.map((a) => ({
+              id: a.id,
+              type: a.type,
+              subject: a.subject,
+              body: a.body,
+              userName: a.userName,
+              createdAt: a.createdAt,
+              opportunityName: a.opportunityName,
+            }))}
+          />
+          <RecentDeals
+            deals={deals.map((d) => ({
+              id: d.id,
+              name: d.name,
+              company: d.company,
+              stage: d.stage,
+              stageLabel: d.stageLabel,
+              amount: fmt.format(d.amount),
+              probabilityPct: d.probabilityPct,
+              closeDate: d.closeDate,
+            }))}
+          />
+        </div>
+      </DashboardSection>
+    </div>
+  )
+
+  // ── "Team" — cross-rep performance (leaderboard + conversion funnel move here
+  //    from the rep homepage; SOW §17 per-team tier). Deeper team aggregation is
+  //    a follow-up ticket. ──
+  const team = (
+    <DashboardSection label="Team">
+      <div className="grid gap-4 lg:grid-cols-2">
         <RepLeaderboard
           scorecard={forecast.scorecard}
           currentUserId={user.id}
           currency={forecast.currency}
           locale={locale}
         />
-      ),
-    },
-    {
-      id: "conversion-funnel",
-      node: <ConversionFunnel data={conversionFunnel} locale={locale} />,
-    },
-    {
-      id: "stuck-deals",
-      node: (
-        <StuckDeals
-          totalAtRisk={fmt.format(stuck.totalValueAtRisk)}
-          unconvertibleCount={stuck.unconvertibleCount}
-          deals={stuck.deals.map((d) => ({
-            id: d.id,
-            name: d.name,
-            company: d.company,
-            stage: d.stage,
-            stageLabel: d.stageLabel,
-            amount: fmt.format(d.amount),
-            daysSinceLastActivity: d.daysSinceLastActivity,
-            thresholdDays: d.thresholdDays,
-            hasActivity: d.hasActivity,
-            reasons: d.reasons,
-            closeDate: d.closeDate,
-          }))}
-        />
-      ),
-    },
-    {
-      id: "pipeline-chart",
-      node: <PipelineChart stages={pipelineSummary.stages} currency={currency} locale={locale} />,
-    },
-    {
-      id: "activity",
-      node: (
-        <ActivityTimeline
-          activities={activities.map((a) => ({
-            id: a.id,
-            type: a.type,
-            subject: a.subject,
-            body: a.body,
-            userName: a.userName,
-            createdAt: a.createdAt,
-            opportunityName: a.opportunityName,
-          }))}
-        />
-      ),
-    },
-    {
-      id: "recent-deals",
-      node: (
-        <RecentDeals
-          deals={deals.map((d) => ({
-            id: d.id,
-            name: d.name,
-            company: d.company,
-            stage: d.stage,
-            stageLabel: d.stageLabel,
-            amount: fmt.format(d.amount),
-            probabilityPct: d.probabilityPct,
-            closeDate: d.closeDate,
-          }))}
-        />
-      ),
-    },
-  ]
+        <ConversionFunnel data={conversionFunnel} locale={locale} />
+      </div>
+    </DashboardSection>
+  )
 
-  const layout = mergeLayout(savedLayout, DASHBOARD_WIDGETS)
+  // ── "Group" — management rollups (SOW §17 per-management tier). Shell for now;
+  //    population is built on the region engine in a follow-up ticket. ──
+  const group = (
+    <DashboardSection label="Group">
+      <Card>
+        <CardContent className="py-12 text-center text-sm text-muted-foreground">
+          Group-wide rollups are coming soon — built on the new region engine,
+          for execs and regional leads.
+        </CardContent>
+      </Card>
+    </DashboardSection>
+  )
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Sales overview, pipeline health, and recent activity
-        </p>
-      </div>
-
-      <DashboardGrid
-        widgets={widgets}
-        initialLayout={layout}
-        saveAction={saveDashboardLayoutAction}
-        resetAction={resetDashboardLayoutAction}
-      />
+    <div className="p-6">
+      <DashboardTabs myFocus={myFocus} team={team} group={group} />
     </div>
   )
 }
