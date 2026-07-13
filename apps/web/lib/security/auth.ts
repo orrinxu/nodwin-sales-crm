@@ -3,6 +3,7 @@ import "server-only"
 import { cache } from "react"
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
 import type { NextRequest } from "next/server"
 import { env } from "./env"
 import { ForbiddenError, UnauthorisedError } from "./errors"
@@ -76,6 +77,14 @@ export const requireUser = cache(async (
 
   const { data, error } = await supabase.auth.getUser()
   if (error || !data.user) {
+    // Page / server-action context (no `request`): send unauthenticated callers
+    // to /login. An uncaught throw here renders Next's 500 boundary instead of a
+    // redirect (ORR-712) — every (crm) page/layout calls requireUser() first, so
+    // the crash was app-wide. API / route-handler callers pass `request` and
+    // still get the throw so they can return a proper 401.
+    if (!request) {
+      redirect("/login")
+    }
     throw new UnauthorisedError("Authentication required")
   }
 
