@@ -51,7 +51,10 @@ import { Money } from "@/lib/money"
 import { cn } from "@/lib/utils"
 import { usePreferences } from "@/components/providers/preferences-provider"
 import { RevenueScheduleEditor } from "@/components/opportunities/revenue-schedule-editor"
-import type { RevenueScheduleData, ScheduleMonthDTO } from "@/app/(crm)/opportunities/finance-actions"
+import { CashPlanPanel } from "@/components/opportunities/cash-plan-panel"
+import type { RevenueScheduleData, ScheduleMonthDTO, CostMilestoneInputDTO } from "@/app/(crm)/opportunities/finance-actions"
+import type { WorkingCapitalDTO } from "@/lib/finance/working-capital-dto"
+import type { CashflowMilestoneRecord } from "@/lib/data/cashflow-milestones"
 
 const COUNTRY_LABELS: Record<string, string> = {
   AE: "United Arab Emirates", AR: "Argentina", AU: "Australia", BD: "Bangladesh",
@@ -66,13 +69,6 @@ const COUNTRY_LABELS: Record<string, string> = {
 
 // P&L tab unlocks once the deal reaches Verbal Agreement (labelled "Cash Plan" in the mock).
 const CASH_UNLOCK_STAGE: DealStage = "verbal_agreement"
-
-// "YYYY-MM-01" → "Mon YYYY" for the read-only revenue-schedule table.
-function revenueMonthLabel(ym: string): string {
-  const [y, m] = ym.split("-")
-  const d = new Date(Number(y), Number(m) - 1, 1)
-  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" })
-}
 
 // ── Type scale ────────────────────────────────────────────────────────────────
 // Centralized half-px scale from the redesign spec, expressed once as shared
@@ -126,6 +122,13 @@ interface OpportunityDetailWrapperProps {
   revenueSchedule?: ScheduleMonthDTO[]
   getRevenueScheduleAction?: (opportunityId: string) => Promise<RevenueScheduleData>
   saveRevenueScheduleAction?: (opportunityId: string, months: ScheduleMonthDTO[]) => Promise<void>
+  workingCapital?: WorkingCapitalDTO
+  costMilestones?: CashflowMilestoneRecord[]
+  getWorkingCapitalAction?: (opportunityId: string) => Promise<WorkingCapitalDTO>
+  listCostMilestonesAction?: (opportunityId: string) => Promise<CashflowMilestoneRecord[]>
+  createCostMilestoneAction?: (opportunityId: string, input: CostMilestoneInputDTO) => Promise<CashflowMilestoneRecord>
+  updateCostMilestoneAction?: (opportunityId: string, milestoneId: string, input: CostMilestoneInputDTO) => Promise<CashflowMilestoneRecord>
+  deleteCostMilestoneAction?: (opportunityId: string, milestoneId: string) => Promise<void>
 }
 
 // ── Small presentational primitives (module scope; stable identity) ─────────────
@@ -275,6 +278,11 @@ export function OpportunityDetailWrapper({
   revenueSchedule,
   getRevenueScheduleAction,
   saveRevenueScheduleAction,
+  workingCapital,
+  costMilestones,
+  createCostMilestoneAction,
+  updateCostMilestoneAction,
+  deleteCostMilestoneAction,
 }: OpportunityDetailWrapperProps) {
   const router = useRouter()
   const { formatDate } = usePreferences()
@@ -706,30 +714,22 @@ export function OpportunityDetailWrapper({
               <Card>
                 <CardContent className="pt-6">
                   {cashUnlocked ? (
-                    revenueSchedule && revenueSchedule.length > 0 ? (
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <h3 className={T.cardHeading}>Revenue schedule</h3>
-                          <span className="text-xs text-muted-foreground">Full P&amp;L summary &amp; cost milestones coming next.</span>
-                        </div>
-                        <div className="overflow-hidden rounded-lg border">
-                          <table className="w-full text-sm">
-                            <tbody>
-                              {revenueSchedule.map((m) => (
-                                <tr key={m.month} className="border-t first:border-t-0">
-                                  <td className="px-3 py-2 text-muted-foreground">{revenueMonthLabel(m.month)}</td>
-                                  <td className="px-3 py-2 text-right tabular-nums">{opportunity.currency} {m.amount}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
+                    workingCapital && createCostMilestoneAction && updateCostMilestoneAction && deleteCostMilestoneAction ? (
+                      <CashPlanPanel
+                        opportunityId={opportunity.id}
+                        currency={opportunity.currency}
+                        workingCapital={workingCapital}
+                        revenueSchedule={revenueSchedule ?? []}
+                        costMilestones={costMilestones ?? []}
+                        createAction={createCostMilestoneAction}
+                        updateAction={updateCostMilestoneAction}
+                        deleteAction={deleteCostMilestoneAction}
+                      />
                     ) : (
                       <IntegrationTabEmptyState
                         icon={Calendar}
-                        title="No revenue schedule yet"
-                        message="Use the “Set Revenue Schedule” action above to spread this deal’s amount across its service months. The full P&L summary and cost milestones are coming next."
+                        title="Cash plan unavailable"
+                        message="The P&L data could not be loaded for this deal."
                       />
                     )
                   ) : (

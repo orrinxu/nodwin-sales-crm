@@ -36,7 +36,20 @@ import { isDealCopilotConfigured } from "@/lib/ai/deal-copilot"
 import { OpportunityDetailWrapper } from "@/components/opportunities/opportunity-detail-wrapper"
 import { listDocumentsForEntity } from "@/lib/data/documents"
 import { getCustomSchedule } from "@/lib/data/revenue-schedule"
-import { getRevenueScheduleAction, saveRevenueScheduleAction } from "../finance-actions"
+import {
+  getWorkingCapitalForOpportunity,
+  listCashflowMilestones,
+} from "@/lib/data/cashflow-milestones"
+import { serializeWorkingCapital } from "@/lib/finance/working-capital-dto"
+import {
+  getRevenueScheduleAction,
+  saveRevenueScheduleAction,
+  getWorkingCapitalAction,
+  listCostMilestonesAction,
+  createCostMilestoneAction,
+  updateCostMilestoneAction,
+  deleteCostMilestoneAction,
+} from "../finance-actions"
 
 export default async function OpportunityDetailPage({
   params,
@@ -53,7 +66,7 @@ export default async function OpportunityDetailPage({
     notFound()
   }
 
-  const [businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState, enforceGateStatus, dealCopilotConfigured, documents, revenueScheduleRows] =
+  const [businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState, enforceGateStatus, dealCopilotConfigured, documents, revenueScheduleRows, costMilestones, workingCapitalResult] =
     await Promise.all([
       getBusinessUnitOptions(ctx),
       getActivitiesForOpportunity(ctx, id),
@@ -67,10 +80,23 @@ export default async function OpportunityDetailPage({
       isDealCopilotConfigured(),
       listDocumentsForEntity(ctx, { opportunityId: id }),
       getCustomSchedule(id, ctx),
+      listCashflowMilestones(id, ctx),
+      // Deriving working capital runs on every detail load; a bad deal (e.g. a
+      // post-hoc currency change vs. its milestones) must not 500 the whole page.
+      // Degrade to null → the P&L tab shows "unavailable", the rest of the page is
+      // unaffected.
+      getWorkingCapitalForOpportunity(id, ctx).catch((e) => {
+        console.error(`Working-capital derivation failed for opportunity ${id}:`, e)
+        return null
+      }),
     ])
 
   const approvalStatus = approvalStatusLabel(summarizeApprovalStatus(approvals))
   const revenueSchedule = revenueScheduleRows.map((r) => ({ month: r.month.slice(0, 10), amount: r.amount }))
+  const costMilestonesOut = costMilestones.filter((m) => m.direction === "out")
+  const workingCapital = workingCapitalResult
+    ? serializeWorkingCapital(workingCapitalResult, opportunity.currency)
+    : undefined
 
   return (
     <OpportunityDetailWrapper
@@ -105,6 +131,13 @@ export default async function OpportunityDetailPage({
       revenueSchedule={revenueSchedule}
       getRevenueScheduleAction={getRevenueScheduleAction}
       saveRevenueScheduleAction={saveRevenueScheduleAction}
+      workingCapital={workingCapital}
+      costMilestones={costMilestonesOut}
+      getWorkingCapitalAction={getWorkingCapitalAction}
+      listCostMilestonesAction={listCostMilestonesAction}
+      createCostMilestoneAction={createCostMilestoneAction}
+      updateCostMilestoneAction={updateCostMilestoneAction}
+      deleteCostMilestoneAction={deleteCostMilestoneAction}
     />
   )
 }
