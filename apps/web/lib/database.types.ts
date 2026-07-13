@@ -1743,6 +1743,7 @@ export type Database = {
           legal_name: string | null
           logo_url: string | null
           name: string
+          region_id: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -1761,6 +1762,7 @@ export type Database = {
           legal_name?: string | null
           logo_url?: string | null
           name: string
+          region_id?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -1779,10 +1781,19 @@ export type Database = {
           legal_name?: string | null
           logo_url?: string | null
           name?: string
+          region_id?: string | null
           updated_at?: string
           updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "entities_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "regions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       field_definitions: {
         Row: {
@@ -2607,6 +2618,71 @@ export type Database = {
         }
         Relationships: []
       }
+      regions: {
+        Row: {
+          active: boolean
+          code: string | null
+          created_at: string
+          created_by: string | null
+          custom_data: Json
+          id: string
+          name: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          active?: boolean
+          code?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_data?: Json
+          id?: string
+          name: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          active?: boolean
+          code?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_data?: Json
+          id?: string
+          name?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "regions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "ai_usage_daily_rollup"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "regions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regions_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "ai_usage_daily_rollup"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "regions_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       relationship_types: {
         Row: {
           active: boolean
@@ -3316,6 +3392,10 @@ export type Database = {
       can_read_account: { Args: { _account_id: string }; Returns: boolean }
       can_read_approval_instance: {
         Args: { _instance_id: string }
+        Returns: boolean
+      }
+      can_view_opportunity_by_role_scope: {
+        Args: { _opp_id: string }
         Returns: boolean
       }
       can_write_account: { Args: { _account_id: string }; Returns: boolean }
