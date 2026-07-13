@@ -482,7 +482,7 @@ export async function getApprovalActionState(
 
   const { data: inst, error: instErr } = await supabase
     .from("approval_instances")
-    .select("id, status")
+    .select("id, status, business_entity_id")
     .eq("entity_type", "opportunity")
     .eq("entity_id", opportunityId)
     .order("created_at", { ascending: false })
@@ -522,14 +522,34 @@ export async function getApprovalActionState(
   let actionableStepId: string | null = null
   if (current) {
     const role = ctx.user.role
+    const isNamedApprover = current.approver_user_id === ctx.user.id
     const isInMultiApprovers =
       Array.isArray(current.approver_user_ids) &&
       current.approver_user_ids.includes(ctx.user.id)
-    const canDecide =
-      current.approver_user_id === ctx.user.id ||
-      isInMultiApprovers ||
-      (!!current.approver_role && current.approver_role === role) ||
-      role === "admin"
+    const isAdmin = role === "admin"
+
+    // A role-based approver may only decide approvals for opportunities in THEIR
+    // OWN entity — the same firewall record_approval_decision + can_read_approval_instance
+    // enforce. Without this, getApprovalActionState offered the Approve/Reject
+    // affordance to role holders in the wrong entity (the server write still
+    // rejects it, but the UI gate must match). Fail closed when the instance has
+    // no business entity.
+    let roleGrant = false
+    if (!!current.approver_role && current.approver_role === role) {
+      const businessEntityId = (inst as { business_entity_id: string | null }).business_entity_id
+      if (businessEntityId) {
+        const { data: me } = await supabase
+          .from("users")
+          .select("primary_entity_id")
+          .eq("id", ctx.user.id)
+          .maybeSingle()
+        roleGrant =
+          (me as { primary_entity_id: string | null } | null)?.primary_entity_id ===
+          businessEntityId
+      }
+    }
+
+    const canDecide = isNamedApprover || isInMultiApprovers || roleGrant || isAdmin
     if (canDecide) actionableStepId = current.id
   }
 
