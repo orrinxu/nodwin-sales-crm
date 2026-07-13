@@ -3296,6 +3296,15 @@ export type Database = {
       }
     }
     Functions: {
+      audit_row_is_confidential: {
+        Args: {
+          _new_data: Json
+          _old_data: Json
+          _row_id: string
+          _table_name: string
+        }
+        Returns: boolean
+      }
       can_access_opportunity_schedule: {
         Args: { _opportunity_id: string }
         Returns: boolean
