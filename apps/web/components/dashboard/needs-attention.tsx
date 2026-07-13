@@ -7,6 +7,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { StageBadge } from "@/components/primitives/stage-badge"
 import { EmptyState } from "@/components/primitives/empty-state"
+import { ReconnectButton } from "@/components/dashboard/reconnect-button"
 import type { DealStage } from "@/lib/opportunity/stage"
 import type { LucideIcon } from "lucide-react"
 
@@ -35,9 +36,11 @@ interface SectionSpec {
   title: string
   icon: LucideIcon
   bucket: NeedsAttentionBucketView
+  /** Show the "Reconnect" CTA on each row (deals gone quiet / overdue). */
+  reconnect?: boolean
 }
 
-function BucketSection({ title, icon: Icon, bucket }: Omit<SectionSpec, "key">) {
+function BucketSection({ title, icon: Icon, bucket, reconnect = false }: Omit<SectionSpec, "key">) {
   if (bucket.count === 0) return null
   const hidden = bucket.count - bucket.items.length
   return (
@@ -51,17 +54,24 @@ function BucketSection({ title, icon: Icon, bucket }: Omit<SectionSpec, "key">) 
       </div>
       <div className="flex flex-col">
         {bucket.items.map((item) => (
-          <Link
+          <div
             key={`${title}-${item.id}`}
-            href={`/opportunities/${item.id}`}
             className="group flex items-center justify-between gap-3 border-t border-border px-6 py-3 transition-colors hover:bg-muted/50"
           >
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Link
+              href={`/opportunities/${item.id}`}
+              className="flex min-w-0 flex-1 flex-wrap items-center gap-2 hover:underline"
+            >
               <span className="truncate font-medium">{item.name}</span>
               <StageBadge stage={item.stage} label={item.stageLabel} />
+            </Link>
+            <div className="flex shrink-0 items-center gap-3">
+              <span className="text-sm text-muted-foreground">{item.reason}</span>
+              {reconnect && (
+                <ReconnectButton opportunityId={item.id} dealName={item.name} />
+              )}
             </div>
-            <span className="shrink-0 text-sm text-muted-foreground">{item.reason}</span>
-          </Link>
+          </div>
         ))}
         {hidden > 0 && (
           <Link
@@ -83,8 +93,8 @@ function BucketSection({ title, icon: Icon, bucket }: Omit<SectionSpec, "key">) 
  */
 export function NeedsAttention({ stale, overdue, approvals, total }: Props) {
   const sections: SectionSpec[] = [
-    { key: "overdue", title: "Overdue", icon: CalendarX, bucket: overdue },
-    { key: "stale", title: "Stale deals", icon: Clock, bucket: stale },
+    { key: "overdue", title: "Overdue", icon: CalendarX, bucket: overdue, reconnect: true },
+    { key: "stale", title: "Needs a touch", icon: Clock, bucket: stale, reconnect: true },
     { key: "approvals", title: "Approvals awaiting me", icon: CheckCircle2, bucket: approvals },
   ]
 
