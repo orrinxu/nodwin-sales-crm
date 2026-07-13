@@ -28,6 +28,7 @@ import {
   searchContactsAction,
   searchUsersAction,
   createContactQuickAction,
+  createAccountQuickAction,
   saveViewAction,
   deleteSavedViewAction,
 } from "./actions"
@@ -116,6 +117,7 @@ export default async function OpportunitiesPage({
       searchContactsAction={searchContactsAction}
       searchUsersAction={searchUsersAction}
       createContactQuickAction={createContactQuickAction}
+      createAccountQuickAction={createAccountQuickAction}
       defaultCurrency={defaultCurrency}
       defaultView={view}
       title={preset.title}

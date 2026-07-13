@@ -168,6 +168,7 @@ interface OpportunityFormProps {
   searchContactsAction?: (query: string, accountId?: string) => Promise<EntityOption[]>
   searchUsersAction?: (query: string) => Promise<EntityOption[]>
   createContactQuickAction?: (input: { fullName: string; email?: string; accountId?: string }) => Promise<EntityOption>
+  createAccountQuickAction?: (input: { name: string }) => Promise<EntityOption>
   currentUserId?: string
   // Pre-fills the currency on a NEW deal (from the user's entry_currency_default
   // preference). Ignored when editing — a saved deal keeps its own currency.
@@ -196,6 +197,7 @@ export function OpportunityForm({
   searchContactsAction,
   searchUsersAction,
   createContactQuickAction,
+  createAccountQuickAction,
   currentUserId,
   defaultCurrency,
   prefill,
@@ -439,6 +441,12 @@ export function OpportunityForm({
       }
     : undefined
 
+  const handleCreateAccount = createAccountQuickAction
+    ? async (name: string): Promise<EntityOption> => {
+        return createAccountQuickAction({ name })
+      }
+    : undefined
+
   return (
     <RecordEditDialog
       open={open}
@@ -514,6 +522,8 @@ export function OpportunityForm({
             placeholder="Select account"
             searchPlaceholder="Search accounts..."
             emptyMessage="No accounts found."
+            onCreate={handleCreateAccount}
+            createLabel={(q) => `Create account "${q}"`}
           />
           {form.formState.errors.accountId && (
             <p className="text-xs text-destructive">{form.formState.errors.accountId.message}</p>
