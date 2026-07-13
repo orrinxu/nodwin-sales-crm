@@ -140,6 +140,21 @@ describe("getPipelineMetrics", () => {
     expect(result.dealsLost).toBe(1)
   })
 
+  it("averages deal size across all deals, including lost ones", async () => {
+    buildQuery([
+      { stage: "qualify", amount: 10000, currency: "USD" }, // active
+      { stage: "propose", amount: 5000, currency: "USD" }, // active
+      { stage: "closed_won", amount: 25000, currency: "USD" }, // won
+      { stage: "closed_lost", amount: 10000, currency: "USD" }, // lost
+    ])
+    const { getPipelineMetrics } = await import("./metrics")
+    const result = await getPipelineMetrics(defaultCtx)
+
+    // totalAmount 50000 over all 4 deals → 12500. The old denominator omitted
+    // the lost deal (50000 / 3 ≈ 16667), which was the bug.
+    expect(result.avgDealSize).toBe(12500)
+  })
+
   it("calculates win rate correctly", async () => {
     buildQuery([
       { stage: "closed_won", amount: 50000, currency: "USD" },
@@ -497,6 +512,7 @@ describe("getRecentDeals", () => {
         name: "Big Deal",
         stage: "propose",
         amount: 50000,
+        currency: "USD",
         probability_pct: 60,
         close_date: "2026-06-30",
         account: { name: "Acme Corp" },
@@ -513,6 +529,7 @@ describe("getRecentDeals", () => {
     expect(result[0].stageLabel).toBe("Propose")
     expect(result[0].probabilityPct).toBe(60)
     expect(result[0].amount).toBe(50000)
+    expect(result[0].currency).toBe("USD")
     expect(result[0].closeDate).toBe("2026-06-30")
   })
 
@@ -524,6 +541,7 @@ describe("getRecentDeals", () => {
         stage: "qualify",
         probability_pct: 0,
         amount: null,
+        currency: "USD",
         close_date: null,
         account: null,
       },
@@ -533,6 +551,52 @@ describe("getRecentDeals", () => {
 
     expect(result[0].company).toBeNull()
     expect(result[0].amount).toBe(0)
+    expect(result[0].currency).toBe("USD")
+  })
+
+  it("converts a non-reporting-currency deal into the reporting currency", async () => {
+    buildOrderLimitQuery([
+      {
+        id: "opp-2",
+        name: "INR Deal",
+        stage: "qualify",
+        amount: 10000,
+        currency: "INR",
+        probability_pct: 40,
+        close_date: null,
+        account: { name: "Globex" },
+      },
+    ])
+    const { getRecentDeals } = await import("./metrics")
+    const result = await getRecentDeals(defaultCtx)
+
+    // 10000 INR → 100 USD via the mocked rate; reported in the reporting currency.
+    expect(result[0].amount).toBe(100)
+    expect(result[0].currency).toBe("USD")
+  })
+
+  it("keeps an unconvertible deal in its own currency instead of dropping it", async () => {
+    mockLookupRate.mockResolvedValue(null)
+    buildOrderLimitQuery([
+      {
+        id: "opp-3",
+        name: "No-rate Deal",
+        stage: "qualify",
+        amount: 7500,
+        currency: "XYZ",
+        probability_pct: 20,
+        close_date: null,
+        account: null,
+      },
+    ])
+    const { getRecentDeals } = await import("./metrics")
+    const result = await getRecentDeals(defaultCtx)
+
+    // Still returned (a list, not an aggregate), shown in its own currency so it
+    // is never mislabelled under the reporting-currency symbol.
+    expect(result).toHaveLength(1)
+    expect(result[0].amount).toBe(7500)
+    expect(result[0].currency).toBe("XYZ")
   })
 
   it("respects the limit parameter", async () => {

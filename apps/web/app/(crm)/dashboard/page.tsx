@@ -53,6 +53,14 @@ export default async function DashboardPage() {
     currency,
     maximumFractionDigits: 0,
   })
+  // Recent deals carry their own currency (reporting currency when convertible,
+  // otherwise the deal's own), so format each in the currency it's actually in.
+  const formatMoney = (amount: number, cur: string) =>
+    new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: cur,
+      maximumFractionDigits: 0,
+    }).format(amount)
 
   // ── "My focus" — the single-rep hub, action-first (SOW §17 per-user tier) ──
   const myFocus = (
@@ -116,7 +124,7 @@ export default async function DashboardPage() {
               company: d.company,
               stage: d.stage,
               stageLabel: d.stageLabel,
-              amount: fmt.format(d.amount),
+              amount: formatMoney(d.amount, d.currency),
               probabilityPct: d.probabilityPct,
               closeDate: d.closeDate,
             }))}
