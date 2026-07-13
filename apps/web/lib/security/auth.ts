@@ -28,9 +28,16 @@ const LOCAL_PREVIEW_ADMIN: AuthenticatedUser = {
   role: "admin",
 }
 
-export async function requireUser(
+// Per-request memoized (ORR-709). requireUser runs in the CRM layout AND again in
+// every page it wraps, each time hitting auth.getUser() (a JWT-validating network
+// hop) + the current_user_role RPC. React cache() collapses those repeat calls
+// within a single request to one. Keyed on the args: the RSC hot path calls
+// requireUser() (no arg) so all such calls share one result; the 4 route-handler
+// callers pass a distinct `request` and key separately. cache() is per-request, so
+// no auth state leaks across requests.
+export const requireUser = cache(async (
   request?: NextRequest,
-): Promise<AuthenticatedUser> {
+): Promise<AuthenticatedUser> => {
   if (env.NODE_ENV !== "production" && env.NEXT_PUBLIC_ENV === "local-preview") {
     return LOCAL_PREVIEW_ADMIN
   }
@@ -89,7 +96,7 @@ export async function requireUser(
     email: user.email ?? undefined,
     role,
   }
-}
+})
 
 export function requireRole(
   user: AuthenticatedUser,

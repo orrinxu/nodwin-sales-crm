@@ -1,4 +1,5 @@
 import "server-only"
+import { cache } from "react"
 import { z } from "zod"
 import { createServerClient } from "@/lib/supabase/server"
 import type { AuthenticatedUser } from "@/lib/security/auth"
@@ -105,85 +106,66 @@ export async function getCurrencyOptions(
   }))
 }
 
+// Per-request memoized full-row read (ORR-709). The CRM layout reads preferences
+// on every page, and several pages (dashboard, opportunities, settings) read them
+// again — plus the granular getters below. React cache() dedupes all of that to a
+// single round-trip per request, keyed on the primitive userId (NOT the ctx object,
+// whose identity differs between the layout and the page). Matches the getMyPermissions
+// pattern in lib/security/auth.ts. Scope is per-request, so a preferences upsert in a
+// later request is never served a stale cached row.
+const loadUserPreferences = cache(
+  async (userId: string): Promise<UserPreferencesRecord> => {
+    const supabase = await createServerClient()
+
+    const { data, error } = await supabase
+      .from("user_preferences")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle()
+
+    if (error) {
+      throw new Error(`Failed to load preferences: ${error.message}`)
+    }
+
+    if (!data) return { ...DEFAULT_USER_PREFERENCES }
+    return toDomain(data as Record<string, unknown>)
+  },
+)
+
 // Returns the current user's preferences, or defaults if they have no row yet.
 // RLS (user_preferences_select_own_or_admin) scopes the read to the caller.
 export async function getUserPreferences(
   ctx: UserPreferencesCallContext,
 ): Promise<UserPreferencesRecord> {
-  const supabase = await createServerClient()
-
-  const { data, error } = await supabase
-    .from("user_preferences")
-    .select("*")
-    .eq("user_id", ctx.user.id)
-    .maybeSingle()
-
-  if (error) {
-    throw new Error(`Failed to load preferences: ${error.message}`)
-  }
-
-  if (!data) return { ...DEFAULT_USER_PREFERENCES }
-  return toDomain(data as Record<string, unknown>)
+  return loadUserPreferences(ctx.user.id)
 }
 
+// The granular getters below resolve one field each. They delegate to the memoized
+// full-row read so that, on a page that also loads full preferences (the layout does),
+// they cost zero extra round-trips instead of one apiece.
+
 // Resolves just the display currency (used by the dashboards/reports rollup
-// path). Cheap single-column read; null means "use the org default".
+// path). null means "use the org default".
 export async function getDisplayCurrency(
   ctx: UserPreferencesCallContext,
 ): Promise<string | null> {
-  const supabase = await createServerClient()
-
-  const { data, error } = await supabase
-    .from("user_preferences")
-    .select("display_currency")
-    .eq("user_id", ctx.user.id)
-    .maybeSingle()
-
-  if (error) {
-    throw new Error(`Failed to load display currency: ${error.message}`)
-  }
-
-  return (data?.display_currency as string) ?? null
+  return (await loadUserPreferences(ctx.user.id)).displayCurrency
 }
 
 // Resolves just the number-format preference (used by the dashboard number
-// formatters). Cheap single-column read; defaults to "international".
+// formatters). Defaults to "international".
 export async function getNumberFormat(
   ctx: UserPreferencesCallContext,
 ): Promise<NumberFormat> {
-  const supabase = await createServerClient()
-
-  const { data, error } = await supabase
-    .from("user_preferences")
-    .select("number_format")
-    .eq("user_id", ctx.user.id)
-    .maybeSingle()
-
-  if (error) {
-    throw new Error(`Failed to load number format: ${error.message}`)
-  }
-
-  return (data?.number_format as NumberFormat) ?? "international"
+  return (await loadUserPreferences(ctx.user.id)).numberFormat
 }
 
 // Resolves just the date-format preference (used by the dashboard date
-// formatters). Cheap single-column read; defaults to "iso".
+// formatters). Defaults to "iso".
 export async function getDateFormat(
   ctx: UserPreferencesCallContext,
 ): Promise<DateFormat> {
-  const supabase = await createServerClient()
-
-  const { data, error } = await supabase
-    .from("user_preferences")
-    .select("date_format")
-    .eq("user_id", ctx.user.id)
-    .maybeSingle()
-
-  if (error) {
-    throw new Error(`Failed to load date format: ${error.message}`)
-  }
-
-  return (data?.date_format as DateFormat) ?? "iso"
+  return (await loadUserPreferences(ctx.user.id)).dateFormat
 }
 
 // Upserts the caller's preferences row (keyed on user_id). Only the provided
