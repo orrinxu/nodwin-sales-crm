@@ -32,6 +32,17 @@ vi.mock("@/lib/money", () => ({
   },
 }))
 
+const stageHistoryMocks = vi.hoisted(() => ({
+  insertStageHistoryEntry: vi.fn(),
+  determineStageEvent: vi.fn(),
+}))
+const triggerMocks = vi.hoisted(() => ({
+  notifyStageChange: vi.fn(),
+  notifyDealAssigned: vi.fn(),
+}))
+vi.mock("@/lib/data/opportunity-stage-history", () => stageHistoryMocks)
+vi.mock("@/lib/notifications/triggers", () => triggerMocks)
+
 const defaultCtx = {
   user: { id: "user-1", email: "alice@nodwin.com", role: "admin" },
   source: "web" as const,
@@ -258,6 +269,75 @@ describe("updateOpportunity", () => {
     await expect(
       updateOpportunity(defaultCtx, "opp-1", { name: "Ghost" }),
     ).rejects.toThrow("Opportunity not found after update")
+  })
+})
+
+describe("updateOpportunity — stage change side effects (ORR-694)", () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    buildQueryBuilder()
+    mockFrom.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder, update: mockUpdate })
+    mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+    mockMoneyFromAmount.mockReturnValue({ toAmount: () => "50000.00" })
+    // enforce/approval gates pass by default so we reach the stage-change path
+    mockRpc.mockResolvedValue({ data: true, error: null })
+    stageHistoryMocks.determineStageEvent.mockReturnValue("advanced")
+    stageHistoryMocks.insertStageHistoryEntry.mockResolvedValue(undefined)
+    triggerMocks.notifyStageChange.mockResolvedValue(undefined)
+  })
+
+  it("records stage history AND notifies when the stage changes", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "negotiate" }, error: null })
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "verbal_agreement" }, error: null })
+
+    const { updateOpportunity } = await import("../opportunities")
+    await updateOpportunity(defaultCtx, "opp-1", { stage: "verbal_agreement" })
+
+    expect(stageHistoryMocks.insertStageHistoryEntry).toHaveBeenCalledWith(
+      defaultCtx,
+      expect.objectContaining({
+        opportunityId: "opp-1",
+        fromStage: "negotiate",
+        toStage: "verbal_agreement",
+        createdBy: "user-1",
+      }),
+    )
+    // notification is fire-and-forget via dynamic import
+    await vi.waitFor(() =>
+      expect(triggerMocks.notifyStageChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          opportunityId: "opp-1",
+          fromStage: "negotiate",
+          toStage: "verbal_agreement",
+        }),
+      ),
+    )
+  })
+
+  it("does NOT record history or notify when the stage is unchanged", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "negotiate" }, error: null })
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "negotiate", name: "Renamed" }, error: null })
+
+    const { updateOpportunity } = await import("../opportunities")
+    // stage is provided but equal to the existing stage
+    await updateOpportunity(defaultCtx, "opp-1", { stage: "negotiate", name: "Renamed" })
+
+    expect(stageHistoryMocks.insertStageHistoryEntry).not.toHaveBeenCalled()
+    expect(triggerMocks.notifyStageChange).not.toHaveBeenCalled()
+  })
+
+  it("does not record history when no stage field is provided", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "negotiate" }, error: null })
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, name: "Just a rename" }, error: null })
+
+    const { updateOpportunity } = await import("../opportunities")
+    await updateOpportunity(defaultCtx, "opp-1", { name: "Just a rename" })
+
+    expect(stageHistoryMocks.insertStageHistoryEntry).not.toHaveBeenCalled()
+    expect(triggerMocks.notifyStageChange).not.toHaveBeenCalled()
   })
 })
 
