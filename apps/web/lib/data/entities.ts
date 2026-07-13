@@ -16,6 +16,7 @@ export interface EntityRecord {
   baseCurrency: string
   fiscalYearStartMonth: number
   active: boolean
+  regionId: string | null
   displayName: string | null
   logoUrl: string | null
   emailFooter: string | null
@@ -32,6 +33,7 @@ export const entityCreateSchema = z.object({
   country: z.string().max(100).nullable().optional().or(z.literal("")),
   baseCurrency: z.string().min(1, "Base currency is required").max(10).default("USD"),
   fiscalYearStartMonth: z.number().int().min(1).max(12).default(1),
+  regionId: z.string().uuid().nullable().optional().or(z.literal("")),
   displayName: z.string().max(200).nullable().optional().or(z.literal("")),
   logoUrl: z.string().max(500).nullable().optional().or(z.literal("")),
   emailFooter: z.string().max(2000).nullable().optional().or(z.literal("")),
@@ -44,6 +46,7 @@ export const entityUpdateSchema = z.object({
   country: z.string().max(100).nullable().optional().or(z.literal("")),
   baseCurrency: z.string().min(1, "Base currency is required").max(10).optional(),
   fiscalYearStartMonth: z.number().int().min(1).max(12).optional(),
+  regionId: z.string().uuid().nullable().optional().or(z.literal("")),
   displayName: z.string().max(200).nullable().optional().or(z.literal("")),
   logoUrl: z.string().max(500).nullable().optional().or(z.literal("")),
   emailFooter: z.string().max(2000).nullable().optional().or(z.literal("")),
@@ -62,6 +65,7 @@ function toDomainEntity(data: Record<string, unknown>): EntityRecord {
     baseCurrency: (data.base_currency as string) ?? "USD",
     fiscalYearStartMonth: (data.fiscal_year_start_month as number) ?? 1,
     active: (data.active as boolean) ?? true,
+    regionId: (data.region_id as string) ?? null,
     displayName: (data.display_name as string) ?? null,
     logoUrl: (data.logo_url as string) ?? null,
     emailFooter: (data.email_footer as string) ?? null,
@@ -122,6 +126,7 @@ function toDbEntity(input: EntityCreateInput | EntityUpdateInput): Record<string
   if ("country" in input && input.country !== undefined) db.country = input.country || null
   if ("baseCurrency" in input && input.baseCurrency !== undefined) db.base_currency = input.baseCurrency
   if ("fiscalYearStartMonth" in input && input.fiscalYearStartMonth !== undefined) db.fiscal_year_start_month = input.fiscalYearStartMonth
+  if ("regionId" in input && input.regionId !== undefined) db.region_id = input.regionId || null
   if ("displayName" in input && input.displayName !== undefined) db.display_name = input.displayName || null
   if ("logoUrl" in input && input.logoUrl !== undefined) db.logo_url = input.logoUrl || null
   if ("emailFooter" in input && input.emailFooter !== undefined) db.email_footer = input.emailFooter || null

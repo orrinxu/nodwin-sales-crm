@@ -85,6 +85,7 @@ const createFormSchema = z.object({
   country: z.string().max(100).optional().or(z.literal("")),
   baseCurrency: z.string().min(1).max(10),
   fiscalYearStartMonth: z.coerce.number().int().min(1).max(12),
+  regionId: z.string().optional(),
   displayName: z.string().max(200).optional().or(z.literal("")),
   logoUrl: z.string().max(500).optional().or(z.literal("")),
   emailFooter: z.string().max(2000).optional().or(z.literal("")),
@@ -98,6 +99,7 @@ const editFormSchema = z.object({
   country: z.string().max(100).optional().or(z.literal("")),
   baseCurrency: z.string().min(1).max(10).optional(),
   fiscalYearStartMonth: z.coerce.number().int().min(1).max(12).optional(),
+  regionId: z.string().optional(),
   displayName: z.string().max(200).optional().or(z.literal("")),
   logoUrl: z.string().max(500).optional().or(z.literal("")),
   emailFooter: z.string().max(2000).optional().or(z.literal("")),
@@ -105,14 +107,23 @@ const editFormSchema = z.object({
 
 type EditFormData = z.infer<typeof editFormSchema>
 
+// <Select> can't hold an empty-string item value, so map "no region" to a sentinel.
+const NO_REGION = "__none__"
+
+export interface EntityRegionOption {
+  id: string
+  name: string
+}
+
 interface EntitiesListProps {
   entities: EntityRecord[]
+  regions: EntityRegionOption[]
   createAction: (input: EntityCreateInput) => Promise<EntityRecord>
   updateAction: (id: string, input: EntityUpdateInput) => Promise<EntityRecord>
   deactivateAction: (id: string) => Promise<void>
 }
 
-function CreateEntityDialog({ createAction }: Pick<EntitiesListProps, "createAction">) {
+function CreateEntityDialog({ createAction, regions }: Pick<EntitiesListProps, "createAction" | "regions">) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
@@ -126,6 +137,7 @@ function CreateEntityDialog({ createAction }: Pick<EntitiesListProps, "createAct
       country: "",
       baseCurrency: "USD",
       fiscalYearStartMonth: 1,
+      regionId: NO_REGION,
       displayName: "",
       logoUrl: "",
       emailFooter: "",
@@ -142,6 +154,7 @@ function CreateEntityDialog({ createAction }: Pick<EntitiesListProps, "createAct
         country: emptyToNull(data.country ?? ""),
         baseCurrency: data.baseCurrency,
         fiscalYearStartMonth: data.fiscalYearStartMonth,
+        regionId: data.regionId && data.regionId !== NO_REGION ? data.regionId : null,
         displayName: emptyToNull(data.displayName ?? ""),
         logoUrl: emptyToNull(data.logoUrl ?? ""),
         emailFooter: emptyToNull(data.emailFooter ?? ""),
@@ -250,6 +263,27 @@ function CreateEntityDialog({ createAction }: Pick<EntitiesListProps, "createAct
               />
             </div>
 
+            <div className="grid gap-2">
+              <Label htmlFor="entity-region">Region</Label>
+              <Controller
+                control={form.control}
+                name="regionId"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger id="entity-region">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_REGION}>No region</SelectItem>
+                      {regions.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+
             <div className="grid gap-2 sm:col-span-2">
               <Label htmlFor="entity-display-name">Display Name</Label>
               <Input
@@ -299,11 +333,13 @@ function EditEntityDialog({
   open,
   onOpenChange,
   updateAction,
+  regions,
 }: {
   entity: EntityRecord
   open: boolean
   onOpenChange: (open: boolean) => void
   updateAction: EntitiesListProps["updateAction"]
+  regions: EntityRegionOption[]
 }) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
@@ -317,6 +353,7 @@ function EditEntityDialog({
       country: entity.country ?? "",
       baseCurrency: entity.baseCurrency,
       fiscalYearStartMonth: entity.fiscalYearStartMonth,
+      regionId: entity.regionId ?? NO_REGION,
       displayName: entity.displayName ?? "",
       logoUrl: entity.logoUrl ?? "",
       emailFooter: entity.emailFooter ?? "",
@@ -333,6 +370,7 @@ function EditEntityDialog({
         country: emptyToNull(data.country ?? ""),
         baseCurrency: data.baseCurrency,
         fiscalYearStartMonth: data.fiscalYearStartMonth,
+        regionId: data.regionId && data.regionId !== NO_REGION ? data.regionId : null,
         displayName: emptyToNull(data.displayName ?? ""),
         logoUrl: emptyToNull(data.logoUrl ?? ""),
         emailFooter: emptyToNull(data.emailFooter ?? ""),
@@ -415,6 +453,27 @@ function EditEntityDialog({
                     <SelectContent>
                       {months.map((m) => (
                         <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="edit-entity-region">Region</Label>
+              <Controller
+                control={form.control}
+                name="regionId"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger id="edit-entity-region">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_REGION}>No region</SelectItem>
+                      {regions.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -505,6 +564,7 @@ function DeactivateEntityDialog({
 
 export function EntitiesList({
   entities,
+  regions,
   createAction,
   updateAction,
   deactivateAction,
@@ -695,7 +755,7 @@ export function EntitiesList({
             business units, approval chain, and reporting currency.
           </p>
         </div>
-        <CreateEntityDialog createAction={createAction} />
+        <CreateEntityDialog createAction={createAction} regions={regions} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -793,6 +853,7 @@ export function EntitiesList({
           open={!!editingEntity}
           onOpenChange={(open) => { if (!open) setEditingEntity(null) }}
           updateAction={updateAction}
+          regions={regions}
         />
       )}
 

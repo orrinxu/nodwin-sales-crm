@@ -2,6 +2,7 @@ import {
   Landmark,
   Coins,
   Globe,
+  Map as MapIcon,
   Briefcase,
   Users,
   KeyRound,
@@ -45,6 +46,7 @@ export const adminSections: AdminNavSection[] = [
     items: [
       { name: "Organisation", href: "/admin/organisation", icon: Landmark },
       { name: "Entities", href: "/admin/entities", icon: Globe },
+      { name: "Regions", href: "/admin/regions", icon: MapIcon },
       { name: "Business Units", href: "/admin/business-units", icon: Briefcase },
       { name: "Finance", href: "/admin/finance", icon: Coins },
     ],
