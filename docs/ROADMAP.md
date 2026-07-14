@@ -32,7 +32,7 @@ Audit tally: **10 done · 3 partial · 10 absent** of 23. (Plus several beyond-�
 
 | SOW # | Feature | Effort | Gap | Blocked by |
 |---|---|---|---|---|
-| 9 | Inbound email (Postmark) | S | Parser `lib/email/inbound.ts` + `lib/webhooks/postmark.ts` complete + tested. **Missing only the route** `app/api/webhooks/postmark/route.ts`. | Postmark account/domain |
+| 9 | Inbound email (Postmark) | S | Code-complete: parser `lib/email/inbound.ts` + `lib/webhooks/postmark.ts` + the route `app/api/webhooks/postmark/route.ts` (ORR-690, secret-authenticated, with an `INBOUND_EMAIL_DISABLED` kill switch). Only external setup remains: point Postmark's Inbound webhook at the route and set `POSTMARK_WEBHOOK_SECRET`. | Postmark account/domain |
 | 11 | Slack integration | M | `sendSlackNotification` queries **phantom columns** (`slack_user_id`/`access_token`/`user_id`/`enabled` don't exist) → runtime error. Needs reconciled per-user Slack-identity schema + a signed slash-command/event route. | Slack app + `@slack/bolt` |
 | 17 | Dashboards (role-tiered) | M | Much more built since the last audit. Shipped: **revenue forecasting & rep scorecards** (#183, `lib/data/forecast.ts` → `components/dashboard/forecast-tile.tsx`, `rep-leaderboard.tsx`, `components/reports/forecast-scorecards.tsx`); **Team Leaderboard** (#190); **"Needs my attention"** (#185); **summary strip + Conversion-by-Stage funnel** (#189); **quarter forecast tile** (#186); **deal-card health signals** (#187); **Stuck Deals** (ORR-103, `lib/data/stuck-deals.ts`, `admin/deal-health/`); plus a **customizable per-user widget grid** (#192). Remaining gap: full **My / Team / Group role-tier separation** and a few named dashboards (Group Pipeline, Deals-at-Risk) are not yet distinct tiers. | — |
 
