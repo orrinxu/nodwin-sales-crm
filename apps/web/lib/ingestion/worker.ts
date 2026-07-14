@@ -10,6 +10,7 @@ import {
   listPendingDocuments,
   replaceDocumentChunks,
   setDocumentIndexStatus,
+  DocumentSourceMissingError,
 } from "../data/documents"
 
 // ORR-620 ingestion worker. Runs as source: 'system'. For each pending document:
@@ -51,7 +52,7 @@ export async function ingestDocument(
     } else if (doc.driveFileId) {
       file = await deps.drive.fetchFile(doc.driveFileId)
     } else {
-      throw new Error("Document has neither a storage_path nor a drive_file_id")
+      throw new DocumentSourceMissingError("Document has neither a storage_path nor a drive_file_id")
     }
     const segments = await extractText(file)
     const chunks = chunkSegments(segments)
@@ -99,6 +100,14 @@ export async function ingestDocument(
     return { documentId, status: "indexed", chunks: written }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
+    // A missing source (Storage object gone / no source) is un-indexable, not a
+    // retryable failure — mark 'skipped' and don't bump the attempt counter, so
+    // it leaves the Failed count and isn't retried forever. Genuine
+    // extraction/embedding errors stay 'failed'.
+    if (e instanceof DocumentSourceMissingError) {
+      await setDocumentIndexStatus(SYSTEM_CONTEXT, doc.id, { status: "skipped", error: message })
+      return { documentId, status: "skipped", error: message }
+    }
     await setDocumentIndexStatus(SYSTEM_CONTEXT, doc.id, {
       status: "failed",
       error: message,

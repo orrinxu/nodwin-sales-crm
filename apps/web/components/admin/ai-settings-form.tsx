@@ -13,6 +13,7 @@ interface Props {
   settings: AiSettingsSafe
   counts: IngestionStatusCounts
   failedDocuments?: FailedIngestionDocument[]
+  skippedDocuments?: FailedIngestionDocument[]
   saveAction: (input: unknown) => Promise<void>
   runIngestionAction: () => Promise<RunIngestionResult>
 }
@@ -25,7 +26,7 @@ function ConfiguredBadge({ ok }: { ok: boolean }) {
   )
 }
 
-export function AiSettingsForm({ settings, counts, failedDocuments = [], saveAction, runIngestionAction }: Props) {
+export function AiSettingsForm({ settings, counts, failedDocuments = [], skippedDocuments = [], saveAction, runIngestionAction }: Props) {
   const [embeddingsBaseUrl, setEmbeddingsBaseUrl] = useState(settings.embeddingsBaseUrl ?? "")
   const [embeddingsModel, setEmbeddingsModel] = useState(settings.embeddingsModel ?? "")
   const [embeddingsApiKey, setEmbeddingsApiKey] = useState("")
@@ -160,6 +161,7 @@ export function AiSettingsForm({ settings, counts, failedDocuments = [], saveAct
             <Stat label="Pending" value={counts.pending} />
             <Stat label="Indexed" value={counts.indexed} />
             <Stat label="Failed" value={counts.failed} />
+            <Stat label="Skipped" value={counts.skipped} />
             <Stat label="Total" value={counts.total} />
           </div>
           <div className="flex items-center gap-3">
@@ -173,30 +175,60 @@ export function AiSettingsForm({ settings, counts, failedDocuments = [], saveAct
             )}
           </div>
 
-          {counts.failed > 0 && <FailedDocuments docs={failedDocuments} total={counts.failed} />}
+          {counts.failed > 0 && (
+            <DocumentReasons kind="failed" docs={failedDocuments} total={counts.failed} />
+          )}
+          {counts.skipped > 0 && (
+            <DocumentReasons kind="skipped" docs={skippedDocuments} total={counts.skipped} />
+          )}
         </CardContent>
       </Card>
     </div>
   )
 }
 
-/** Diagnostic list of the most recent failed ingestions with their stored reason,
- *  so a "Failed" count is actionable instead of opaque. Collapsed by default. */
-function FailedDocuments({ docs, total }: { docs: FailedIngestionDocument[]; total: number }) {
+/** Diagnostic list of the most recent failed/skipped ingestions with their stored
+ *  reason, so a count is actionable instead of opaque. Collapsed by default.
+ *  "failed" = ingestion threw (retryable); "skipped" = un-indexable (e.g. the
+ *  Storage object is missing) — rendered in a calmer tone since it's not an error
+ *  to be re-run. */
+function DocumentReasons({
+  kind,
+  docs,
+  total,
+}: {
+  kind: "failed" | "skipped"
+  docs: FailedIngestionDocument[]
+  total: number
+}) {
   const [open, setOpen] = useState(false)
+  const isFailed = kind === "failed"
+  const box = isFailed
+    ? "border-destructive/30 bg-destructive/5"
+    : "border-amber-500/30 bg-amber-500/5"
+  const head = isFailed ? "text-destructive" : "text-amber-600 dark:text-amber-500"
+  const noun = isFailed ? "failure reason" : "skipped document"
+  const nounPlural = isFailed ? "failure reasons" : "skipped documents"
+  const label = total === 1 ? noun : nounPlural
   return (
-    <div className="rounded-md border border-destructive/30 bg-destructive/5">
+    <div className={`rounded-md border ${box}`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-destructive"
+        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium ${head}`}
         aria-expanded={open}
       >
         <AlertCircle className="size-4 shrink-0" />
-        {open ? "Hide" : "Show"} failure {total === 1 ? "reason" : "reasons"} ({total})
+        {open ? "Hide" : "Show"} {label} ({total})
       </button>
       {open && (
-        <ul className="divide-y divide-destructive/15 border-t border-destructive/20">
+        <ul className="divide-y divide-border/60 border-t border-border/60">
+          {!isFailed && (
+            <li className="px-3 py-2 text-xs text-muted-foreground">
+              These documents can&apos;t be indexed because their file bytes aren&apos;t in
+              storage. Re-upload the file to index it, or remove the document.
+            </li>
+          )}
           {docs.length === 0 ? (
             <li className="px-3 py-2 text-xs text-muted-foreground">No details available.</li>
           ) : (
@@ -204,19 +236,21 @@ function FailedDocuments({ docs, total }: { docs: FailedIngestionDocument[]; tot
               <li key={d.id} className="space-y-1 px-3 py-2">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="truncate text-sm font-medium" title={d.name}>{d.name}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {d.attempts} {d.attempts === 1 ? "attempt" : "attempts"}
-                  </span>
+                  {isFailed && (
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {d.attempts} {d.attempts === 1 ? "attempt" : "attempts"}
+                    </span>
+                  )}
                 </div>
-                <p className="whitespace-pre-wrap break-words font-mono text-xs text-destructive">
-                  {d.error?.trim() || "No error message was recorded."}
+                <p className={`whitespace-pre-wrap break-words font-mono text-xs ${head}`}>
+                  {d.error?.trim() || "No reason was recorded."}
                 </p>
               </li>
             ))
           )}
           {total > docs.length && (
             <li className="px-3 py-2 text-xs text-muted-foreground">
-              Showing the {docs.length} most recent of {total} failed documents.
+              Showing the {docs.length} most recent of {total} {isFailed ? "failed" : "skipped"} documents.
             </li>
           )}
         </ul>
