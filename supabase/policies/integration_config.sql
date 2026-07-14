@@ -19,7 +19,7 @@ CREATE POLICY "integration_settings_select_auth"
   ON public.integration_settings
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (public.current_user_role() = 'admin');
 
 DROP POLICY IF EXISTS "integration_settings_insert_admin" ON public.integration_settings;
 CREATE POLICY "integration_settings_insert_admin"
@@ -57,7 +57,7 @@ CREATE POLICY "slack_connections_select_auth"
   ON public.slack_connections
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (public.current_user_role() = 'admin');
 
 DROP POLICY IF EXISTS "slack_connections_insert_admin" ON public.slack_connections;
 CREATE POLICY "slack_connections_insert_admin"
@@ -95,7 +95,7 @@ CREATE POLICY "email_settings_select_auth"
   ON public.email_settings
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (public.current_user_role() = 'admin');
 
 DROP POLICY IF EXISTS "email_settings_insert_admin" ON public.email_settings;
 CREATE POLICY "email_settings_insert_admin"
@@ -133,7 +133,7 @@ CREATE POLICY "salesforce_connections_select_auth"
   ON public.salesforce_connections
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (public.current_user_role() = 'admin');
 
 DROP POLICY IF EXISTS "salesforce_connections_insert_admin" ON public.salesforce_connections;
 CREATE POLICY "salesforce_connections_insert_admin"
