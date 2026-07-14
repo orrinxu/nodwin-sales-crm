@@ -203,12 +203,17 @@ export function ContactForm({
       open={open}
       onOpenChange={handleOpenChange}
       trigger={
-        (trigger ?? (
-          <Button>
-            <Plus className="size-4" />
-            Create Contact
-          </Button>
-        )) as React.ReactElement
+        // When the dialog is controlled (e.g. the AI generator owns the launcher
+        // button), render no trigger of our own — otherwise the page shows two
+        // "Create Contact" buttons.
+        isControlledOpen
+          ? undefined
+          : ((trigger ?? (
+              <Button>
+                <Plus className="size-4" />
+                Create Contact
+              </Button>
+            )) as React.ReactElement)
       }
       title={isEditing ? "Edit Contact" : "Create Contact"}
       description={

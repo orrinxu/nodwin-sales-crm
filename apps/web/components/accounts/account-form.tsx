@@ -245,12 +245,17 @@ export function AccountForm({
       open={open}
       onOpenChange={handleOpenChange}
       trigger={
-        (trigger ?? (
-          <Button>
-            <Plus className="size-4" />
-            Create Account
-          </Button>
-        )) as React.ReactElement
+        // When the dialog is controlled (e.g. the AI generator owns the launcher
+        // button), render no trigger of our own — otherwise the page shows two
+        // "Create Account" buttons.
+        isControlledOpen
+          ? undefined
+          : ((trigger ?? (
+              <Button>
+                <Plus className="size-4" />
+                Create Account
+              </Button>
+            )) as React.ReactElement)
       }
       title={isEditing ? "Edit Account" : "Create Account"}
       description={

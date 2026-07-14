@@ -86,4 +86,19 @@ describe("ContactForm", () => {
     expect(createAction.mock.calls[0][0]).toMatchObject({ fullName: "Jane Smith" })
     expect(onSuccess).toHaveBeenCalled()
   })
+
+  it("renders NO launcher when the dialog is controlled (generator owns it)", () => {
+    // Regression: a controlled ContactForm (used inside the AI generator) must not
+    // render its default button, or the page shows two "Create Contact" buttons.
+    render(
+      <ContactForm
+        accounts={[]}
+        createAction={vi.fn()}
+        onSuccess={vi.fn()}
+        open={false}
+        onOpenChange={vi.fn()}
+      />,
+    )
+    expect(screen.queryByRole("button", { name: /create contact/i })).not.toBeInTheDocument()
+  })
 })
