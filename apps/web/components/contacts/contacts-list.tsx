@@ -40,6 +40,9 @@ import {
 } from "@/components/ui/dialog"
 import { Card } from "@/components/ui/card"
 import { ContactForm } from "@/components/contacts/contact-form"
+import { ContactGenerator } from "@/components/contacts/contact-generator"
+import type { ImagePayload, ExtractFileResult } from "@/components/generators/record-generator"
+import type { GenerateContactResult } from "@/app/(crm)/contacts/generate-actions"
 import type { AccountOption, ContactListRecord, ContactCreateInput, ContactRecord } from "@/lib/data/contacts"
 import { usePreferences } from "@/components/providers/preferences-provider"
 
@@ -48,6 +51,9 @@ interface ContactsListProps {
   accounts: AccountOption[]
   createAction: (input: ContactCreateInput) => Promise<ContactRecord>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
+  // Contact Generator (ORR-736) — optional; when absent the plain form renders.
+  generateAction?: (input: { text?: string; images?: ImagePayload[] }) => Promise<GenerateContactResult>
+  extractFileAction?: (formData: FormData) => Promise<ExtractFileResult>
 }
 
 export function ContactsList({
@@ -55,6 +61,8 @@ export function ContactsList({
   accounts,
   createAction,
   bulkDeleteAction,
+  generateAction,
+  extractFileAction,
 }: ContactsListProps) {
   const router = useRouter()
   const { formatDate } = usePreferences()
@@ -226,11 +234,21 @@ export function ContactsList({
             Manage your contacts and address book.
           </p>
         </div>
-        <ContactForm
-          accounts={accounts}
-          createAction={createAction}
-          onSuccess={() => router.refresh()}
-        />
+        {generateAction ? (
+          <ContactGenerator
+            generateAction={generateAction}
+            extractFileAction={extractFileAction}
+            accounts={accounts}
+            createAction={createAction}
+            onSuccess={() => router.refresh()}
+          />
+        ) : (
+          <ContactForm
+            accounts={accounts}
+            createAction={createAction}
+            onSuccess={() => router.refresh()}
+          />
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

@@ -38,8 +38,9 @@ export function AccountGenerator({ generateAction, extractFileAction, ...formPro
       generateAction={generateAction}
       extractFileAction={extractFileAction}
       fieldLabels={ACCOUNT_FIELD_LABELS}
-      renderForm={({ open, onOpenChange, result, banner }) => (
+      renderForm={({ formKey, open, onOpenChange, result, banner }) => (
         <AccountForm
+          key={formKey}
           {...formProps}
           open={open}
           onOpenChange={onOpenChange}
