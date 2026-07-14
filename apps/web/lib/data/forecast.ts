@@ -287,6 +287,35 @@ export async function getTeamScorecard(
   return { scorecard, currency: reportingCurrency, unconvertibleCount }
 }
 
+/**
+ * Group-scoped rep leaderboard (ORR-723). Same shape and FX handling as the
+ * forecast scorecard, but `rep_scorecard_agg` is called with `p_group`, so it
+ * aggregates only the caller's region/group entities (region_entity_ids) on top
+ * of RLS. Used by the dashboard "Group" tab.
+ */
+export async function getGroupScorecard(
+  ctx: DashboardContext,
+): Promise<{ scorecard: RepScorecardRow[]; currency: string; unconvertibleCount: number }> {
+  const supabase = await createServerClient()
+  const reportingCurrency = await resolveReportingCurrency(ctx)
+  const { thisQuarterStart, thisQuarterEnd } = quarterBoundaries(new Date())
+
+  const { data, error } = await supabase.rpc("rep_scorecard_agg", {
+    p_period_start: thisQuarterStart,
+    p_period_end: thisQuarterEnd,
+    p_group: true,
+  })
+  if (error) {
+    throw new Error(`Failed to load group scorecard: ${error.message}`)
+  }
+
+  const { scorecard, unconvertibleCount } = await foldScorecard(
+    (data ?? []) as ScorecardAggRow[],
+    reportingCurrency,
+  )
+  return { scorecard, currency: reportingCurrency, unconvertibleCount }
+}
+
 export async function getForecastData(ctx: DashboardContext): Promise<ForecastData> {
   const supabase = await createServerClient()
   const reportingCurrency = await resolveReportingCurrency(ctx)

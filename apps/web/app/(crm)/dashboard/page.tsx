@@ -7,9 +7,10 @@ import {
 } from "@/lib/data/metrics"
 import { getStuckDeals } from "@/lib/data/stuck-deals"
 import { getNeedsAttention } from "@/lib/data/needs-attention"
-import { getForecastData, getTeamScorecard } from "@/lib/data/forecast"
+import { getForecastData, getTeamScorecard, getGroupScorecard } from "@/lib/data/forecast"
 import { getConversionFunnel } from "@/lib/data/conversion"
 import { getTeamScope } from "@/lib/data/team"
+import { getGroupScope } from "@/lib/data/group"
 import { getNumberFormat } from "@/lib/data/user-preferences"
 import { numberFormatLocale } from "@/lib/format"
 import { SummaryStrip } from "@/components/dashboard/summary-strip"
@@ -31,7 +32,12 @@ export default async function DashboardPage() {
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
 
-  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, needsAttention, forecast, teamScope, teamScorecard, teamConversionFunnel, numberFormat] = await Promise.all([
+  // Group tab (ORR-723): role gate is a pure function of the caller's role, so
+  // resolve it up front and only fetch the (bounded) group aggregates when the
+  // caller's role can actually see a Group rollup.
+  const groupScope = getGroupScope(ctx)
+
+  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, needsAttention, forecast, teamScope, teamScorecard, teamConversionFunnel, groupScorecard, groupConversionFunnel, numberFormat] = await Promise.all([
     getPipelineMetrics(ctx),
     getPipelineSummary(ctx),
     getRecentDeals(ctx),
@@ -45,6 +51,10 @@ export default async function DashboardPage() {
     // bounded RPCs) and only rendered when the caller actually manages a team.
     getTeamScorecard(ctx),
     getConversionFunnel(ctx, { teamOnly: true }),
+    // Group tab (ORR-723): region/group rollup. Only fetch for leadership roles;
+    // non-leadership callers get an empty resolver set anyway, but skip the RPCs.
+    groupScope.canViewGroup ? getGroupScorecard(ctx) : Promise.resolve(null),
+    groupScope.canViewGroup ? getConversionFunnel(ctx, { groupOnly: true }) : Promise.resolve(null),
     getNumberFormat(ctx),
   ])
 
@@ -168,16 +178,30 @@ export default async function DashboardPage() {
     </DashboardSection>
   )
 
-  // ── "Group" — management rollups (SOW §17 per-management tier). Shell for now;
-  //    population is built on the region engine in a follow-up ticket. ──
+  // ── "Group" — management rollups (SOW §17 per-management tier; ORR-723). Built
+  //    on the ORR-714 region engine: exec/group_sales_lead roll up the whole group,
+  //    a regional_head their region (via region_entity_ids on entity_sales_id), a
+  //    narrowing on top of RLS. Non-leadership roles get a locked empty state. ──
   const group = (
     <DashboardSection label="Group">
-      <Card>
-        <CardContent className="py-12 text-center text-sm text-muted-foreground">
-          Group-wide rollups are coming soon — built on the new region engine,
-          for execs and regional leads.
-        </CardContent>
-      </Card>
+      {groupScope.canViewGroup && groupScorecard && groupConversionFunnel ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <RepLeaderboard
+            scorecard={groupScorecard.scorecard}
+            currentUserId={user.id}
+            currency={groupScorecard.currency}
+            locale={locale}
+          />
+          <ConversionFunnel data={groupConversionFunnel} locale={locale} />
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            Group-wide rollups are available to executive and regional leadership.
+            They aggregate deals across your {groupScope.tier === "region" ? "region" : "group"}.
+          </CardContent>
+        </Card>
+      )}
     </DashboardSection>
   )
 

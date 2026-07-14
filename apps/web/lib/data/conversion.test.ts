@@ -29,6 +29,7 @@ describe("getConversionFunnel", () => {
     await getConversionFunnel(ctx)
     expect(mockRpc).toHaveBeenCalledWith("conversion_funnel_agg", {
       p_team_only: false,
+      p_group: false,
     })
   })
 
@@ -37,6 +38,16 @@ describe("getConversionFunnel", () => {
     await getConversionFunnel(ctx, { teamOnly: true })
     expect(mockRpc).toHaveBeenCalledWith("conversion_funnel_agg", {
       p_team_only: true,
+      p_group: false,
+    })
+  })
+
+  it("narrows to the caller's region/group when groupOnly is set", async () => {
+    const { getConversionFunnel } = await import("./conversion")
+    await getConversionFunnel(ctx, { groupOnly: true })
+    expect(mockRpc).toHaveBeenCalledWith("conversion_funnel_agg", {
+      p_team_only: false,
+      p_group: true,
     })
   })
 
