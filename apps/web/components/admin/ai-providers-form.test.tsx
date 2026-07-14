@@ -97,48 +97,69 @@ describe("AiProvidersForm — model picker", () => {
   })
 })
 
-describe("AiProvidersForm — per-feature model (ORR-674)", () => {
-  it("saves a pinned provider for a feature and passes existing overrides through", async () => {
+describe("AiProvidersForm — provider override (ORR-685)", () => {
+  const ALL_FEATURES = ["search", "summarise_deal", "draft_email", "next_best_action", "opportunity_extraction", "other"]
+
+  it("fans a single chosen provider out to every feature", async () => {
     const saveAction = vi.fn().mockResolvedValue(undefined)
     const data = makeView({
       providers: [provider({ provider: "claude", label: "Claude (Anthropic)", enabled: true })],
-      featureProviderOverrides: { summarise_deal: "claude" },
+      featureProviderOverrides: {},
     })
     render(<AiProvidersForm data={data} saveAction={saveAction} />)
 
-    // Pin Claude for the opportunity-generator (document extraction) feature.
-    await userEvent.click(screen.getByRole("combobox", { name: /opportunity generator/i }))
+    await userEvent.click(screen.getByRole("combobox", { name: /ai provider override/i }))
     await userEvent.click(await screen.findByRole("option", { name: "Claude (Anthropic)" }))
 
     await userEvent.click(screen.getByRole("button", { name: /save providers/i }))
     await waitFor(() => expect(saveAction).toHaveBeenCalledTimes(1))
 
-    const payload = saveAction.mock.calls[0][0] as {
-      featureProviderOverrides: Record<string, string>
-    }
-    expect(payload.featureProviderOverrides).toEqual({
-      summarise_deal: "claude",
-      opportunity_extraction: "claude",
-    })
+    const payload = saveAction.mock.calls[0][0] as { featureProviderOverrides: Record<string, string> }
+    expect(payload.featureProviderOverrides).toEqual(
+      Object.fromEntries(ALL_FEATURES.map((f) => [f, "claude"])),
+    )
   })
 
-  it("removes a feature override when set back to Auto", async () => {
+  it("clears all overrides when set to Auto", async () => {
     const saveAction = vi.fn().mockResolvedValue(undefined)
     const data = makeView({
       providers: [provider({ provider: "claude", label: "Claude (Anthropic)", enabled: true })],
-      featureProviderOverrides: { opportunity_extraction: "claude" },
+      // A uniform per-feature map collapses to the single control showing 'claude'.
+      featureProviderOverrides: Object.fromEntries(ALL_FEATURES.map((f) => [f, "claude"])),
     })
     render(<AiProvidersForm data={data} saveAction={saveAction} />)
 
-    await userEvent.click(screen.getByRole("combobox", { name: /opportunity generator/i }))
+    await userEvent.click(screen.getByRole("combobox", { name: /ai provider override/i }))
     await userEvent.click(await screen.findByRole("option", { name: /auto/i }))
 
     await userEvent.click(screen.getByRole("button", { name: /save providers/i }))
     await waitFor(() => expect(saveAction).toHaveBeenCalledTimes(1))
 
-    const payload = saveAction.mock.calls[0][0] as {
-      featureProviderOverrides: Record<string, string>
-    }
+    const payload = saveAction.mock.calls[0][0] as { featureProviderOverrides: Record<string, string> }
     expect(payload.featureProviderOverrides).toEqual({})
+  })
+
+  it("normalises a legacy mixed per-feature map to a single provider on save", async () => {
+    const saveAction = vi.fn().mockResolvedValue(undefined)
+    const data = makeView({
+      providers: [
+        provider({ provider: "claude", label: "Claude (Anthropic)", enabled: true }),
+        provider({ provider: "ollama_local", label: "Ollama", enabled: true, selfHosted: true }),
+      ],
+      // Mixed values → the control starts at Auto; picking one normalises everything.
+      featureProviderOverrides: { summarise_deal: "claude", opportunity_extraction: "ollama_local" },
+    })
+    render(<AiProvidersForm data={data} saveAction={saveAction} />)
+
+    await userEvent.click(screen.getByRole("combobox", { name: /ai provider override/i }))
+    await userEvent.click(await screen.findByRole("option", { name: "Ollama" }))
+
+    await userEvent.click(screen.getByRole("button", { name: /save providers/i }))
+    await waitFor(() => expect(saveAction).toHaveBeenCalledTimes(1))
+
+    const payload = saveAction.mock.calls[0][0] as { featureProviderOverrides: Record<string, string> }
+    expect(payload.featureProviderOverrides).toEqual(
+      Object.fromEntries(ALL_FEATURES.map((f) => [f, "ollama_local"])),
+    )
   })
 })

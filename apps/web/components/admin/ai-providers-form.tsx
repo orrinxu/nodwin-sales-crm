@@ -11,7 +11,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { modelsFor } from "@/lib/ai/provider-models"
-import { AI_FEATURE_NAMES, FEATURE_LABELS } from "@/lib/ai/features"
+import { AI_FEATURE_NAMES } from "@/lib/ai/features"
 import type { FeatureProviderOverrides } from "@/lib/ai/features"
 import type { AiProviderName, AiProvidersView, AiProviderSafe } from "@/lib/data/ai-providers"
 
@@ -35,14 +35,25 @@ function toDraft(p: AiProviderSafe): Draft {
 const NONE = "__none__"
 const AUTO = "__auto__"
 
+// ORR-685: the override seam (ai_settings.feature_provider_overrides) is still a
+// per-feature map, but the UI is now a single control. Collapse the stored map to
+// one value: a provider iff every feature pins the same one, else Auto (this also
+// normalises any legacy mixed per-feature config on the next save).
+function deriveGlobalOverride(map: Record<string, string>): string {
+  const values = Object.values(map)
+  if (values.length === 0) return AUTO
+  const first = values[0]
+  return values.every((v) => v === first) ? first : AUTO
+}
+
 export function AiProvidersForm({ data, saveAction }: Props) {
   const [drafts, setDrafts] = useState<Record<string, Draft>>(
     () => Object.fromEntries(data.providers.map((p) => [p.provider, toDraft(p)])),
   )
   const [primary, setPrimary] = useState<string>(data.primaryProvider ?? NONE)
-  // ORR-674: per-feature provider override (value = provider name, or absent = auto).
-  const [featureOverrides, setFeatureOverrides] = useState<Record<string, string>>(
-    () => ({ ...data.featureProviderOverrides }),
+  // ORR-685: a single provider override applied to every AI feature (or Auto).
+  const [globalOverride, setGlobalOverride] = useState<string>(
+    () => deriveGlobalOverride(data.featureProviderOverrides ?? {}),
   )
   const [pending, setPending] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -54,21 +65,14 @@ export function AiProvidersForm({ data, saveAction }: Props) {
     setSaved(false)
   }
 
-  function setFeatureOverride(feature: string, provider: string) {
-    setFeatureOverrides((o) => {
-      const next = { ...o }
-      // feature is a known AiFeature from the rendered AI_FEATURE_NAMES list, not user input.
-      if (provider === AUTO) {
-        // eslint-disable-next-line security/detect-object-injection -- feature is a constrained AiFeature literal
-        delete next[feature]
-      } else {
-        // eslint-disable-next-line security/detect-object-injection -- feature is a constrained AiFeature literal
-        next[feature] = provider
-      }
-      return next
-    })
-    setSaved(false)
-  }
+  // Fan the single override out to every feature (or clear all for Auto), keeping
+  // the stored map shape the resolver already consumes per feature.
+  const featureProviderOverrides: FeatureProviderOverrides =
+    globalOverride === AUTO
+      ? {}
+      : (Object.fromEntries(
+          AI_FEATURE_NAMES.map((feature) => [feature, globalOverride as AiProviderName]),
+        ) as FeatureProviderOverrides)
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault()
@@ -87,7 +91,7 @@ export function AiProvidersForm({ data, saveAction }: Props) {
           }
         }),
         primaryProvider: primary === NONE ? null : (primary as AiProviderName),
-        featureProviderOverrides: featureOverrides as FeatureProviderOverrides,
+        featureProviderOverrides,
       })
       setSaved(true)
       setDrafts((d) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, { ...v, apiKey: "" }])))
@@ -145,40 +149,29 @@ export function AiProvidersForm({ data, saveAction }: Props) {
           </CardContent>
         </Card>
 
-        {/* Per-feature model (ORR-674) */}
+        {/* AI provider override (ORR-685) — one control forces all features onto a provider */}
         <Card>
-          <CardHeader><CardTitle className="text-sm">Per-feature model</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
+          <CardHeader><CardTitle className="text-sm">AI provider override</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              Pin a specific provider for one AI feature. When set, that provider runs first for
-              that feature (the rest of the chain stays as fallback); <strong>Auto</strong> uses the
-              primary&nbsp;/&nbsp;priority order above.
+              Force every AI feature onto one provider. <strong>Auto</strong> follows the
+              primary&nbsp;/&nbsp;priority order above; picking a provider runs it first for all
+              features, with the rest of the chain kept as fallback.
             </p>
-            {AI_FEATURE_NAMES.map((feature) => {
-              // eslint-disable-next-line security/detect-object-injection -- feature iterates the constrained AI_FEATURE_NAMES union
-              const label = FEATURE_LABELS[feature]
-              // eslint-disable-next-line security/detect-object-injection -- feature is a constrained AiFeature literal
-              const current = featureOverrides[feature] ?? AUTO
-              return (
-                <div key={feature} className="flex items-center justify-between gap-3">
-                  <span className="text-sm">{label}</span>
-                  <Select value={current} onValueChange={(v) => setFeatureOverride(feature, v ?? AUTO)}>
-                    <SelectTrigger className="max-w-[16rem]" aria-label={label}>
-                      <SelectValue placeholder="Auto (use chain)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={AUTO}>Auto (use chain)</SelectItem>
-                      {primaryOptions.map((p) => (
-                        <SelectItem key={p.provider} value={p.provider}>{p.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )
-            })}
+            <Select value={globalOverride} onValueChange={(v) => { setGlobalOverride(v ?? AUTO); setSaved(false) }}>
+              <SelectTrigger className="max-w-sm" aria-label="AI provider override">
+                <SelectValue placeholder="Auto (follow priority order)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={AUTO}>Auto (follow priority order)</SelectItem>
+                {primaryOptions.map((p) => (
+                  <SelectItem key={p.provider} value={p.provider}>{p.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <p className="text-xs text-muted-foreground">
               Only enabled providers can be pinned. A pinned provider that later becomes unavailable
-              is skipped — the feature falls back to the normal chain.
+              is skipped — features fall back to the normal chain.
             </p>
           </CardContent>
         </Card>
