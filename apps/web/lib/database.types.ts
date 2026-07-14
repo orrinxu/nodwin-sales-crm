@@ -3781,6 +3781,8 @@ export type Database = {
         | "next_best_action"
         | "other"
         | "opportunity_extraction"
+        | "account_extraction"
+        | "contact_extraction"
       ai_provider:
         | "claude"
         | "gemini"
@@ -4025,6 +4027,8 @@ export const Constants = {
         "next_best_action",
         "other",
         "opportunity_extraction",
+        "account_extraction",
+        "contact_extraction",
       ],
       ai_provider: [
         "claude",
