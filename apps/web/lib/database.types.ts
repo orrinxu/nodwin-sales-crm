@@ -3425,6 +3425,39 @@ export type Database = {
       }
     }
     Functions: {
+      ai_usage_by_feature: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          calls: number
+          cost: number
+          feature: string
+        }[]
+      }
+      ai_usage_by_provider: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          calls: number
+          cost: number
+          provider: string
+        }[]
+      }
+      ai_usage_daily_cost: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          calls: number
+          cost: number
+          usage_date: string
+        }[]
+      }
+      ai_usage_totals: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          calls: number
+          completion_tokens: number
+          cost: number
+          prompt_tokens: number
+        }[]
+      }
       audit_log_table_names: {
         Args: never
         Returns: {
