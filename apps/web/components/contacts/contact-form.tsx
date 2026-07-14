@@ -13,6 +13,7 @@ import { RecordEditDialog } from "@/components/forms/record-edit-dialog"
 import { FormSection } from "@/components/forms/form-section"
 
 import type { ContactRecord, ContactCreateInput, AccountOption } from "@/lib/data/contacts"
+import type { ContactPrefill } from "@/lib/data/contact-extraction-resolver"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import { CustomFieldsForm } from "@/components/contacts/custom-fields-form"
 
@@ -53,6 +54,14 @@ interface ContactFormProps {
   updateAction?: (id: string, input: Partial<ContactCreateInput>) => Promise<ContactRecord>
   onSuccess: () => void
   trigger?: React.ReactNode
+  // ── Contact Generator (ORR-736) — all optional, additive ──
+  /** AI-extracted values used to pre-fill a NEW contact. Ignored when editing. */
+  prefill?: ContactPrefill
+  /** Controlled open state (the generator drives the dialog after "analysing"). */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** Rendered at the top of the dialog body — the "AI-generated, review" banner. */
+  banner?: React.ReactNode
 }
 
 export function ContactForm({
@@ -64,8 +73,18 @@ export function ContactForm({
   updateAction,
   onSuccess,
   trigger,
+  prefill,
+  open: controlledOpen,
+  onOpenChange: onOpenChangeProp,
+  banner,
 }: ContactFormProps) {
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isControlledOpen = controlledOpen !== undefined
+  const open = isControlledOpen ? controlledOpen : internalOpen
+  const setOpen = (next: boolean) => {
+    if (onOpenChangeProp) onOpenChangeProp(next)
+    if (!isControlledOpen) setInternalOpen(next)
+  }
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -81,13 +100,16 @@ export function ContactForm({
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
+    // ORR-736: on a NEW contact, `prefill` (AI-extracted) seeds the fields. Owner
+    // is never inferred (gate G5); primaryAccountId is set only when the extracted
+    // account matched an existing one (account-first resolution).
     defaultValues: {
-      fullName: contact?.fullName ?? "",
-      title: contact?.title ?? "",
-      email: contact?.email ?? "",
-      phone: contact?.phone ?? "",
-      primaryAccountId: contact?.primaryAccountId ?? "",
-      notes: contact?.notes ?? "",
+      fullName: contact?.fullName ?? prefill?.fullName ?? "",
+      title: contact?.title ?? prefill?.title ?? "",
+      email: contact?.email ?? prefill?.email ?? "",
+      phone: contact?.phone ?? prefill?.phone ?? "",
+      primaryAccountId: contact?.primaryAccountId ?? prefill?.primaryAccountId ?? "",
+      notes: contact?.notes ?? prefill?.notes ?? "",
       socials: initialSocials.length > 0 ? initialSocials : [{ platform: "", url: "" }],
       accountLinkIds: linkedAccountIds,
     },
@@ -212,6 +234,7 @@ export function ContactForm({
         </>
       }
     >
+      {banner}
       {error && (
         <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
           {error}

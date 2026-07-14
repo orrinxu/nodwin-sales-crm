@@ -37,8 +37,11 @@ interface RecordGeneratorProps<Prefill, Result extends GeneratorResult<Prefill>>
   /** Field-key → label map for the review banner. */
   fieldLabels: Record<string, string>
   /** Render the record's create form, controlled. `result` is null for the
-   *  fill-it-myself path; `banner` is the review banner (undefined when blank). */
+   *  fill-it-myself path; `banner` is the review banner (undefined when blank).
+   *  Apply `key={formKey}` to the form so it remounts (re-seeds RHF defaults) on
+   *  each new generation. */
   renderForm: (args: {
+    formKey: number
     open: boolean
     onOpenChange: (open: boolean) => void
     result: Result | null
@@ -337,6 +340,7 @@ export function RecordGenerator<Prefill, Result extends GeneratorResult<Prefill>
       </Dialog>
 
       {renderForm({
+        formKey,
         open: formOpen,
         onOpenChange: setFormOpen,
         result,
