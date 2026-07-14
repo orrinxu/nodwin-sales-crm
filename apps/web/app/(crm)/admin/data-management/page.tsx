@@ -9,7 +9,7 @@ import {
   updateFinanceExportConfigAction,
   deleteFinanceExportConfigAction,
   getImportJobsAction,
-  createExportJobAction,
+  exportRecordsAction,
 } from "./actions"
 
 export default async function AdminDataManagementPage() {
@@ -33,7 +33,7 @@ export default async function AdminDataManagementPage() {
       updateConfigAction={updateFinanceExportConfigAction}
       deleteConfigAction={deleteFinanceExportConfigAction}
       getJobsAction={getImportJobsAction}
-      createExportJobAction={createExportJobAction}
+      exportRecordsAction={exportRecordsAction}
     />
   )
 }

@@ -102,10 +102,9 @@ interface DataManagementListProps {
   ) => Promise<FinanceExportConfigRecord>
   deleteConfigAction: (id: string) => Promise<void>
   getJobsAction: () => Promise<ImportJobRecord[]>
-  createExportJobAction: (input: {
-    kind: "export"
-    targetEntityType: string
-  }) => Promise<ImportJobRecord>
+  exportRecordsAction: (
+    entityType: string,
+  ) => Promise<{ filename: string; csv: string; recordCount: number }>
 }
 
 function ConfigDialog({
@@ -391,7 +390,7 @@ export function DataManagementList({
   createConfigAction,
   updateConfigAction,
   deleteConfigAction,
-  createExportJobAction,
+  exportRecordsAction,
 }: DataManagementListProps) {
   const router = useRouter()
   const { formatDateTime } = usePreferences()
@@ -422,10 +421,17 @@ export function DataManagementList({
     setExportPending(targetEntityType)
     setExportError(null)
     try {
-      await createExportJobAction({
-        kind: "export",
-        targetEntityType,
-      })
+      const { filename, csv } = await exportRecordsAction(targetEntityType)
+      // Trigger a browser download from the returned CSV (BOM for Excel).
+      const blob = new Blob(["﻿", csv], { type: "text/csv;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
       router.refresh()
     } catch (err) {
       setExportError(

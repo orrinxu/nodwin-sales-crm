@@ -13,6 +13,34 @@ import {
   createImportJob,
   importJobCreateSchema,
 } from "@/lib/data/data-management"
+import {
+  exportRecordsCsv,
+  recordExportJob,
+  EXPORT_ENTITIES,
+  type ExportEntity,
+} from "@/lib/data/csv-export"
+
+// ORR-703 — real synchronous CSV export. Fetches the records (RLS-scoped,
+// paginated), returns the CSV for the browser to download, and writes a completed
+// import_jobs audit row so the export shows in the jobs list.
+export async function exportRecordsAction(
+  entityType: string,
+): Promise<{ filename: string; csv: string; recordCount: number }> {
+  const user = await requireUser()
+  requireRole(user, "admin")
+  if (!EXPORT_ENTITIES.includes(entityType as ExportEntity)) {
+    throw new Error(`Unsupported export entity: ${entityType}`)
+  }
+  const ctx = { user, source: "web" as const }
+  const result = await exportRecordsCsv(ctx, entityType as ExportEntity)
+  try {
+    await recordExportJob(ctx, entityType as ExportEntity, result.recordCount)
+  } catch {
+    // Audit row is best-effort — never block the download.
+  }
+  revalidatePath("/admin/data-management")
+  return result
+}
 
 export async function getFinanceExportConfigsAction() {
   const user = await requireUser()
