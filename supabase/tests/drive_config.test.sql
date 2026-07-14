@@ -37,13 +37,13 @@ INSERT INTO public.drive_config (id, entity_id, accounts_parent_folder_id, oppor
 VALUES ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'folder_accts_001', 'folder_opps_001')
 ON CONFLICT (entity_id) DO NOTHING;
 
--- ── 1. Non-admin authenticated can read drive_config ─────────────────────────────────────────
+-- ── 1. Non-admin authenticated CANNOT read drive_config (admin-only, ORR-696) ─────────────────
 
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
-SELECT isnt_empty(
+SELECT is_empty(
   $$SELECT entity_id FROM public.drive_config WHERE entity_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'$$,
-  'non-admin authenticated can read drive_config'
+  'non-admin authenticated cannot read drive_config (admin-only)'
 );
 
 -- ── 2. Anon cannot read drive_config ─────────────────────────────────────────────────────────
@@ -72,6 +72,9 @@ SELECT throws_ok(
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 UPDATE public.drive_config SET accounts_parent_folder_id = 'hacked' WHERE entity_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+-- Verify as service role: the rep can no longer read the row to confirm it itself.
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
 SELECT is(
   (SELECT accounts_parent_folder_id FROM public.drive_config WHERE entity_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'),
   'folder_accts_001',
@@ -83,6 +86,8 @@ SELECT is(
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 DELETE FROM public.drive_config WHERE entity_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
 SELECT isnt_empty(
   $$SELECT entity_id FROM public.drive_config WHERE entity_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'$$,
   'non-admin cannot delete drive_config (silently blocked)'
