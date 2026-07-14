@@ -14,6 +14,7 @@ import { FormSection } from "@/components/forms/form-section"
 import { EntityCombobox } from "@/components/entity-combobox"
 import type { EntityOption } from "@/components/entity-combobox"
 import type { AccountRecord, AccountCreateInput, AccountUpdateInput, AccountRelationshipKind } from "@/lib/data/accounts"
+import type { AccountPrefill } from "@/lib/data/account-extraction-resolver"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import type { TaxIdType, AccountTaxId } from "@/lib/data/account-tax-ids"
 import { CustomFieldsForm } from "@/components/contacts/custom-fields-form"
@@ -67,6 +68,14 @@ interface AccountFormProps {
   saveTaxIdsAction?: (accountId: string, input: { taxIds: TaxIdRow[] }) => Promise<void>
   onSuccess: () => void
   trigger?: React.ReactNode
+  // ── Account Generator (ORR-735) — all optional, additive ──
+  /** AI-extracted values used to pre-fill a NEW account. Ignored when editing. */
+  prefill?: AccountPrefill
+  /** Controlled open state (the generator drives the dialog after "analysing"). */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** Rendered at the top of the dialog body — the "AI-generated, review" banner. */
+  banner?: React.ReactNode
 }
 
 export function AccountForm({
@@ -84,8 +93,18 @@ export function AccountForm({
   saveTaxIdsAction,
   onSuccess,
   trigger,
+  prefill,
+  open: controlledOpen,
+  onOpenChange: onOpenChangeProp,
+  banner,
 }: AccountFormProps) {
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isControlledOpen = controlledOpen !== undefined
+  const open = isControlledOpen ? controlledOpen : internalOpen
+  const setOpen = (next: boolean) => {
+    if (onOpenChangeProp) onOpenChangeProp(next)
+    if (!isControlledOpen) setInternalOpen(next)
+  }
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -112,14 +131,16 @@ export function AccountForm({
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
+    // ORR-735: on a NEW account, `prefill` (AI-extracted) seeds the fields. Owner
+    // is never inferred (gate G5), so it keeps its default.
     defaultValues: {
-      name: account?.name ?? "",
-      legalName: account?.legalName ?? "",
+      name: account?.name ?? prefill?.name ?? "",
+      legalName: account?.legalName ?? prefill?.legalName ?? "",
       accountOwnerUserId: account?.accountOwnerUserId ?? defaultOwnerId,
-      website: account?.website ?? "",
-      country: account?.country ?? "",
-      industry: account?.industry ?? "",
-      description: account?.description ?? "",
+      website: account?.website ?? prefill?.website ?? "",
+      country: account?.country ?? prefill?.country ?? "",
+      industry: account?.industry ?? prefill?.industry ?? "",
+      description: account?.description ?? prefill?.description ?? "",
       emailDomainsInput: initialDomains,
     },
   })
@@ -207,13 +228,13 @@ export function AccountForm({
       setParentAccountId(parentRelationship?.toAccountId ?? "")
       setRelationshipKind(parentRelationship?.kind ?? "")
       form.reset({
-        name: account?.name ?? "",
-        legalName: account?.legalName ?? "",
+        name: account?.name ?? prefill?.name ?? "",
+        legalName: account?.legalName ?? prefill?.legalName ?? "",
         accountOwnerUserId: account?.accountOwnerUserId ?? defaultOwnerId,
-        website: account?.website ?? "",
-        country: account?.country ?? "",
-        industry: account?.industry ?? "",
-        description: account?.description ?? "",
+        website: account?.website ?? prefill?.website ?? "",
+        country: account?.country ?? prefill?.country ?? "",
+        industry: account?.industry ?? prefill?.industry ?? "",
+        description: account?.description ?? prefill?.description ?? "",
         emailDomainsInput: initialDomains,
       })
     }
@@ -255,6 +276,7 @@ export function AccountForm({
         </>
       }
     >
+      {banner}
       {error && (
         <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
           {error}
