@@ -1,0 +1,12 @@
+-- ORR-743: add a 'skipped' terminal status to document_index_status.
+--
+-- Documents whose source bytes cannot be fetched (e.g. the Storage object is
+-- missing — "Object not found") are un-indexable, not retryable. Marking them
+-- 'failed' pollutes the ops Failed count forever. 'skipped' distinguishes
+-- "we chose not to / couldn't index this" from "indexing threw and may succeed
+-- on retry".
+--
+-- ADD VALUE must run in its own migration (transaction): the new value cannot be
+-- used by a later statement in the SAME transaction. The backfill that USES
+-- 'skipped' lives in the next migration file.
+ALTER TYPE public.document_index_status ADD VALUE IF NOT EXISTS 'skipped';

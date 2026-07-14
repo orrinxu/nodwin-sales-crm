@@ -1,6 +1,11 @@
 import { requireUser, requireRole } from "@/lib/security/auth"
 import { getAiProviders } from "@/lib/data/ai-providers"
-import { getAiSettings, getIngestionStatusCounts, getFailedIngestionDocuments } from "@/lib/data/ai-settings"
+import {
+  getAiSettings,
+  getIngestionStatusCounts,
+  getFailedIngestionDocuments,
+  getSkippedIngestionDocuments,
+} from "@/lib/data/ai-settings"
 import { Separator } from "@/components/ui/separator"
 import { AiProvidersForm } from "@/components/admin/ai-providers-form"
 import { AiSettingsForm } from "@/components/admin/ai-settings-form"
@@ -15,11 +20,12 @@ export default async function AdminAiPage() {
   requireRole(user, "admin")
   const ctx = { user, source: "web" as const }
 
-  const [providers, settings, counts, failedDocuments] = await Promise.all([
+  const [providers, settings, counts, failedDocuments, skippedDocuments] = await Promise.all([
     getAiProviders(ctx),
     getAiSettings(ctx),
     getIngestionStatusCounts(ctx),
     getFailedIngestionDocuments(ctx),
+    getSkippedIngestionDocuments(ctx),
   ])
 
   return (
@@ -41,6 +47,7 @@ export default async function AdminAiPage() {
           settings={settings}
           counts={counts}
           failedDocuments={failedDocuments}
+          skippedDocuments={skippedDocuments}
           saveAction={saveAiSettingsAction}
           runIngestionAction={runIngestionNowAction}
         />

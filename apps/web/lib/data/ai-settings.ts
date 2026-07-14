@@ -186,6 +186,7 @@ export interface IngestionStatusCounts {
   pending: number
   indexed: number
   failed: number
+  skipped: number
   total: number
 }
 
@@ -205,41 +206,42 @@ export async function getIngestionStatusCounts(
     if (error) throw new Error(`Failed to count ${status} documents: ${error.message}`)
     return count ?? 0
   }
-  const [pending, indexed, failed] = await Promise.all([
+  const [pending, indexed, failed, skipped] = await Promise.all([
     countStatus("pending"),
     countStatus("indexed"),
     countStatus("failed"),
+    countStatus("skipped"),
   ])
-  return { pending, indexed, failed, total: pending + indexed + failed }
+  return { pending, indexed, failed, skipped, total: pending + indexed + failed + skipped }
 }
 
 export interface FailedIngestionDocument {
   id: string
   name: string
-  /** The reason the last ingestion attempt failed (documents.index_error). */
+  /** The reason the last ingestion attempt failed/was skipped (documents.index_error). */
   error: string | null
   attempts: number
-  /** When the row was last touched (i.e. when it most recently failed). */
+  /** When the row was last touched (i.e. when it most recently failed/was skipped). */
   failedAt: string
 }
 
-/** Failed documents with their stored failure reason, for the admin ingestion
- *  diagnostics view. Service-role (global, not RLS-scoped) — same ops-only
- *  posture as {@link getIngestionStatusCounts}; the calling page is admin-gated
- *  (requireRole "admin"). Bounded so a large backlog can't blow up the payload. */
-export async function getFailedIngestionDocuments(
-  ctx: AiSettingsCallContext,
-  limit = 50,
+/** Documents in a given ingestion status with their stored reason, for the admin
+ *  ingestion diagnostics view. Service-role (global, not RLS-scoped) — same
+ *  ops-only posture as {@link getIngestionStatusCounts}; the calling page is
+ *  admin-gated (requireRole "admin"). Bounded so a large backlog can't blow up
+ *  the payload. */
+async function getIngestionDocumentsByStatus(
+  status: Database["public"]["Enums"]["document_index_status"],
+  limit: number,
 ): Promise<FailedIngestionDocument[]> {
-  void ctx
   const supabase = serviceRoleClient()
   const { data, error } = await supabase
     .from("documents")
     .select("id, name, index_error, index_attempts, updated_at")
-    .eq("index_status", "failed")
+    .eq("index_status", status)
     .order("updated_at", { ascending: false })
     .limit(limit)
-  if (error) throw new Error(`Failed to load failed documents: ${error.message}`)
+  if (error) throw new Error(`Failed to load ${status} documents: ${error.message}`)
   return (data ?? []).map((d) => ({
     id: d.id,
     name: d.name,
@@ -247,4 +249,22 @@ export async function getFailedIngestionDocuments(
     attempts: d.index_attempts ?? 0,
     failedAt: d.updated_at,
   }))
+}
+
+/** Failed documents (ingestion threw; may pass on retry). */
+export async function getFailedIngestionDocuments(
+  ctx: AiSettingsCallContext,
+  limit = 50,
+): Promise<FailedIngestionDocument[]> {
+  void ctx
+  return getIngestionDocumentsByStatus("failed", limit)
+}
+
+/** Skipped documents (un-indexable — e.g. the Storage object is missing). */
+export async function getSkippedIngestionDocuments(
+  ctx: AiSettingsCallContext,
+  limit = 50,
+): Promise<FailedIngestionDocument[]> {
+  void ctx
+  return getIngestionDocumentsByStatus("skipped", limit)
 }

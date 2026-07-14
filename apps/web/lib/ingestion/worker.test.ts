@@ -12,6 +12,10 @@ const setDocumentIndexStatus = vi.fn().mockResolvedValue(undefined)
 
 vi.mock("../data/documents", () => ({
   SYSTEM_CONTEXT: { user: { id: "sys", email: "system@nodwin", role: "system" }, source: "system" },
+  // Real class so the worker's `e instanceof DocumentSourceMissingError` works.
+  DocumentSourceMissingError: class DocumentSourceMissingError extends Error {
+    constructor(m: string) { super(m); this.name = "DocumentSourceMissingError" }
+  },
   getDocumentForIngestion: (...a: unknown[]) => getDocumentForIngestion(...a),
   downloadDocumentBytes: (...a: unknown[]) => downloadDocumentBytes(...a),
   listPendingDocuments: (...a: unknown[]) => listPendingDocuments(...a),
@@ -145,6 +149,24 @@ describe("ingestDocument", () => {
     getDocumentForIngestion.mockResolvedValue(null)
     const res = await ingestDocument("gone", { drive: fakeDrive("x"), embedder: fakeEmbedder })
     expect(res.status).toBe("skipped")
+  })
+
+  it("marks 'skipped' (not failed, no attempt bump) when the document has no retrievable source", async () => {
+    // Un-indexable: no storage_path and no drive_file_id (e.g. the Storage object
+    // is gone). This is not a retryable failure — it must not pollute Failed.
+    getDocumentForIngestion.mockResolvedValue({ ...baseDoc, driveFileId: null, storagePath: null, indexAttempts: 4 })
+
+    const res = await ingestDocument("doc-1", { drive: fakeDrive("unused"), embedder: fakeEmbedder })
+
+    expect(res.status).toBe("skipped")
+    expect(replaceDocumentChunks).not.toHaveBeenCalled()
+    expect(setDocumentIndexStatus).toHaveBeenCalledWith(
+      expect.anything(),
+      "doc-1",
+      expect.objectContaining({ status: "skipped" }),
+    )
+    // Skipped must NOT bump the attempt counter.
+    expect(setDocumentIndexStatus.mock.calls[0][2]).not.toHaveProperty("incrementAttempts", true)
   })
 })
 

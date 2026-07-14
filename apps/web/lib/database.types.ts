@@ -3816,7 +3816,7 @@ export type Database = {
         | "brand_guidelines"
         | "logo_assets"
         | "rate_card"
-      document_index_status: "pending" | "indexed" | "failed"
+      document_index_status: "pending" | "indexed" | "failed" | "skipped"
       field_data_type:
         | "text"
         | "rich_text"
@@ -4066,7 +4066,7 @@ export const Constants = {
         "logo_assets",
         "rate_card",
       ],
-      document_index_status: ["pending", "indexed", "failed"],
+      document_index_status: ["pending", "indexed", "failed", "skipped"],
       field_data_type: [
         "text",
         "rich_text",

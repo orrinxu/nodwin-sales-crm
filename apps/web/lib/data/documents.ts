@@ -85,8 +85,27 @@ function mapRow(r: Record<string, unknown>): DocumentIndexRow {
   }
 }
 
+/** Thrown when a document's source bytes cannot be retrieved (Storage object
+ *  missing / no source recorded). The ingestion worker treats this as an
+ *  un-indexable document → 'skipped', NOT a retryable 'failed'. */
+export class DocumentSourceMissingError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "DocumentSourceMissingError"
+  }
+}
+
+/** True when a Storage download error means the object is absent (vs a transient
+ *  network/permission error). Supabase Storage reports "Object not found". */
+function isObjectMissing(message: string | undefined): boolean {
+  if (!message) return false
+  const m = message.toLowerCase()
+  return m.includes("object not found") || m.includes("not_found") || m.includes("no data")
+}
+
 /** Download a document's raw bytes from Storage (service role) for the
- *  ingestion worker. System/worker path only — no per-user RLS applies. */
+ *  ingestion worker. System/worker path only — no per-user RLS applies.
+ *  Throws {@link DocumentSourceMissingError} when the object is gone. */
 export async function downloadDocumentBytes(
   ctx: DocumentCallContext,
   storagePath: string,
@@ -96,7 +115,11 @@ export async function downloadDocumentBytes(
     .storage.from(STORAGE_BUCKET)
     .download(storagePath)
   if (error || !data) {
-    throw new Error(`Failed to download document bytes: ${error?.message ?? "no data"}`)
+    const detail = error?.message ?? "no data"
+    if (isObjectMissing(error?.message) || !data) {
+      throw new DocumentSourceMissingError(`Document bytes not found in storage: ${detail}`)
+    }
+    throw new Error(`Failed to download document bytes: ${detail}`)
   }
   return new Uint8Array(await data.arrayBuffer())
 }
