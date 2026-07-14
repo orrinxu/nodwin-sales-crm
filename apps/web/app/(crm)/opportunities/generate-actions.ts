@@ -2,13 +2,15 @@
 
 import { z } from "zod"
 import { requireUser } from "@/lib/security/auth"
-import { extractOpportunityFromText } from "@/lib/ai/opportunity-extraction"
+import { extractOpportunityFromText, EXTRACTION_FEATURE } from "@/lib/ai/opportunity-extraction"
 import { extractText, UnsupportedMimeError, DOCX_MIME } from "@/lib/ingestion/extract"
 import {
   resolveExtractedOpportunity,
   type OpportunityPrefill,
   type FieldResolution,
 } from "@/lib/data/opportunity-extraction-resolver"
+import { recordExtractionProvenance } from "@/lib/data/opportunity-provenance"
+import { extractionProvenanceSchema } from "@/lib/data/opportunity-provenance-schema"
 
 // Opportunity Generator — server action (ORR-677, ticket 4/4).
 //
@@ -27,6 +29,8 @@ export interface GenerateOpportunityResult {
   prefill?: OpportunityPrefill
   resolution?: Record<string, FieldResolution>
   notes?: string[]
+  /** Resolved extraction model, threaded to the confirm path for provenance (ORR-682). */
+  model?: string | null
   /** The document was clipped before extraction. */
   truncated?: boolean
   /** No AI provider configured — the UI shows a "configure a provider" hint. */
@@ -108,6 +112,32 @@ export async function generateOpportunityAction(raw: unknown): Promise<GenerateO
     prefill: resolved.prefill,
     resolution: resolved.resolution,
     notes: resolved.notes,
+    model: extraction.model,
     truncated: extraction.truncated,
+  }
+}
+
+// ORR-682 — record AI extraction provenance after the user confirms the
+// AI-prefilled opportunity. Called (best-effort) from the generator's create
+// wrapper with the new opportunity id; never on manual creates. `feature` is set
+// server-side so a client can't claim a different pipeline produced the fields.
+export async function recordExtractionProvenanceAction(
+  raw: unknown,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await requireUser()
+
+  const parsed = extractionProvenanceSchema.safeParse(raw)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid provenance payload." }
+  }
+
+  try {
+    await recordExtractionProvenance(
+      { user: { id: user.id } },
+      { ...parsed.data, feature: EXTRACTION_FEATURE },
+    )
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Provenance write failed." }
   }
 }

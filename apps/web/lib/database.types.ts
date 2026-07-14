@@ -2358,6 +2358,59 @@ export type Database = {
           },
         ]
       }
+      opportunity_extraction_provenance: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          feature: string
+          fields: Json
+          id: string
+          model: string | null
+          notes: Json
+          opportunity_id: string
+          source_kind: string
+          truncated: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          feature: string
+          fields?: Json
+          id?: string
+          model?: string | null
+          notes?: Json
+          opportunity_id: string
+          source_kind: string
+          truncated?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          feature?: string
+          fields?: Json
+          id?: string
+          model?: string | null
+          notes?: Json
+          opportunity_id?: string
+          source_kind?: string
+          truncated?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunity_extraction_provenance_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       opportunity_revenue_schedule: {
         Row: {
           amount: number
