@@ -111,7 +111,7 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 2. **Verify DKIM pass/fail** — check the inbound email payload's DKIM status in the dead-letter table or the activity's raw metadata. If DKIM failed and the email was still accepted, this is a Critical bug in the inbound pipeline.
 3. **Check `inbound_email_deadletter` table** — are there other recent entries from the same sender or with similar headers?
 4. **Revoke the inbound address** — sender matching keys off `users.crm_inbound_email`; clear or rotate the affected user's `crm_inbound_email` value so the old address no longer maps to them, then issue a new one.
-5. **Mitigate** — if DKIM verification is not working, stop accepting inbound mail at the source (disable the Postmark inbound config). Note the inbound handler (`lib/email/inbound.ts`) is library-only and is not mounted to any HTTP route, so there is no live endpoint to take down and no `INBOUND_EMAIL_DISABLED` env var.
+5. **Mitigate** — stop accepting inbound mail. Fastest kill switch: set `INBOUND_EMAIL_DISABLED=true` in the web app's environment and restart the container. `POST /api/webhooks/postmark` then short-circuits with 503; because that is a retryable status, Postmark holds authentic mail and re-delivers once you clear the flag, rather than dropping it. You can also disable the Postmark inbound config at the source. The handler (`lib/email/inbound.ts`) is mounted at `app/api/webhooks/postmark/route.ts` (ORR-690).
 6. **Notify** Orrin Xu and the affected user's manager.
 
 ### P-5: API Key Leak (GitHub / Public Exposure)

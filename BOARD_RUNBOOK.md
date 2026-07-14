@@ -114,7 +114,7 @@ If something is broken in production:
 For the most likely incidents:
 - **RLS leak** (someone sees data they shouldn't): immediately disable affected feature, then investigate. Do not allow the agent to "fix and continue." Pull in security auditor if it's a real leak.
 - **AI cost runaway**: hit the kill switch by setting the company-scope cap to $0 in the `ai_daily_caps` table (`scope_kind='company'`, via the admin panel). Diagnose. Reset cap when fixed.
-- **Inbound email pipeline accepting forged emails**: disable at the Postmark inbound config until investigated. (Note: the inbound handler is not yet route-mounted — it's unwired library code — so there is no admin-panel toggle.)
+- **Inbound email pipeline accepting forged emails**: kill it by setting `INBOUND_EMAIL_DISABLED=true` in the web app's environment and restarting (the route then returns 503 and Postmark holds mail for later re-delivery); also disable the Postmark inbound config at the source until investigated. (The handler is now route-mounted at `/api/webhooks/postmark` — ORR-690. There is still no admin-panel toggle; the env flag is the switch.)
 - **P&L sheet has wrong numbers**: pull the broken sheets, notify Finance, investigate root cause.
 
 ---

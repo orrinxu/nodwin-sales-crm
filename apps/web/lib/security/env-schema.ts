@@ -17,6 +17,10 @@ export const envSchema = z.object({
   // MUST be rotated off the quick-start default before production.
   SUPABASE_JWT_SECRET: z.string().optional(),
   POSTMARK_WEBHOOK_SECRET: z.string().min(1),
+  // ORR-690 incident kill switch for the inbound-email webhook route. When true,
+  // POST /api/webhooks/postmark short-circuits with 503 so responders can stop
+  // inbound-mail DB writes without a redeploy. See docs/runbook-incident.md.
+  INBOUND_EMAIL_DISABLED: booleanFromString.default(false),
   RESEND_API_KEY: z.string().optional(),
   RESEND_DOMAIN: z.string().optional(),
   SLACK_BOT_TOKEN: z.string().optional(),
