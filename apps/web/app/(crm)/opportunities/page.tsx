@@ -4,6 +4,7 @@ import {
   getOpportunities,
   getBusinessUnitOptions,
   getUserOptions,
+  getEntityScopeOptions,
   type OpportunityListParams,
 } from "@/lib/data/opportunities"
 import { getAccountOptions } from "@/lib/data/contacts"
@@ -17,6 +18,7 @@ import {
   SCOPE_PRESETS,
   parseScopeKey,
   parseViewKey,
+  resolveEntityScope,
   currentMonthRange,
 } from "@/lib/opportunity/scope-presets"
 import {
@@ -43,7 +45,7 @@ import { generateOpportunityAction, extractDocumentTextAction } from "./generate
 export default async function OpportunitiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ scope?: string; view?: string }>
+  searchParams: Promise<{ scope?: string; view?: string; entity?: string }>
 }) {
   const sp = await searchParams
   const scopeKey = parseScopeKey(sp.scope)
@@ -53,15 +55,29 @@ export default async function OpportunitiesPage({
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
 
-  const preferences = await getUserPreferences(ctx)
+  // Preferences (timezone) + the caller's entity-scope options are both needed
+  // before building the scoped query, so fetch them together.
+  const [preferences, entityOptions] = await Promise.all([
+    getUserPreferences(ctx),
+    getEntityScopeOptions(ctx),
+  ])
+
+  // Validate ?entity= against the caller's OWN derived options — an unknown id
+  // falls back to "All entities" so the filter and the highlighted chip never
+  // disagree.
+  const activeEntity = resolveEntityScope(sp.entity, entityOptions)
 
   // Build the scoped query. Owner-scope + (for "Closing This Month") a close_date
-  // window resolved in the user's timezone. Both only narrow within RLS.
+  // window resolved in the user's timezone + (optional) an entity narrowing. All
+  // three only narrow within RLS.
   const listParams: OpportunityListParams = { scope: preset.ownerScope }
   if (preset.closingThisMonth) {
     const { from, to } = currentMonthRange(preferences.timezone)
     listParams.closeDateFrom = from
     listParams.closeDateTo = to
+  }
+  if (activeEntity) {
+    listParams.entityId = activeEntity
   }
 
   const [{ opportunities: rawOpportunities }, accounts, businessUnits, userOptions, savedViews] =
@@ -78,7 +94,9 @@ export default async function OpportunitiesPage({
   // Only on the IMPLICIT default — an explicit ?scope=my-pipeline shows the
   // empty state instead.
   if (sp.scope == null && scopeKey === "my-pipeline" && rawOpportunities.length === 0) {
-    redirect("/opportunities?scope=all-deals&view=table")
+    const to = new URLSearchParams({ scope: "all-deals", view: "table" })
+    if (activeEntity) to.set("entity", activeEntity)
+    redirect(`/opportunities?${to.toString()}`)
   }
 
   // Attach batched deal-card health signals (overdue / stale) — one RPC for the
@@ -102,6 +120,8 @@ export default async function OpportunitiesPage({
   return (
     <OpportunitiesView
       scope={scopeKey}
+      entityOptions={entityOptions}
+      activeEntity={activeEntity ?? null}
       opportunities={opportunities}
       stageTotals={stageTotals}
       accounts={accounts}

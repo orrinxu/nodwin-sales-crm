@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation"
 import { LayoutGridIcon, ListIcon, KanbanIcon } from "lucide-react"
 
 import { type OpportunityRecord } from "@/lib/data/opportunities.types"
-import type { OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/opportunities.types"
+import type {
+  OpportunityCreateInput,
+  BusinessUnitOption,
+  EntityScopeOption,
+} from "@/lib/data/opportunities.types"
 import type { StageTotals } from "@/lib/data/stage-totals"
 import type { AccountOption } from "@/lib/data/contacts"
 import type { EntityOption } from "@/components/entity-combobox"
@@ -34,6 +38,15 @@ interface OpportunitiesViewProps {
    * (My Pipeline / All Deals / Closing This Month) render and drive the URL.
    */
   scope?: OpportunityScopeKey
+  /**
+   * Entity-scope chip options (ORR-717), auto-derived from the caller's visible
+   * deals. Rendered as an "All / <entity>…" segmented control next to the scope
+   * chips, but only when the caller can see deals across ≥2 entities — a
+   * single-entity user (e.g. a rep) gets no entity control at all.
+   */
+  entityOptions?: EntityScopeOption[]
+  /** Active `entity_sales_id` filter, or null for "All entities". */
+  activeEntity?: string | null
   opportunities: OpportunityRecord[]
   /** FX-normalised per-stage totals for the board columns (count / value / weighted). */
   stageTotals?: StageTotals
@@ -82,6 +95,8 @@ type ViewMode = "kanban" | "table"
 
 export function OpportunitiesView({
   scope,
+  entityOptions = [],
+  activeEntity = null,
   opportunities,
   stageTotals,
   accounts,
@@ -129,12 +144,25 @@ export function OpportunitiesView({
   }
 
   // Switching scope loads a different (scoped) list, so it's a real navigation.
-  // The current view is preserved — scope and view are orthogonal.
+  // The current view is preserved — scope and view are orthogonal — and so is
+  // any active entity narrowing, so the two axes compose across a scope switch.
   function selectScope(next: OpportunityScopeKey) {
     if (next === scope) return
     const params = new URLSearchParams()
     params.set("scope", next)
     params.set("view", viewMode === "kanban" ? "board" : "table")
+    if (activeEntity) params.set("entity", activeEntity)
+    router.push(`/opportunities?${params.toString()}`)
+  }
+
+  // Entity narrowing (ORR-717) — another scoped list, so also a real navigation.
+  // `null` clears the filter back to All entities. Scope + view are preserved.
+  function selectEntity(next: string | null) {
+    if (next === activeEntity) return
+    const params = new URLSearchParams()
+    if (scope != null) params.set("scope", scope)
+    params.set("view", viewMode === "kanban" ? "board" : "table")
+    if (next) params.set("entity", next)
     router.push(`/opportunities?${params.toString()}`)
   }
 
@@ -208,6 +236,42 @@ export function OpportunitiesView({
                         )}
                       >
                         {preset.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : null}
+              {/* Entity-scope chips (ORR-717): only shown when the caller can see
+                  deals across ≥2 entities, so single-entity users see nothing. */}
+              {entityOptions.length >= 2 ? (
+                <div className="flex items-center rounded-lg border p-0.5">
+                  <button
+                    onClick={() => selectEntity(null)}
+                    aria-pressed={activeEntity == null}
+                    className={cn(
+                      "inline-flex items-center rounded-md px-2.5 py-1.5 text-sm transition-colors",
+                      activeEntity == null
+                        ? "bg-muted text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    All Entities
+                  </button>
+                  {entityOptions.map((entity) => {
+                    const active = entity.id === activeEntity
+                    return (
+                      <button
+                        key={entity.id}
+                        onClick={() => selectEntity(entity.id)}
+                        aria-pressed={active}
+                        className={cn(
+                          "inline-flex items-center rounded-md px-2.5 py-1.5 text-sm transition-colors",
+                          active
+                            ? "bg-muted text-foreground shadow-xs"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {entity.name}
                       </button>
                     )
                   })}

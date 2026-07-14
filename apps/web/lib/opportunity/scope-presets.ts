@@ -105,6 +105,20 @@ export function parseViewKey(value: string | undefined): OpportunityViewKey | un
 }
 
 /**
+ * Validate a raw `?entity=` value against the caller's own derived entity-scope
+ * options (ORR-717). Returns the id only when it matches an option the caller
+ * can actually see; a stale, empty, or hand-edited value falls back to
+ * `undefined` ("All entities"). Structural `{ id }[]` param so this stays a pure
+ * helper importable by both the server page and the client view.
+ */
+export function resolveEntityScope(
+  value: string | undefined,
+  options: ReadonlyArray<{ id: string }>,
+): string | undefined {
+  return value != null && options.some((o) => o.id === value) ? value : undefined
+}
+
+/**
  * First and last calendar day (inclusive) of the current month, as `YYYY-MM-DD`
  * strings, resolved in `timeZone` when given (else the ambient zone). Used to
  * bound the `close_date` filter for the "Closing This Month" preset.

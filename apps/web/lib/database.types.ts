@@ -3512,6 +3512,13 @@ export type Database = {
       has_permission: { Args: { perm_key: string }; Returns: boolean }
       is_email_domain_allowed: { Args: { _email: string }; Returns: boolean }
       job_pipeline_health_snapshot: { Args: never; Returns: undefined }
+      list_visible_sales_entities: {
+        Args: never
+        Returns: {
+          id: string
+          name: string
+        }[]
+      }
       money_add: {
         Args: {
           a_amount: number

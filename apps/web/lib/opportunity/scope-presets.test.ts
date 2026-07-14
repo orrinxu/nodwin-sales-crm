@@ -5,6 +5,7 @@ import {
   DEFAULT_SCOPE_KEY,
   parseScopeKey,
   parseViewKey,
+  resolveEntityScope,
   currentMonthRange,
 } from "./scope-presets"
 
@@ -60,6 +61,33 @@ describe("parseViewKey", () => {
     expect(parseViewKey("table")).toBe("table")
     expect(parseViewKey("kanban")).toBeUndefined()
     expect(parseViewKey(undefined)).toBeUndefined()
+  })
+})
+
+describe("resolveEntityScope", () => {
+  const options = [
+    { id: "ent-1", name: "Nodwin Gaming" },
+    { id: "ent-2", name: "NODWIN MEA" },
+  ]
+
+  it("returns the id when it matches a caller-visible option", () => {
+    expect(resolveEntityScope("ent-2", options)).toBe("ent-2")
+  })
+
+  it("falls back to undefined (All entities) for an unknown/foreign id", () => {
+    // The crux of the never-widen guarantee at the UI layer: a hand-edited or
+    // stale ?entity= that isn't in the caller's OWN options is ignored, so the
+    // highlighted chip and the applied filter can never disagree.
+    expect(resolveEntityScope("ent-999", options)).toBeUndefined()
+  })
+
+  it("falls back to undefined for empty / missing values", () => {
+    expect(resolveEntityScope("", options)).toBeUndefined()
+    expect(resolveEntityScope(undefined, options)).toBeUndefined()
+  })
+
+  it("returns undefined when the caller has no entity options", () => {
+    expect(resolveEntityScope("ent-1", [])).toBeUndefined()
   })
 })
 

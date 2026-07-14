@@ -8,6 +8,7 @@ const mockLte = vi.fn()
 const mockOrder = vi.fn()
 const mockSelect = vi.fn()
 const mockFrom = vi.fn()
+const mockRpc = vi.fn()
 
 // A minimal DB row — toDomainOpportunity fills the rest with fallbacks.
 const mockDbRow = {
@@ -43,7 +44,7 @@ function buildBuilder() {
 }
 
 vi.mock("@/lib/supabase/server", () => ({
-  createServerClient: vi.fn(() => ({ from: mockFrom })),
+  createServerClient: vi.fn(() => ({ from: mockFrom, rpc: mockRpc })),
 }))
 
 const defaultCtx = {
@@ -98,5 +99,57 @@ describe("getOpportunities — owner scope filter", () => {
 
     expect(mockGte).not.toHaveBeenCalled()
     expect(mockLte).not.toHaveBeenCalled()
+  })
+
+  it("entityId narrows to a single selling entity via entity_sales_id", async () => {
+    const { getOpportunities } = await import("../opportunities")
+    await getOpportunities(defaultCtx, { scope: "all", entityId: "ent-1" })
+
+    // A single-value `.eq` on entity_sales_id — pure narrowing on top of RLS,
+    // structurally a subset of the unfiltered All Deals list.
+    expect(mockEq).toHaveBeenCalledWith("entity_sales_id", "ent-1")
+  })
+
+  it("does not filter on entity_sales_id when no entityId is given", async () => {
+    const { getOpportunities } = await import("../opportunities")
+    await getOpportunities(defaultCtx, { scope: "all" })
+
+    expect(mockEq).not.toHaveBeenCalledWith("entity_sales_id", expect.anything())
+  })
+})
+
+describe("getEntityScopeOptions", () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it("derives options from list_visible_sales_entities (RLS-scoped RPC)", async () => {
+    mockRpc.mockResolvedValue({
+      data: [
+        { id: "ent-1", name: "Nodwin Gaming" },
+        { id: "ent-2", name: "NODWIN MEA" },
+      ],
+      error: null,
+    })
+    const { getEntityScopeOptions } = await import("../opportunities")
+    const options = await getEntityScopeOptions(defaultCtx)
+
+    expect(mockRpc).toHaveBeenCalledWith("list_visible_sales_entities")
+    expect(options).toEqual([
+      { id: "ent-1", name: "Nodwin Gaming" },
+      { id: "ent-2", name: "NODWIN MEA" },
+    ])
+  })
+
+  it("returns an empty list when the caller sees no entity-tagged deals", async () => {
+    mockRpc.mockResolvedValue({ data: [], error: null })
+    const { getEntityScopeOptions } = await import("../opportunities")
+    expect(await getEntityScopeOptions(defaultCtx)).toEqual([])
+  })
+
+  it("throws when the RPC errors", async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { message: "boom" } })
+    const { getEntityScopeOptions } = await import("../opportunities")
+    await expect(getEntityScopeOptions(defaultCtx)).rejects.toThrow(/boom/)
   })
 })
