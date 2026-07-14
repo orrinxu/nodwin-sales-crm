@@ -3425,6 +3425,12 @@ export type Database = {
       }
     }
     Functions: {
+      audit_log_table_names: {
+        Args: never
+        Returns: {
+          table_name: string
+        }[]
+      }
       audit_row_is_confidential: {
         Args: {
           _new_data: Json

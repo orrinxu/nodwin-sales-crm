@@ -16,6 +16,7 @@ import {
   Mail,
   Lock,
   PlugZap,
+  ScrollText,
   type LucideIcon,
 } from "lucide-react"
 
@@ -59,6 +60,7 @@ export const adminSections: AdminNavSection[] = [
       { name: "Users", href: "/admin/users", icon: Users },
       { name: "Roles & Permissions", href: "/admin/roles", icon: KeyRound },
       { name: "Allowed Domains", href: "/admin/allowed-domains", icon: ShieldCheck },
+      { name: "Audit Log", href: "/admin/audit", icon: ScrollText },
     ],
   },
   {
