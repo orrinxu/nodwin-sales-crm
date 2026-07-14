@@ -7,8 +7,9 @@ import {
 } from "@/lib/data/metrics"
 import { getStuckDeals } from "@/lib/data/stuck-deals"
 import { getNeedsAttention } from "@/lib/data/needs-attention"
-import { getForecastData } from "@/lib/data/forecast"
+import { getForecastData, getTeamScorecard } from "@/lib/data/forecast"
 import { getConversionFunnel } from "@/lib/data/conversion"
+import { getTeamScope } from "@/lib/data/team"
 import { getNumberFormat } from "@/lib/data/user-preferences"
 import { numberFormatLocale } from "@/lib/format"
 import { SummaryStrip } from "@/components/dashboard/summary-strip"
@@ -30,7 +31,7 @@ export default async function DashboardPage() {
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
 
-  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, needsAttention, forecast, conversionFunnel, numberFormat] = await Promise.all([
+  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, needsAttention, forecast, teamScope, teamScorecard, teamConversionFunnel, numberFormat] = await Promise.all([
     getPipelineMetrics(ctx),
     getPipelineSummary(ctx),
     getRecentDeals(ctx),
@@ -38,7 +39,12 @@ export default async function DashboardPage() {
     getStuckDeals(ctx),
     getNeedsAttention(ctx),
     getForecastData(ctx),
-    getConversionFunnel(),
+    getTeamScope(ctx),
+    // Team tab (ORR-722): leaderboard + funnel scoped to the caller's reporting
+    // subtree, not everything RLS allows. Fetched regardless of hasReports (cheap
+    // bounded RPCs) and only rendered when the caller actually manages a team.
+    getTeamScorecard(ctx),
+    getConversionFunnel(ctx, { teamOnly: true }),
     getNumberFormat(ctx),
   ])
 
@@ -134,20 +140,31 @@ export default async function DashboardPage() {
     </div>
   )
 
-  // ── "Team" — cross-rep performance (leaderboard + conversion funnel move here
-  //    from the rep homepage; SOW §17 per-team tier). Deeper team aggregation is
-  //    a follow-up ticket. ──
+  // ── "Team" — cross-rep performance scoped to the caller's reporting line
+  //    (ORR-722; ratified D3 = manager chain). Leaderboard + conversion funnel
+  //    aggregate the caller's subtree (self + recursive reports), a narrowing on
+  //    top of RLS. A caller with no reports gets an empty state rather than a
+  //    one-row leaderboard of themselves. ──
   const team = (
     <DashboardSection label="Team">
-      <div className="grid gap-4 lg:grid-cols-2">
-        <RepLeaderboard
-          scorecard={forecast.scorecard}
-          currentUserId={user.id}
-          currency={forecast.currency}
-          locale={locale}
-        />
-        <ConversionFunnel data={conversionFunnel} locale={locale} />
-      </div>
+      {teamScope.hasReports ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <RepLeaderboard
+            scorecard={teamScorecard.scorecard}
+            currentUserId={user.id}
+            currency={teamScorecard.currency}
+            locale={locale}
+          />
+          <ConversionFunnel data={teamConversionFunnel} locale={locale} />
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            You don&apos;t manage a team yet. When people report to you, their
+            leaderboard and conversion funnel show up here.
+          </CardContent>
+        </Card>
+      )}
     </DashboardSection>
   )
 

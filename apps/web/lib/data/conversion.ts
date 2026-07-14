@@ -1,5 +1,6 @@
 import "server-only"
 import { createServerClient } from "@/lib/supabase/server"
+import type { DashboardContext } from "@/lib/data/metrics"
 import type { DealStage } from "@/lib/opportunity/stage"
 import { buildConversionFunnel } from "@/lib/opportunity/conversion-funnel"
 import type { ConversionFunnelData } from "@/lib/opportunity/conversion-funnel"
@@ -12,13 +13,22 @@ import type { ConversionFunnelData } from "@/lib/opportunity/conversion-funnel"
  * applied in the database before counting — never a client-side aggregate over
  * raw rows (which max_rows would silently truncate). The cumulative "reached"
  * series and conversion rates are then derived by the pure
- * {@link buildConversionFunnel}. No `ctx` is needed: the authenticated Supabase
- * client already carries the caller's identity for RLS.
+ * {@link buildConversionFunnel}.
+ *
+ * Takes `ctx` per the dashboard data-fn convention (root AGENTS.md §8.7); RLS
+ * identity still rides on the authenticated Supabase client. With
+ * `teamOnly: true` (ORR-722) the RPC narrows to the caller's reporting subtree —
+ * the "Team" tab funnel — on top of RLS, so it can only ever remove deals.
  */
-export async function getConversionFunnel(): Promise<ConversionFunnelData> {
+export async function getConversionFunnel(
+  _ctx: DashboardContext,
+  opts: { teamOnly?: boolean } = {},
+): Promise<ConversionFunnelData> {
   const supabase = await createServerClient()
 
-  const { data, error } = await supabase.rpc("conversion_funnel_agg")
+  const { data, error } = await supabase.rpc("conversion_funnel_agg", {
+    p_team_only: opts.teamOnly ?? false,
+  })
   if (error) {
     throw new Error(`Failed to load conversion funnel: ${error.message}`)
   }
