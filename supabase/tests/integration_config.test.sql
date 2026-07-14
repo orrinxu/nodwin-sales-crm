@@ -143,20 +143,24 @@ SELECT is(
   'admin can update slack_connections'
 );
 
--- 12. Sales rep cannot update
+-- 12. Sales rep cannot update (verify as service role — rep can't read it, ORR-696)
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 UPDATE public.slack_connections SET status = 'error' WHERE id = 'bbbbbb02-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
 SELECT is(
   (SELECT status FROM public.slack_connections WHERE id = 'bbbbbb02-bbbb-bbbb-bbbb-bbbbbbbbbbbb'),
   'connected',
   'sales rep cannot update slack_connections (silently blocked)'
 );
 
--- 13. Sales rep cannot delete
+-- 13. Sales rep cannot delete (verify as service role)
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 DELETE FROM public.slack_connections WHERE id = 'bbbbbb02-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
 SELECT isnt_empty(
   $$SELECT id FROM public.slack_connections WHERE id = 'bbbbbb02-bbbb-bbbb-bbbb-bbbbbbbbbbbb'$$,
   'sales rep cannot delete slack_connections (silently blocked)'
@@ -202,12 +206,12 @@ SELECT is(
   'admin can update email_settings'
 );
 
--- 18. Sales rep can read
+-- 18. Sales rep CANNOT read (admin-only, ORR-696)
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
-SELECT isnt_empty(
+SELECT is_empty(
   $$SELECT id FROM public.email_settings WHERE resend_domain = 'crm.nodwin.com'$$,
-  'sales rep can read email_settings'
+  'sales rep cannot read email_settings (admin-only)'
 );
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -242,12 +246,12 @@ SELECT is(
   'admin can update salesforce_connections'
 );
 
--- 22. Sales rep can read
+-- 22. Sales rep CANNOT read (admin-only, ORR-696)
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
-SELECT isnt_empty(
+SELECT is_empty(
   $$SELECT id FROM public.salesforce_connections WHERE instance_url = 'https://nodwin.my.salesforce.com'$$,
-  'sales rep can read salesforce_connections'
+  'sales rep cannot read salesforce_connections (admin-only)'
 );
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -278,12 +282,14 @@ SELECT is(
   'slides_access_enabled defaults to false'
 );
 
--- 25. Sales rep cannot update Google Workspace toggles
+-- 25. Sales rep cannot update Google Workspace toggles (verify as service role)
 SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 UPDATE public.drive_config
 SET gmail_sync_enabled = false, sheets_access_enabled = false
 WHERE entity_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+SELECT tests.as_service_role();
+SET LOCAL ROLE postgres;
 SELECT is(
   (SELECT gmail_sync_enabled FROM public.drive_config WHERE entity_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'),
   true,
