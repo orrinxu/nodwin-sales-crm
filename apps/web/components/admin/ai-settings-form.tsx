@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import type { AiSettingsSafe, IngestionStatusCounts } from "@/lib/data/ai-settings"
+import type { AiSettingsSafe, IngestionStatusCounts, FailedIngestionDocument } from "@/lib/data/ai-settings"
 import type { RunIngestionResult } from "@/app/(crm)/admin/ai/actions"
 
 interface Props {
   settings: AiSettingsSafe
   counts: IngestionStatusCounts
+  failedDocuments?: FailedIngestionDocument[]
   saveAction: (input: unknown) => Promise<void>
   runIngestionAction: () => Promise<RunIngestionResult>
 }
@@ -24,7 +25,7 @@ function ConfiguredBadge({ ok }: { ok: boolean }) {
   )
 }
 
-export function AiSettingsForm({ settings, counts, saveAction, runIngestionAction }: Props) {
+export function AiSettingsForm({ settings, counts, failedDocuments = [], saveAction, runIngestionAction }: Props) {
   const [embeddingsBaseUrl, setEmbeddingsBaseUrl] = useState(settings.embeddingsBaseUrl ?? "")
   const [embeddingsModel, setEmbeddingsModel] = useState(settings.embeddingsModel ?? "")
   const [embeddingsApiKey, setEmbeddingsApiKey] = useState("")
@@ -171,8 +172,55 @@ export function AiSettingsForm({ settings, counts, saveAction, runIngestionActio
               </span>
             )}
           </div>
+
+          {counts.failed > 0 && <FailedDocuments docs={failedDocuments} total={counts.failed} />}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+/** Diagnostic list of the most recent failed ingestions with their stored reason,
+ *  so a "Failed" count is actionable instead of opaque. Collapsed by default. */
+function FailedDocuments({ docs, total }: { docs: FailedIngestionDocument[]; total: number }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="rounded-md border border-destructive/30 bg-destructive/5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-destructive"
+        aria-expanded={open}
+      >
+        <AlertCircle className="size-4 shrink-0" />
+        {open ? "Hide" : "Show"} failure {total === 1 ? "reason" : "reasons"} ({total})
+      </button>
+      {open && (
+        <ul className="divide-y divide-destructive/15 border-t border-destructive/20">
+          {docs.length === 0 ? (
+            <li className="px-3 py-2 text-xs text-muted-foreground">No details available.</li>
+          ) : (
+            docs.map((d) => (
+              <li key={d.id} className="space-y-1 px-3 py-2">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="truncate text-sm font-medium" title={d.name}>{d.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {d.attempts} {d.attempts === 1 ? "attempt" : "attempts"}
+                  </span>
+                </div>
+                <p className="whitespace-pre-wrap break-words font-mono text-xs text-destructive">
+                  {d.error?.trim() || "No error message was recorded."}
+                </p>
+              </li>
+            ))
+          )}
+          {total > docs.length && (
+            <li className="px-3 py-2 text-xs text-muted-foreground">
+              Showing the {docs.length} most recent of {total} failed documents.
+            </li>
+          )}
+        </ul>
+      )}
     </div>
   )
 }
