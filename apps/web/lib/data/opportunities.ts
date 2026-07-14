@@ -12,6 +12,7 @@ import type {
   OpportunityRecord,
   OpportunityListResult,
   BusinessUnitOption,
+  EntityScopeOption,
   OpportunitySplit,
   OpportunitySplitInput,
   OpportunityTeamMember,
@@ -34,6 +35,7 @@ export type {
   OpportunityRecord,
   OpportunityListResult,
   BusinessUnitOption,
+  EntityScopeOption,
   OpportunitySplit,
   OpportunitySplitInput,
   OpportunityTeamMember,
@@ -132,6 +134,13 @@ export interface OpportunityListParams {
   closeDateFrom?: string
   /** Optional inclusive `close_date` upper bound (`YYYY-MM-DD`). */
   closeDateTo?: string
+  /**
+   * Optional selling-entity filter (`entity_sales_id`). Like `scope` and the
+   * close-date window, this only ever NARROWS the RLS-visible set — an `.eq` on
+   * a single entity can never surface a row the caller couldn't already see.
+   * Backs the ORR-717 entity-scope chips; deals with a null entity are excluded.
+   */
+  entityId?: string
 }
 
 export async function getOpportunities(
@@ -199,6 +208,14 @@ export async function getOpportunities(
   }
   if (params.closeDateTo) {
     query = query.lte("close_date", params.closeDateTo)
+  }
+
+  // Entity-scope narrowing (ORR-717). A single-value `.eq` on entity_sales_id —
+  // pure narrowing, never widens. The entity id is validated against the
+  // caller's own derived options upstream, so a stale/foreign id here would at
+  // worst return an empty list, never leak.
+  if (params.entityId) {
+    query = query.eq("entity_sales_id", params.entityId)
   }
 
   const { data, error, count } = await query.order("updated_at", {
@@ -301,6 +318,37 @@ export async function getBusinessUnitOptions(
 
   if (error) {
     throw new Error(`Failed to load business units: ${error.message}`)
+  }
+
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    name: r.name as string,
+  }))
+}
+
+/**
+ * Entity-scope chip options for the Opportunities surface (ORR-717).
+ *
+ * SEAM — Option A (ratified O4): the options auto-derive from the caller's
+ * RLS-visible deals via `list_visible_sales_entities()`, a SECURITY INVOKER
+ * function that takes the DISTINCT selling entity across the caller's own
+ * visible opportunities. Because the set is built from rows the caller can
+ * already see, "options ⊆ All Deals" holds by construction, and the RPC does
+ * the DISTINCT server-side so a >1000-deal pipeline can't truncate the list.
+ *
+ * To move to Option B ("entities the caller's ROLE grants") later, swap the RPC
+ * for a role/region query — this function's signature and every caller stay the
+ * same, so it is an isolated substitution.
+ */
+export async function getEntityScopeOptions(
+  ctx: OpportunityCallContext,
+): Promise<EntityScopeOption[]> {
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase.rpc("list_visible_sales_entities")
+
+  if (error) {
+    throw new Error(`Failed to load entity-scope options: ${error.message}`)
   }
 
   return (data ?? []).map((r) => ({

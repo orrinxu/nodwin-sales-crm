@@ -152,6 +152,16 @@ export interface BusinessUnitOption {
   name: string
 }
 
+/**
+ * A selling entity (opportunities.entity_sales_id) offered as an entity-scope
+ * chip on the Opportunities surface (ORR-717). Derived from the caller's
+ * RLS-visible deals, so the set is always ⊆ what "All Deals" shows.
+ */
+export interface EntityScopeOption {
+  id: string
+  name: string
+}
+
 export interface OpportunityCreateInput {
   name: string
   accountId: string
