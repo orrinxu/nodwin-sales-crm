@@ -3426,7 +3426,7 @@ export type Database = {
         }[]
       }
       conversion_funnel_agg: {
-        Args: never
+        Args: { p_team_only?: boolean }
         Returns: {
           deal_count: number
           stage: string
@@ -3580,7 +3580,11 @@ export type Database = {
         Returns: undefined
       }
       rep_scorecard_agg: {
-        Args: { p_period_end: string; p_period_start: string }
+        Args: {
+          p_period_end: string
+          p_period_start: string
+          p_team_only?: boolean
+        }
         Returns: {
           currency: string
           cycle_days_sum: number
@@ -3649,6 +3653,7 @@ export type Database = {
         Args: { _opportunity_id: string }
         Returns: string
       }
+      team_member_ids: { Args: { _root: string }; Returns: string[] }
       user_is_step_approver_for_instance: {
         Args: { _instance_id: string; _user_id: string }
         Returns: boolean

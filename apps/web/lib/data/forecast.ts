@@ -133,6 +133,160 @@ function num(v: number | string | null | undefined): number {
   return typeof v === "number" ? v : Number(v ?? 0)
 }
 
+/** One raw row of `rep_scorecard_agg` (per owner × currency), pre-FX. */
+interface ScorecardAggRow {
+  owner_user_id: string | null
+  owner_name: string | null
+  currency: string
+  open_amount: number | string | null
+  weighted_amount: number | string | null
+  won_amount: number | string | null
+  won_count: number | string | null
+  lost_count: number | string | null
+  cycle_days_sum: number | string | null
+}
+
+/**
+ * Fold the per-(owner × currency) scorecard rows into one FX-normalised row per
+ * owner, sorted by weighted pipeline desc. Shared by the org-wide forecast and
+ * the team-scoped leaderboard (ORR-722) so both apply identical FX + win-rate +
+ * cycle math. Only the WON subtotal contributes to `unconvertibleCount`, matching
+ * the original inline behaviour.
+ */
+async function foldScorecard(
+  scorecardRows: ScorecardAggRow[],
+  reportingCurrency: string,
+): Promise<{ scorecard: RepScorecardRow[]; unconvertibleCount: number }> {
+  const openConv = await convertBuckets(
+    scorecardRows.map((r) => ({
+      ownerId: r.owner_user_id,
+      ownerName: r.owner_name,
+      currency: r.currency,
+      amount: num(r.open_amount),
+      asOf: null,
+    })),
+    reportingCurrency,
+  )
+  const repWeightedConv = await convertBuckets(
+    scorecardRows.map((r) => ({
+      ownerId: r.owner_user_id,
+      currency: r.currency,
+      amount: num(r.weighted_amount),
+      asOf: null,
+    })),
+    reportingCurrency,
+  )
+  const wonConv = await convertBuckets(
+    scorecardRows.map((r) => ({
+      ownerId: r.owner_user_id,
+      currency: r.currency,
+      amount: num(r.won_amount),
+      asOf: null,
+    })),
+    reportingCurrency,
+  )
+
+  const ownerKey = (id: string | null) => id ?? "__unassigned__"
+  const scoreAgg = new Map<
+    string,
+    {
+      ownerId: string | null
+      ownerName: string
+      openPipeline: number
+      weightedPipeline: number
+      won: number
+      wonCount: number
+      lostCount: number
+      cycleDaysSum: number
+    }
+  >()
+
+  const ensure = (ownerId: string | null, ownerName: string | null) => {
+    const key = ownerKey(ownerId)
+    let entry = scoreAgg.get(key)
+    if (!entry) {
+      entry = {
+        ownerId,
+        ownerName: ownerName ?? (ownerId ? "Unknown" : "Unassigned"),
+        openPipeline: 0,
+        weightedPipeline: 0,
+        won: 0,
+        wonCount: 0,
+        lostCount: 0,
+        cycleDaysSum: 0,
+      }
+      scoreAgg.set(key, entry)
+    } else if (ownerName && entry.ownerName === "Unknown") {
+      entry.ownerName = ownerName
+    }
+    return entry
+  }
+
+  for (const row of openConv.rows) {
+    ensure(row.ownerId, row.ownerName).openPipeline += row.amount
+  }
+  for (const row of repWeightedConv.rows) {
+    ensure(row.ownerId, null).weightedPipeline += row.amount
+  }
+  for (const row of wonConv.rows) {
+    ensure(row.ownerId, null).won += row.amount
+  }
+  // Counts + cycle days are currency-agnostic and additive across currency rows.
+  for (const r of scorecardRows) {
+    const entry = ensure(r.owner_user_id, r.owner_name)
+    entry.wonCount += num(r.won_count)
+    entry.lostCount += num(r.lost_count)
+    entry.cycleDaysSum += num(r.cycle_days_sum)
+  }
+
+  const scorecard: RepScorecardRow[] = [...scoreAgg.values()]
+    .map((e) => {
+      const closed = e.wonCount + e.lostCount
+      return {
+        ownerId: e.ownerId,
+        ownerName: e.ownerName,
+        openPipeline: e.openPipeline,
+        weightedPipeline: e.weightedPipeline,
+        won: e.won,
+        winRate: closed > 0 ? Math.round((e.wonCount / closed) * 100) : null,
+        avgSalesCycleDays:
+          e.wonCount > 0 ? Math.round(e.cycleDaysSum / e.wonCount) : null,
+      }
+    })
+    .sort((a, b) => b.weightedPipeline - a.weightedPipeline)
+
+  return { scorecard, unconvertibleCount: wonConv.unconvertibleCount }
+}
+
+/**
+ * Team-scoped rep leaderboard (ORR-722). Same shape and FX handling as the
+ * forecast scorecard, but the `rep_scorecard_agg` RPC is called with
+ * `p_team_only`, so it aggregates only the caller's reporting subtree (self +
+ * recursive direct reports) on top of RLS. Used by the dashboard "Team" tab.
+ */
+export async function getTeamScorecard(
+  ctx: DashboardContext,
+): Promise<{ scorecard: RepScorecardRow[]; currency: string; unconvertibleCount: number }> {
+  const supabase = await createServerClient()
+  const reportingCurrency = await resolveReportingCurrency(ctx)
+  const { thisQuarterStart, thisQuarterEnd } = quarterBoundaries(new Date())
+
+  const { data, error } = await supabase.rpc("rep_scorecard_agg", {
+    p_period_start: thisQuarterStart,
+    p_period_end: thisQuarterEnd,
+    p_team_only: true,
+  })
+  if (error) {
+    throw new Error(`Failed to load team scorecard: ${error.message}`)
+  }
+
+  const { scorecard, unconvertibleCount } = await foldScorecard(
+    (data ?? []) as ScorecardAggRow[],
+    reportingCurrency,
+  )
+  return { scorecard, currency: reportingCurrency, unconvertibleCount }
+}
+
 export async function getForecastData(ctx: DashboardContext): Promise<ForecastData> {
   const supabase = await createServerClient()
   const reportingCurrency = await resolveReportingCurrency(ctx)
@@ -273,104 +427,10 @@ export async function getForecastData(ctx: DashboardContext): Promise<ForecastDa
     .map(([month, amount]) => ({ month, amount }))
 
   // ── Rep scorecard: FX-normalise money per (owner, currency), fold per owner ──
-  const openConv = await convertBuckets(
-    scorecardRows.map((r) => ({
-      ownerId: r.owner_user_id,
-      ownerName: r.owner_name,
-      currency: r.currency,
-      amount: num(r.open_amount),
-      asOf: null,
-    })),
-    reportingCurrency,
-  )
-  const repWeightedConv = await convertBuckets(
-    scorecardRows.map((r) => ({
-      ownerId: r.owner_user_id,
-      currency: r.currency,
-      amount: num(r.weighted_amount),
-      asOf: null,
-    })),
-    reportingCurrency,
-  )
-  const wonConv = await convertBuckets(
-    scorecardRows.map((r) => ({
-      ownerId: r.owner_user_id,
-      currency: r.currency,
-      amount: num(r.won_amount),
-      asOf: null,
-    })),
-    reportingCurrency,
-  )
-  unconvertibleCount += wonConv.unconvertibleCount
-
-  const ownerKey = (id: string | null) => id ?? "__unassigned__"
-  const scoreAgg = new Map<
-    string,
-    {
-      ownerId: string | null
-      ownerName: string
-      openPipeline: number
-      weightedPipeline: number
-      won: number
-      wonCount: number
-      lostCount: number
-      cycleDaysSum: number
-    }
-  >()
-
-  const ensure = (ownerId: string | null, ownerName: string | null) => {
-    const key = ownerKey(ownerId)
-    let entry = scoreAgg.get(key)
-    if (!entry) {
-      entry = {
-        ownerId,
-        ownerName: ownerName ?? (ownerId ? "Unknown" : "Unassigned"),
-        openPipeline: 0,
-        weightedPipeline: 0,
-        won: 0,
-        wonCount: 0,
-        lostCount: 0,
-        cycleDaysSum: 0,
-      }
-      scoreAgg.set(key, entry)
-    } else if (ownerName && entry.ownerName === "Unknown") {
-      entry.ownerName = ownerName
-    }
-    return entry
-  }
-
-  for (const row of openConv.rows) {
-    ensure(row.ownerId, row.ownerName).openPipeline += row.amount
-  }
-  for (const row of repWeightedConv.rows) {
-    ensure(row.ownerId, null).weightedPipeline += row.amount
-  }
-  for (const row of wonConv.rows) {
-    ensure(row.ownerId, null).won += row.amount
-  }
-  // Counts + cycle days are currency-agnostic and additive across currency rows.
-  for (const r of scorecardRows) {
-    const entry = ensure(r.owner_user_id, r.owner_name)
-    entry.wonCount += num(r.won_count)
-    entry.lostCount += num(r.lost_count)
-    entry.cycleDaysSum += num(r.cycle_days_sum)
-  }
-
-  const scorecard: RepScorecardRow[] = [...scoreAgg.values()]
-    .map((e) => {
-      const closed = e.wonCount + e.lostCount
-      return {
-        ownerId: e.ownerId,
-        ownerName: e.ownerName,
-        openPipeline: e.openPipeline,
-        weightedPipeline: e.weightedPipeline,
-        won: e.won,
-        winRate: closed > 0 ? Math.round((e.wonCount / closed) * 100) : null,
-        avgSalesCycleDays:
-          e.wonCount > 0 ? Math.round(e.cycleDaysSum / e.wonCount) : null,
-      }
-    })
-    .sort((a, b) => b.weightedPipeline - a.weightedPipeline)
+  // Shared with the team-scoped leaderboard (getTeamScorecard) via foldScorecard.
+  const { scorecard, unconvertibleCount: scorecardUnconvertible } =
+    await foldScorecard(scorecardRows as ScorecardAggRow[], reportingCurrency)
+  unconvertibleCount += scorecardUnconvertible
 
   const thisQ = periodBreakdown.find((p) => p.period === "this_quarter")
   const nextQ = periodBreakdown.find((p) => p.period === "next_quarter")
