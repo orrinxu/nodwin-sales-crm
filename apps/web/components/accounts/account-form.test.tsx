@@ -175,6 +175,14 @@ describe("AccountForm", () => {
         />
       )).not.toThrow()
     })
+
+    it("renders NO launcher when the dialog is controlled (generator owns it)", () => {
+      // Regression: a controlled AccountForm (used inside the AI generator) must
+      // not render its default button, or the page shows two "Create Account"
+      // buttons.
+      render(<AccountForm {...defaultProps} open={false} onOpenChange={vi.fn()} />)
+      expect(screen.queryByText("Create Account")).not.toBeInTheDocument()
+    })
   })
 
   describe("create mode", () => {
