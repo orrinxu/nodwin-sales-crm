@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { requireUser, requireRole } from "@/lib/security/auth"
 import { updateAiProviders } from "@/lib/data/ai-providers"
-import { updateAiSettings, resolveAiConfig } from "@/lib/data/ai-settings"
+import { updateAiSettings, resolveAiConfig, retryFailedIngestion } from "@/lib/data/ai-settings"
 import { runIngestionBatch } from "@/lib/ingestion/worker"
 import { createDriveClient } from "@/lib/integrations/drive"
 import { createEmbedder } from "@/lib/ai/embeddings"
@@ -54,4 +54,19 @@ export async function runIngestionNowAction(): Promise<RunIngestionResult> {
     failed: summary.results.filter((r) => r.status === "failed").length,
     skipped: summary.results.filter((r) => r.status === "skipped").length,
   }
+}
+
+export interface RetryFailedResult {
+  reset: number
+}
+
+/** Reset all 'failed' documents to 'pending' so the next ingestion run retries
+ *  them. Use after fixing a config issue (e.g. the embeddings endpoint). */
+export async function retryAllFailedAction(): Promise<RetryFailedResult> {
+  const user = await requireUser()
+  requireRole(user, "admin")
+  const ctx = { user, source: "web" as const }
+  const reset = await retryFailedIngestion(ctx)
+  revalidatePath("/admin/ai")
+  return { reset }
 }

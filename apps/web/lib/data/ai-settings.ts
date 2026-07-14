@@ -268,3 +268,25 @@ export async function getSkippedIngestionDocuments(
   void ctx
   return getIngestionDocumentsByStatus("skipped", limit)
 }
+
+/** Reset every 'failed' document back to 'pending' so the next ingestion run
+ *  retries it (clears the stored error, stamps reindex_requested_at). For
+ *  transient/config failures (e.g. the embeddings endpoint was down) — the admin
+ *  fixes the config, retries all, then runs ingestion. Does NOT touch 'skipped'
+ *  (those are un-indexable and won't benefit from a retry). Service-role ops
+ *  action; the calling page is admin-gated. Returns the number reset. */
+export async function retryFailedIngestion(ctx: AiSettingsCallContext): Promise<number> {
+  void ctx
+  const supabase = serviceRoleClient()
+  const { data, error } = await supabase
+    .from("documents")
+    .update({
+      index_status: "pending",
+      index_error: null,
+      reindex_requested_at: new Date().toISOString(),
+    })
+    .eq("index_status", "failed")
+    .select("id")
+  if (error) throw new Error(`Failed to reset failed documents: ${error.message}`)
+  return data?.length ?? 0
+}

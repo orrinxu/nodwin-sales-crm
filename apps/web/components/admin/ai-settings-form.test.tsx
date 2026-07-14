@@ -25,6 +25,7 @@ function renderForm(
   counts: IngestionStatusCounts,
   failedDocuments: FailedIngestionDocument[],
   skippedDocuments: FailedIngestionDocument[] = [],
+  retryFailedAction?: () => Promise<{ reset: number }>,
 ) {
   return render(
     <AiSettingsForm
@@ -34,6 +35,7 @@ function renderForm(
       skippedDocuments={skippedDocuments}
       saveAction={vi.fn()}
       runIngestionAction={vi.fn()}
+      retryFailedAction={retryFailedAction}
     />,
   )
 }
@@ -76,6 +78,29 @@ describe("AiSettingsForm — ingestion failure reasons", () => {
     renderForm({ pending: 0, indexed: 0, failed: 60, skipped: 0, total: 60 }, docs)
     await userEvent.click(screen.getByRole("button", { name: /show failure reasons \(60\)/i }))
     expect(screen.getByText(/showing the 1 most recent of 60 failed documents/i)).toBeInTheDocument()
+  })
+})
+
+describe("AiSettingsForm — retry all failed", () => {
+  it("hides the retry button when nothing has failed", () => {
+    renderForm({ pending: 0, indexed: 2, failed: 0, skipped: 1, total: 3 }, [], [], vi.fn())
+    expect(screen.queryByRole("button", { name: /retry all failed/i })).not.toBeInTheDocument()
+  })
+
+  it("shows the failed count on the button and reports the reset result on click", async () => {
+    const retry = vi.fn(async () => ({ reset: 4 }))
+    renderForm({ pending: 0, indexed: 0, failed: 4, skipped: 0, total: 4 }, [], [], retry)
+
+    const btn = screen.getByRole("button", { name: /retry all failed \(4\)/i })
+    await userEvent.click(btn)
+
+    expect(retry).toHaveBeenCalledOnce()
+    expect(await screen.findByText(/4 reset to pending/i)).toBeInTheDocument()
+  })
+
+  it("does not render the button at all when no retry action is provided", () => {
+    renderForm({ pending: 0, indexed: 0, failed: 3, skipped: 0, total: 3 }, [])
+    expect(screen.queryByRole("button", { name: /retry all failed/i })).not.toBeInTheDocument()
   })
 })
 

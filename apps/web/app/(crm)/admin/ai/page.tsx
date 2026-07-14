@@ -9,7 +9,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { AiProvidersForm } from "@/components/admin/ai-providers-form"
 import { AiSettingsForm } from "@/components/admin/ai-settings-form"
-import { saveAiProvidersAction, saveAiSettingsAction, runIngestionNowAction } from "./actions"
+import { saveAiProvidersAction, saveAiSettingsAction, runIngestionNowAction, retryAllFailedAction } from "./actions"
 
 export const metadata = {
   title: "AI - Nodwin CRM",
@@ -50,6 +50,7 @@ export default async function AdminAiPage() {
           skippedDocuments={skippedDocuments}
           saveAction={saveAiSettingsAction}
           runIngestionAction={runIngestionNowAction}
+          retryFailedAction={retryAllFailedAction}
         />
       </div>
     </div>
