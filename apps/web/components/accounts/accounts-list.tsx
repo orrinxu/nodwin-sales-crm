@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dialog"
 import { Card } from "@/components/ui/card"
 import { AccountForm } from "@/components/accounts/account-form"
+import { AccountGenerator } from "@/components/accounts/account-generator"
 import type { AccountListRecord, AccountCreateInput, AccountRecord } from "@/lib/data/accounts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import type { TaxIdType } from "@/lib/data/account-tax-ids"
@@ -59,6 +60,13 @@ interface AccountsListProps {
   createAction: (input: AccountCreateInput) => Promise<AccountRecord>
   saveTaxIdsAction?: (accountId: string, input: { taxIds: TaxIdRow[] }) => Promise<void>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
+  // ── Account Generator (ORR-735) — optional; when present the header shows the
+  //    generator (chooser → note → draft → review) instead of a blank form. ──
+  generateAction?: (input: {
+    text?: string
+    images?: { mimeType: string; dataBase64: string }[]
+  }) => Promise<import("@/app/(crm)/accounts/generate-actions").GenerateAccountResult>
+  extractFileAction?: (formData: FormData) => Promise<{ ok: boolean; text?: string; error?: string }>
 }
 
 export function AccountsList({
@@ -72,6 +80,8 @@ export function AccountsList({
   createAction,
   saveTaxIdsAction,
   bulkDeleteAction,
+  generateAction,
+  extractFileAction,
 }: AccountsListProps) {
   const router = useRouter()
   const { formatDate } = usePreferences()
@@ -289,16 +299,31 @@ export function AccountsList({
             Manage your accounts and companies.
           </p>
         </div>
-        <AccountForm
-          createAction={createAction}
-          saveTaxIdsAction={saveTaxIdsAction}
-          ownerOptions={ownerOptions}
-          accountOptions={accountOptions}
-          fieldDefinitions={fieldDefinitions}
-          taxIdTypes={taxIdTypes}
-          currentUserId={currentUserId}
-          onSuccess={() => router.refresh()}
-        />
+        {generateAction ? (
+          <AccountGenerator
+            generateAction={generateAction}
+            extractFileAction={extractFileAction}
+            createAction={createAction}
+            saveTaxIdsAction={saveTaxIdsAction}
+            ownerOptions={ownerOptions}
+            accountOptions={accountOptions}
+            fieldDefinitions={fieldDefinitions}
+            taxIdTypes={taxIdTypes}
+            currentUserId={currentUserId}
+            onSuccess={() => router.refresh()}
+          />
+        ) : (
+          <AccountForm
+            createAction={createAction}
+            saveTaxIdsAction={saveTaxIdsAction}
+            ownerOptions={ownerOptions}
+            accountOptions={accountOptions}
+            fieldDefinitions={fieldDefinitions}
+            taxIdTypes={taxIdTypes}
+            currentUserId={currentUserId}
+            onSuccess={() => router.refresh()}
+          />
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
