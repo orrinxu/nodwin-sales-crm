@@ -212,3 +212,39 @@ export async function getIngestionStatusCounts(
   ])
   return { pending, indexed, failed, total: pending + indexed + failed }
 }
+
+export interface FailedIngestionDocument {
+  id: string
+  name: string
+  /** The reason the last ingestion attempt failed (documents.index_error). */
+  error: string | null
+  attempts: number
+  /** When the row was last touched (i.e. when it most recently failed). */
+  failedAt: string
+}
+
+/** Failed documents with their stored failure reason, for the admin ingestion
+ *  diagnostics view. Service-role (global, not RLS-scoped) — same ops-only
+ *  posture as {@link getIngestionStatusCounts}; the calling page is admin-gated
+ *  (requireRole "admin"). Bounded so a large backlog can't blow up the payload. */
+export async function getFailedIngestionDocuments(
+  ctx: AiSettingsCallContext,
+  limit = 50,
+): Promise<FailedIngestionDocument[]> {
+  void ctx
+  const supabase = serviceRoleClient()
+  const { data, error } = await supabase
+    .from("documents")
+    .select("id, name, index_error, index_attempts, updated_at")
+    .eq("index_status", "failed")
+    .order("updated_at", { ascending: false })
+    .limit(limit)
+  if (error) throw new Error(`Failed to load failed documents: ${error.message}`)
+  return (data ?? []).map((d) => ({
+    id: d.id,
+    name: d.name,
+    error: d.index_error,
+    attempts: d.index_attempts ?? 0,
+    failedAt: d.updated_at,
+  }))
+}
