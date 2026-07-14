@@ -1200,6 +1200,48 @@ Detailed acceptance criteria for all tickets in this phase are deliberately defe
 
 ---
 
+## Phase 9.7 — Voice / Text Record Generator (PROPOSED — Phase 0 gate, ORR-732)
+
+> **Status: PROPOSED, not authorised.** Output of the Phase 0 discovery gate (`docs/voice-record-generator/phase-0-discovery.md`). Awaiting human sign-off + gate resolution (G1–G9) before any code. Epic **ORR-732**. Key finding: the brief's "Phase 1" (paste/type → **opportunity** draft → review → commit) is **already shipped** (ORR-674→686); remaining scope = generalise to accounts/contacts (Track A) + voice (Track B) + launcher (Track C). The referenced mockup `docs/mocks/opportunity-generator-review.html` **does not exist** — the shipped `ReviewBanner` is the design.
+
+### T-144 — Add `account_extraction` + `contact_extraction` AI features
+- **Track:** A (generalise engine) · **Size:** S · **Approval:** `cto`
+- New `AiFeature` values (`lib/ai/types.ts`, `lib/ai/features.ts` + `FEATURE_LABELS`, PG `ai_feature` enum migration). Prereq for A2/A3.
+
+### T-145 — Account extraction schema + prompts + resolver
+- **Track:** A · **Size:** M · **Depends on:** T-144
+- Mirror the opportunity extractor for accounts (required field = `name` only) → `AccountPrefill`; reuse `pickRecord`/`extractJsonObject`/`aiCall`. Commit via existing `createAccount`.
+
+### T-146 — Contact extraction schema + prompts + resolver (account-first)
+- **Track:** A · **Size:** M · **Depends on:** T-144, T-145
+- Contact extractor → `ContactPrefill`; **resolve/queue the account before the contact** (account-scoped picker constraint). Commit via existing `createContact`.
+
+### T-147 — Provenance generalisation (gate G3)
+- **Track:** A · **Size:** M · **High-risk file:** yes (new RLS table) · **Approval:** `cto + security` · **Depends on:** G3
+- Polymorphic `record_extraction_provenance(record_type, record_id, feature, model, source_kind, fields jsonb, …)` with per-type RLS, OR per-type tables. pgtap. (Today's `opportunity_extraction_provenance` has a hard FK to `opportunities`.)
+
+### T-148 — Record-type-parametric generator UI + routing (gate G6)
+- **Track:** A · **Size:** M · **Depends on:** T-145, T-146
+- Extract a shared review component from `opportunity-generator.tsx`; record-type routing (rep picks per G6); commit dispatches to the chosen create action.
+
+### T-149 — Browser audio capture
+- **Track:** B (voice) · **Size:** M
+- `MediaRecorder` capture + upload component. Media retention/RLS per gate G4.
+
+### T-150 — Transcription seam (gate G2)
+- **Track:** B · **Size:** L · **Depends on:** G2, T-149 · **Approval:** `cto + board`
+- Local Whisper (lanbox) vs cloud STT — a **new call path** (not `aiCall`). Data-residency decision (G2) blocks this.
+
+### T-151 — Wire transcript → text pipeline
+- **Track:** B · **Size:** S · **Depends on:** T-150, T-148
+- Transcript becomes the `text` input to extraction (reuses everything).
+
+### T-152 — Reusable global launcher (gate G7)
+- **Track:** C · **Size:** M
+- One record-type-chooser launcher in a header "Create new" affordance + a keyboard shortcut. Do **not** build a command palette (absent by design). Dashboard-tile / palette mounts are deferred, not rebuilds.
+
+---
+
 ## What comes after T-135
 
 Phase 9.5 ends with the MCP server reviewed and live. After that:
