@@ -9,6 +9,9 @@ import {
 } from "@/components/ui/dialog"
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
 import type { GenerateOpportunityResult, ExtractFileResult } from "@/app/(crm)/opportunities/generate-actions"
+import { recordExtractionProvenanceAction } from "@/app/(crm)/opportunities/generate-actions"
+import { uploadBlobToDocuments, finalizeUpload } from "@/lib/documents/client-upload"
+import { persistGeneratorArtifacts } from "@/lib/opportunity/generator-artifacts"
 
 // Opportunity Generator — entry flow + review UI (ORR-677, ticket 4/4).
 //
@@ -40,12 +43,25 @@ const BINARY_FILE = /\.(pdf|docx)$/i
 const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
+// Best-effort MIME for the retained RFP file when the browser didn't set one.
+function rfpMime(file: File): string {
+  if (file.type) return file.type
+  const name = file.name.toLowerCase()
+  if (name.endsWith(".pdf")) return "application/pdf"
+  if (name.endsWith(".docx")) return DOCX_MIME
+  return "application/octet-stream"
+}
+
 export function OpportunityGenerator({ generateAction, extractFileAction, ...formProps }: Props) {
   const [phase, setPhase] = useState<Phase>("idle")
   const [text, setText] = useState("")
   const [fileName, setFileName] = useState<string | null>(null)
   // A dropped PDF/DOCX awaiting server-side text extraction on Analyse.
   const [pendingFile, setPendingFile] = useState<File | null>(null)
+  // The uploaded RFP file, retained past extraction so it can be attached to the
+  // opportunity on confirm (ORR-683). Only set for binary RFP uploads — pasted
+  // text / text files never populate it, so they're never stored.
+  const [rfpFile, setRfpFile] = useState<File | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [analyseStep, setAnalyseStep] = useState(0)
   const [dragging, setDragging] = useState(false)
@@ -67,11 +83,43 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
 
   function openForm(res: GenerateOpportunityResult | null) {
     setResult(res)
+    // The manual ("fill it out myself") path retains no file; only the AI+file
+    // path (which sets rfpFile just before calling openForm) does. reset() is not
+    // used to clear rfpFile because it runs here on every openForm.
+    if (!res) setRfpFile(null)
     setFormKey((k) => k + 1)
     setFormOpen(true)
     setPhase("idle")
     reset()
   }
+
+  // Confirm-path wrapper (ORR-682 + ORR-683): create the opportunity via the
+  // real action, then best-effort record provenance + attach the retained RFP
+  // file. Failures in the side effects never block the create (the deal already
+  // exists), so the form closes cleanly and a retry can't duplicate it.
+  const wrappedCreate: FormProps["createAction"] = useCallback(
+    async (input) => {
+      const created = await formProps.createAction(input)
+      await persistGeneratorArtifacts({
+        opportunityId: created.id,
+        result,
+        rfpFile,
+        deps: {
+          recordProvenance: recordExtractionProvenanceAction,
+          uploadRfp: async (opportunityId, file) => {
+            await uploadBlobToDocuments({ opportunityId }, file, {
+              name: file.name,
+              mimeType: rfpMime(file),
+              category: "rfp",
+            })
+            await finalizeUpload({ opportunityId })
+          },
+        },
+      })
+      return created
+    },
+    [formProps.createAction, result, rfpFile],
+  )
 
   const handleFile = useCallback(async (file: File) => {
     const isText = TEXT_FILE.test(file.name) || file.type.startsWith("text/")
@@ -157,6 +205,9 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
         setErrorMsg(res.error ?? "The document could not be read. Try pasting a clearer version.")
         return
       }
+      // Retain the uploaded RFP binary (null for pasted text / text files) so the
+      // confirm-path wrapper can attach it to the created opportunity (ORR-683).
+      setRfpFile(pendingFile)
       openForm(res)
     } catch {
       clearTimeout(t1)
@@ -178,7 +229,7 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
           </div>
         </div>
       )}
-      <Button onClick={() => { reset(); setPhase("chooser") }}>
+      <Button onClick={() => { reset(); setRfpFile(null); setPhase("chooser") }}>
         <Plus className="size-4" />
         Create Opportunity
       </Button>
@@ -298,6 +349,7 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
       <OpportunityForm
         key={formKey}
         {...formProps}
+        createAction={wrappedCreate}
         open={formOpen}
         onOpenChange={setFormOpen}
         prefill={result?.prefill}

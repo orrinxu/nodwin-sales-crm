@@ -10,6 +10,16 @@ vi.mock("@/components/opportunities/opportunity-form", () => ({
   OpportunityForm: (props: { open?: boolean; banner?: React.ReactNode }) =>
     props.open ? <div data-testid="opp-form">{props.banner}</div> : null,
 }))
+// The generator imports these at module load for the confirm-path side effects
+// (provenance + RFP retention). The stubbed form never calls createAction, so
+// these don't run here — mocking them just keeps the server/browser modules out.
+vi.mock("@/app/(crm)/opportunities/generate-actions", () => ({
+  recordExtractionProvenanceAction: vi.fn(async () => ({ ok: true })),
+}))
+vi.mock("@/lib/documents/client-upload", () => ({
+  uploadBlobToDocuments: vi.fn(async () => {}),
+  finalizeUpload: vi.fn(async () => {}),
+}))
 
 import { OpportunityGenerator } from "./opportunity-generator"
 import type { GenerateOpportunityResult } from "@/app/(crm)/opportunities/generate-actions"
