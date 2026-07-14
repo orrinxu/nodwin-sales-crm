@@ -1,11 +1,12 @@
-import type { AdapterConfig, ProviderAdapter } from "../types"
+import type { AdapterConfig, AdapterCallOptions, ProviderAdapter } from "../types"
+import { openAiUserContent } from "./content"
 
 export function createMoonshotAdapter(config: AdapterConfig = {}): ProviderAdapter {
   const model = config.model ?? process.env.MOONSHOT_MODEL ?? "moonshot-v1-8k"
   const apiKey = config.apiKey ?? process.env.MOONSHOT_API_KEY
 
   return {
-    async call(prompt: string, systemPrompt?: string) {
+    async call(prompt: string, systemPrompt?: string, options?: AdapterCallOptions) {
       if (!apiKey) {
         throw new Error("MOONSHOT_API_KEY is not configured")
       }
@@ -24,8 +25,9 @@ export function createMoonshotAdapter(config: AdapterConfig = {}): ProviderAdapt
             model,
             messages: [
               ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
-              { role: "user", content: prompt },
+              { role: "user", content: openAiUserContent(prompt, options?.images) },
             ],
+            ...(options?.json ? { response_format: { type: "json_object" } } : {}),
           }),
           signal: controller.signal,
         })

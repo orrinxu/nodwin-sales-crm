@@ -1,4 +1,5 @@
-import type { ProviderAdapter } from "../types"
+import type { AdapterCallOptions, ProviderAdapter } from "../types"
+import { openAiUserContent } from "./content"
 
 export interface OpenAICompatibleConfig {
   /**
@@ -28,7 +29,7 @@ export function createOpenAICompatibleAdapter(
   const model = config.model ?? process.env.OPENAI_COMPATIBLE_MODEL ?? "gpt-4o-mini"
 
   return {
-    async call(prompt: string, systemPrompt?: string) {
+    async call(prompt: string, systemPrompt?: string, options?: AdapterCallOptions) {
       if (!baseUrl) {
         throw new Error("OPENAI_COMPATIBLE_BASE_URL is not configured")
       }
@@ -47,8 +48,9 @@ export function createOpenAICompatibleAdapter(
             model,
             messages: [
               ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
-              { role: "user", content: prompt },
+              { role: "user", content: openAiUserContent(prompt, options?.images) },
             ],
+            ...(options?.json ? { response_format: { type: "json_object" } } : {}),
           }),
           signal: controller.signal,
         })

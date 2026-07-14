@@ -85,6 +85,34 @@ describe("extractOpportunityFromText", () => {
     expect(aiCall.mock.calls[0][0].feature).toBe("opportunity_extraction")
   })
 
+  it("routes an image through the vision path with JSON mode (ORR-686)", async () => {
+    const aiCall = vi.fn<AiCallFn>(async () => ({ ok: true, data: GOOD_JSON, model: "gemini-1.5-pro" }))
+    const res = await extractOpportunityFromText(
+      { images: [{ mimeType: "image/png", dataBase64: "aGVsbG8=" }], userId: "u1" },
+      deps(aiCall),
+    )
+    expect(res.ok).toBe(true)
+    const params = aiCall.mock.calls[0][0]
+    expect(params.images).toEqual([{ mimeType: "image/png", dataBase64: "aGVsbG8=" }])
+    expect(params.json).toBe(true)
+    // image-only source uses the vision prompt, not the document prompt
+    expect(params.prompt).toMatch(/ATTACHED IMAGE/i)
+  })
+
+  it("requests JSON mode on the text path too", async () => {
+    const aiCall = vi.fn<AiCallFn>(async () => ({ ok: true, data: GOOD_JSON, model: "m" }))
+    await extractOpportunityFromText({ text: "doc", userId: "u1" }, deps(aiCall))
+    expect(aiCall.mock.calls[0][0].json).toBe(true)
+    expect(aiCall.mock.calls[0][0].images).toBeUndefined()
+  })
+
+  it("errors (without calling the model) when neither text nor image is provided", async () => {
+    const aiCall = vi.fn()
+    const res = await extractOpportunityFromText({ userId: "u1" }, deps(aiCall))
+    expect(res.ok).toBe(false)
+    expect(aiCall).not.toHaveBeenCalled()
+  })
+
   it("unwraps a fenced JSON reply", async () => {
     const aiCall = vi.fn(async () => ({ ok: true, data: "```json\n" + GOOD_JSON + "\n```", model: "m" }))
     const res = await extractOpportunityFromText({ text: "doc", userId: "u1" }, deps(aiCall))

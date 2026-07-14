@@ -24,7 +24,7 @@ vi.mock("@/lib/documents/client-upload", () => ({
 import { OpportunityGenerator } from "./opportunity-generator"
 import type { GenerateOpportunityResult } from "@/app/(crm)/opportunities/generate-actions"
 
-function renderGen(generateAction: (i: { text: string }) => Promise<GenerateOpportunityResult>) {
+function renderGen(generateAction: (i: { text?: string; images?: { mimeType: string; dataBase64: string }[] }) => Promise<GenerateOpportunityResult>) {
   return render(
     <OpportunityGenerator
       businessUnits={[]}

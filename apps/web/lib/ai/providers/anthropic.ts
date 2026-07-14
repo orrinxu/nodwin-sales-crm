@@ -1,11 +1,12 @@
-import type { AdapterConfig, ProviderAdapter } from "../types"
+import type { AdapterConfig, AdapterCallOptions, ProviderAdapter } from "../types"
+import { anthropicUserContent } from "./content"
 
 export function createAnthropicAdapter(config: AdapterConfig = {}): ProviderAdapter {
   const model = config.model ?? process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6"
   const apiKey = config.apiKey ?? process.env.ANTHROPIC_API_KEY
 
   return {
-    async call(prompt: string, systemPrompt?: string) {
+    async call(prompt: string, systemPrompt?: string, options?: AdapterCallOptions) {
       if (!apiKey) {
         throw new Error("ANTHROPIC_API_KEY is not configured")
       }
@@ -24,7 +25,9 @@ export function createAnthropicAdapter(config: AdapterConfig = {}): ProviderAdap
           body: JSON.stringify({
             model,
             max_tokens: 4096,
-            messages: [{ role: "user", content: prompt }],
+            // Anthropic has no response_format/JSON mode; `options.json` is
+            // honoured via the caller's prompt instruction. Vision → content blocks.
+            messages: [{ role: "user", content: anthropicUserContent(prompt, options?.images) }],
             ...(systemPrompt ? { system: systemPrompt } : {}),
           }),
           signal: controller.signal,

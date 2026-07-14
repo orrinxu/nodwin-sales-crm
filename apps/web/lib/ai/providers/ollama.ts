@@ -1,14 +1,16 @@
-import type { AdapterConfig, ProviderAdapter } from "../types"
+import type { AdapterConfig, AdapterCallOptions, ProviderAdapter } from "../types"
+import { ollamaImages } from "./content"
 
 export function createOllamaAdapter(config: AdapterConfig = {}): ProviderAdapter {
   const model = config.model ?? process.env.OLLAMA_MODEL ?? "llama3.2"
   const baseUrl = (config.baseUrl ?? process.env.OLLAMA_BASE_URL ?? "").replace(/\/+$/, "") || undefined
 
   return {
-    async call(prompt: string, _systemPrompt?: string) {
+    async call(prompt: string, _systemPrompt?: string, options?: AdapterCallOptions) {
       if (!baseUrl) {
         throw new Error("OLLAMA_BASE_URL is not configured")
       }
+      const images = ollamaImages(options?.images)
 
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 30_000)
@@ -23,6 +25,8 @@ export function createOllamaAdapter(config: AdapterConfig = {}): ProviderAdapter
             model,
             prompt,
             stream: false,
+            ...(images ? { images } : {}),
+            ...(options?.json ? { format: "json" } : {}),
           }),
           signal: controller.signal,
         })

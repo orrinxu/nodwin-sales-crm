@@ -94,7 +94,10 @@ export async function aiCall(
 
   for (const { provider, adapter } of adapterChain) {
     try {
-      const result = await adapter.call(params.prompt, params.systemPrompt)
+      const result = await adapter.call(params.prompt, params.systemPrompt, {
+        images: params.images,
+        json: params.json,
+      })
       const finishedAt = new Date()
 
       await logger.log({

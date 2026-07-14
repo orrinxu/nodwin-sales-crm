@@ -19,10 +19,23 @@ import { extractionProvenanceSchema } from "@/lib/data/opportunity-provenance-sc
 // for the review UI. It NEVER creates an opportunity — the user confirms the
 // pre-filled form, which goes through the existing createOpportunity path.
 
-const inputSchema = z.object({
-  // A generous cap; the extractor further bounds what it sends to the model.
-  text: z.string().min(1, "Paste or drop a document first.").max(200_000),
+// ORR-686 vision input: a pasted/dropped screenshot analysed directly (no OCR).
+const imageInputSchema = z.object({
+  mimeType: z.enum(["image/png", "image/jpeg", "image/webp", "image/gif"]),
+  // Base64 of an image up to ~15 MB (base64 inflates bytes ~4/3).
+  dataBase64: z.string().min(1).max(20_000_000),
 })
+
+const inputSchema = z
+  .object({
+    // A generous cap; the extractor further bounds what it sends to the model.
+    text: z.string().max(200_000).optional(),
+    images: z.array(imageInputSchema).min(1).max(4).optional(),
+  })
+  .refine(
+    (v) => (v.text?.trim().length ?? 0) > 0 || (v.images?.length ?? 0) > 0,
+    { message: "Paste or drop a document or image first." },
+  )
 
 export interface GenerateOpportunityResult {
   ok: boolean
@@ -97,7 +110,11 @@ export async function generateOpportunityAction(raw: unknown): Promise<GenerateO
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." }
   }
 
-  const extraction = await extractOpportunityFromText({ text: parsed.data.text, userId: user.id })
+  const extraction = await extractOpportunityFromText({
+    text: parsed.data.text,
+    images: parsed.data.images,
+    userId: user.id,
+  })
   if (!extraction.ok || !extraction.fields) {
     return { ok: false, unconfigured: extraction.unconfigured, error: extraction.error }
   }

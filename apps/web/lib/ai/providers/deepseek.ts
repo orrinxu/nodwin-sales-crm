@@ -1,11 +1,12 @@
-import type { AdapterConfig, ProviderAdapter } from "../types"
+import type { AdapterConfig, AdapterCallOptions, ProviderAdapter } from "../types"
+import { openAiUserContent } from "./content"
 
 export function createDeepseekAdapter(config: AdapterConfig = {}): ProviderAdapter {
   const model = config.model ?? process.env.DEEPSEEK_MODEL ?? "deepseek-chat"
   const apiKey = config.apiKey ?? process.env.DEEPSEEK_API_KEY
 
   return {
-    async call(prompt: string, systemPrompt?: string) {
+    async call(prompt: string, systemPrompt?: string, options?: AdapterCallOptions) {
       if (!apiKey) {
         throw new Error("DEEPSEEK_API_KEY is not configured")
       }
@@ -24,8 +25,9 @@ export function createDeepseekAdapter(config: AdapterConfig = {}): ProviderAdapt
             model,
             messages: [
               ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
-              { role: "user", content: prompt },
+              { role: "user", content: openAiUserContent(prompt, options?.images) },
             ],
+            ...(options?.json ? { response_format: { type: "json_object" } } : {}),
           }),
           signal: controller.signal,
         })
