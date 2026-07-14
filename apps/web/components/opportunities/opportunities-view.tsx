@@ -55,7 +55,7 @@ interface OpportunitiesViewProps {
   users?: EntityOption[]
   createAction: (input: OpportunityCreateInput) => Promise<OpportunityRecord>
   /** ORR-677: when provided, "Create Opportunity" opens the AI generator chooser. */
-  generateAction?: (input: { text: string }) => Promise<GenerateOpportunityResult>
+  generateAction?: (input: { text?: string; images?: { mimeType: string; dataBase64: string }[] }) => Promise<GenerateOpportunityResult>
   /** ORR-684: server-side text extraction for PDF/DOCX uploads in the generator. */
   extractFileAction?: (formData: FormData) => Promise<ExtractFileResult>
   updateStageAction: (id: string, input: { stage: string }) => Promise<OpportunityRecord>

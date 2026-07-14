@@ -27,8 +27,10 @@ import { persistGeneratorArtifacts } from "@/lib/opportunity/generator-artifacts
 
 type FormProps = React.ComponentProps<typeof OpportunityForm>
 
+type ImagePayload = { mimeType: string; dataBase64: string }
+
 type Props = Omit<FormProps, "open" | "onOpenChange" | "prefill" | "banner" | "trigger"> & {
-  generateAction: (input: { text: string }) => Promise<GenerateOpportunityResult>
+  generateAction: (input: { text?: string; images?: ImagePayload[] }) => Promise<GenerateOpportunityResult>
   /** Server-side text extraction for binary uploads (PDF/DOCX). When absent, only
    *  pasted text and text files work. */
   extractFileAction?: (formData: FormData) => Promise<ExtractFileResult>
@@ -40,6 +42,7 @@ const ANALYSE_STEPS = ["Reading document", "Extracting fields", "Matching to you
 
 const TEXT_FILE = /\.(txt|eml|md|markdown|csv|log|json|text)$/i
 const BINARY_FILE = /\.(pdf|docx)$/i
+const IMAGE_FILE = /\.(png|jpe?g|webp|gif)$/i
 const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
@@ -52,12 +55,40 @@ function rfpMime(file: File): string {
   return "application/octet-stream"
 }
 
+function isImageFile(file: File): boolean {
+  return file.type.startsWith("image/") || IMAGE_FILE.test(file.name)
+}
+
+function imageMime(file: File): string {
+  if (file.type.startsWith("image/")) return file.type
+  const name = file.name.toLowerCase()
+  if (name.endsWith(".png")) return "image/png"
+  if (name.endsWith(".webp")) return "image/webp"
+  if (name.endsWith(".gif")) return "image/gif"
+  return "image/jpeg"
+}
+
+// Base64-encode an image in the browser for the vision path (ORR-686). Chunked so
+// String.fromCharCode never gets a multi-MB argument list.
+async function fileToBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  let binary = ""
+  const CHUNK = 0x8000
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
+  return btoa(binary)
+}
+
 export function OpportunityGenerator({ generateAction, extractFileAction, ...formProps }: Props) {
   const [phase, setPhase] = useState<Phase>("idle")
   const [text, setText] = useState("")
   const [fileName, setFileName] = useState<string | null>(null)
   // A dropped PDF/DOCX awaiting server-side text extraction on Analyse.
   const [pendingFile, setPendingFile] = useState<File | null>(null)
+  // A dropped image (screenshot) analysed directly by a vision model (ORR-686).
+  // Not stored as a document (ORR-683 keeps only RFP files).
+  const [pendingImage, setPendingImage] = useState<ImagePayload | null>(null)
   // The uploaded RFP file, retained past extraction so it can be attached to the
   // opportunity on confirm (ORR-683). Only set for binary RFP uploads — pasted
   // text / text files never populate it, so they're never stored.
@@ -77,6 +108,7 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
     setText("")
     setFileName(null)
     setPendingFile(null)
+    setPendingImage(null)
     setErrorMsg(null)
     setAnalyseStep(0)
   }
@@ -125,8 +157,9 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
     const isText = TEXT_FILE.test(file.name) || file.type.startsWith("text/")
     const isBinary =
       BINARY_FILE.test(file.name) || file.type === "application/pdf" || file.type === DOCX_MIME
-    if (!isText && !isBinary) {
-      setErrorMsg("Drop a PDF, DOCX, or text file (.txt, .eml, .md), or paste the text below.")
+    const isImage = isImageFile(file)
+    if (!isText && !isBinary && !isImage) {
+      setErrorMsg("Drop a PDF, DOCX, image, or text file (.txt, .eml, .md), or paste the text below.")
       return
     }
     setErrorMsg(null)
@@ -134,11 +167,18 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
     if (isText) {
       // Text files read directly in the browser — no server round-trip.
       setPendingFile(null)
+      setPendingImage(null)
       setText(await file.text())
-    } else {
+    } else if (isBinary) {
       // PDF/DOCX are extracted server-side when the user hits Analyse.
       setText("")
+      setPendingImage(null)
       setPendingFile(file)
+    } else {
+      // Images (screenshots) go straight to a vision model — no OCR, not stored.
+      setText("")
+      setPendingFile(null)
+      setPendingImage({ mimeType: imageMime(file), dataBase64: await fileToBase64(file) })
     }
   }, [])
 
@@ -170,7 +210,7 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
   }, [phase, handleFile])
 
   async function onAnalyse() {
-    if (!text.trim() && !pendingFile) {
+    if (!text.trim() && !pendingFile && !pendingImage) {
       setErrorMsg("Paste or drop a document first.")
       return
     }
@@ -180,24 +220,29 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
     const t1 = setTimeout(() => setAnalyseStep(1), 1200)
     const t2 = setTimeout(() => setAnalyseStep(2), 3200)
     try {
-      // A PDF/DOCX is turned into text server-side first; pasted text/text files
-      // are already in `text`.
-      let docText = text
-      if (pendingFile) {
-        if (!extractFileAction) throw new Error("no-extractor")
-        const fd = new FormData()
-        fd.append("file", pendingFile)
-        const ex = await extractFileAction(fd)
-        if (!ex.ok || !ex.text) {
-          clearTimeout(t1)
-          clearTimeout(t2)
-          setPhase("error")
-          setErrorMsg(ex.error ?? "Couldn't read that file. Try another, or paste the text.")
-          return
+      // An image goes straight to the vision model; a PDF/DOCX is turned into text
+      // server-side first; pasted text / text files are already in `text`.
+      let res: GenerateOpportunityResult
+      if (pendingImage) {
+        res = await generateAction({ images: [pendingImage] })
+      } else {
+        let docText = text
+        if (pendingFile) {
+          if (!extractFileAction) throw new Error("no-extractor")
+          const fd = new FormData()
+          fd.append("file", pendingFile)
+          const ex = await extractFileAction(fd)
+          if (!ex.ok || !ex.text) {
+            clearTimeout(t1)
+            clearTimeout(t2)
+            setPhase("error")
+            setErrorMsg(ex.error ?? "Couldn't read that file. Try another, or paste the text.")
+            return
+          }
+          docText = ex.text
         }
-        docText = ex.text
+        res = await generateAction({ text: docText })
       }
-      const res = await generateAction({ text: docText })
       clearTimeout(t1)
       clearTimeout(t2)
       if (!res.ok) {
@@ -276,19 +321,19 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
                 className={`flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed p-4 text-center text-sm transition ${dragging ? "border-primary bg-accent" : "border-muted-foreground/30"}`}
               >
                 <UploadCloud className="size-5 text-muted-foreground" />
-                {fileName ? <span className="font-medium">{fileName}</span> : <span>Drop a PDF, DOCX, or text file here, or click to choose</span>}
-                <span className="text-xs text-muted-foreground">.pdf, .docx, .txt, .eml, .md · max 50&nbsp;MB</span>
+                {fileName ? <span className="font-medium">{fileName}</span> : <span>Drop a PDF, DOCX, image, or text file here, or click to choose</span>}
+                <span className="text-xs text-muted-foreground">.pdf, .docx, .png, .jpg, .txt, .eml, .md · max 50&nbsp;MB</span>
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,.docx,.txt,.eml,.md,.markdown,.csv,.log,.json,application/pdf,text/*"
+                  accept=".pdf,.docx,.txt,.eml,.md,.markdown,.csv,.log,.json,.png,.jpg,.jpeg,.webp,.gif,application/pdf,text/*,image/*"
                   className="hidden"
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f) }}
                 />
               </div>
               <textarea
                 value={text}
-                onChange={(e) => { setText(e.target.value); setFileName(null); setPendingFile(null) }}
+                onChange={(e) => { setText(e.target.value); setFileName(null); setPendingFile(null); setPendingImage(null) }}
                 placeholder="…or paste the RFP / email chain here."
                 rows={7}
                 className="w-full resize-y rounded-md border bg-transparent p-2 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"

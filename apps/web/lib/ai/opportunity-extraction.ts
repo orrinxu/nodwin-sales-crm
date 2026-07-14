@@ -4,7 +4,7 @@ import { z } from "zod"
 import { aiCall } from "./router"
 import { createProviderAdapters } from "./provider-chain"
 import { Money } from "../money"
-import type { ProviderAdapter } from "./types"
+import type { AiImageInput, ProviderAdapter } from "./types"
 import type { ProviderName } from "./providers"
 import {
   SERVICE_TYPE_LABELS,
@@ -146,19 +146,23 @@ export const EXTRACTION_SYSTEM_PROMPT = [
   "7. For dates, only emit a value when the day/month order is unambiguous; otherwise omit the date.",
 ].join("\n")
 
-/** The user message: the field guide, a shape example, then the document. */
-export function buildExtractionPrompt(documentText: string, truncated: boolean): string {
-  const guide = Object.entries(FIELD_GUIDE)
+const EXTRACTION_SHAPE_EXAMPLE =
+  '{"name":{"value":"Valorant India Invitational","confidence":0.9,"source":"subject: Valorant India Invitational"},"amount":{"value":"5000000","confidence":0.8,"source":"budget of INR 50,00,000"},"currency":{"value":"INR","confidence":0.8,"source":"INR 50,00,000"}}'
+
+function fieldGuideBlock(): string {
+  return Object.entries(FIELD_GUIDE)
     .map(([key, desc]) => `- ${key}: ${desc}`)
     .join("\n")
-  const example =
-    '{"name":{"value":"Valorant India Invitational","confidence":0.9,"source":"subject: Valorant India Invitational"},"amount":{"value":"5000000","confidence":0.8,"source":"budget of INR 50,00,000"},"currency":{"value":"INR","confidence":0.8,"source":"INR 50,00,000"}}'
+}
+
+/** The user message: the field guide, a shape example, then the document. */
+export function buildExtractionPrompt(documentText: string, truncated: boolean): string {
   return [
     "Extract these fields (include a field ONLY if the document supports it):",
-    guide,
+    fieldGuideBlock(),
     "",
     "Shape example (yours will have whichever fields the document supports):",
-    example,
+    EXTRACTION_SHAPE_EXAMPLE,
     "",
     truncated ? "NOTE: the document was truncated; extract from what is present." : "",
     "DOCUMENT (the only source of truth):",
@@ -168,6 +172,19 @@ export function buildExtractionPrompt(documentText: string, truncated: boolean):
   ]
     .filter(Boolean)
     .join("\n")
+}
+
+/** The user message when the source is an attached image (ORR-686 vision). */
+export function buildImageExtractionPrompt(): string {
+  return [
+    "Extract these fields from the ATTACHED IMAGE (include a field ONLY if the image supports it):",
+    fieldGuideBlock(),
+    "",
+    "Shape example (yours will have whichever fields the image supports):",
+    EXTRACTION_SHAPE_EXAMPLE,
+    "",
+    "The image (a screenshot of a chat, email, or document) is the only source of truth. Read all visible text.",
+  ].join("\n")
 }
 
 // ── Parsing ─────────────────────────────────────────────────────────────────
@@ -225,14 +242,17 @@ function failureMessage(reason: string | undefined): string {
  * failure modes — returns an `ok: false` result the UI can render.
  */
 export async function extractOpportunityFromText(
-  input: { text: string; userId: string; requestId?: string },
+  input: { text?: string; images?: AiImageInput[]; userId: string; requestId?: string },
   deps: OpportunityExtractionDeps = {},
 ): Promise<OpportunityExtractionResult> {
   const resolveAdapters = deps.resolveAdapters ?? (() => createProviderAdapters(EXTRACTION_FEATURE))
   const call = deps.aiCall ?? aiCall
 
-  const text = input.text.trim()
-  if (!text) return { ok: false, error: "No document text was provided." }
+  const text = (input.text ?? "").trim()
+  const images = input.images ?? []
+  if (!text && images.length === 0) {
+    return { ok: false, error: "No document text or image was provided." }
+  }
 
   const adapters = await resolveAdapters()
   if (adapters.size === 0) {
@@ -241,7 +261,8 @@ export async function extractOpportunityFromText(
 
   const truncated = text.length > MAX_EXTRACTION_INPUT_CHARS
   const doc = truncated ? text.slice(0, MAX_EXTRACTION_INPUT_CHARS) : text
-  const basePrompt = buildExtractionPrompt(doc, truncated)
+  // Image-only source (ORR-686) → the vision prompt; otherwise the document prompt.
+  const basePrompt = text ? buildExtractionPrompt(doc, truncated) : buildImageExtractionPrompt()
   const requestId = input.requestId ?? `oppgen-extract-${randomUUID()}`
 
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -256,6 +277,9 @@ export async function extractOpportunityFromText(
         userId: input.userId,
         prompt,
         systemPrompt: EXTRACTION_SYSTEM_PROMPT,
+        // ORR-686: attach any images and request native JSON where supported.
+        images: images.length > 0 ? images : undefined,
+        json: true,
         estimatedCost: EXTRACTION_ESTIMATED_COST,
         estimatePromptTokens: estimateTokens(EXTRACTION_SYSTEM_PROMPT) + estimateTokens(prompt),
         estimateCompletionTokens: EXTRACTION_COMPLETION_TOKEN_BUDGET,

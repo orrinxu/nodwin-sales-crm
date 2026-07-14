@@ -1,4 +1,5 @@
-import type { AdapterConfig, ProviderAdapter } from "../types"
+import type { AdapterConfig, AdapterCallOptions, ProviderAdapter } from "../types"
+import { geminiParts } from "./content"
 
 const MODEL_REGEX = /^[a-zA-Z0-9_.-]+$/
 
@@ -7,7 +8,7 @@ export function createGeminiAdapter(config: AdapterConfig = {}): ProviderAdapter
   const apiKey = config.apiKey ?? process.env.GOOGLE_API_KEY
 
   return {
-    async call(prompt: string, _systemPrompt?: string) {
+    async call(prompt: string, _systemPrompt?: string, options?: AdapterCallOptions) {
       if (!apiKey) {
         throw new Error("GOOGLE_API_KEY is not configured")
       }
@@ -29,7 +30,8 @@ export function createGeminiAdapter(config: AdapterConfig = {}): ProviderAdapter
             "x-goog-api-key": apiKey,
           },
           body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            contents: [{ role: "user", parts: geminiParts(prompt, options?.images) }],
+            ...(options?.json ? { generationConfig: { responseMimeType: "application/json" } } : {}),
           }),
           signal: controller.signal,
         })

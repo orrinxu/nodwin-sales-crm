@@ -91,6 +91,22 @@ export interface DailyUsage {
   callCount: number
 }
 
+/** A base64-encoded image passed to a vision-capable provider (ORR-686). */
+export interface AiImageInput {
+  /** MIME type, e.g. "image/png", "image/jpeg", "image/webp". */
+  mimeType: string
+  /** Base64-encoded bytes, WITHOUT a `data:` URI prefix. */
+  dataBase64: string
+}
+
+/** Optional per-call adapter capabilities (ORR-686). Absent = text-only, as before. */
+export interface AdapterCallOptions {
+  /** Vision input. Providers that can't accept images ignore these. */
+  images?: AiImageInput[]
+  /** Ask the provider for native JSON output where it supports it. */
+  json?: boolean
+}
+
 export interface AiCallParams {
   feature: AiFeature
   userId: string
@@ -102,6 +118,10 @@ export interface AiCallParams {
   estimatePromptTokens: number
   estimateCompletionTokens: number
   requestId: string
+  /** ORR-686: vision input forwarded to the adapter. */
+  images?: AiImageInput[]
+  /** ORR-686: request native JSON output from the adapter. */
+  json?: boolean
 }
 
 export interface AiCallResult {
@@ -127,7 +147,7 @@ export interface CapDataSource {
 }
 
 export interface ProviderAdapter {
-  call(prompt: string, systemPrompt?: string): Promise<{
+  call(prompt: string, systemPrompt?: string, options?: AdapterCallOptions): Promise<{
     text: string
     model: string
     promptTokens: number
