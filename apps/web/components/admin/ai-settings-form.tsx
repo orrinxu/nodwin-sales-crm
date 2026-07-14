@@ -1,13 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { Sparkles, Play, CheckCircle2, AlertCircle } from "lucide-react"
+import { Sparkles, Play, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import type { AiSettingsSafe, IngestionStatusCounts, FailedIngestionDocument } from "@/lib/data/ai-settings"
-import type { RunIngestionResult } from "@/app/(crm)/admin/ai/actions"
+import type { RunIngestionResult, RetryFailedResult } from "@/app/(crm)/admin/ai/actions"
 
 interface Props {
   settings: AiSettingsSafe
@@ -16,6 +16,7 @@ interface Props {
   skippedDocuments?: FailedIngestionDocument[]
   saveAction: (input: unknown) => Promise<void>
   runIngestionAction: () => Promise<RunIngestionResult>
+  retryFailedAction?: () => Promise<RetryFailedResult>
 }
 
 function ConfiguredBadge({ ok }: { ok: boolean }) {
@@ -26,7 +27,7 @@ function ConfiguredBadge({ ok }: { ok: boolean }) {
   )
 }
 
-export function AiSettingsForm({ settings, counts, failedDocuments = [], skippedDocuments = [], saveAction, runIngestionAction }: Props) {
+export function AiSettingsForm({ settings, counts, failedDocuments = [], skippedDocuments = [], saveAction, runIngestionAction, retryFailedAction }: Props) {
   const [embeddingsBaseUrl, setEmbeddingsBaseUrl] = useState(settings.embeddingsBaseUrl ?? "")
   const [embeddingsModel, setEmbeddingsModel] = useState(settings.embeddingsModel ?? "")
   const [embeddingsApiKey, setEmbeddingsApiKey] = useState("")
@@ -42,6 +43,8 @@ export function AiSettingsForm({ settings, counts, failedDocuments = [], skipped
 
   const [running, setRunning] = useState(false)
   const [runResult, setRunResult] = useState<RunIngestionResult | null>(null)
+  const [retrying, setRetrying] = useState(false)
+  const [retryResult, setRetryResult] = useState<RetryFailedResult | null>(null)
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault()
@@ -69,6 +72,18 @@ export function AiSettingsForm({ settings, counts, failedDocuments = [], skipped
       setError(err instanceof Error ? err.message : "Failed to run ingestion")
     } finally {
       setRunning(false)
+    }
+  }
+
+  async function onRetryFailed() {
+    if (!retryFailedAction) return
+    setRetrying(true); setRetryResult(null); setError(null)
+    try {
+      setRetryResult(await retryFailedAction())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to retry failed documents")
+    } finally {
+      setRetrying(false)
     }
   }
 
@@ -164,13 +179,25 @@ export function AiSettingsForm({ settings, counts, failedDocuments = [], skipped
             <Stat label="Skipped" value={counts.skipped} />
             <Stat label="Total" value={counts.total} />
           </div>
-          <div className="flex items-center gap-3">
-            <Button type="button" variant="outline" size="sm" onClick={onRun} disabled={running}>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="button" variant="outline" size="sm" onClick={onRun} disabled={running || retrying}>
               <Play className="size-4" /> {running ? "Running…" : "Run ingestion now"}
             </Button>
+            {retryFailedAction && counts.failed > 0 && (
+              <Button type="button" variant="outline" size="sm" onClick={onRetryFailed} disabled={retrying || running}>
+                <RefreshCw className="size-4" /> {retrying ? "Resetting…" : `Retry all failed (${counts.failed})`}
+              </Button>
+            )}
             {runResult && (
               <span className="text-xs text-muted-foreground">
                 {runResult.note ?? `Processed ${runResult.processed} — ${runResult.indexed} indexed, ${runResult.failed} failed, ${runResult.skipped} skipped.`}
+              </span>
+            )}
+            {retryResult && !runResult && (
+              <span className="text-xs text-muted-foreground">
+                {retryResult.reset === 0
+                  ? "Nothing to retry."
+                  : `${retryResult.reset} reset to pending — click "Run ingestion now" to reprocess.`}
               </span>
             )}
           </div>
