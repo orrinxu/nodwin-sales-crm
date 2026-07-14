@@ -77,6 +77,7 @@ Not v1-blocking; recorded so they aren't lost.
 
 - **v2 candidates (§5.3):** bulk ops on opp list (reassign/advance/export CSV) · ~~saved views~~ (private per-user saved views **shipped**, #191; *shareable* filters still deferred) · configurable email templates w/ merge tags · CSV/Sheets export for any list · margin-at-risk dashboard · multi-region read replicas · cohort/velocity/forecast-accuracy reporting · AI weekly digest · FX-converted P&L consolidation · two-way Sheets sync · realtime collaborative opp editing · MCP write-tool expansion.
 - **Out-of-scope (§5.4):** WhatsApp · marketing automation/lead-scoring · support/ticketing · quote-to-cash/e-sign/invoicing · FX rate calc · selling CRM as a product · generic public REST API.
+- **Future expansion — in-CRM outbound send (ORR-706, decided deep-links for v1):** replace the Gmail/Slack *deep-links* with full in-CRM delivery — send user-composed email via the connected Gmail account (`gmail.send`, logged as an activity, reply threading) and a connected Slack app posting notifications. Overlaps the Google Workspace work (ORR-697/698). See `integrations.md` §6.2 / §6.4. Re-ticket if reps need sent email/Slack captured in-CRM.
 - **Open questions (§12):** margin-at-risk design · Drive multi-layer perms · custom-amount recurring split · sandbox refresh cadence · mobile store distribution · AI opt-in default granularity · WhatsApp timing · MCP write-tool surface.
 
 ---

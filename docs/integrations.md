@@ -16,7 +16,9 @@ In v1.5, the same Supabase Auth issues OAuth tokens for MCP clients via a separa
 
 **Transactional email** (system notifications, approval requests, P&L delivery, weekly digests): sent via **Resend or SMTP** (the outbound transport is `"smtp" | "resend"`, resolved in `lib/data/email-transport.ts` and dispatched by `lib/notifications/delivery.ts`; SMTP uses `nodemailer`). Postmark is inbound-only — there is no Postmark outbound path. The configured domain (`crm.nodwin.com`) should be verified (`crm.nodwin.com`) and full SPF / DKIM / DMARC records. DMARC at `p=quarantine` minimum. This is non-negotiable per the failure mode documented in the project's reference Reddit post — Supabase's default SMTP has poor deliverability and would silently spam-folder ~50% of system emails.
 
-**User-composed email** (rep writes to a client from inside the CRM): sent via the user's **connected Gmail account** using OAuth scope `gmail.send`, not via SMTP. This way the email appears in the rep's Sent folder, threads correctly, and respects the user's existing email signature and reply-to. The CRM stores the Gmail message id and threads inbound replies via `In-Reply-To` header matching.
+**User-composed email** (rep writes to a client): **v1 ships as a deep-link** (decision ORR-706, 2026-07). Clicking *Email* on a contact/account opens the rep's own Gmail / mail client with the recipient pre-filled; the rep composes and sends from their own account. This is the deliberate "realistic version" — no per-user Gmail OAuth, no outbound deliverability surface — and is what is built today.
+
+> **Future expansion (post-v1, Option B — ORR-706):** send the user-composed email *from inside the CRM* via the user's **connected Gmail account** (OAuth scope `gmail.send`), so the email appears in the rep's Sent folder, threads correctly, respects the user's signature/reply-to, is **logged as a CRM activity**, and inbound replies thread via `In-Reply-To` header matching. This is a larger Google-Workspace investment that overlaps §6.5 (Google Workspace / ORR-697/698). Re-ticket it if reps need sent email captured in-CRM; deep-links are the accepted v1 until then.
 
 ### 6.3 Email — Inbound
 
@@ -43,6 +45,8 @@ Inbound email is handled by Postmark Inbound (recommended) or AWS SES Inbound. T
 
 ### 6.4 Slack
 
+> **v1 decision (ORR-706, 2026-07): Slack ships as deep-links** — links that open Slack pre-filled, not a connected app posting on the CRM's behalf. The full Slack app below is a **future expansion**, not built.
+>
 > **Status: planned / not yet implemented (config scaffold only).** The full Slack app described below is **not** built. There is no `@slack/bolt` (or any Slack) dependency in the codebase, no slash-command or interactivity endpoint, no per-deal channel automation, and no approve-from-Slack flow.
 >
 > What exists today is a thin notification scaffold: a `slack` value in the `notification_channel` enum, an `escapeSlackMrkdwn()` helper in `lib/notifications/delivery.ts` (which can post a basic DM via a stored `slack_connections` token), and a `slack_connections` config table whose `status` defaults to `'disconnected'` (`20260618000003_integration_config.sql`).
