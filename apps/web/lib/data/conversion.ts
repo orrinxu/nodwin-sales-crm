@@ -18,16 +18,19 @@ import type { ConversionFunnelData } from "@/lib/opportunity/conversion-funnel"
  * Takes `ctx` per the dashboard data-fn convention (root AGENTS.md §8.7); RLS
  * identity still rides on the authenticated Supabase client. With
  * `teamOnly: true` (ORR-722) the RPC narrows to the caller's reporting subtree —
- * the "Team" tab funnel — on top of RLS, so it can only ever remove deals.
+ * the "Team" tab funnel; `groupOnly: true` (ORR-723) narrows to the caller's
+ * region/group entities — the "Group" tab funnel. Both sit on top of RLS, so they
+ * can only ever remove deals.
  */
 export async function getConversionFunnel(
   _ctx: DashboardContext,
-  opts: { teamOnly?: boolean } = {},
+  opts: { teamOnly?: boolean; groupOnly?: boolean } = {},
 ): Promise<ConversionFunnelData> {
   const supabase = await createServerClient()
 
   const { data, error } = await supabase.rpc("conversion_funnel_agg", {
     p_team_only: opts.teamOnly ?? false,
+    p_group: opts.groupOnly ?? false,
   })
   if (error) {
     throw new Error(`Failed to load conversion funnel: ${error.message}`)

@@ -3479,7 +3479,7 @@ export type Database = {
         }[]
       }
       conversion_funnel_agg: {
-        Args: { p_team_only?: boolean }
+        Args: { p_group?: boolean; p_team_only?: boolean }
         Returns: {
           deal_count: number
           stage: string
@@ -3632,8 +3632,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      region_entity_ids: { Args: { _caller: string }; Returns: string[] }
       rep_scorecard_agg: {
         Args: {
+          p_group?: boolean
           p_period_end: string
           p_period_start: string
           p_team_only?: boolean
