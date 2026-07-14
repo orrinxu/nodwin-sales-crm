@@ -1229,6 +1229,7 @@ Detailed acceptance criteria for all tickets in this phase are deliberately defe
 ### T-150 — Transcription seam + admin endpoint setting (gate G2)
 - **Track:** B · **Size:** L · **Depends on:** T-149
 - Post audio to an **admin-configurable transcription endpoint** (URL/IP setting, mirroring the `ai_providers.base_url` pattern) — a Whisper-compatible HTTP endpoint on the VPS or a lanbox/cloud. A **new call path** (not `aiCall`). Transcript is ephemeral (G4): used for extraction, deleted on commit.
+- **Concurrency (Orrin, 2026-07-14):** the workload is bursty, not streaming (occasional short jobs from N reps). The app must **not** assume instant transcription: use a "transcribing…" state with a sensible timeout + retry and degrade gracefully if the endpoint is briefly busy; the endpoint owns its own queue/concurrency so the box can be scaled independently (VPS CPU → GPU box → cloud STT → worker pool) **without an app change**. Design for ~10–30 concurrent reps as the target; the URL setting is what makes scaling a config change, not a code change.
 
 ### T-151 — Wire transcript → text pipeline
 - **Track:** B · **Size:** S · **Depends on:** T-150, T-148
