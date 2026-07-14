@@ -8,6 +8,8 @@ export type AiFeature =
   | "draft_email"
   | "next_best_action"
   | "opportunity_extraction"
+  | "account_extraction"
+  | "contact_extraction"
   | "other"
 
 export type AiCallStatus =

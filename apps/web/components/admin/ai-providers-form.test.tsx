@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event"
 
 import { AiProvidersForm } from "./ai-providers-form"
 import { PROVIDER_MODELS } from "@/lib/ai/provider-models"
+import { AI_FEATURE_NAMES } from "@/lib/ai/features"
 import type { AiProvidersView, AiProviderSafe } from "@/lib/data/ai-providers"
 
 vi.mock("server-only", () => ({}))
@@ -98,7 +99,8 @@ describe("AiProvidersForm — model picker", () => {
 })
 
 describe("AiProvidersForm — provider override (ORR-685)", () => {
-  const ALL_FEATURES = ["search", "summarise_deal", "draft_email", "next_best_action", "opportunity_extraction", "other"]
+  // Derive from the source of truth so adding an AI feature never breaks this test.
+  const ALL_FEATURES = AI_FEATURE_NAMES
 
   it("fans a single chosen provider out to every feature", async () => {
     const saveAction = vi.fn().mockResolvedValue(undefined)

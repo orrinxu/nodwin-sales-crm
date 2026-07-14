@@ -9,7 +9,8 @@ import type { AiProviderName } from "@/lib/data/ai-providers"
 
 /** All AI features (mirrors the `ai_feature` PG enum + the AiFeature TS union). */
 export const AI_FEATURE_NAMES: AiFeature[] = [
-  "search", "summarise_deal", "draft_email", "next_best_action", "opportunity_extraction", "other",
+  "search", "summarise_deal", "draft_email", "next_best_action",
+  "opportunity_extraction", "account_extraction", "contact_extraction", "other",
 ]
 
 export const FEATURE_LABELS: Record<AiFeature, string> = {
@@ -18,6 +19,8 @@ export const FEATURE_LABELS: Record<AiFeature, string> = {
   draft_email: "Email draft",
   next_best_action: "Next best action",
   opportunity_extraction: "Opportunity generator (document extraction)",
+  account_extraction: "Account generator (record extraction)",
+  contact_extraction: "Contact generator (record extraction)",
   other: "Other",
 }
 
