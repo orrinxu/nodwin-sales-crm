@@ -53,19 +53,19 @@
 
 ---
 
-## 3. Decision gates — status after discovery (HUMAN-RESOLVED; not resolved here)
+## 3. Decision gates — RESOLVED (Orrin, 2026-07-14)
 
-| Gate | Question | Discovery input (NOT a resolution) |
+| Gate | Question | **Decision** |
 |---|---|---|
-| **G1** Extraction provider | which model/route structures the transcript | Already flows through `aiCall` + per-feature provider chain; admin `/admin/ai` picks it. Likely reuse the `opportunity_extraction` provider config or add per-type. |
-| **G2** Data residency | local Whisper (lanbox) vs cloud transcription (esp. East Asia) | `openai_compatible`/`ollama_local` are first-class admin-configurable local endpoints — a **local Whisper is feasible on the lanbox**, but STT is a NEW path (not `aiCall`). Real decision needed. |
-| **G3** Provenance schema | jsonb column vs dedicated table | Opportunity uses a **dedicated table** with a hard FK to `opportunities`. For 3 types: (a) generalise to a polymorphic `record_extraction_provenance(record_type, record_id, …)` or (b) per-type tables. Recommend deciding at Track-A start. |
-| **G4** Retention / RLS for captured media | audio now, screenshots later | Greenfield. RFP-file retention pattern exists (ORR-683 → Supabase Storage `documents` bucket) as a reference; audio needs its own decision. |
-| **G5** Field auto-fill policy | what AI may pre-fill vs leave blank | Opportunity precedent: **never-infer four** (owner, stage, probability, visibility_tier). Establish the equivalent per type (e.g. account owner, contact owner). |
-| **G6** Record-type routing | rep picks type vs AI infers | Brief default: **rep picks in v1**. The launcher (§2) is the natural place to pick. |
-| **G7** Entry-point placement | where the launcher mounts | Brief default: one reusable launcher in a "Create new" affordance + a shortcut. Header has a clean slot; command palette absent (don't build it). |
-| **G8** Commit gating | do "check this" fields block commit or warn | Brief default: block only revenue-affecting (stage, value); warn elsewhere. Review banner already computes `needsReview` per field. |
-| **G9** Match-confidence threshold | below what confidence show **New** vs a shaky auto-match | Resolver is deterministic (exact-match only) today — there is **no confidence threshold** yet; ambiguous→`ambiguous`, none→`unmatched`. A threshold only becomes relevant if fuzzy matching is added. |
+| **G1** Extraction provider | which model/route structures the transcript | Reuse `aiCall` + the per-feature provider chain (admin `/admin/ai`); add per-type `AiFeature` values (T-144). |
+| **G2** Data residency / transcription | local Whisper vs cloud | **Local Whisper via an admin-configurable endpoint URL** (like the AI-provider `base_url`). Can run on the VPS (small model, CPU, fine for dictated notes) OR point at a lanbox IP / cloud — deployment config, not code. STT is a **new path**, NOT `aiCall`. |
+| **G3** Provenance schema | jsonb column vs dedicated table | **SKIP provenance for this feature** — it's a helper tool; not worth the schema. (If ever revisited: one polymorphic `record_extraction_provenance` table.) → provenance ticket dropped. |
+| **G4** Retention / RLS for captured media | audio now, screenshots later | **Ephemeral** — audio + raw transcript are used to build the draft, then **deleted on commit**. Nothing stored, no media RLS surface. |
+| **G5** Field auto-fill policy | what AI may pre-fill vs leave blank | **Never auto-fill owner / access / ownership fields** (extends the opportunity never-infer set to account owner, contact owner, etc.); everything factual the AI heard is a reviewable draft value. Iterate later. |
+| **G6** Record-type routing | rep picks type vs AI infers | **Rep picks in v1** (at the launcher). Revisit inference later. |
+| **G7** Entry-point placement | where the launcher mounts | **One reusable launcher** in a header "Create new" affordance + a keyboard shortcut. No command palette (absent by design). Dashboard-tile / palette mounts deferred. |
+| **G8** Commit gating | do "check this" fields block commit or warn | **Block only revenue-affecting** (stage, value); warn elsewhere. Review banner already computes `needsReview` per field. |
+| **G9** Match-confidence threshold | show **New** vs a shaky auto-match | N/A for v1 — resolver is deterministic (exact-match only); no confidence threshold. Relevant only if fuzzy matching is added later. |
 
 ---
 

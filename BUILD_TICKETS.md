@@ -1202,7 +1202,7 @@ Detailed acceptance criteria for all tickets in this phase are deliberately defe
 
 ## Phase 9.7 — Voice / Text Record Generator (PROPOSED — Phase 0 gate, ORR-732)
 
-> **Status: PROPOSED, not authorised.** Output of the Phase 0 discovery gate (`docs/voice-record-generator/phase-0-discovery.md`). Awaiting human sign-off + gate resolution (G1–G9) before any code. Epic **ORR-732**. Key finding: the brief's "Phase 1" (paste/type → **opportunity** draft → review → commit) is **already shipped** (ORR-674→686); remaining scope = generalise to accounts/contacts (Track A) + voice (Track B) + launcher (Track C). The referenced mockup `docs/mocks/opportunity-generator-review.html` **does not exist** — the shipped `ReviewBanner` is the design.
+> **Status: gates G1–G9 RESOLVED (Orrin, 2026-07-14); Track A cleared to build on sign-off.** Output of the Phase 0 discovery gate (`docs/voice-record-generator/phase-0-discovery.md`). Epic **ORR-732**. Key decisions: **skip provenance** (helper tool — dropped a ticket); **ephemeral** audio+transcript (deleted on commit); **local Whisper via an admin-configurable endpoint URL** (VPS-local or lanbox/cloud); **never auto-fill owner/access** fields; **rep picks the record type**. The brief's "Phase 1" (opportunity flow) is **already shipped** (ORR-674→686) — start from Track A. The referenced mockup `docs/mocks/opportunity-generator-review.html` **does not exist** — the shipped `ReviewBanner` is the design.
 
 ### T-144 — Add `account_extraction` + `contact_extraction` AI features
 - **Track:** A (generalise engine) · **Size:** S · **Approval:** `cto`
@@ -1216,9 +1216,7 @@ Detailed acceptance criteria for all tickets in this phase are deliberately defe
 - **Track:** A · **Size:** M · **Depends on:** T-144, T-145
 - Contact extractor → `ContactPrefill`; **resolve/queue the account before the contact** (account-scoped picker constraint). Commit via existing `createContact`.
 
-### T-147 — Provenance generalisation (gate G3)
-- **Track:** A · **Size:** M · **High-risk file:** yes (new RLS table) · **Approval:** `cto + security` · **Depends on:** G3
-- Polymorphic `record_extraction_provenance(record_type, record_id, feature, model, source_kind, fields jsonb, …)` with per-type RLS, OR per-type tables. pgtap. (Today's `opportunity_extraction_provenance` has a hard FK to `opportunities`.)
+### ~~T-147 — Provenance generalisation~~ — DROPPED (G3: skip provenance for this feature)
 
 ### T-148 — Record-type-parametric generator UI + routing (gate G6)
 - **Track:** A · **Size:** M · **Depends on:** T-145, T-146
@@ -1228,9 +1226,9 @@ Detailed acceptance criteria for all tickets in this phase are deliberately defe
 - **Track:** B (voice) · **Size:** M
 - `MediaRecorder` capture + upload component. Media retention/RLS per gate G4.
 
-### T-150 — Transcription seam (gate G2)
-- **Track:** B · **Size:** L · **Depends on:** G2, T-149 · **Approval:** `cto + board`
-- Local Whisper (lanbox) vs cloud STT — a **new call path** (not `aiCall`). Data-residency decision (G2) blocks this.
+### T-150 — Transcription seam + admin endpoint setting (gate G2)
+- **Track:** B · **Size:** L · **Depends on:** T-149
+- Post audio to an **admin-configurable transcription endpoint** (URL/IP setting, mirroring the `ai_providers.base_url` pattern) — a Whisper-compatible HTTP endpoint on the VPS or a lanbox/cloud. A **new call path** (not `aiCall`). Transcript is ephemeral (G4): used for extraction, deleted on commit.
 
 ### T-151 — Wire transcript → text pipeline
 - **Track:** B · **Size:** S · **Depends on:** T-150, T-148
