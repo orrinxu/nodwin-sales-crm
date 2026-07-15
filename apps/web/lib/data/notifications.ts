@@ -12,6 +12,7 @@ export type NotificationEventType =
   | "deal_won"
   | "deal_lost"
   | "confidential_break_glass"
+  | "direct_report_reassigned"
 
 export type NotificationChannel = "in_app" | "email" | "slack"
 
@@ -81,6 +82,7 @@ export const NOTIFICATION_EVENT_TYPES: NotificationEventType[] = [
   "deal_won",
   "deal_lost",
   "confidential_break_glass",
+  "direct_report_reassigned",
 ]
 
 export const NOTIFICATION_CHANNELS: NotificationChannel[] = [
@@ -163,6 +165,7 @@ export const notificationRoutingUpsertSchema = z.object({
     "deal_won",
     "deal_lost",
     "confidential_break_glass",
+    "direct_report_reassigned",
   ]),
   channel: z.enum(["in_app", "email", "slack"]),
   enabled: z.boolean(),
@@ -180,6 +183,7 @@ export const userNotificationOverrideUpsertSchema = z.object({
     "deal_won",
     "deal_lost",
     "confidential_break_glass",
+    "direct_report_reassigned",
   ]),
   channel: z.enum(["in_app", "email", "slack"]),
   enabled: z.boolean(),

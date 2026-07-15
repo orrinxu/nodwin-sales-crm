@@ -158,6 +158,36 @@ export async function notifyBreakGlass(ctx: BreakGlassContext): Promise<void> {
   }
 }
 
+export interface DirectReportReassignedContext {
+  /** The manager who lost the report (the one to notify). */
+  losingManagerId: string
+  reportName: string
+  newManagerName: string
+}
+
+// Notify a manager that one of their direct reports was reassigned away (ORR-715,
+// O2: no admin co-sign — the losing manager is informed, not asked). Best-effort.
+export async function notifyDirectReportReassigned(
+  ctx: DirectReportReassignedContext,
+): Promise<void> {
+  try {
+    await sendNotification(ctx.losingManagerId, "direct_report_reassigned", {
+      title: `Direct report reassigned: ${ctx.reportName}`,
+      message: `${ctx.reportName} is now a direct report of ${ctx.newManagerName}.`,
+      linkUrl: "/direct-reports",
+      metadata: {
+        event_type: "direct_report_reassigned",
+        report_name: ctx.reportName,
+        new_manager_name: ctx.newManagerName,
+      },
+    })
+  } catch (err) {
+    console.error(
+      `[notifications] Failed to send direct-report reassignment notification: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
+}
+
 export interface MentionContext {
   mentionedUserId: string
   mentionedByName: string

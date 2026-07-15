@@ -1166,7 +1166,7 @@ Detailed acceptance criteria for all tickets in this phase are deliberately defe
 
 - **Phase:** 9.6 Visibility & Roles
 - **Depends on:** O2 sign-off; D1–D6 ratification
-- **Status:** TODO — UNBLOCKED (2026-07-13). O2 ratified: managers may self-serve their direct-reports roster **only within their own entity/BU**; a removal/reassignment **notifies the losing manager** (no admin co-sign — no approval bottleneck); membership is **effective-dated** (from/to), not a hard delete, so period reports stay accurate under materialised visibility. The ticket must also fix the subordinate recompute fan-out gap. Ready to build.
+- **Status:** DONE (2026-07-15, ORR-715). Scoped managers (sales_manager / regional_head / group_sales_lead) self-serve their direct-reports roster within their own entity + (if set) business unit; `prevent_role_escalation` relaxed for the CLAIM-self / RELEASE-own patterns only (primary_role & role_id stay admin-only); `assign_direct_report` / `remove_direct_report` SECURITY DEFINER RPCs; reassignment notifies the losing manager (`direct_report_reassigned` event, no co-sign); effective-dated `manager_assignment_history`; reparent recompute fixed to fan out over the subtree (`recompute_visibility_for_user_subtree`). Confidential unaffected (manager chain is standard-tier only). pgTAP 21/21. Migrations `20260715030000` + `20260715040000`.
 - **Size:** M
 - **Files in scope:** `supabase/migrations/*` (loosen the `manager_user_id` write guard for scoped managers + notification/effective-dating), `apps/web/app/(crm)/.../*` (roster UI), `apps/web/lib/data/users.ts`
 - **Approval:** `cto + board + security`

@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Gamepad2,
   Sparkles,
+  Network,
 } from "lucide-react"
 import { adminSections } from "./admin-nav"
 import { cn } from "@/lib/utils"
@@ -51,7 +52,12 @@ const navigation = [
   { name: "Activities", href: "/activities", icon: History },
   { name: "Reports", href: "/reports", icon: BarChart3 },
   { name: "Knowledge", href: "/knowledge", icon: Sparkles },
+  // Direct-reports roster (ORR-715) — only for managers who maintain a reporting
+  // line. Non-managers never see it (the page also guards with an empty state).
+  { name: "Direct reports", href: "/direct-reports", icon: Network, managerOnly: true },
 ]
+
+const MANAGER_NAV_ROLES = ["sales_manager", "regional_head", "group_sales_lead", "admin"]
 
 interface SidebarProps {
   user: {
@@ -61,14 +67,15 @@ interface SidebarProps {
   }
 }
 
-function SidebarNav({ className }: { className?: string }) {
+function SidebarNav({ className, role }: { className?: string; role?: string }) {
   const pathname = usePathname()
   const isAdminActive = pathname.startsWith("/admin")
   const [adminOpen, setAdminOpen] = useState(isAdminActive)
+  const isManager = !!role && MANAGER_NAV_ROLES.includes(role)
 
   return (
     <nav className={cn("flex flex-col gap-1", className)}>
-      {navigation.map((item) => {
+      {navigation.filter((item) => !item.managerOnly || isManager).map((item) => {
         const isActive =
           item.href === "/"
             ? pathname === "/"
@@ -228,7 +235,7 @@ function SidebarDesktop({ user }: SidebarProps) {
         </div>
       </div>
       <ScrollArea className="flex-1 px-3 py-4">
-        <SidebarNav />
+        <SidebarNav role={user.role} />
       </ScrollArea>
       <UserSection user={user} />
     </aside>
@@ -260,7 +267,7 @@ export function SidebarMobile({ user }: SidebarProps) {
             </div>
           </div>
           <ScrollArea className="flex-1 px-3 py-4">
-            <SidebarNav />
+            <SidebarNav role={user.role} />
           </ScrollArea>
           <UserSection user={user} />
         </div>
