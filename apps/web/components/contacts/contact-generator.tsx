@@ -15,7 +15,7 @@ import type { ContactPrefill } from "@/lib/data/contact-extraction-resolver"
 // createAction — no parallel write path. The account is resolved account-first: when
 // the extracted account matched an existing one, primaryAccountId is pre-selected;
 // otherwise it's left blank (the review note flags a new account) and the user
-// picks one — inline account creation is a follow-up.
+// picks one — or creates it inline via the creatable account combobox (ORR-738).
 
 type FormProps = React.ComponentProps<typeof ContactForm>
 

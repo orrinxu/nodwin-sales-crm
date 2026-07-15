@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/security/auth"
 import { getAccountOptions, getContacts } from "@/lib/data/contacts"
-import { createContactAction, bulkDeleteContactsAction } from "./actions"
+import { createContactAction, bulkDeleteContactsAction, createAccountQuickAction } from "./actions"
 import { generateContactAction } from "./generate-actions"
 import { extractDocumentTextAction } from "@/app/(crm)/opportunities/generate-actions"
 import { ContactsList } from "@/components/contacts/contacts-list"
@@ -22,6 +22,7 @@ export default async function ContactsPage() {
       bulkDeleteAction={bulkDeleteContactsAction}
       generateAction={generateContactAction}
       extractFileAction={extractDocumentTextAction}
+      createAccountQuickAction={createAccountQuickAction}
     />
   )
 }

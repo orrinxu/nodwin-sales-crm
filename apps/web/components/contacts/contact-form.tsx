@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RecordEditDialog } from "@/components/forms/record-edit-dialog"
 import { FormSection } from "@/components/forms/form-section"
+import { EntityCombobox, type EntityOption } from "@/components/entity-combobox"
 
 import type { ContactRecord, ContactCreateInput, AccountOption } from "@/lib/data/contacts"
 import type { ContactPrefill } from "@/lib/data/contact-extraction-resolver"
@@ -62,6 +63,13 @@ interface ContactFormProps {
   onOpenChange?: (open: boolean) => void
   /** Rendered at the top of the dialog body — the "AI-generated, review" banner. */
   banner?: React.ReactNode
+  /**
+   * Inline quick-create for the Primary Account picker (ORR-738). When present on
+   * a NEW contact, the account field becomes a creatable combobox so a rep can
+   * create an extracted-but-new account inline. Absent (or editing) → the plain
+   * account picker.
+   */
+  createAccountQuickAction?: (input: { name: string }) => Promise<EntityOption>
 }
 
 export function ContactForm({
@@ -77,6 +85,7 @@ export function ContactForm({
   open: controlledOpen,
   onOpenChange: onOpenChangeProp,
   banner,
+  createAccountQuickAction,
 }: ContactFormProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const isControlledOpen = controlledOpen !== undefined
@@ -118,6 +127,11 @@ export function ContactForm({
   const watchedSocials = useWatch({ control: form.control, name: "socials" })
   const watchedAccountLinkIds = useWatch({ control: form.control, name: "accountLinkIds" })
   const watchedPrimaryAccountId = useWatch({ control: form.control, name: "primaryAccountId" })
+
+  // ORR-738: on a NEW contact, offer inline account-create via a creatable
+  // combobox (needs the quick-create action). Editing keeps the plain picker.
+  const canCreateAccount = !isEditing && !!createAccountQuickAction
+  const accountItems: EntityOption[] = accounts.map((a) => ({ id: a.id, name: a.name }))
 
   function addSocial() {
     form.setValue("socials", [...watchedSocials, { platform: "", url: "" }])
@@ -280,17 +294,47 @@ export function ContactForm({
       {/* ── Accounts ─────────────────────────────────────────────────── */}
       <FormSection title="Accounts" defaultOpen>
         <div className="grid gap-1.5">
-          <Label htmlFor="primaryAccountId">Primary Account</Label>
-          <select
-            id="primaryAccountId"
-            className="h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            {...form.register("primaryAccountId")}
-          >
-            <option value="">No primary account</option>
-            {accounts.map((acct) => (
-              <option key={acct.id} value={acct.id}>{acct.name}</option>
-            ))}
-          </select>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="primaryAccountId">Primary Account</Label>
+            {/* ORR-738: the creatable combobox has no "none" option; offer an
+                explicit clear so a primary account can still be removed. */}
+            {canCreateAccount && watchedPrimaryAccountId && (
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={() =>
+                  form.setValue("primaryAccountId", "", { shouldValidate: true })
+                }
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          {canCreateAccount ? (
+            // ORR-738: inline account-create — a rep can create an
+            // extracted-but-new account without leaving the contact form.
+            <EntityCombobox
+              items={accountItems}
+              value={watchedPrimaryAccountId || null}
+              onChange={(v) =>
+                form.setValue("primaryAccountId", v ?? "", { shouldValidate: true })
+              }
+              onCreate={(name) => createAccountQuickAction!({ name })}
+              placeholder="No primary account"
+              searchPlaceholder="Search or create an account..."
+            />
+          ) : (
+            <select
+              id="primaryAccountId"
+              className="h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              {...form.register("primaryAccountId")}
+            >
+              <option value="">No primary account</option>
+              {accounts.map((acct) => (
+                <option key={acct.id} value={acct.id}>{acct.name}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div className="col-span-full grid gap-1.5">
