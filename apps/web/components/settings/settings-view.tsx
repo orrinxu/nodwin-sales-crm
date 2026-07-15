@@ -53,6 +53,7 @@ const NOTIFICATION_EVENTS: { value: NotificationEventType; label: string }[] = [
   { value: "deal_won", label: "Deal won" },
   { value: "deal_lost", label: "Deal lost" },
   { value: "confidential_break_glass", label: "Break-glass on a Confidential deal" },
+  { value: "direct_report_reassigned", label: "A direct report was reassigned away" },
 ]
 
 interface SettingsViewProps {

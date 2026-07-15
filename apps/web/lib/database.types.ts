@@ -2137,6 +2137,65 @@ export type Database = {
         }
         Relationships: []
       }
+      manager_assignment_history: {
+        Row: {
+          changed_by: string | null
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          id: string
+          manager_user_id: string | null
+          report_user_id: string
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          manager_user_id?: string | null
+          report_user_id: string
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          manager_user_id?: string | null
+          report_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manager_assignment_history_manager_user_id_fkey"
+            columns: ["manager_user_id"]
+            isOneToOne: false
+            referencedRelation: "ai_usage_daily_rollup"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "manager_assignment_history_manager_user_id_fkey"
+            columns: ["manager_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manager_assignment_history_report_user_id_fkey"
+            columns: ["report_user_id"]
+            isOneToOne: false
+            referencedRelation: "ai_usage_daily_rollup"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "manager_assignment_history_report_user_id_fkey"
+            columns: ["report_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_routing: {
         Row: {
           channel: Database["public"]["Enums"]["notification_channel"]
@@ -3470,6 +3529,7 @@ export type Database = {
           prompt_tokens: number
         }[]
       }
+      assign_direct_report: { Args: { _report_id: string }; Returns: Json }
       audit_log_table_names: {
         Args: never
         Returns: {
@@ -3491,6 +3551,10 @@ export type Database = {
       }
       can_access_opportunity_schedule: {
         Args: { _opportunity_id: string }
+        Returns: boolean
+      }
+      can_manage_direct_report: {
+        Args: { _manager: string; _report: string }
         Returns: boolean
       }
       can_manage_opportunity: {
@@ -3686,6 +3750,10 @@ export type Database = {
         Args: { _user_id: string }
         Returns: undefined
       }
+      recompute_visibility_for_user_subtree: {
+        Args: { _user_id: string }
+        Returns: undefined
+      }
       record_approval_decision: {
         Args: {
           _comment?: string
@@ -3695,6 +3763,7 @@ export type Database = {
         Returns: undefined
       }
       region_entity_ids: { Args: { _caller: string }; Returns: string[] }
+      remove_direct_report: { Args: { _report_id: string }; Returns: Json }
       rep_scorecard_agg: {
         Args: {
           p_group?: boolean
@@ -3864,6 +3933,7 @@ export type Database = {
         | "deal_won"
         | "deal_lost"
         | "confidential_break_glass"
+        | "direct_report_reassigned"
       opportunity_team_role: "owner" | "contributor" | "viewer" | "approver"
       project_type:
         | "ip"
@@ -4116,6 +4186,7 @@ export const Constants = {
         "deal_won",
         "deal_lost",
         "confidential_break_glass",
+        "direct_report_reassigned",
       ],
       opportunity_team_role: ["owner", "contributor", "viewer", "approver"],
       project_type: [
