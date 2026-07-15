@@ -1200,6 +1200,47 @@ Detailed acceptance criteria for all tickets in this phase are deliberately defe
 
 ---
 
+## Phase 9.7 — Voice / Text Record Generator (PROPOSED — Phase 0 gate, ORR-732)
+
+> **Status: gates G1–G9 RESOLVED (Orrin, 2026-07-14); Track A cleared to build on sign-off.** Output of the Phase 0 discovery gate (`docs/voice-record-generator/phase-0-discovery.md`). Epic **ORR-732**. Key decisions: **skip provenance** (helper tool — dropped a ticket); **ephemeral** audio+transcript (deleted on commit); **local Whisper via an admin-configurable endpoint URL** (VPS-local or lanbox/cloud); **never auto-fill owner/access** fields; **rep picks the record type**. The brief's "Phase 1" (opportunity flow) is **already shipped** (ORR-674→686) — start from Track A. The referenced mockup `docs/mocks/opportunity-generator-review.html` **does not exist** — the shipped `ReviewBanner` is the design.
+
+### T-144 — Add `account_extraction` + `contact_extraction` AI features
+- **Track:** A (generalise engine) · **Size:** S · **Approval:** `cto`
+- New `AiFeature` values (`lib/ai/types.ts`, `lib/ai/features.ts` + `FEATURE_LABELS`, PG `ai_feature` enum migration). Prereq for A2/A3.
+
+### T-145 — Account extraction schema + prompts + resolver
+- **Track:** A · **Size:** M · **Depends on:** T-144
+- Mirror the opportunity extractor for accounts (required field = `name` only) → `AccountPrefill`; reuse `pickRecord`/`extractJsonObject`/`aiCall`. Commit via existing `createAccount`.
+
+### T-146 — Contact extraction schema + prompts + resolver (account-first)
+- **Track:** A · **Size:** M · **Depends on:** T-144, T-145
+- Contact extractor → `ContactPrefill`; **resolve/queue the account before the contact** (account-scoped picker constraint). Commit via existing `createContact`.
+
+### ~~T-147 — Provenance generalisation~~ — DROPPED (G3: skip provenance for this feature)
+
+### T-148 — Record-type-parametric generator UI + routing (gate G6)
+- **Track:** A · **Size:** M · **Depends on:** T-145, T-146
+- Extract a shared review component from `opportunity-generator.tsx`; record-type routing (rep picks per G6); commit dispatches to the chosen create action.
+
+### T-149 — Browser audio capture
+- **Track:** B (voice) · **Size:** M
+- `MediaRecorder` capture + upload component. Media retention/RLS per gate G4.
+
+### T-150 — Transcription seam + admin endpoint setting (gate G2)
+- **Track:** B · **Size:** L · **Depends on:** T-149
+- Post audio to an **admin-configurable transcription endpoint** (URL/IP setting, mirroring the `ai_providers.base_url` pattern) — a Whisper-compatible HTTP endpoint on the VPS or a lanbox/cloud. A **new call path** (not `aiCall`). Transcript is ephemeral (G4): used for extraction, deleted on commit.
+- **Concurrency (Orrin, 2026-07-14):** the workload is bursty, not streaming (occasional short jobs from N reps). The app must **not** assume instant transcription: use a "transcribing…" state with a sensible timeout + retry and degrade gracefully if the endpoint is briefly busy; the endpoint owns its own queue/concurrency so the box can be scaled independently (VPS CPU → GPU box → cloud STT → worker pool) **without an app change**. Design for ~10–30 concurrent reps as the target; the URL setting is what makes scaling a config change, not a code change.
+
+### T-151 — Wire transcript → text pipeline
+- **Track:** B · **Size:** S · **Depends on:** T-150, T-148
+- Transcript becomes the `text` input to extraction (reuses everything).
+
+### T-152 — Reusable global launcher (gate G7)
+- **Track:** C · **Size:** M
+- One record-type-chooser launcher in a header "Create new" affordance + a keyboard shortcut. Do **not** build a command palette (absent by design). Dashboard-tile / palette mounts are deferred, not rebuilds.
+
+---
+
 ## What comes after T-135
 
 Phase 9.5 ends with the MCP server reviewed and live. After that:
