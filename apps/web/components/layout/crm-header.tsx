@@ -4,6 +4,7 @@ import { ModeToggle } from "@/components/theme/mode-toggle"
 import { NotificationsDrawer } from "@/components/notifications/notifications-drawer"
 import { SidebarMobile } from "@/components/layout/sidebar"
 import { GlobalSearch } from "@/components/layout/global-search"
+import { CreateLauncher } from "@/components/layout/create-launcher"
 
 interface CrmHeaderProps {
   user: {
@@ -20,7 +21,8 @@ export function CrmHeader({ user }: CrmHeaderProps) {
         <SidebarMobile user={user} />
         <GlobalSearch />
       </div>
-      <div className="flex items-center gap-0.5 lg:gap-1">
+      <div className="flex items-center gap-1 lg:gap-1.5">
+        <CreateLauncher />
         <ModeToggle />
         <NotificationsDrawer />
       </div>

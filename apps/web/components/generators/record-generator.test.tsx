@@ -24,6 +24,7 @@ type Result = GeneratorResult<Prefill>
 function renderGen(opts: {
   transcribeAction?: (fd: FormData) => Promise<{ ok: boolean; text?: string; error?: string }>
   generateAction?: (input: { text?: string }) => Promise<Result>
+  autoOpen?: boolean
 }) {
   const generateAction =
     opts.generateAction ??
@@ -34,6 +35,7 @@ function renderGen(opts: {
       createLabel="Create Account"
       generateAction={generateAction as (i: { text?: string }) => Promise<Result>}
       transcribeAction={opts.transcribeAction}
+      autoOpen={opts.autoOpen}
       fieldLabels={{ name: "Name" }}
       renderForm={({ open, result }) =>
         open ? <div data-testid="form">{result?.prefill ? result.prefill.name : "blank"}</div> : null
@@ -93,5 +95,19 @@ describe("RecordGenerator — voice path (ORR-741)", () => {
     await waitFor(() => expect(screen.getByText("The service is busy.")).toBeInTheDocument())
     expect(generateAction).not.toHaveBeenCalled()
     expect(screen.queryByTestId("form")).not.toBeInTheDocument()
+  })
+})
+
+describe("RecordGenerator — auto-open (ORR-746)", () => {
+  it("opens the chooser on mount when autoOpen is set", async () => {
+    renderGen({ autoOpen: true })
+    // No "Create Account" click — the launcher-routed page opens it directly.
+    await waitFor(() => expect(screen.getByText(/fill it out myself/i)).toBeInTheDocument())
+    expect(screen.getByText(/generate from a note/i)).toBeInTheDocument()
+  })
+
+  it("stays closed when autoOpen is not set", async () => {
+    renderGen({})
+    expect(screen.queryByText(/fill it out myself/i)).not.toBeInTheDocument()
   })
 })

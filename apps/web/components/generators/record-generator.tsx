@@ -46,6 +46,9 @@ interface RecordGeneratorProps<Prefill, Result extends GeneratorResult<Prefill>>
    *  "record a voice note" path; the transcript feeds the same text pipeline.
    *  Pages pass this only when a transcription endpoint is configured + enabled. */
   transcribeAction?: (formData: FormData) => Promise<TranscribeAudioResult>
+  /** When true, open the chooser once on mount — the global "+ New" launcher
+   *  (ORR-746) routes here with `?create=1` and the page derives this flag. */
+  autoOpen?: boolean
   /** Field-key → label map for the review banner. */
   fieldLabels: Record<string, string>
   /** Render the record's create form, controlled. `result` is null for the
@@ -96,6 +99,7 @@ export function RecordGenerator<Prefill, Result extends GeneratorResult<Prefill>
   generateAction,
   extractFileAction,
   transcribeAction,
+  autoOpen,
   fieldLabels,
   renderForm,
 }: RecordGeneratorProps<Prefill, Result>) {
@@ -176,6 +180,17 @@ export function RecordGenerator<Prefill, Result extends GeneratorResult<Prefill>
       window.removeEventListener("drop", onDrop)
     }
   }, [phase, handleFile])
+
+  // Open the chooser once when the "+ New" launcher routed here with ?create=1.
+  // On a fresh mount all state is already at its initial value, so this just needs
+  // to advance the phase. autoOpen is captured once by the page, so it never flips.
+  const autoOpenedRef = useRef(false)
+  useEffect(() => {
+    if (autoOpen && !autoOpenedRef.current) {
+      autoOpenedRef.current = true
+      setPhase("chooser")
+    }
+  }, [autoOpen])
 
   async function onAnalyse() {
     if (!text.trim() && !pendingFile && !pendingImage) {

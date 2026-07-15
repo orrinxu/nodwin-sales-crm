@@ -10,8 +10,13 @@ vi.mock("@/components/accounts/account-form", () => ({
   AccountForm: (props: { open?: boolean; banner?: React.ReactNode }) =>
     props.open ? <div data-testid="acct-form">{props.banner}</div> : null,
 }))
+// The "+ New" launcher flag (ORR-746) — default off; one test flips it on.
+vi.mock("@/components/generators/use-auto-open-create", () => ({
+  useAutoOpenCreate: vi.fn(() => false),
+}))
 
 import { AccountGenerator } from "./account-generator"
+import { useAutoOpenCreate } from "@/components/generators/use-auto-open-create"
 import type { GenerateAccountResult } from "@/app/(crm)/accounts/generate-actions"
 
 function renderGen(generateAction: (i: { text?: string }) => Promise<GenerateAccountResult>) {
@@ -41,6 +46,14 @@ describe("AccountGenerator", () => {
     renderGen(vi.fn())
     await userEvent.click(screen.getByRole("button", { name: /create account/i }))
     expect(screen.getByText(/fill it out myself/i)).toBeInTheDocument()
+    expect(screen.getByText(/generate from a note/i)).toBeInTheDocument()
+  })
+
+  it("auto-opens the chooser when the launcher routed here (ORR-746)", async () => {
+    vi.mocked(useAutoOpenCreate).mockReturnValueOnce(true)
+    renderGen(vi.fn())
+    // No click on "Create Account" — the chooser is open from mount.
+    await waitFor(() => expect(screen.getByText(/fill it out myself/i)).toBeInTheDocument())
     expect(screen.getByText(/generate from a note/i)).toBeInTheDocument()
   })
 

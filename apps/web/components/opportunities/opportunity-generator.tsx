@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog"
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
 import { VoiceRecorder } from "@/components/generators/voice-recorder"
+import { useAutoOpenCreate } from "@/components/generators/use-auto-open-create"
 import type { GenerateOpportunityResult, ExtractFileResult, TranscribeAudioResult } from "@/app/(crm)/opportunities/generate-actions"
 import { recordExtractionProvenanceAction } from "@/app/(crm)/opportunities/generate-actions"
 import { uploadBlobToDocuments, finalizeUpload } from "@/lib/documents/client-upload"
@@ -111,6 +112,17 @@ export function OpportunityGenerator({ generateAction, extractFileAction, transc
   const [formOpen, setFormOpen] = useState(false)
   const [formKey, setFormKey] = useState(0)
   const [result, setResult] = useState<GenerateOpportunityResult | null>(null)
+
+  // Open the chooser once when the global "+ New" launcher routed here with
+  // ?create=1 (ORR-746). Fresh-mount state is already initial, so just set phase.
+  const autoOpen = useAutoOpenCreate()
+  const autoOpenedRef = useRef(false)
+  useEffect(() => {
+    if (autoOpen && !autoOpenedRef.current) {
+      autoOpenedRef.current = true
+      setPhase("chooser")
+    }
+  }, [autoOpen])
 
   function reset() {
     setText("")
