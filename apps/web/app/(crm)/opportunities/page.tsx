@@ -34,7 +34,8 @@ import {
   saveViewAction,
   deleteSavedViewAction,
 } from "./actions"
-import { generateOpportunityAction, extractDocumentTextAction } from "./generate-actions"
+import { generateOpportunityAction, extractDocumentTextAction, transcribeAudioAction } from "./generate-actions"
+import { isTranscriptionAvailable } from "@/lib/data/ai-settings"
 
 /**
  * Unified Opportunities surface (ORR-711). One route, two orthogonal controls:
@@ -80,13 +81,14 @@ export default async function OpportunitiesPage({
     listParams.entityId = activeEntity
   }
 
-  const [{ opportunities: rawOpportunities }, accounts, businessUnits, userOptions, savedViews] =
+  const [{ opportunities: rawOpportunities }, accounts, businessUnits, userOptions, savedViews, voiceEnabled] =
     await Promise.all([
       getOpportunities(ctx, listParams),
       getAccountOptions(ctx),
       getBusinessUnitOptions(ctx),
       getUserOptions(ctx),
       listSavedViews(ctx, preset.savedViewScope),
+      isTranscriptionAvailable(),
     ])
 
   // G3: a user who owns no deals (e.g. an admin) landing on the implicit default
@@ -130,6 +132,7 @@ export default async function OpportunitiesPage({
       createAction={createOpportunityAction}
       generateAction={generateOpportunityAction}
       extractFileAction={extractDocumentTextAction}
+      transcribeAction={voiceEnabled ? transcribeAudioAction : undefined}
       updateStageAction={updateOpportunityStageAction}
       bulkDeleteAction={bulkDeleteOpportunitiesAction}
       bulkUpdateStageAction={bulkUpdateOpportunityStageAction}

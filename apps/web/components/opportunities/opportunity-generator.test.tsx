@@ -20,16 +20,28 @@ vi.mock("@/lib/documents/client-upload", () => ({
   uploadBlobToDocuments: vi.fn(async () => {}),
   finalizeUpload: vi.fn(async () => {}),
 }))
+// Stub the mic capture (ORR-745): a button that hands up a fake recording.
+vi.mock("@/components/generators/voice-recorder", () => ({
+  VoiceRecorder: ({ onRecorded }: { onRecorded: (b: Blob | null) => void }) => (
+    <button type="button" onClick={() => onRecorded(new Blob(["audio"], { type: "audio/webm" }))}>
+      stub-record
+    </button>
+  ),
+}))
 
 import { OpportunityGenerator } from "./opportunity-generator"
-import type { GenerateOpportunityResult } from "@/app/(crm)/opportunities/generate-actions"
+import type { GenerateOpportunityResult, TranscribeAudioResult } from "@/app/(crm)/opportunities/generate-actions"
 
-function renderGen(generateAction: (i: { text?: string; images?: { mimeType: string; dataBase64: string }[] }) => Promise<GenerateOpportunityResult>) {
+function renderGen(
+  generateAction: (i: { text?: string; images?: { mimeType: string; dataBase64: string }[] }) => Promise<GenerateOpportunityResult>,
+  transcribeAction?: (fd: FormData) => Promise<TranscribeAudioResult>,
+) {
   return render(
     <OpportunityGenerator
       businessUnits={[]}
       createAction={vi.fn()}
       generateAction={generateAction}
+      transcribeAction={transcribeAction}
       onSuccess={vi.fn()}
     />,
   )
@@ -91,5 +103,56 @@ describe("OpportunityGenerator", () => {
     await userEvent.click(screen.getByRole("button", { name: /analyse/i }))
     await waitFor(() => expect(screen.getByText(/could not be read/i)).toBeInTheDocument())
     expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument()
+  })
+})
+
+describe("OpportunityGenerator — voice path (ORR-745)", () => {
+  it("offers the record option only when transcribeAction is provided", async () => {
+    renderGen(vi.fn(), vi.fn())
+    await userEvent.click(screen.getByRole("button", { name: /create opportunity/i }))
+    expect(screen.getByText(/record a voice note/i)).toBeInTheDocument()
+  })
+
+  it("hides the record option when no transcribeAction is provided", async () => {
+    renderGen(vi.fn())
+    await userEvent.click(screen.getByRole("button", { name: /create opportunity/i }))
+    expect(screen.queryByText(/record a voice note/i)).not.toBeInTheDocument()
+  })
+
+  it("records → transcribes → feeds the transcript to generateAction and opens the pre-filled form", async () => {
+    const transcribeAction = vi.fn(async () => ({ ok: true, text: "spoken note about Acme Corp" }))
+    const generateAction = vi.fn(async () => OK_RESULT)
+    renderGen(generateAction, transcribeAction)
+
+    await userEvent.click(screen.getByRole("button", { name: /create opportunity/i }))
+    await userEvent.click(screen.getByText(/record a voice note/i))
+
+    // "Transcribe & analyse" is disabled until a recording exists.
+    const analyse = screen.getByRole("button", { name: /transcribe & analyse/i })
+    expect(analyse).toBeDisabled()
+
+    await userEvent.click(screen.getByRole("button", { name: /stub-record/i }))
+    expect(analyse).toBeEnabled()
+    await userEvent.click(analyse)
+
+    await waitFor(() => expect(transcribeAction).toHaveBeenCalledTimes(1))
+    expect(generateAction).toHaveBeenCalledWith({ text: "spoken note about Acme Corp" })
+    await waitFor(() => expect(screen.getByTestId("opp-form")).toBeInTheDocument())
+    expect(screen.getByText(/AI-generated from your document/i)).toBeInTheDocument()
+  })
+
+  it("shows an error (not the form) when transcription fails", async () => {
+    const transcribeAction = vi.fn(async () => ({ ok: false, error: "The transcription service is busy." }))
+    const generateAction = vi.fn(async () => OK_RESULT)
+    renderGen(generateAction, transcribeAction)
+
+    await userEvent.click(screen.getByRole("button", { name: /create opportunity/i }))
+    await userEvent.click(screen.getByText(/record a voice note/i))
+    await userEvent.click(screen.getByRole("button", { name: /stub-record/i }))
+    await userEvent.click(screen.getByRole("button", { name: /transcribe & analyse/i }))
+
+    await waitFor(() => expect(screen.getByText("The transcription service is busy.")).toBeInTheDocument())
+    expect(generateAction).not.toHaveBeenCalled()
+    expect(screen.queryByTestId("opp-form")).not.toBeInTheDocument()
   })
 })

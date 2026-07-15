@@ -1,14 +1,15 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Plus, FileText, Sparkles, PencilLine, UploadCloud, Loader2, CheckCircle2, AlertTriangle } from "lucide-react"
+import { Plus, FileText, Sparkles, PencilLine, UploadCloud, Loader2, CheckCircle2, AlertTriangle, Mic } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog"
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
-import type { GenerateOpportunityResult, ExtractFileResult } from "@/app/(crm)/opportunities/generate-actions"
+import { VoiceRecorder } from "@/components/generators/voice-recorder"
+import type { GenerateOpportunityResult, ExtractFileResult, TranscribeAudioResult } from "@/app/(crm)/opportunities/generate-actions"
 import { recordExtractionProvenanceAction } from "@/app/(crm)/opportunities/generate-actions"
 import { uploadBlobToDocuments, finalizeUpload } from "@/lib/documents/client-upload"
 import { persistGeneratorArtifacts } from "@/lib/opportunity/generator-artifacts"
@@ -34,9 +35,14 @@ type Props = Omit<FormProps, "open" | "onOpenChange" | "prefill" | "banner" | "t
   /** Server-side text extraction for binary uploads (PDF/DOCX). When absent, only
    *  pasted text and text files work. */
   extractFileAction?: (formData: FormData) => Promise<ExtractFileResult>
+  /** Server-side voice transcription (ORR-745, Track B). When present, the chooser
+   *  offers a "record a voice note" path; the transcript feeds the same generate
+   *  pipeline as a pasted note. The page passes this only when a transcription
+   *  endpoint is configured + enabled. Voice audio is never stored (no RFP). */
+  transcribeAction?: (formData: FormData) => Promise<TranscribeAudioResult>
 }
 
-type Phase = "idle" | "chooser" | "input" | "analysing" | "error"
+type Phase = "idle" | "chooser" | "input" | "record" | "analysing" | "error"
 
 const ANALYSE_STEPS = ["Reading document", "Extracting fields", "Matching to your records"]
 
@@ -80,7 +86,7 @@ async function fileToBase64(file: File): Promise<string> {
   return btoa(binary)
 }
 
-export function OpportunityGenerator({ generateAction, extractFileAction, ...formProps }: Props) {
+export function OpportunityGenerator({ generateAction, extractFileAction, transcribeAction, ...formProps }: Props) {
   const [phase, setPhase] = useState<Phase>("idle")
   const [text, setText] = useState("")
   const [fileName, setFileName] = useState<string | null>(null)
@@ -93,6 +99,8 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
   // opportunity on confirm (ORR-683). Only set for binary RFP uploads — pasted
   // text / text files never populate it, so they're never stored.
   const [rfpFile, setRfpFile] = useState<File | null>(null)
+  // A recorded voice note awaiting transcription. Ephemeral — never stored.
+  const [pendingAudio, setPendingAudio] = useState<Blob | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [analyseStep, setAnalyseStep] = useState(0)
   const [dragging, setDragging] = useState(false)
@@ -109,6 +117,7 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
     setFileName(null)
     setPendingFile(null)
     setPendingImage(null)
+    setPendingAudio(null)
     setErrorMsg(null)
     setAnalyseStep(0)
   }
@@ -262,7 +271,48 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
     }
   }
 
-  const chooserOpen = phase === "chooser" || phase === "input" || phase === "analysing" || phase === "error"
+  // Voice path (ORR-745): transcribe the recording server-side, then feed the
+  // transcript into the exact same generate pipeline the paste path uses. A voice
+  // note is text-only — no RFP binary is retained (setRfpFile(null)), so nothing
+  // is stored on confirm; provenance is still recorded from `result`.
+  async function onTranscribeAndAnalyse() {
+    if (!pendingAudio || !transcribeAction) return
+    setPhase("analysing")
+    setErrorMsg(null)
+    setAnalyseStep(0)
+    const t1 = setTimeout(() => setAnalyseStep(1), 1200)
+    const t2 = setTimeout(() => setAnalyseStep(2), 3200)
+    try {
+      const fd = new FormData()
+      fd.append("audio", pendingAudio, "recording.webm")
+      const tr = await transcribeAction(fd)
+      if (!tr.ok || !tr.text) {
+        clearTimeout(t1)
+        clearTimeout(t2)
+        setPhase("error")
+        setErrorMsg(tr.error ?? "Couldn't transcribe that recording. Try again, or type the note instead.")
+        return
+      }
+      const res = await generateAction({ text: tr.text })
+      clearTimeout(t1)
+      clearTimeout(t2)
+      if (!res.ok) {
+        setPhase("error")
+        setErrorMsg(res.error ?? "The note could not be read. Try again, or type it out.")
+        return
+      }
+      setRfpFile(null)
+      openForm(res)
+    } catch {
+      clearTimeout(t1)
+      clearTimeout(t2)
+      setPhase("error")
+      setErrorMsg("Something went wrong while transcribing. Please try again.")
+    }
+  }
+
+  const chooserOpen =
+    phase === "chooser" || phase === "input" || phase === "record" || phase === "analysing" || phase === "error"
 
   return (
     <>
@@ -306,7 +356,35 @@ export function OpportunityGenerator({ generateAction, extractFileAction, ...for
                   <span className="font-medium">Generate from a document</span>
                   <span className="text-xs text-muted-foreground">Drop an RFP or email — AI pre-fills the form.</span>
                 </button>
+                {transcribeAction && (
+                  <button
+                    type="button"
+                    onClick={() => { reset(); setRfpFile(null); setPhase("record") }}
+                    className="flex flex-col items-start gap-2 rounded-lg border p-4 text-left transition hover:border-primary hover:bg-accent sm:col-span-2"
+                  >
+                    <Mic className="size-5 text-muted-foreground" />
+                    <span className="font-medium">Record a voice note</span>
+                    <span className="text-xs text-muted-foreground">Speak it — AI transcribes and pre-fills the form.</span>
+                  </button>
+                )}
               </div>
+            </>
+          )}
+
+          {phase === "record" && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Record a voice note</DialogTitle>
+                <DialogDescription>Speak naturally about the opportunity. You&apos;ll review everything before it saves.</DialogDescription>
+              </DialogHeader>
+              <VoiceRecorder onRecorded={setPendingAudio} />
+              {errorMsg && <p className="text-sm text-destructive">{errorMsg}</p>}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => { setPhase("chooser"); setPendingAudio(null) }}>Back</Button>
+                <Button type="button" onClick={onTranscribeAndAnalyse} disabled={!pendingAudio}>
+                  <Sparkles className="size-4" /> Transcribe &amp; analyse
+                </Button>
+              </DialogFooter>
             </>
           )}
 

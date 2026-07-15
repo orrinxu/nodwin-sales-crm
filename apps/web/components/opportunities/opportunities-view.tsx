@@ -30,7 +30,7 @@ import { OpportunityBoard } from "@/components/opportunities/opportunity-board"
 import { OpportunityListTable } from "@/components/opportunities/opportunity-list-table"
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
 import { OpportunityGenerator } from "@/components/opportunities/opportunity-generator"
-import type { GenerateOpportunityResult, ExtractFileResult } from "@/app/(crm)/opportunities/generate-actions"
+import type { GenerateOpportunityResult, ExtractFileResult, TranscribeAudioResult } from "@/app/(crm)/opportunities/generate-actions"
 
 interface OpportunitiesViewProps {
   /**
@@ -58,6 +58,9 @@ interface OpportunitiesViewProps {
   generateAction?: (input: { text?: string; images?: { mimeType: string; dataBase64: string }[] }) => Promise<GenerateOpportunityResult>
   /** ORR-684: server-side text extraction for PDF/DOCX uploads in the generator. */
   extractFileAction?: (formData: FormData) => Promise<ExtractFileResult>
+  /** ORR-745: voice transcription for the generator's record path. Present only
+   *  when a transcription endpoint is configured. */
+  transcribeAction?: (formData: FormData) => Promise<TranscribeAudioResult>
   updateStageAction: (id: string, input: { stage: string }) => Promise<OpportunityRecord>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
   bulkUpdateStageAction: (input: { ids: string[]; stage: string }) => Promise<void>
@@ -105,6 +108,7 @@ export function OpportunitiesView({
   createAction,
   generateAction,
   extractFileAction,
+  transcribeAction,
   updateStageAction,
   bulkDeleteAction,
   bulkUpdateStageAction,
@@ -180,6 +184,7 @@ export function OpportunitiesView({
       createAction={createAction}
       generateAction={generateAction}
       extractFileAction={extractFileAction}
+      transcribeAction={transcribeAction}
       onSuccess={() => router.refresh()}
       searchAccountsAction={searchAccountsAction}
       searchContactsAction={searchContactsAction}
@@ -328,6 +333,7 @@ export function OpportunitiesView({
           createAction={createAction}
           generateAction={generateAction}
           extractFileAction={extractFileAction}
+          transcribeAction={transcribeAction}
           updateStageAction={updateStageAction}
           searchAccountsAction={searchAccountsAction}
           searchContactsAction={searchContactsAction}
