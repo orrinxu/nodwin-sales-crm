@@ -130,10 +130,62 @@ Find previous shas under the repo's **Packages** (ghcr) or in the git log.
 
 ---
 
-## 7. Troubleshooting
+## 7. Voice transcription (Whisper) — optional add-on
+
+Lights up the **"Record a voice note"** option in the account/contact generators
+(ORR-741). It's hidden until a transcription endpoint is configured, so this is
+what turns it on. Runs as a sibling container on the same compose — see
+[`whisper.service.yml`](./whisper.service.yml).
+
+```bash
+ssh <user>@<vps-host>
+cd <STAGING_COMPOSE_DIR>
+```
+
+1. **Add the whisper service** to the same `docker-compose.yml` that holds `app`
+   (so they share the internal network): copy the `whisper:` service **and** the
+   `whisper-hf-cache` volume from [`whisper.service.yml`](./whisper.service.yml).
+2. **Start it, then install the model** (speaches does *not* auto-download it —
+   `WHISPER__MODEL` only sets the default id; you must install it once, into the
+   cache volume, so it persists across restarts):
+   ```bash
+   docker compose up -d whisper
+   docker compose logs -f whisper      # wait for "Uvicorn running on ...:8000", Ctrl-C
+   # install the model (~460 MB for small; a few seconds):
+   docker compose exec app node -e "fetch('http://whisper:8000/v1/models/Systran/faster-whisper-small',{method:'POST'}).then(r=>r.text()).then(console.log)"
+   ```
+3. **Point the CRM at it** — no app restart needed. In the app, go to
+   **Admin → AI → Transcription endpoint (voice notes)** and set:
+   - **Base URL:** `http://whisper:8000/v1`  ← internal compose DNS; the app
+     reaches the container by service name
+   - **Model:** `Systran/faster-whisper-small` (must match `WHISPER__MODEL`)
+   - tick **Voice transcription enabled**, Save.
+
+   (Alternatively, set `TRANSCRIPTION_BASE_URL` / `TRANSCRIPTION_MODEL` in
+   `app.env` and `docker compose up -d app` — env is the fallback, the DB setting
+   wins.)
+4. **Verify.** Reload **Create Contact** → the "Record a voice note" tile now
+   appears. Or check the endpoint from the app container:
+   ```bash
+   docker compose exec app node -e "fetch('http://whisper:8000/v1/models').then(r=>r.text()).then(console.log)"
+   ```
+
+**Sizing.** CPU is fine for dictated notes (bursty, not streaming). `small`
+needs ~2 GB RAM; drop to `Systran/faster-whisper-base.en` (~1 GB) if the droplet
+is tight, updating **both** `WHISPER__MODEL` and the CRM's Model field. Keep the
+container **off the public internet** — it has no auth; the app reaches it only
+on the internal network.
+
+---
+
+## 8. Troubleshooting
 
 | Symptom | Where to look / fix |
 |---|---|
+| Voice tile missing after setup | The CRM gates it on `isTranscriptionAvailable()` — Base URL **and** Model must be set and the toggle on. Re-open the Create dialog after saving. |
+| `whisper` restarts / OOM | Model too big for the droplet — switch to `base.en`/`tiny.en`. Check `docker compose logs whisper` and `docker stats`. |
+| Transcribe 404 "Model … is not installed locally" | You skipped the model-install step — run the `POST /v1/models/Systran/faster-whisper-small` curl in §7.2. `WHISPER__MODEL` alone does not download it. |
+| Transcribe says "service is busy" | The endpoint returned 429/5xx or timed out (the seam retries then degrades). Check `docker compose logs whisper`; the first request after an idle period reloads the model into RAM (~6 s, model TTL is 300 s). |
 | `checks` job red | Open the failed step. gitleaks findings are printed (redacted); lint/typecheck mirror `pnpm lint` / `pnpm typecheck` locally. |
 | Deploy step: `docker compose pull` **denied** | The VPS couldn't auth to ghcr. If the package is private, make it public (repo → Packages → package → visibility), or confirm the login step ran. |
 | Container keeps restarting | `docker compose logs app` on the VPS. Usually a missing **required** env var in `app.env` (the app throws on boot via `env.ts`). |
