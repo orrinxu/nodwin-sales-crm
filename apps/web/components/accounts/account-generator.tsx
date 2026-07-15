@@ -5,6 +5,7 @@ import {
   RecordGenerator,
   type ImagePayload,
   type ExtractFileResult,
+  type TranscribeAudioResult,
 } from "@/components/generators/record-generator"
 import type { GenerateAccountResult } from "@/app/(crm)/accounts/generate-actions"
 import type { AccountPrefill } from "@/lib/data/account-extraction-resolver"
@@ -19,6 +20,7 @@ type FormProps = React.ComponentProps<typeof AccountForm>
 type Props = Omit<FormProps, "open" | "onOpenChange" | "prefill" | "banner" | "trigger"> & {
   generateAction: (input: { text?: string; images?: ImagePayload[] }) => Promise<GenerateAccountResult>
   extractFileAction?: (formData: FormData) => Promise<ExtractFileResult>
+  transcribeAction?: (formData: FormData) => Promise<TranscribeAudioResult>
 }
 
 const ACCOUNT_FIELD_LABELS: Record<string, string> = {
@@ -30,13 +32,14 @@ const ACCOUNT_FIELD_LABELS: Record<string, string> = {
   description: "Description",
 }
 
-export function AccountGenerator({ generateAction, extractFileAction, ...formProps }: Props) {
+export function AccountGenerator({ generateAction, extractFileAction, transcribeAction, ...formProps }: Props) {
   return (
     <RecordGenerator<AccountPrefill, GenerateAccountResult>
       entityLabel="account"
       createLabel="Create Account"
       generateAction={generateAction}
       extractFileAction={extractFileAction}
+      transcribeAction={transcribeAction}
       fieldLabels={ACCOUNT_FIELD_LABELS}
       renderForm={({ formKey, open, onOpenChange, result, banner }) => (
         <AccountForm
