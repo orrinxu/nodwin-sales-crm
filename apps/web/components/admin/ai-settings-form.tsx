@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { FacetTabs, FacetTabsList, FacetTabsTab, FacetTabsPanel } from "@/components/primitives/facet-tabs"
 import type { AiSettingsSafe, IngestionStatusCounts, FailedIngestionDocument } from "@/lib/data/ai-settings"
 import type { RunIngestionResult, RetryFailedResult } from "@/app/(crm)/admin/ai/actions"
 
@@ -41,6 +42,7 @@ export function AiSettingsForm({ settings, counts, failedDocuments = [], skipped
   const [searchEnabled, setSearchEnabled] = useState(settings.searchEnabled)
   const [transcriptionEnabled, setTranscriptionEnabled] = useState(settings.transcriptionEnabled)
 
+  const [tab, setTab] = useState("embeddings")
   const [pending, setPending] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -96,153 +98,167 @@ export function AiSettingsForm({ settings, counts, failedDocuments = [], skipped
   const keyPlaceholder = (has: boolean) => (has ? "•••••••• (leave blank to keep)" : "API key (optional)")
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="flex items-center gap-2 text-lg font-semibold">
-          <Sparkles className="size-5 text-muted-foreground" /> Knowledge &amp; RAG
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Configure the self-hosted embedding and generation endpoints for document ingestion and
-          knowledge search. Values set here override environment defaults.
-        </p>
-      </div>
+    <div className="space-y-4">
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Sparkles className="size-4" />
+        Configure the AI endpoints and document ingestion. Values set here override environment defaults.
+      </p>
 
-      <form onSubmit={onSave} className="space-y-6">
-        {/* Embeddings */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between text-sm">
-              <span>Embeddings endpoint</span>
-              <ConfiguredBadge ok={settings.embeddingsConfigured} />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              OpenAI-compatible <code>/embeddings</code> server (e.g. llama.cpp with <code>--embedding</code>).
-              The same model must index and query — changing it requires re-indexing.
-            </p>
-            <Field label="Base URL">
-              <Input value={embeddingsBaseUrl} onChange={(e) => setEmbeddingsBaseUrl(e.target.value)} placeholder="http://host:8080/v1" />
-            </Field>
-            <Field label="Model">
-              <Input value={embeddingsModel} onChange={(e) => setEmbeddingsModel(e.target.value)} placeholder="nomic-embed-text" />
-            </Field>
-            <Field label="API key">
-              <Input type="password" value={embeddingsApiKey} onChange={(e) => setEmbeddingsApiKey(e.target.value)} placeholder={keyPlaceholder(settings.hasEmbeddingsApiKey)} autoComplete="new-password" />
-            </Field>
-          </CardContent>
-        </Card>
+      <FacetTabs value={tab} onValueChange={(v) => setTab(v as string)}>
+        <FacetTabsList className="text-[15px]">
+          <FacetTabsTab value="embeddings">Embeddings</FacetTabsTab>
+          <FacetTabsTab value="generation">Generation</FacetTabsTab>
+          <FacetTabsTab value="voice">Voice</FacetTabsTab>
+          <FacetTabsTab value="ingestion">Ingestion</FacetTabsTab>
+        </FacetTabsList>
 
-        {/* Generation */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between text-sm">
-              <span>Generation endpoint (RAG answers)</span>
-              <ConfiguredBadge ok={settings.generationConfigured} />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Self-hosted OpenAI-compatible chat server for grounded answers. Kept self-hosted so
-              sensitive proposal/pricing text never leaves your infrastructure.
-            </p>
-            <Field label="Base URL">
-              <Input value={generationBaseUrl} onChange={(e) => setGenerationBaseUrl(e.target.value)} placeholder="http://host:8081/v1" />
-            </Field>
-            <Field label="Model">
-              <Input value={generationModel} onChange={(e) => setGenerationModel(e.target.value)} placeholder="qwen2.5-instruct" />
-            </Field>
-            <Field label="API key">
-              <Input type="password" value={generationApiKey} onChange={(e) => setGenerationApiKey(e.target.value)} placeholder={keyPlaceholder(settings.hasGenerationApiKey)} autoComplete="new-password" />
-            </Field>
-          </CardContent>
-        </Card>
+        {/* Config tabs share one form + one Save (saveAction persists every field). */}
+        <form onSubmit={onSave} className="space-y-4 pt-4">
+          <FacetTabsPanel value="embeddings">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between text-sm">
+                  <span>Embeddings endpoint</span>
+                  <ConfiguredBadge ok={settings.embeddingsConfigured} />
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  OpenAI-compatible <code>/embeddings</code> server (e.g. llama.cpp with <code>--embedding</code>).
+                  The same model must index and query — changing it requires re-indexing.
+                </p>
+                <Field label="Base URL">
+                  <Input value={embeddingsBaseUrl} onChange={(e) => setEmbeddingsBaseUrl(e.target.value)} placeholder="http://host:8080/v1" />
+                </Field>
+                <Field label="Model">
+                  <Input value={embeddingsModel} onChange={(e) => setEmbeddingsModel(e.target.value)} placeholder="nomic-embed-text" />
+                </Field>
+                <Field label="API key">
+                  <Input type="password" value={embeddingsApiKey} onChange={(e) => setEmbeddingsApiKey(e.target.value)} placeholder={keyPlaceholder(settings.hasEmbeddingsApiKey)} autoComplete="new-password" />
+                </Field>
+                <div className="border-t pt-3">
+                  <Toggle label="Document ingestion enabled" checked={ingestionEnabled} onChange={setIngestionEnabled} />
+                </div>
+              </CardContent>
+            </Card>
+          </FacetTabsPanel>
 
-        {/* Transcription (voice) — ORR-737 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between text-sm">
-              <span>Transcription endpoint (voice notes)</span>
-              <ConfiguredBadge ok={settings.transcriptionConfigured} />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              OpenAI-compatible <code>/audio/transcriptions</code> (Whisper) server for the voice
-              record generator. Runs self-hosted on the VPS or a lanbox, or point at a cloud STT —
-              scaling the endpoint is a config change, not a code change.
-            </p>
-            <Field label="Base URL">
-              <Input value={transcriptionBaseUrl} onChange={(e) => setTranscriptionBaseUrl(e.target.value)} placeholder="http://host:9000/v1" />
-            </Field>
-            <Field label="Model">
-              <Input value={transcriptionModel} onChange={(e) => setTranscriptionModel(e.target.value)} placeholder="whisper-1" />
-            </Field>
-            <Field label="API key">
-              <Input type="password" value={transcriptionApiKey} onChange={(e) => setTranscriptionApiKey(e.target.value)} placeholder={keyPlaceholder(settings.hasTranscriptionApiKey)} autoComplete="new-password" />
-            </Field>
-          </CardContent>
-        </Card>
+          <FacetTabsPanel value="generation">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between text-sm">
+                  <span>Generation endpoint (RAG answers)</span>
+                  <ConfiguredBadge ok={settings.generationConfigured} />
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Self-hosted OpenAI-compatible chat server for grounded answers. Kept self-hosted so
+                  sensitive proposal/pricing text never leaves your infrastructure.
+                </p>
+                <Field label="Base URL">
+                  <Input value={generationBaseUrl} onChange={(e) => setGenerationBaseUrl(e.target.value)} placeholder="http://host:8081/v1" />
+                </Field>
+                <Field label="Model">
+                  <Input value={generationModel} onChange={(e) => setGenerationModel(e.target.value)} placeholder="qwen2.5-instruct" />
+                </Field>
+                <Field label="API key">
+                  <Input type="password" value={generationApiKey} onChange={(e) => setGenerationApiKey(e.target.value)} placeholder={keyPlaceholder(settings.hasGenerationApiKey)} autoComplete="new-password" />
+                </Field>
+                <div className="border-t pt-3">
+                  <Toggle label="Knowledge search enabled" checked={searchEnabled} onChange={setSearchEnabled} />
+                </div>
+              </CardContent>
+            </Card>
+          </FacetTabsPanel>
 
-        {/* Toggles */}
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Features</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            <Toggle label="Document ingestion enabled" checked={ingestionEnabled} onChange={setIngestionEnabled} />
-            <Toggle label="Knowledge search enabled" checked={searchEnabled} onChange={setSearchEnabled} />
-            <Toggle label="Voice transcription enabled" checked={transcriptionEnabled} onChange={setTranscriptionEnabled} />
-          </CardContent>
-        </Card>
+          <FacetTabsPanel value="voice">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between text-sm">
+                  <span>Transcription endpoint (voice notes)</span>
+                  <ConfiguredBadge ok={settings.transcriptionConfigured} />
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  OpenAI-compatible <code>/audio/transcriptions</code> (Whisper) server for the voice
+                  record generator. Runs self-hosted on the VPS or a lanbox, or point at a cloud STT —
+                  scaling the endpoint is a config change, not a code change.
+                </p>
+                <Field label="Base URL">
+                  <Input value={transcriptionBaseUrl} onChange={(e) => setTranscriptionBaseUrl(e.target.value)} placeholder="http://host:9000/v1" />
+                </Field>
+                <Field label="Model">
+                  <Input value={transcriptionModel} onChange={(e) => setTranscriptionModel(e.target.value)} placeholder="whisper-1" />
+                </Field>
+                <Field label="API key">
+                  <Input type="password" value={transcriptionApiKey} onChange={(e) => setTranscriptionApiKey(e.target.value)} placeholder={keyPlaceholder(settings.hasTranscriptionApiKey)} autoComplete="new-password" />
+                </Field>
+                <div className="border-t pt-3">
+                  <Toggle label="Voice transcription enabled" checked={transcriptionEnabled} onChange={setTranscriptionEnabled} />
+                </div>
+              </CardContent>
+            </Card>
+          </FacetTabsPanel>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <div className="flex items-center gap-3">
-          <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save settings"}</Button>
-          {saved && <span className="text-sm text-muted-foreground">Saved.</span>}
-        </div>
-      </form>
-
-      {/* Ops panel */}
-      <Card>
-        <CardHeader><CardTitle className="text-sm">Ingestion status</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-4 text-sm">
-            <Stat label="Pending" value={counts.pending} />
-            <Stat label="Indexed" value={counts.indexed} />
-            <Stat label="Failed" value={counts.failed} />
-            <Stat label="Skipped" value={counts.skipped} />
-            <Stat label="Total" value={counts.total} />
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button type="button" variant="outline" size="sm" onClick={onRun} disabled={running || retrying}>
-              <Play className="size-4" /> {running ? "Running…" : "Run ingestion now"}
-            </Button>
-            {retryFailedAction && counts.failed > 0 && (
-              <Button type="button" variant="outline" size="sm" onClick={onRetryFailed} disabled={retrying || running}>
-                <RefreshCw className="size-4" /> {retrying ? "Resetting…" : `Retry all failed (${counts.failed})`}
-              </Button>
-            )}
-            {runResult && (
-              <span className="text-xs text-muted-foreground">
-                {runResult.note ?? `Processed ${runResult.processed} — ${runResult.indexed} indexed, ${runResult.failed} failed, ${runResult.skipped} skipped.`}
-              </span>
-            )}
-            {retryResult && !runResult && (
-              <span className="text-xs text-muted-foreground">
-                {retryResult.reset === 0
-                  ? "Nothing to retry."
-                  : `${retryResult.reset} reset to pending — click "Run ingestion now" to reprocess.`}
-              </span>
-            )}
-          </div>
-
-          {counts.failed > 0 && (
-            <DocumentReasons kind="failed" docs={failedDocuments} total={counts.failed} />
+          {/* Save applies to the whole config, so it's hidden only on the read-only Ingestion tab. */}
+          {tab !== "ingestion" && (
+            <div className="space-y-2">
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <div className="flex items-center gap-3">
+                <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save settings"}</Button>
+                {saved && <span className="text-sm text-muted-foreground">Saved.</span>}
+              </div>
+            </div>
           )}
-          {counts.skipped > 0 && (
-            <DocumentReasons kind="skipped" docs={skippedDocuments} total={counts.skipped} />
-          )}
-        </CardContent>
-      </Card>
+        </form>
+
+        {/* Ops panel — read + actions, not part of the config form. */}
+        <FacetTabsPanel value="ingestion" className="pt-4">
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Ingestion status</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-4 text-sm">
+                <Stat label="Pending" value={counts.pending} />
+                <Stat label="Indexed" value={counts.indexed} />
+                <Stat label="Failed" value={counts.failed} />
+                <Stat label="Skipped" value={counts.skipped} />
+                <Stat label="Total" value={counts.total} />
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button type="button" variant="outline" size="sm" onClick={onRun} disabled={running || retrying}>
+                  <Play className="size-4" /> {running ? "Running…" : "Run ingestion now"}
+                </Button>
+                {retryFailedAction && counts.failed > 0 && (
+                  <Button type="button" variant="outline" size="sm" onClick={onRetryFailed} disabled={retrying || running}>
+                    <RefreshCw className="size-4" /> {retrying ? "Resetting…" : `Retry all failed (${counts.failed})`}
+                  </Button>
+                )}
+                {runResult && (
+                  <span className="text-xs text-muted-foreground">
+                    {runResult.note ?? `Processed ${runResult.processed} — ${runResult.indexed} indexed, ${runResult.failed} failed, ${runResult.skipped} skipped.`}
+                  </span>
+                )}
+                {retryResult && !runResult && (
+                  <span className="text-xs text-muted-foreground">
+                    {retryResult.reset === 0
+                      ? "Nothing to retry."
+                      : `${retryResult.reset} reset to pending — click "Run ingestion now" to reprocess.`}
+                  </span>
+                )}
+              </div>
+
+              {counts.failed > 0 && (
+                <DocumentReasons kind="failed" docs={failedDocuments} total={counts.failed} />
+              )}
+              {counts.skipped > 0 && (
+                <DocumentReasons kind="skipped" docs={skippedDocuments} total={counts.skipped} />
+              )}
+            </CardContent>
+          </Card>
+        </FacetTabsPanel>
+      </FacetTabs>
     </div>
   )
 }
