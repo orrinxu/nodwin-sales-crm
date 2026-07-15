@@ -208,8 +208,9 @@ export function AiSettingsForm({ settings, counts, failedDocuments = [], skipped
             </Card>
           </FacetTabsPanel>
 
-          {/* Save applies to the whole config, so it's hidden only on the read-only Ingestion tab. */}
-          {tab !== "ingestion" && (
+          {/* "Save settings" belongs only to the endpoint config tabs. The Providers
+              tab has its own "Save providers", and Ingestion is read-only. */}
+          {(tab === "embeddings" || tab === "generation" || tab === "voice") && (
             <div className="space-y-2">
               {error && <p className="text-sm text-destructive">{error}</p>}
               <div className="flex items-center gap-3">
