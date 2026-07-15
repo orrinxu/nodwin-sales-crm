@@ -172,6 +172,23 @@ describe("AiSettingsForm — providers tab", () => {
     expect(screen.queryByPlaceholderText("http://host:8080/v1")).not.toBeInTheDocument()
   })
 
+  it("does not show the settings Save on the Providers tab (only on endpoint tabs)", async () => {
+    render(
+      <AiSettingsForm
+        settings={settings}
+        counts={counts}
+        saveAction={vi.fn()}
+        runIngestionAction={vi.fn()}
+        providersSlot={<div data-testid="providers-slot">provider config</div>}
+      />,
+    )
+    // On Providers, the endpoint form's "Save settings" must not leak in.
+    expect(screen.queryByRole("button", { name: /save settings/i })).not.toBeInTheDocument()
+    // It appears once we open an endpoint tab.
+    await openTab(/embeddings/i)
+    expect(screen.getByRole("button", { name: /save settings/i })).toBeInTheDocument()
+  })
+
   it("has no Providers tab when no slot is given (defaults to Embeddings)", () => {
     renderForm(counts, [])
     expect(screen.queryByRole("tab", { name: /providers/i })).not.toBeInTheDocument()
