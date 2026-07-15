@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Sparkles, Play, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react"
+import { Play, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,6 +18,9 @@ interface Props {
   saveAction: (input: unknown) => Promise<void>
   runIngestionAction: () => Promise<RunIngestionResult>
   retryFailedAction?: () => Promise<RetryFailedResult>
+  /** The AI-providers form, rendered as the first tab. Self-contained (its own
+   *  form + save), so it lives outside this component's settings form. */
+  providersSlot?: React.ReactNode
 }
 
 function ConfiguredBadge({ ok }: { ok: boolean }) {
@@ -28,7 +31,7 @@ function ConfiguredBadge({ ok }: { ok: boolean }) {
   )
 }
 
-export function AiSettingsForm({ settings, counts, failedDocuments = [], skippedDocuments = [], saveAction, runIngestionAction, retryFailedAction }: Props) {
+export function AiSettingsForm({ settings, counts, failedDocuments = [], skippedDocuments = [], saveAction, runIngestionAction, retryFailedAction, providersSlot }: Props) {
   const [embeddingsBaseUrl, setEmbeddingsBaseUrl] = useState(settings.embeddingsBaseUrl ?? "")
   const [embeddingsModel, setEmbeddingsModel] = useState(settings.embeddingsModel ?? "")
   const [embeddingsApiKey, setEmbeddingsApiKey] = useState("")
@@ -42,7 +45,7 @@ export function AiSettingsForm({ settings, counts, failedDocuments = [], skipped
   const [searchEnabled, setSearchEnabled] = useState(settings.searchEnabled)
   const [transcriptionEnabled, setTranscriptionEnabled] = useState(settings.transcriptionEnabled)
 
-  const [tab, setTab] = useState("embeddings")
+  const [tab, setTab] = useState(providersSlot ? "providers" : "embeddings")
   const [pending, setPending] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -99,18 +102,21 @@ export function AiSettingsForm({ settings, counts, failedDocuments = [], skipped
 
   return (
     <div className="space-y-4">
-      <p className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Sparkles className="size-4" />
-        Configure the AI endpoints and document ingestion. Values set here override environment defaults.
-      </p>
-
       <FacetTabs value={tab} onValueChange={(v) => setTab(v as string)}>
         <FacetTabsList className="text-[15px]">
+          {providersSlot && <FacetTabsTab value="providers">Providers</FacetTabsTab>}
           <FacetTabsTab value="embeddings">Embeddings</FacetTabsTab>
           <FacetTabsTab value="generation">Generation</FacetTabsTab>
           <FacetTabsTab value="voice">Voice</FacetTabsTab>
           <FacetTabsTab value="ingestion">Ingestion</FacetTabsTab>
         </FacetTabsList>
+
+        {/* Providers has its own form + save, so it lives outside the settings form. */}
+        {providersSlot && (
+          <FacetTabsPanel value="providers" className="pt-4">
+            {providersSlot}
+          </FacetTabsPanel>
+        )}
 
         {/* Config tabs share one form + one Save (saveAction persists every field). */}
         <form onSubmit={onSave} className="space-y-4 pt-4">
