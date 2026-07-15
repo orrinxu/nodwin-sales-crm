@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation"
 import { requireUser, isSuperAdmin } from "@/lib/security/auth"
+import { getBreakGlassTarget } from "@/lib/data/break-glass"
+import { BreakGlassGate } from "@/components/opportunities/break-glass-gate"
 import {
   getOpportunityById,
   getBusinessUnitOptions,
@@ -63,6 +65,20 @@ export default async function OpportunityDetailPage({
 
   const opportunity = await getOpportunityById(ctx, id)
   if (!opportunity) {
+    // Exec break-glass entry (ORR-716): a founder holding a Confidential deal's
+    // link but no access yet gets the accountable door instead of a 404. For
+    // everyone else — and any non-Confidential / non-existent id — the probe
+    // returns nothing and the page falls through to a normal 404.
+    const breakGlassTarget = await getBreakGlassTarget(id)
+    if (breakGlassTarget) {
+      return (
+        <BreakGlassGate
+          opportunityId={id}
+          opportunityName={breakGlassTarget.opportunityName}
+          ownerName={breakGlassTarget.ownerName}
+        />
+      )
+    }
     notFound()
   }
 

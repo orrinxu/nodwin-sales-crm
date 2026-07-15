@@ -121,6 +121,43 @@ export async function notifyApprovalRequested(
   }
 }
 
+export interface BreakGlassContext {
+  opportunityId: string
+  opportunityName: string
+  actorName: string
+  reason: string
+  /** Owner + prior named list (the RPC excludes the actor). */
+  recipientUserIds: string[]
+  entityId?: string
+}
+
+// Notify a Confidential deal's existing named list that someone broke glass into
+// it (ORR-716). This is the real-time accountability channel for an emergency
+// self-grant — every recipient already has access to the deal. Best-effort per
+// recipient: a delivery failure is logged, never thrown (the grant already stands).
+export async function notifyBreakGlass(ctx: BreakGlassContext): Promise<void> {
+  const linkUrl = `/opportunities/${ctx.opportunityId}`
+  for (const userId of ctx.recipientUserIds) {
+    try {
+      await sendNotification(userId, "confidential_break_glass", {
+        title: `Break-glass access: ${ctx.opportunityName}`,
+        message: `${ctx.actorName} used break-glass to access the Confidential deal "${ctx.opportunityName}". Reason: ${ctx.reason}`,
+        linkUrl,
+        entityId: ctx.entityId,
+        metadata: {
+          event_type: "confidential_break_glass",
+          opportunity_id: ctx.opportunityId,
+          actor_name: ctx.actorName,
+        },
+      })
+    } catch (err) {
+      console.error(
+        `[notifications] Failed to send break-glass notification to ${userId}: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  }
+}
+
 export interface MentionContext {
   mentionedUserId: string
   mentionedByName: string
