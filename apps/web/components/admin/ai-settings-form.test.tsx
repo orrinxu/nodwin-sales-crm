@@ -153,6 +153,32 @@ describe("AiSettingsForm — transcription (voice) endpoint (ORR-737)", () => {
   })
 })
 
+describe("AiSettingsForm — providers tab", () => {
+  const counts: IngestionStatusCounts = { pending: 0, indexed: 0, failed: 0, skipped: 0, total: 0 }
+
+  it("renders a Providers tab (selected by default) showing the slot", () => {
+    render(
+      <AiSettingsForm
+        settings={settings}
+        counts={counts}
+        saveAction={vi.fn()}
+        runIngestionAction={vi.fn()}
+        providersSlot={<div data-testid="providers-slot">provider config</div>}
+      />,
+    )
+    expect(screen.getByRole("tab", { name: /providers/i })).toBeInTheDocument()
+    // Providers is the default tab, so its slot is mounted; the Embeddings panel is not.
+    expect(screen.getByTestId("providers-slot")).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText("http://host:8080/v1")).not.toBeInTheDocument()
+  })
+
+  it("has no Providers tab when no slot is given (defaults to Embeddings)", () => {
+    renderForm(counts, [])
+    expect(screen.queryByRole("tab", { name: /providers/i })).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText("http://host:8080/v1")).toBeInTheDocument()
+  })
+})
+
 describe("AiSettingsForm — skipped (un-indexable) documents", () => {
   const skipped: FailedIngestionDocument[] = [
     { id: "s1", name: "old-migration.pdf", error: "Document bytes not found in storage: Object not found", attempts: 0, failedAt: "2026-07-15T00:00:00Z" },

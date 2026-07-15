@@ -120,7 +120,7 @@ export function AiProvidersForm({ data, saveAction }: Props) {
         <p className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-muted-foreground">
           These settings configure the general AI router and take effect for each generative AI
           feature as it is switched on. Knowledge search &amp; RAG answers use the dedicated
-          self-hosted generation endpoint configured below — not this chain.
+          self-hosted generation endpoint on the <strong>Generation</strong> tab — not this chain.
         </p>
       </div>
 

@@ -6,7 +6,6 @@ import {
   getFailedIngestionDocuments,
   getSkippedIngestionDocuments,
 } from "@/lib/data/ai-settings"
-import { Separator } from "@/components/ui/separator"
 import { AiProvidersForm } from "@/components/admin/ai-providers-form"
 import { AiSettingsForm } from "@/components/admin/ai-settings-form"
 import { saveAiProvidersAction, saveAiSettingsAction, runIngestionNowAction, retryAllFailedAction } from "./actions"
@@ -38,11 +37,7 @@ export default async function AdminAiPage() {
         </p>
       </div>
 
-      <div className="max-w-3xl space-y-8">
-        <AiProvidersForm data={providers} saveAction={saveAiProvidersAction} />
-
-        <Separator />
-
+      <div className="max-w-3xl">
         <AiSettingsForm
           settings={settings}
           counts={counts}
@@ -51,6 +46,7 @@ export default async function AdminAiPage() {
           saveAction={saveAiSettingsAction}
           runIngestionAction={runIngestionNowAction}
           retryFailedAction={retryAllFailedAction}
+          providersSlot={<AiProvidersForm data={providers} saveAction={saveAiProvidersAction} />}
         />
       </div>
     </div>
