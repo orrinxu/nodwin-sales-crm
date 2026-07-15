@@ -43,8 +43,12 @@ export interface EndpointConfig {
 export interface ResolvedAiConfig {
   embeddings: EndpointConfig
   generation: EndpointConfig
+  /** ORR-737 speech-to-text (Whisper) endpoint. */
+  transcription: EndpointConfig
   ingestionEnabled: boolean
   searchEnabled: boolean
+  /** ORR-737 kill switch for voice transcription. */
+  transcriptionEnabled: boolean
 }
 
 type AiSettingsRow = Database["public"]["Tables"]["ai_settings"]["Row"]
@@ -73,8 +77,14 @@ export async function resolveAiConfig(): Promise<ResolvedAiConfig> {
       model: firstNonEmpty(row?.generation_model, env.GENERATION_MODEL),
       apiKey: firstNonEmpty(row?.generation_api_key, env.GENERATION_API_KEY),
     },
+    transcription: {
+      baseUrl: firstNonEmpty(row?.transcription_base_url, env.TRANSCRIPTION_BASE_URL),
+      model: firstNonEmpty(row?.transcription_model, env.TRANSCRIPTION_MODEL),
+      apiKey: firstNonEmpty(row?.transcription_api_key, env.TRANSCRIPTION_API_KEY),
+    },
     ingestionEnabled: row?.ingestion_enabled ?? true,
     searchEnabled: row?.search_enabled ?? true,
+    transcriptionEnabled: row?.transcription_enabled ?? true,
   }
 }
 
@@ -87,11 +97,16 @@ export interface AiSettingsSafe {
   generationBaseUrl: string | null
   generationModel: string | null
   hasGenerationApiKey: boolean
+  transcriptionBaseUrl: string | null
+  transcriptionModel: string | null
+  hasTranscriptionApiKey: boolean
   ingestionEnabled: boolean
   searchEnabled: boolean
+  transcriptionEnabled: boolean
   /** Whether each endpoint is effectively configured (DB or env). */
   embeddingsConfigured: boolean
   generationConfigured: boolean
+  transcriptionConfigured: boolean
 }
 
 /** Safe config for the admin UI — secrets stripped. RLS restricts read to admins. */
@@ -110,6 +125,9 @@ export async function getAiSettings(ctx: AiSettingsCallContext): Promise<AiSetti
     !!firstNonEmpty(data?.embeddings_base_url, env.EMBEDDINGS_BASE_URL) &&
     !!firstNonEmpty(data?.embeddings_model, env.EMBEDDINGS_MODEL)
   const generationConfigured = !!firstNonEmpty(data?.generation_base_url, env.GENERATION_BASE_URL)
+  const transcriptionConfigured =
+    !!firstNonEmpty(data?.transcription_base_url, env.TRANSCRIPTION_BASE_URL) &&
+    !!firstNonEmpty(data?.transcription_model, env.TRANSCRIPTION_MODEL)
 
   return {
     embeddingsBaseUrl: data?.embeddings_base_url ?? null,
@@ -118,10 +136,15 @@ export async function getAiSettings(ctx: AiSettingsCallContext): Promise<AiSetti
     generationBaseUrl: data?.generation_base_url ?? null,
     generationModel: data?.generation_model ?? null,
     hasGenerationApiKey: !!data?.generation_api_key,
+    transcriptionBaseUrl: data?.transcription_base_url ?? null,
+    transcriptionModel: data?.transcription_model ?? null,
+    hasTranscriptionApiKey: !!data?.transcription_api_key,
     ingestionEnabled: data?.ingestion_enabled ?? true,
     searchEnabled: data?.search_enabled ?? true,
+    transcriptionEnabled: data?.transcription_enabled ?? true,
     embeddingsConfigured,
     generationConfigured,
+    transcriptionConfigured,
   }
 }
 
@@ -132,8 +155,12 @@ export const aiSettingsSchema = z.object({
   generationBaseUrl: z.string().max(500).nullable().optional().or(z.literal("")),
   generationModel: z.string().max(200).nullable().optional().or(z.literal("")),
   generationApiKey: z.string().max(1000).optional(), // write-only
+  transcriptionBaseUrl: z.string().max(500).nullable().optional().or(z.literal("")),
+  transcriptionModel: z.string().max(200).nullable().optional().or(z.literal("")),
+  transcriptionApiKey: z.string().max(1000).optional(), // write-only; blank = keep existing
   ingestionEnabled: z.boolean().optional(),
   searchEnabled: z.boolean().optional(),
+  transcriptionEnabled: z.boolean().optional(),
 })
 export type AiSettingsInput = z.input<typeof aiSettingsSchema>
 
@@ -162,12 +189,16 @@ export async function updateAiSettings(
     embeddings_model: emptyToNull(parsed.embeddingsModel ?? null),
     generation_base_url: emptyToNull(parsed.generationBaseUrl ?? null),
     generation_model: emptyToNull(parsed.generationModel ?? null),
+    transcription_base_url: emptyToNull(parsed.transcriptionBaseUrl ?? null),
+    transcription_model: emptyToNull(parsed.transcriptionModel ?? null),
     updated_by: ctx.user.id,
   }
   if (parsed.ingestionEnabled !== undefined) patch.ingestion_enabled = parsed.ingestionEnabled
   if (parsed.searchEnabled !== undefined) patch.search_enabled = parsed.searchEnabled
+  if (parsed.transcriptionEnabled !== undefined) patch.transcription_enabled = parsed.transcriptionEnabled
   if (parsed.embeddingsApiKey && parsed.embeddingsApiKey.length > 0) patch.embeddings_api_key = parsed.embeddingsApiKey
   if (parsed.generationApiKey && parsed.generationApiKey.length > 0) patch.generation_api_key = parsed.generationApiKey
+  if (parsed.transcriptionApiKey && parsed.transcriptionApiKey.length > 0) patch.transcription_api_key = parsed.transcriptionApiKey
 
   if (existing) {
     const { error } = await supabase.from("ai_settings").update(patch).eq("id", existing.id)

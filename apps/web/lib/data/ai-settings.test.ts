@@ -53,20 +53,33 @@ describe("resolveAiConfig (DB-then-env)", () => {
     mockEnv.EMBEDDINGS_BASE_URL = "http://env:8080/v1"
     mockEnv.EMBEDDINGS_MODEL = "env-model"
     mockEnv.GENERATION_BASE_URL = "http://env-gen/v1"
+    mockEnv.TRANSCRIPTION_MODEL = "env-whisper" // gap → env
     ssrRow.value = {
       embeddings_base_url: "http://db:8080/v1", // DB wins
       embeddings_model: null, // gap → env
       generation_base_url: null, // gap → env
       generation_model: "db-gen-model",
+      transcription_base_url: "http://db-whisper/v1", // DB wins
+      transcription_model: null, // gap → env
       ingestion_enabled: false,
       search_enabled: true,
+      transcription_enabled: false,
     }
     const cfg = await resolveAiConfig()
     expect(cfg.embeddings.baseUrl).toBe("http://db:8080/v1")
     expect(cfg.embeddings.model).toBe("env-model")
     expect(cfg.generation.baseUrl).toBe("http://env-gen/v1")
     expect(cfg.generation.model).toBe("db-gen-model")
+    expect(cfg.transcription.baseUrl).toBe("http://db-whisper/v1")
+    expect(cfg.transcription.model).toBe("env-whisper")
     expect(cfg.ingestionEnabled).toBe(false)
+    expect(cfg.transcriptionEnabled).toBe(false)
+  })
+
+  it("defaults transcriptionEnabled to true when no row", async () => {
+    const cfg = await resolveAiConfig()
+    expect(cfg.transcriptionEnabled).toBe(true)
+    expect(cfg.transcription.baseUrl).toBeNull()
   })
 })
 
@@ -82,13 +95,20 @@ describe("getAiSettings (masking)", () => {
       embeddings_model: "m",
       embeddings_api_key: "super-secret-key",
       generation_api_key: null,
+      transcription_base_url: "http://whisper/v1",
+      transcription_model: "whisper-1",
+      transcription_api_key: "whisper-secret",
       ingestion_enabled: true,
       search_enabled: true,
     }
     const safe = await getAiSettings(ctx)
     expect(safe.hasEmbeddingsApiKey).toBe(true)
     expect(safe.hasGenerationApiKey).toBe(false)
+    expect(safe.hasTranscriptionApiKey).toBe(true)
+    expect(safe.transcriptionConfigured).toBe(true)
+    expect(safe.transcriptionEnabled).toBe(true) // default when column absent
     expect(JSON.stringify(safe)).not.toContain("super-secret-key")
+    expect(JSON.stringify(safe)).not.toContain("whisper-secret")
     expect(safe.embeddingsConfigured).toBe(true)
   })
 })

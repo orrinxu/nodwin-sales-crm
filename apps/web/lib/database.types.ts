@@ -389,6 +389,10 @@ export type Database = {
           is_singleton: boolean
           primary_provider: string | null
           search_enabled: boolean
+          transcription_api_key: string | null
+          transcription_base_url: string | null
+          transcription_enabled: boolean
+          transcription_model: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -407,6 +411,10 @@ export type Database = {
           is_singleton?: boolean
           primary_provider?: string | null
           search_enabled?: boolean
+          transcription_api_key?: string | null
+          transcription_base_url?: string | null
+          transcription_enabled?: boolean
+          transcription_model?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -425,6 +433,10 @@ export type Database = {
           is_singleton?: boolean
           primary_provider?: string | null
           search_enabled?: boolean
+          transcription_api_key?: string | null
+          transcription_base_url?: string | null
+          transcription_enabled?: boolean
+          transcription_model?: string | null
           updated_at?: string
           updated_by?: string | null
         }

@@ -35,6 +35,11 @@ export const envSchema = z.object({
   GENERATION_BASE_URL: z.string().url().optional(),
   GENERATION_MODEL: z.string().optional(),
   GENERATION_API_KEY: z.string().optional(),
+  // ORR-737 speech-to-text (Whisper) endpoint fallback (DB ai_settings wins).
+  // Point at an OpenAI-compatible /audio/transcriptions server (local or cloud).
+  TRANSCRIPTION_BASE_URL: z.string().url().optional(),
+  TRANSCRIPTION_MODEL: z.string().optional(),
+  TRANSCRIPTION_API_KEY: z.string().optional(),
   // ORR-635 AI provider config fallback (DB ai_providers wins over these).
   // Previously read as raw process.env in the provider adapters (audit ARCH-1).
   ANTHROPIC_API_KEY: z.string().optional(),
