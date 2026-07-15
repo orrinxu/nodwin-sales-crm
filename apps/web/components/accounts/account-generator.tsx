@@ -7,6 +7,7 @@ import {
   type ExtractFileResult,
   type TranscribeAudioResult,
 } from "@/components/generators/record-generator"
+import { useAutoOpenCreate } from "@/components/generators/use-auto-open-create"
 import type { GenerateAccountResult } from "@/app/(crm)/accounts/generate-actions"
 import type { AccountPrefill } from "@/lib/data/account-extraction-resolver"
 
@@ -33,6 +34,7 @@ const ACCOUNT_FIELD_LABELS: Record<string, string> = {
 }
 
 export function AccountGenerator({ generateAction, extractFileAction, transcribeAction, ...formProps }: Props) {
+  const autoOpen = useAutoOpenCreate()
   return (
     <RecordGenerator<AccountPrefill, GenerateAccountResult>
       entityLabel="account"
@@ -40,6 +42,7 @@ export function AccountGenerator({ generateAction, extractFileAction, transcribe
       generateAction={generateAction}
       extractFileAction={extractFileAction}
       transcribeAction={transcribeAction}
+      autoOpen={autoOpen}
       fieldLabels={ACCOUNT_FIELD_LABELS}
       renderForm={({ formKey, open, onOpenChange, result, banner }) => (
         <AccountForm

@@ -7,6 +7,7 @@ import {
   type ExtractFileResult,
   type TranscribeAudioResult,
 } from "@/components/generators/record-generator"
+import { useAutoOpenCreate } from "@/components/generators/use-auto-open-create"
 import type { GenerateContactResult } from "@/app/(crm)/contacts/generate-actions"
 import type { ContactPrefill } from "@/lib/data/contact-extraction-resolver"
 
@@ -38,6 +39,7 @@ const CONTACT_FIELD_LABELS: Record<string, string> = {
 }
 
 export function ContactGenerator({ generateAction, extractFileAction, transcribeAction, ...formProps }: Props) {
+  const autoOpen = useAutoOpenCreate()
   return (
     <RecordGenerator<ContactPrefill, GenerateContactResult>
       entityLabel="contact"
@@ -45,6 +47,7 @@ export function ContactGenerator({ generateAction, extractFileAction, transcribe
       generateAction={generateAction}
       extractFileAction={extractFileAction}
       transcribeAction={transcribeAction}
+      autoOpen={autoOpen}
       fieldLabels={CONTACT_FIELD_LABELS}
       renderForm={({ formKey, open, onOpenChange, result, banner }) => (
         <ContactForm

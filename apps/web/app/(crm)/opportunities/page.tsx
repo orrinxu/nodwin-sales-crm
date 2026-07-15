@@ -46,7 +46,7 @@ import { isTranscriptionAvailable } from "@/lib/data/ai-settings"
 export default async function OpportunitiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ scope?: string; view?: string; entity?: string }>
+  searchParams: Promise<{ scope?: string; view?: string; entity?: string; create?: string }>
 }) {
   const sp = await searchParams
   const scopeKey = parseScopeKey(sp.scope)
@@ -98,6 +98,9 @@ export default async function OpportunitiesPage({
   if (sp.scope == null && scopeKey === "my-pipeline" && rawOpportunities.length === 0) {
     const to = new URLSearchParams({ scope: "all-deals", view: "table" })
     if (activeEntity) to.set("entity", activeEntity)
+    // Preserve the launcher's create flag so "New opportunity" still opens the
+    // generator even when the rep has no deals and gets bounced to All Deals.
+    if (sp.create) to.set("create", sp.create)
     redirect(`/opportunities?${to.toString()}`)
   }
 

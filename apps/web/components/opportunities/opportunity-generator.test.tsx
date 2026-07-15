@@ -28,8 +28,13 @@ vi.mock("@/components/generators/voice-recorder", () => ({
     </button>
   ),
 }))
+// The "+ New" launcher flag (ORR-746) — default off; one test flips it on.
+vi.mock("@/components/generators/use-auto-open-create", () => ({
+  useAutoOpenCreate: vi.fn(() => false),
+}))
 
 import { OpportunityGenerator } from "./opportunity-generator"
+import { useAutoOpenCreate } from "@/components/generators/use-auto-open-create"
 import type { GenerateOpportunityResult, TranscribeAudioResult } from "@/app/(crm)/opportunities/generate-actions"
 
 function renderGen(
@@ -70,6 +75,14 @@ describe("OpportunityGenerator", () => {
     await userEvent.click(screen.getByRole("button", { name: /create opportunity/i }))
     await userEvent.click(screen.getByText(/fill it out myself/i))
     expect(screen.getByTestId("opp-form")).toBeInTheDocument()
+  })
+
+  it("auto-opens the chooser when the launcher routed here (ORR-746)", async () => {
+    vi.mocked(useAutoOpenCreate).mockReturnValueOnce(true)
+    renderGen(vi.fn())
+    // No click on "Create Opportunity" — the chooser is open from mount.
+    await waitFor(() => expect(screen.getByText(/fill it out myself/i)).toBeInTheDocument())
+    expect(screen.getByText(/generate from a document/i)).toBeInTheDocument()
   })
 
   it("generate → analyse → opens the pre-filled form with the AI review banner", async () => {

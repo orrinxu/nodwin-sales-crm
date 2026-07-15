@@ -4,6 +4,10 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
 vi.mock("server-only", () => ({}))
+// The "+ New" launcher flag (ORR-746) — default off; one test flips it on.
+vi.mock("@/components/generators/use-auto-open-create", () => ({
+  useAutoOpenCreate: vi.fn(() => false),
+}))
 // Stub the heavy create form — we only test the generator flow. It renders the
 // banner (and the prefilled name) when open so we can assert the review state.
 vi.mock("@/components/contacts/contact-form", () => ({
@@ -17,6 +21,7 @@ vi.mock("@/components/contacts/contact-form", () => ({
 }))
 
 import { ContactGenerator } from "./contact-generator"
+import { useAutoOpenCreate } from "@/components/generators/use-auto-open-create"
 import type { GenerateContactResult } from "@/app/(crm)/contacts/generate-actions"
 
 function renderGen(generateAction: (i: { text?: string }) => Promise<GenerateContactResult>) {
@@ -45,6 +50,13 @@ describe("ContactGenerator", () => {
     renderGen(vi.fn())
     await userEvent.click(screen.getByRole("button", { name: /create contact/i }))
     expect(screen.getByText(/fill it out myself/i)).toBeInTheDocument()
+    expect(screen.getByText(/generate from a note/i)).toBeInTheDocument()
+  })
+
+  it("auto-opens the chooser when the launcher routed here (ORR-746)", async () => {
+    vi.mocked(useAutoOpenCreate).mockReturnValueOnce(true)
+    renderGen(vi.fn())
+    await waitFor(() => expect(screen.getByText(/fill it out myself/i)).toBeInTheDocument())
     expect(screen.getByText(/generate from a note/i)).toBeInTheDocument()
   })
 
