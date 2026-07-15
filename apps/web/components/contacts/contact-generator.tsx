@@ -5,6 +5,7 @@ import {
   RecordGenerator,
   type ImagePayload,
   type ExtractFileResult,
+  type TranscribeAudioResult,
 } from "@/components/generators/record-generator"
 import type { GenerateContactResult } from "@/app/(crm)/contacts/generate-actions"
 import type { ContactPrefill } from "@/lib/data/contact-extraction-resolver"
@@ -22,6 +23,7 @@ type FormProps = React.ComponentProps<typeof ContactForm>
 type Props = Omit<FormProps, "open" | "onOpenChange" | "prefill" | "banner" | "trigger"> & {
   generateAction: (input: { text?: string; images?: ImagePayload[] }) => Promise<GenerateContactResult>
   extractFileAction?: (formData: FormData) => Promise<ExtractFileResult>
+  transcribeAction?: (formData: FormData) => Promise<TranscribeAudioResult>
 }
 
 // Keyed by resolver field keys (note: the account field is `account`, not
@@ -35,13 +37,14 @@ const CONTACT_FIELD_LABELS: Record<string, string> = {
   notes: "Notes",
 }
 
-export function ContactGenerator({ generateAction, extractFileAction, ...formProps }: Props) {
+export function ContactGenerator({ generateAction, extractFileAction, transcribeAction, ...formProps }: Props) {
   return (
     <RecordGenerator<ContactPrefill, GenerateContactResult>
       entityLabel="contact"
       createLabel="Create Contact"
       generateAction={generateAction}
       extractFileAction={extractFileAction}
+      transcribeAction={transcribeAction}
       fieldLabels={CONTACT_FIELD_LABELS}
       renderForm={({ formKey, open, onOpenChange, result, banner }) => (
         <ContactForm

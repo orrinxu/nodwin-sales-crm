@@ -11,6 +11,12 @@ import {
 } from "@/lib/data/opportunity-extraction-resolver"
 import { recordExtractionProvenance } from "@/lib/data/opportunity-provenance"
 import { extractionProvenanceSchema } from "@/lib/data/opportunity-provenance-schema"
+import { resolveAiConfig } from "@/lib/data/ai-settings"
+import {
+  createTranscriber,
+  TranscriptionNotConfiguredError,
+  TranscriptionUnavailableError,
+} from "@/lib/ai/transcription"
 
 // Opportunity Generator — server action (ORR-677, ticket 4/4).
 //
@@ -55,6 +61,69 @@ export interface ExtractFileResult {
   ok: boolean
   text?: string
   error?: string
+}
+
+export interface TranscribeAudioResult {
+  ok: boolean
+  /** The transcribed text — fed into the same generate pipeline as a pasted note. */
+  text?: string
+  /** No transcription endpoint configured (or it's disabled) — UI shows an admin hint. */
+  unconfigured?: boolean
+  /** The endpoint was reachable but busy / timed out — the user can retry. */
+  unavailable?: boolean
+  error?: string
+}
+
+// Audio uploads are capped well below the document limit — a dictated note is a
+// short clip. webm/opus is ~1 MB/min, so 25 MB is comfortably long.
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024
+
+/**
+ * Transcribe a recorded voice note (ORR-741, Track B) into text for the record
+ * generators. Runs the shared transcription seam (ORR-737) under the authenticated
+ * user; the resulting transcript becomes the `text` input to the existing
+ * extraction pipeline — no new create path. Audio is ephemeral (gate G4): read
+ * here, never stored. Entity-agnostic, so the account/contact generators share it.
+ */
+export async function transcribeAudioAction(formData: FormData): Promise<TranscribeAudioResult> {
+  await requireUser()
+
+  const file = formData.get("audio")
+  if (!(file instanceof File)) return { ok: false, error: "No audio was provided." }
+  if (file.size === 0) return { ok: false, error: "The recording was empty — try again." }
+  if (file.size > MAX_AUDIO_BYTES) {
+    return { ok: false, error: "That recording is too long — keep it under a few minutes." }
+  }
+
+  const cfg = await resolveAiConfig()
+  if (!cfg.transcriptionEnabled || !cfg.transcription.baseUrl || !cfg.transcription.model) {
+    return {
+      ok: false,
+      unconfigured: true,
+      error: "Voice transcription isn't set up yet — ask an admin to configure it in Admin → AI.",
+    }
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  try {
+    const { text } = await createTranscriber(cfg.transcription).transcribe({
+      bytes,
+      filename: file.name || "recording.webm",
+      contentType: file.type || "audio/webm",
+    })
+    if (!text.trim()) {
+      return { ok: false, error: "Couldn't hear anything in that recording. Try again, closer to the mic." }
+    }
+    return { ok: true, text }
+  } catch (err) {
+    if (err instanceof TranscriptionUnavailableError) {
+      return { ok: false, unavailable: true, error: "The transcription service is busy. Please try again in a moment." }
+    }
+    if (err instanceof TranscriptionNotConfiguredError) {
+      return { ok: false, unconfigured: true, error: err.message }
+    }
+    return { ok: false, error: "Couldn't transcribe that recording. Try again, or type the note instead." }
+  }
 }
 
 // Max upload the generator will read server-side. The extracted text still

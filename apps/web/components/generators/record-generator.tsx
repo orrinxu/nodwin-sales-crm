@@ -1,12 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
-import { Plus, FileText, Sparkles, PencilLine, UploadCloud, Loader2, CheckCircle2 } from "lucide-react"
+import { Plus, FileText, Sparkles, PencilLine, UploadCloud, Loader2, CheckCircle2, Mic } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog"
 import { GeneratorReviewBanner, type GeneratorReviewResult } from "@/components/generators/review-banner"
+import { VoiceRecorder } from "@/components/generators/voice-recorder"
 
 // Shared "generate a record from a note" shell (ORR-735). Factored out of the
 // opportunity generator so account/contact generators reuse the same chooser →
@@ -17,6 +18,13 @@ import { GeneratorReviewBanner, type GeneratorReviewResult } from "@/components/
 
 export type ImagePayload = { mimeType: string; dataBase64: string }
 export interface ExtractFileResult { ok: boolean; text?: string; error?: string }
+export interface TranscribeAudioResult {
+  ok: boolean
+  text?: string
+  unconfigured?: boolean
+  unavailable?: boolean
+  error?: string
+}
 
 /** The result shape every Generate*Result satisfies — enough for the banner + prefill. */
 export interface GeneratorResult<Prefill> extends GeneratorReviewResult {
@@ -34,6 +42,10 @@ interface RecordGeneratorProps<Prefill, Result extends GeneratorResult<Prefill>>
   generateAction: (input: { text?: string; images?: ImagePayload[] }) => Promise<Result>
   /** Server-side text extraction for PDF/DOCX. When absent, only text/images work. */
   extractFileAction?: (formData: FormData) => Promise<ExtractFileResult>
+  /** Server-side voice transcription (ORR-741). When present, the chooser offers a
+   *  "record a voice note" path; the transcript feeds the same text pipeline.
+   *  Pages pass this only when a transcription endpoint is configured + enabled. */
+  transcribeAction?: (formData: FormData) => Promise<TranscribeAudioResult>
   /** Field-key → label map for the review banner. */
   fieldLabels: Record<string, string>
   /** Render the record's create form, controlled. `result` is null for the
@@ -49,7 +61,7 @@ interface RecordGeneratorProps<Prefill, Result extends GeneratorResult<Prefill>>
   }) => ReactNode
 }
 
-type Phase = "idle" | "chooser" | "input" | "analysing" | "error"
+type Phase = "idle" | "chooser" | "input" | "record" | "analysing" | "error"
 
 const ANALYSE_STEPS = ["Reading note", "Extracting fields", "Matching to your records"]
 const TEXT_FILE = /\.(txt|eml|md|markdown|csv|log|json|text)$/i
@@ -83,6 +95,7 @@ export function RecordGenerator<Prefill, Result extends GeneratorResult<Prefill>
   createLabel,
   generateAction,
   extractFileAction,
+  transcribeAction,
   fieldLabels,
   renderForm,
 }: RecordGeneratorProps<Prefill, Result>) {
@@ -91,6 +104,7 @@ export function RecordGenerator<Prefill, Result extends GeneratorResult<Prefill>
   const [fileName, setFileName] = useState<string | null>(null)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [pendingImage, setPendingImage] = useState<ImagePayload | null>(null)
+  const [pendingAudio, setPendingAudio] = useState<Blob | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [analyseStep, setAnalyseStep] = useState(0)
   const [dragging, setDragging] = useState(false)
@@ -105,6 +119,7 @@ export function RecordGenerator<Prefill, Result extends GeneratorResult<Prefill>
     setFileName(null)
     setPendingFile(null)
     setPendingImage(null)
+    setPendingAudio(null)
     setErrorMsg(null)
     setAnalyseStep(0)
   }
@@ -210,7 +225,44 @@ export function RecordGenerator<Prefill, Result extends GeneratorResult<Prefill>
     }
   }
 
-  const chooserOpen = phase === "chooser" || phase === "input" || phase === "analysing" || phase === "error"
+  async function onTranscribeAndAnalyse() {
+    if (!pendingAudio || !transcribeAction) return
+    setPhase("analysing")
+    setErrorMsg(null)
+    setAnalyseStep(0)
+    const t1 = setTimeout(() => setAnalyseStep(1), 1200)
+    const t2 = setTimeout(() => setAnalyseStep(2), 3200)
+    try {
+      const fd = new FormData()
+      fd.append("audio", pendingAudio, "recording.webm")
+      const tr = await transcribeAction(fd)
+      if (!tr.ok || !tr.text) {
+        clearTimeout(t1)
+        clearTimeout(t2)
+        setPhase("error")
+        setErrorMsg(tr.error ?? "Couldn't transcribe that recording. Try again, or type the note instead.")
+        return
+      }
+      // The transcript is just text — reuse the exact pipeline the paste path uses.
+      const res = await generateAction({ text: tr.text })
+      clearTimeout(t1)
+      clearTimeout(t2)
+      if (!res.ok) {
+        setPhase("error")
+        setErrorMsg(res.error ?? "The note could not be read. Try again, or type it out.")
+        return
+      }
+      openForm(res)
+    } catch {
+      clearTimeout(t1)
+      clearTimeout(t2)
+      setPhase("error")
+      setErrorMsg("Something went wrong while transcribing. Please try again.")
+    }
+  }
+
+  const chooserOpen =
+    phase === "chooser" || phase === "input" || phase === "record" || phase === "analysing" || phase === "error"
 
   return (
     <>
@@ -254,7 +306,35 @@ export function RecordGenerator<Prefill, Result extends GeneratorResult<Prefill>
                   <span className="font-medium">Generate from a note</span>
                   <span className="text-xs text-muted-foreground">Paste or drop a note — AI pre-fills the form.</span>
                 </button>
+                {transcribeAction && (
+                  <button
+                    type="button"
+                    onClick={() => { reset(); setPhase("record") }}
+                    className="flex flex-col items-start gap-2 rounded-lg border p-4 text-left transition hover:border-primary hover:bg-accent sm:col-span-2"
+                  >
+                    <Mic className="size-5 text-muted-foreground" />
+                    <span className="font-medium">Record a voice note</span>
+                    <span className="text-xs text-muted-foreground">Speak it — AI transcribes and pre-fills the form.</span>
+                  </button>
+                )}
               </div>
+            </>
+          )}
+
+          {phase === "record" && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Record a voice note</DialogTitle>
+                <DialogDescription>Speak naturally about the {entityLabel}. You&apos;ll review everything before it saves.</DialogDescription>
+              </DialogHeader>
+              <VoiceRecorder onRecorded={setPendingAudio} />
+              {errorMsg && <p className="text-sm text-destructive">{errorMsg}</p>}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => { setPhase("chooser"); setPendingAudio(null) }}>Back</Button>
+                <Button type="button" onClick={onTranscribeAndAnalyse} disabled={!pendingAudio}>
+                  <Sparkles className="size-4" /> Transcribe &amp; analyse
+                </Button>
+              </DialogFooter>
             </>
           )}
 

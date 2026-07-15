@@ -88,6 +88,14 @@ export async function resolveAiConfig(): Promise<ResolvedAiConfig> {
   }
 }
 
+/** ORR-741: whether the voice-record path should be offered — an endpoint + model
+ *  are configured and the feature isn't disabled. Used by the generator pages to
+ *  conditionally wire the record-audio option. */
+export async function isTranscriptionAvailable(): Promise<boolean> {
+  const cfg = await resolveAiConfig()
+  return cfg.transcriptionEnabled && !!cfg.transcription.baseUrl && !!cfg.transcription.model
+}
+
 // ── Admin UI (masked safe view) ───────────────────────────────────────────────
 
 export interface AiSettingsSafe {

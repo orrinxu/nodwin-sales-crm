@@ -2,21 +2,23 @@ import { requireUser } from "@/lib/security/auth"
 import { getAccounts, getIndustryOptions, getOwnerOptions } from "@/lib/data/accounts"
 import { getFieldDefinitions } from "@/lib/data/field-definitions"
 import { getTaxIdTypes } from "@/lib/data/account-tax-ids"
+import { isTranscriptionAvailable } from "@/lib/data/ai-settings"
 import { createAccountAction, bulkDeleteAccountsAction, saveAccountTaxIdsAction } from "./actions"
 import { generateAccountAction } from "./generate-actions"
-import { extractDocumentTextAction } from "@/app/(crm)/opportunities/generate-actions"
+import { extractDocumentTextAction, transcribeAudioAction } from "@/app/(crm)/opportunities/generate-actions"
 import { AccountsList } from "@/components/accounts/accounts-list"
 
 export default async function AccountsPage() {
   const user = await requireUser()
 
   const ctx = { user, source: "web" as const }
-  const [{ accounts }, industries, owners, fieldDefinitions, taxIdTypes] = await Promise.all([
+  const [{ accounts }, industries, owners, fieldDefinitions, taxIdTypes, voiceEnabled] = await Promise.all([
     getAccounts(ctx),
     getIndustryOptions(ctx),
     getOwnerOptions(ctx),
     getFieldDefinitions(ctx, "account"),
     getTaxIdTypes(ctx),
+    isTranscriptionAvailable(),
   ])
 
   const ownerOptions = owners.map((o) => ({ id: o.id, name: o.name }))
@@ -36,6 +38,7 @@ export default async function AccountsPage() {
       bulkDeleteAction={bulkDeleteAccountsAction}
       generateAction={generateAccountAction}
       extractFileAction={extractDocumentTextAction}
+      transcribeAction={voiceEnabled ? transcribeAudioAction : undefined}
     />
   )
 }

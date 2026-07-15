@@ -67,6 +67,8 @@ interface AccountsListProps {
     images?: { mimeType: string; dataBase64: string }[]
   }) => Promise<import("@/app/(crm)/accounts/generate-actions").GenerateAccountResult>
   extractFileAction?: (formData: FormData) => Promise<{ ok: boolean; text?: string; error?: string }>
+  // ORR-741: voice-note transcription (present only when configured + enabled).
+  transcribeAction?: (formData: FormData) => Promise<{ ok: boolean; text?: string; unconfigured?: boolean; unavailable?: boolean; error?: string }>
 }
 
 export function AccountsList({
@@ -82,6 +84,7 @@ export function AccountsList({
   bulkDeleteAction,
   generateAction,
   extractFileAction,
+  transcribeAction,
 }: AccountsListProps) {
   const router = useRouter()
   const { formatDate } = usePreferences()
@@ -303,6 +306,7 @@ export function AccountsList({
           <AccountGenerator
             generateAction={generateAction}
             extractFileAction={extractFileAction}
+            transcribeAction={transcribeAction}
             createAction={createAction}
             saveTaxIdsAction={saveTaxIdsAction}
             ownerOptions={ownerOptions}

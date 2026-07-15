@@ -41,7 +41,7 @@ import {
 import { Card } from "@/components/ui/card"
 import { ContactForm } from "@/components/contacts/contact-form"
 import { ContactGenerator } from "@/components/contacts/contact-generator"
-import type { ImagePayload, ExtractFileResult } from "@/components/generators/record-generator"
+import type { ImagePayload, ExtractFileResult, TranscribeAudioResult } from "@/components/generators/record-generator"
 import type { GenerateContactResult } from "@/app/(crm)/contacts/generate-actions"
 import type { EntityOption } from "@/components/entity-combobox"
 import type { AccountOption, ContactListRecord, ContactCreateInput, ContactRecord } from "@/lib/data/contacts"
@@ -55,6 +55,8 @@ interface ContactsListProps {
   // Contact Generator (ORR-736) — optional; when absent the plain form renders.
   generateAction?: (input: { text?: string; images?: ImagePayload[] }) => Promise<GenerateContactResult>
   extractFileAction?: (formData: FormData) => Promise<ExtractFileResult>
+  // ORR-741: voice-note transcription (present only when configured + enabled).
+  transcribeAction?: (formData: FormData) => Promise<TranscribeAudioResult>
   // ORR-738: inline account-create in the create/generator flow.
   createAccountQuickAction?: (input: { name: string }) => Promise<EntityOption>
 }
@@ -66,6 +68,7 @@ export function ContactsList({
   bulkDeleteAction,
   generateAction,
   extractFileAction,
+  transcribeAction,
   createAccountQuickAction,
 }: ContactsListProps) {
   const router = useRouter()
@@ -242,6 +245,7 @@ export function ContactsList({
           <ContactGenerator
             generateAction={generateAction}
             extractFileAction={extractFileAction}
+            transcribeAction={transcribeAction}
             accounts={accounts}
             createAction={createAction}
             createAccountQuickAction={createAccountQuickAction}
