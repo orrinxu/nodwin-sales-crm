@@ -3485,6 +3485,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      break_glass_confidential: {
+        Args: { _opportunity_id: string; _reason: string }
+        Returns: Json
+      }
       can_access_opportunity_schedule: {
         Args: { _opportunity_id: string }
         Returns: boolean
@@ -3517,6 +3521,13 @@ export type Database = {
           current_spend_amount: number
           current_spend_currency: string
           reason: string
+        }[]
+      }
+      confidential_break_glass_target: {
+        Args: { _opportunity_id: string }
+        Returns: {
+          opportunity_name: string
+          owner_name: string
         }[]
       }
       confidential_opportunities_metadata: {
@@ -3852,6 +3863,7 @@ export type Database = {
         | "mention"
         | "deal_won"
         | "deal_lost"
+        | "confidential_break_glass"
       opportunity_team_role: "owner" | "contributor" | "viewer" | "approver"
       project_type:
         | "ip"
@@ -4103,6 +4115,7 @@ export const Constants = {
         "mention",
         "deal_won",
         "deal_lost",
+        "confidential_break_glass",
       ],
       opportunity_team_role: ["owner", "contributor", "viewer", "approver"],
       project_type: [

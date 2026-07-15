@@ -38,7 +38,60 @@ import {
   deleteSavedView,
   saveViewInputSchema,
 } from "@/lib/data/saved-views"
+import { breakGlassConfidential } from "@/lib/data/break-glass"
+import { notifyBreakGlass } from "@/lib/notifications/triggers"
 import { z } from "zod"
+
+const breakGlassSchema = z.object({
+  opportunityId: z.string().uuid(),
+  reason: z.string().trim().min(1, "A reason is required.").max(1000),
+})
+
+export type BreakGlassActionResult = { ok: true } | { ok: false; error: string }
+
+/**
+ * Break-glass into ONE specific Confidential deal (ORR-716). The DB RPC is the
+ * authority (exec-only, Confidential-only, audit-logged); this action validates
+ * input, then best-effort notifies the deal's named list. RPC refusals are mapped
+ * to friendly messages. Never a blanket grant.
+ */
+export async function breakGlassConfidentialAction(
+  input: unknown,
+): Promise<BreakGlassActionResult> {
+  const user = await requireUser()
+  const { opportunityId, reason } = breakGlassSchema.parse(input)
+
+  try {
+    const result = await breakGlassConfidential(opportunityId, reason)
+    // Accountability: notify the named list. Best-effort — the grant already
+    // stands, so a notification failure must not surface as a grant failure.
+    await notifyBreakGlass({
+      opportunityId: result.opportunityId,
+      opportunityName: result.opportunityName,
+      actorName: user.email ?? "A founder",
+      reason,
+      recipientUserIds: result.notifyUserIds,
+    })
+    revalidatePath(`/opportunities/${opportunityId}`)
+    revalidatePath("/opportunities")
+    return { ok: true }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : ""
+    if (msg.includes("not authorised")) {
+      return { ok: false, error: "Only founders can break-glass into a Confidential deal." }
+    }
+    if (msg.includes("already have access")) {
+      return { ok: false, error: "You already have access to this deal." }
+    }
+    if (msg.includes("only applies to Confidential")) {
+      return { ok: false, error: "That deal isn't Confidential." }
+    }
+    if (msg.includes("reason is required")) {
+      return { ok: false, error: "A reason is required." }
+    }
+    return { ok: false, error: "Couldn't grant break-glass access. Please try again." }
+  }
+}
 
 export async function createOpportunityAction(input: unknown) {
   const user = await requireUser()
