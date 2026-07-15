@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/client"
 import {
   createDocumentUploadAction,
   finalizeDocumentUploadAction,
+  createDocumentReplacementAction,
+  finalizeDocumentReplacementAction,
 } from "@/app/(crm)/documents/actions"
 import type { DocumentCategory } from "@/lib/data/documents.types"
 
@@ -56,4 +58,28 @@ export async function uploadBlobToDocuments(
 /** Refresh the parent entity page after a batch of uploads has landed. */
 export async function finalizeUpload(target: UploadTarget): Promise<void> {
   await finalizeDocumentUploadAction(target)
+}
+
+/**
+ * Re-attach source bytes to an EXISTING document (recovery for a 'skipped' doc
+ * whose Storage object was lost). Repoints the row, pushes the new bytes to a
+ * signed URL, then resets it to 'pending' so ingestion re-indexes it.
+ */
+export async function replaceDocumentSource(
+  target: UploadTarget,
+  documentId: string,
+  file: File,
+): Promise<void> {
+  const res = await createDocumentReplacementAction({
+    documentId,
+    name: file.name,
+    mimeType: file.type || "application/octet-stream",
+    sizeBytes: file.size,
+  })
+  const supabase = createClient()
+  const { error } = await supabase.storage
+    .from(res.bucket)
+    .uploadToSignedUrl(res.path, res.token, file)
+  if (error) throw new Error(error.message)
+  await finalizeDocumentReplacementAction({ ...target, documentId })
 }

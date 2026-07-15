@@ -7,10 +7,13 @@ import { requireUser } from "@/lib/security/auth"
 import type { AuthenticatedUser } from "@/lib/security/auth"
 import {
   createStoredDocument,
+  createReplacementUpload,
+  finalizeReplacement,
   createDocumentDownloadUrl,
   deleteStoredDocument,
   updateDocumentCategory,
   documentUploadSchema,
+  documentReplacementSchema,
   documentCategorySchema,
 } from "@/lib/data/documents"
 
@@ -52,6 +55,30 @@ export async function finalizeDocumentUploadAction(input: unknown) {
   await requireUser()
   const ref = entityRef.parse(input)
   revalidateEntity(ref)
+}
+
+/** Step 1 of re-upload: repoint an existing (e.g. 'skipped') doc at a fresh
+ *  storage_path and return a signed upload URL for the replacement bytes. */
+export async function createDocumentReplacementAction(input: unknown) {
+  const user = await requireUser()
+  const parsed = documentReplacementSchema.parse(input)
+  const handle = await createReplacementUpload(webCtx(user), parsed)
+  return {
+    documentId: handle.id,
+    bucket: handle.bucket,
+    path: handle.storagePath,
+    token: handle.uploadToken,
+    signedUrl: handle.signedUrl,
+  }
+}
+
+/** Step 2 of re-upload: reset the doc to 'pending' so ingestion re-indexes it,
+ *  and refresh the entity page. */
+export async function finalizeDocumentReplacementAction(input: unknown) {
+  const user = await requireUser()
+  const parsed = entityRef.extend({ documentId: z.string().uuid() }).parse(input)
+  await finalizeReplacement(webCtx(user), parsed.documentId)
+  revalidateEntity(parsed)
 }
 
 /** Mint a short-lived signed download URL (RLS-checked). */
