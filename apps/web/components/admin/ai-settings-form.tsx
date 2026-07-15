@@ -34,8 +34,12 @@ export function AiSettingsForm({ settings, counts, failedDocuments = [], skipped
   const [generationBaseUrl, setGenerationBaseUrl] = useState(settings.generationBaseUrl ?? "")
   const [generationModel, setGenerationModel] = useState(settings.generationModel ?? "")
   const [generationApiKey, setGenerationApiKey] = useState("")
+  const [transcriptionBaseUrl, setTranscriptionBaseUrl] = useState(settings.transcriptionBaseUrl ?? "")
+  const [transcriptionModel, setTranscriptionModel] = useState(settings.transcriptionModel ?? "")
+  const [transcriptionApiKey, setTranscriptionApiKey] = useState("")
   const [ingestionEnabled, setIngestionEnabled] = useState(settings.ingestionEnabled)
   const [searchEnabled, setSearchEnabled] = useState(settings.searchEnabled)
+  const [transcriptionEnabled, setTranscriptionEnabled] = useState(settings.transcriptionEnabled)
 
   const [pending, setPending] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -53,10 +57,12 @@ export function AiSettingsForm({ settings, counts, failedDocuments = [], skipped
       await saveAction({
         embeddingsBaseUrl, embeddingsModel, embeddingsApiKey,
         generationBaseUrl, generationModel, generationApiKey,
-        ingestionEnabled, searchEnabled,
+        transcriptionBaseUrl, transcriptionModel, transcriptionApiKey,
+        ingestionEnabled, searchEnabled, transcriptionEnabled,
       })
       setSaved(true)
-      setEmbeddingsApiKey(""); setGenerationApiKey("") // clear write-only fields
+      // clear write-only fields
+      setEmbeddingsApiKey(""); setGenerationApiKey(""); setTranscriptionApiKey("")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save")
     } finally {
@@ -152,12 +158,39 @@ export function AiSettingsForm({ settings, counts, failedDocuments = [], skipped
           </CardContent>
         </Card>
 
+        {/* Transcription (voice) — ORR-737 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between text-sm">
+              <span>Transcription endpoint (voice notes)</span>
+              <ConfiguredBadge ok={settings.transcriptionConfigured} />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              OpenAI-compatible <code>/audio/transcriptions</code> (Whisper) server for the voice
+              record generator. Runs self-hosted on the VPS or a lanbox, or point at a cloud STT —
+              scaling the endpoint is a config change, not a code change.
+            </p>
+            <Field label="Base URL">
+              <Input value={transcriptionBaseUrl} onChange={(e) => setTranscriptionBaseUrl(e.target.value)} placeholder="http://host:9000/v1" />
+            </Field>
+            <Field label="Model">
+              <Input value={transcriptionModel} onChange={(e) => setTranscriptionModel(e.target.value)} placeholder="whisper-1" />
+            </Field>
+            <Field label="API key">
+              <Input type="password" value={transcriptionApiKey} onChange={(e) => setTranscriptionApiKey(e.target.value)} placeholder={keyPlaceholder(settings.hasTranscriptionApiKey)} autoComplete="new-password" />
+            </Field>
+          </CardContent>
+        </Card>
+
         {/* Toggles */}
         <Card>
           <CardHeader><CardTitle className="text-sm">Features</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             <Toggle label="Document ingestion enabled" checked={ingestionEnabled} onChange={setIngestionEnabled} />
             <Toggle label="Knowledge search enabled" checked={searchEnabled} onChange={setSearchEnabled} />
+            <Toggle label="Voice transcription enabled" checked={transcriptionEnabled} onChange={setTranscriptionEnabled} />
           </CardContent>
         </Card>
 
