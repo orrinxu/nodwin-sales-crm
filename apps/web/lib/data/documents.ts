@@ -425,6 +425,93 @@ export async function createStoredDocument(
   }
 }
 
+export const documentReplacementSchema = z.object({
+  documentId: z.string().uuid(),
+  name: z.string().trim().min(1).max(500),
+  mimeType: z.string().trim().min(1).max(255),
+  sizeBytes: z.number().int().nonnegative(),
+})
+export type DocumentReplacementInput = z.infer<typeof documentReplacementSchema>
+
+/**
+ * Re-attach SOURCE bytes to an EXISTING document — the durable remedy for a doc
+ * whose Storage object was lost (e.g. the self-host migration carried the row but
+ * not the object, so the worker marked it 'skipped'). Points the row at a fresh
+ * storage_path (RLS enforces uploader/admin write), removes the old — usually
+ * already-missing — object, and hands back a signed upload URL. After the bytes
+ * land, {@link finalizeReplacement} resets the row to 'pending' so ingestion
+ * re-indexes it. Works whether or not the old bytes were ever recoverable.
+ */
+export async function createReplacementUpload(
+  ctx: DocumentCallContext,
+  input: DocumentReplacementInput,
+): Promise<StoredDocumentHandle> {
+  const supabase = await clientForSource(ctx.source)
+
+  // Load under RLS: the caller must be able to SEE the doc (parent-entity +
+  // Confidential fence) before we let them touch its bytes.
+  const { data: doc, error } = await supabase
+    .from("documents")
+    .select("id, opportunity_id, account_id, storage_path")
+    .eq("id", input.documentId)
+    .maybeSingle()
+  if (error) throw new Error(`Failed to load document: ${error.message}`)
+  if (!doc) throw new Error("Document not found or not accessible.")
+
+  const entityId = (doc.opportunity_id ?? doc.account_id) as string | null
+  if (!entityId) throw new Error("Document is not linked to an entity.")
+
+  const newPath = storageObjectPath(entityId, input.name)
+
+  // Repoint the row through the RLS-scoped client — the documents UPDATE policy
+  // (uploader OR non-confidential admin) is the write authorisation. A 0-row
+  // result means the caller may see but not modify this doc.
+  const { data: updated, error: updErr } = await supabase
+    .from("documents")
+    .update({ storage_path: newPath, mime_type: input.mimeType, size_bytes: input.sizeBytes })
+    .eq("id", input.documentId)
+    .select("id")
+    .maybeSingle()
+  if (updErr) throw new Error(`Failed to update document: ${updErr.message}`)
+  if (!updated) throw new Error("You do not have permission to replace this document.")
+
+  const svc = serviceRoleClient()
+  // Best-effort: drop the stale object (a no-op when it's the missing one we're
+  // fixing). Never fail the replace on this.
+  const oldPath = doc.storage_path as string | null
+  if (oldPath && oldPath !== newPath) {
+    await svc.storage.from(STORAGE_BUCKET).remove([oldPath]).catch(() => {})
+  }
+
+  const { data: signed, error: urlErr } = await svc.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUploadUrl(newPath)
+  if (urlErr || !signed) {
+    throw new Error(`Failed to create upload URL: ${urlErr?.message ?? "unknown"}`)
+  }
+
+  return {
+    id: input.documentId,
+    bucket: STORAGE_BUCKET,
+    storagePath: newPath,
+    uploadToken: signed.token,
+    signedUrl: signed.signedUrl,
+  }
+}
+
+/** Reset a replaced document to 'pending' so the ingestion worker re-indexes it. */
+export async function finalizeReplacement(
+  ctx: DocumentCallContext,
+  documentId: string,
+): Promise<void> {
+  const supabase = await clientForSource(ctx.source)
+  const { error } = await supabase
+    .from("documents")
+    .update({ index_status: "pending", index_error: null })
+    .eq("id", documentId)
+  if (error) throw new Error(`Failed to reset index status: ${error.message}`)
+}
+
 /** Short-lived signed download URL for a document the caller may see. Returns
  *  null when the doc isn't visible/doesn't exist. Drive-only docs fall back to
  *  their provenance link. */

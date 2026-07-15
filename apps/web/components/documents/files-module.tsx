@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Upload, FileText, Download, Trash2, Loader2 } from "lucide-react"
+import { Upload, FileText, Download, Trash2, Loader2, RotateCcw, AlertTriangle } from "lucide-react"
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -24,7 +24,7 @@ import {
   deleteDocumentAction,
   updateDocumentCategoryAction,
 } from "@/app/(crm)/documents/actions"
-import { uploadBlobToDocuments, finalizeUpload } from "@/lib/documents/client-upload"
+import { uploadBlobToDocuments, finalizeUpload, replaceDocumentSource } from "@/lib/documents/client-upload"
 import { DriveImportButton } from "@/components/documents/drive-import-button"
 import { usePreferences } from "@/components/providers/preferences-provider"
 
@@ -75,7 +75,10 @@ export function FilesModule({ opportunityId, accountId, initialDocuments }: File
   const [uploading, setUploading] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
+  const [replacing, setReplacing] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const replaceInputRef = useRef<HTMLInputElement>(null)
+  const replaceTargetRef = useRef<string | null>(null)
 
   // Reconcile with the server list when it changes (after router.refresh()).
   // Render-time reset instead of an effect — the React-recommended pattern for
@@ -128,6 +131,30 @@ export function FilesModule({ opportunityId, accountId, initialDocuments }: File
     startTransition(() => router.refresh())
   }
 
+  // Re-upload the source bytes for a doc whose Storage object was lost (shows as
+  // 'skipped'). Repoints the row + pushes new bytes, then it re-indexes.
+  function pickReplacement(id: string) {
+    replaceTargetRef.current = id
+    replaceInputRef.current?.click()
+  }
+
+  async function handleReplaceFile(file: File) {
+    const id = replaceTargetRef.current
+    if (!id) return
+    setError(null)
+    setReplacing(id)
+    try {
+      await replaceDocumentSource(entityRef, id, file)
+      setDocs((d) => d.map((x) => (x.id === id ? { ...x, indexStatus: "pending", hasFile: true } : x)))
+    } catch (e) {
+      setError(`Couldn't re-upload ${file.name}: ${(e as Error).message}`)
+    } finally {
+      setReplacing(null)
+      replaceTargetRef.current = null
+    }
+    startTransition(() => router.refresh())
+  }
+
   async function handleCategory(id: string, category: DocumentCategory) {
     setError(null)
     setDocs((d) => d.map((x) => (x.id === id ? { ...x, category } : x)))
@@ -168,6 +195,17 @@ export function FilesModule({ opportunityId, accountId, initialDocuments }: File
             className="hidden"
             onChange={(e) => {
               if (e.target.files?.length) void handleFiles(e.target.files)
+              e.target.value = ""
+            }}
+          />
+          <input
+            ref={replaceInputRef}
+            type="file"
+            data-testid="replace-file-input"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) void handleReplaceFile(f)
               e.target.value = ""
             }}
           />
@@ -222,6 +260,11 @@ export function FilesModule({ opportunityId, accountId, initialDocuments }: File
                         {formatDate(doc.uploadedAt)}
                         {!doc.hasFile && " · Drive link"}
                       </p>
+                      {doc.indexStatus === "skipped" && (
+                        <span className="mt-0.5 inline-flex items-center gap-1 text-xs text-amber-600">
+                          <AlertTriangle className="size-3 shrink-0" /> Source file missing — re-upload to index
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
@@ -240,6 +283,22 @@ export function FilesModule({ opportunityId, accountId, initialDocuments }: File
                         ))}
                       </SelectContent>
                     </Select>
+                    {doc.indexStatus === "skipped" && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-8 text-amber-600 hover:text-amber-700"
+                        disabled={replacing === doc.id}
+                        onClick={() => pickReplacement(doc.id)}
+                        aria-label={`Re-upload ${doc.name}`}
+                      >
+                        {replacing === doc.id ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <RotateCcw className="size-4" />
+                        )}
+                      </Button>
+                    )}
                     {(doc.hasFile || doc.driveLinkUrl) && (
                       <Button
                         size="icon"
