@@ -11,8 +11,10 @@
 # CRM's transcription seam (lib/ai/transcription.ts) POSTs to `${baseUrl}/audio/
 # transcriptions`, so point the CRM's Transcription Base URL at http://whisper:8000/v1.
 #
-# CPU is fine for dictated notes (gate G2 = bursty, not streaming). The first
-# request downloads the model into the cache volume (~1–2 min), then it's warm.
+# CPU is fine for dictated notes (gate G2 = bursty, not streaming). speaches does
+# NOT auto-download the model — after `up`, install it once (it lands in the cache
+# volume and persists): see DEPLOYMENT.md §7.2 (POST /v1/models/<id>). After an
+# idle period the model reloads into RAM on the next request (~6s; TTL 300s).
 
 services:
   whisper:

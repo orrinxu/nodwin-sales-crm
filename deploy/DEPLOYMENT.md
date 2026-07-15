@@ -145,10 +145,14 @@ cd <STAGING_COMPOSE_DIR>
 1. **Add the whisper service** to the same `docker-compose.yml` that holds `app`
    (so they share the internal network): copy the `whisper:` service **and** the
    `whisper-hf-cache` volume from [`whisper.service.yml`](./whisper.service.yml).
-2. **Start it** (first run downloads the model, ~1–2 min):
+2. **Start it, then install the model** (speaches does *not* auto-download it —
+   `WHISPER__MODEL` only sets the default id; you must install it once, into the
+   cache volume, so it persists across restarts):
    ```bash
    docker compose up -d whisper
-   docker compose logs -f whisper      # wait for "Uvicorn running on ...:8000"
+   docker compose logs -f whisper      # wait for "Uvicorn running on ...:8000", Ctrl-C
+   # install the model (~460 MB for small; a few seconds):
+   docker compose exec app node -e "fetch('http://whisper:8000/v1/models/Systran/faster-whisper-small',{method:'POST'}).then(r=>r.text()).then(console.log)"
    ```
 3. **Point the CRM at it** — no app restart needed. In the app, go to
    **Admin → AI → Transcription endpoint (voice notes)** and set:
@@ -180,7 +184,8 @@ on the internal network.
 |---|---|
 | Voice tile missing after setup | The CRM gates it on `isTranscriptionAvailable()` — Base URL **and** Model must be set and the toggle on. Re-open the Create dialog after saving. |
 | `whisper` restarts / OOM | Model too big for the droplet — switch to `base.en`/`tiny.en`. Check `docker compose logs whisper` and `docker stats`. |
-| Transcribe says "service is busy" | The endpoint returned 429/5xx or timed out (the seam retries then degrades). Check `docker compose logs whisper`; a cold first request downloads the model. |
+| Transcribe 404 "Model … is not installed locally" | You skipped the model-install step — run the `POST /v1/models/Systran/faster-whisper-small` curl in §7.2. `WHISPER__MODEL` alone does not download it. |
+| Transcribe says "service is busy" | The endpoint returned 429/5xx or timed out (the seam retries then degrades). Check `docker compose logs whisper`; the first request after an idle period reloads the model into RAM (~6 s, model TTL is 300 s). |
 | `checks` job red | Open the failed step. gitleaks findings are printed (redacted); lint/typecheck mirror `pnpm lint` / `pnpm typecheck` locally. |
 | Deploy step: `docker compose pull` **denied** | The VPS couldn't auth to ghcr. If the package is private, make it public (repo → Packages → package → visibility), or confirm the login step ran. |
 | Container keeps restarting | `docker compose logs app` on the VPS. Usually a missing **required** env var in `app.env` (the app throws on boot via `env.ts`). |
