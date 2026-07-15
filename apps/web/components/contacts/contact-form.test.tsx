@@ -87,6 +87,79 @@ describe("ContactForm", () => {
     expect(onSuccess).toHaveBeenCalled()
   })
 
+  describe("inline account create (ORR-738)", () => {
+    it("uses a creatable account combobox when createAccountQuickAction is given (new contact)", async () => {
+      const createAccountQuickAction = vi
+        .fn()
+        .mockResolvedValue({ id: "acct-new", name: "Newco Industries" })
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+
+      render(
+        <ContactForm
+          {...defaultProps}
+          createAccountQuickAction={createAccountQuickAction}
+        />,
+      )
+      await user.click(screen.getByRole("button", { name: /create contact/i }))
+
+      // The primary-account picker is now the combobox (shows its placeholder),
+      // not the native <select> (which has a "No primary account" <option>).
+      const trigger = screen.getByText("No primary account")
+      await user.click(trigger)
+      await user.type(
+        screen.getByPlaceholderText(/search or create an account/i),
+        "Newco Industries",
+      )
+      await user.click(
+        screen.getByRole("button", { name: 'Create "Newco Industries"' }),
+      )
+
+      await waitFor(() =>
+        expect(createAccountQuickAction).toHaveBeenCalledWith({ name: "Newco Industries" }),
+      )
+    })
+
+    it("keeps the plain <select> when no quick-create action is given", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      render(<ContactForm {...defaultProps} />)
+      await user.click(screen.getByRole("button", { name: /create contact/i }))
+
+      // Native select renders its "No primary account" option, not a combobox trigger.
+      const option = await screen.findByRole("option", { name: /no primary account/i })
+      expect(option).toBeInTheDocument()
+    })
+
+    it("keeps the plain <select> when editing, even with a quick-create action", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      render(
+        <ContactForm
+          {...defaultProps}
+          createAccountQuickAction={vi.fn()}
+          updateAction={vi.fn()}
+          contact={{
+            id: "contact-1",
+            fullName: "John Doe",
+            primaryAccountId: "acct-1",
+            title: null,
+            email: null,
+            phone: null,
+            socials: {},
+            notes: null,
+            ownerUserId: null,
+            customData: {},
+            createdAt: "2026-01-01T00:00:00Z",
+            updatedAt: "2026-01-15T00:00:00Z",
+          }}
+        />,
+      )
+      // Default trigger button is labelled "Create Contact" even when editing.
+      await user.click(screen.getByRole("button", { name: /create contact/i }))
+      expect(
+        await screen.findByRole("option", { name: /no primary account/i }),
+      ).toBeInTheDocument()
+    })
+  })
+
   it("renders NO launcher when the dialog is controlled (generator owns it)", () => {
     // Regression: a controlled ContactForm (used inside the AI generator) must not
     // render its default button, or the page shows two "Create Contact" buttons.

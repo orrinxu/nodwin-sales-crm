@@ -43,6 +43,7 @@ import { ContactForm } from "@/components/contacts/contact-form"
 import { ContactGenerator } from "@/components/contacts/contact-generator"
 import type { ImagePayload, ExtractFileResult } from "@/components/generators/record-generator"
 import type { GenerateContactResult } from "@/app/(crm)/contacts/generate-actions"
+import type { EntityOption } from "@/components/entity-combobox"
 import type { AccountOption, ContactListRecord, ContactCreateInput, ContactRecord } from "@/lib/data/contacts"
 import { usePreferences } from "@/components/providers/preferences-provider"
 
@@ -54,6 +55,8 @@ interface ContactsListProps {
   // Contact Generator (ORR-736) — optional; when absent the plain form renders.
   generateAction?: (input: { text?: string; images?: ImagePayload[] }) => Promise<GenerateContactResult>
   extractFileAction?: (formData: FormData) => Promise<ExtractFileResult>
+  // ORR-738: inline account-create in the create/generator flow.
+  createAccountQuickAction?: (input: { name: string }) => Promise<EntityOption>
 }
 
 export function ContactsList({
@@ -63,6 +66,7 @@ export function ContactsList({
   bulkDeleteAction,
   generateAction,
   extractFileAction,
+  createAccountQuickAction,
 }: ContactsListProps) {
   const router = useRouter()
   const { formatDate } = usePreferences()
@@ -240,12 +244,14 @@ export function ContactsList({
             extractFileAction={extractFileAction}
             accounts={accounts}
             createAction={createAction}
+            createAccountQuickAction={createAccountQuickAction}
             onSuccess={() => router.refresh()}
           />
         ) : (
           <ContactForm
             accounts={accounts}
             createAction={createAction}
+            createAccountQuickAction={createAccountQuickAction}
             onSuccess={() => router.refresh()}
           />
         )}
