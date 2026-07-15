@@ -1,0 +1,45 @@
+# deploy/whisper.service.yml
+#
+# Self-hosted speech-to-text for the voice record generator (ORR-737 / ORR-741,
+# epic ORR-732). Like app.service.yml, this is ONE docker-compose service to be
+# MERGED into the staging VPS's existing Supabase self-host compose — so the app
+# and whisper share the same internal network and the app can reach it by service
+# name (http://whisper:8000). Do NOT copy the Supabase services here.
+#
+# Image: speaches (formerly faster-whisper-server) — an OpenAI-compatible
+# /v1/audio/transcriptions server powered by faster-whisper (CTranslate2). The
+# CRM's transcription seam (lib/ai/transcription.ts) POSTs to `${baseUrl}/audio/
+# transcriptions`, so point the CRM's Transcription Base URL at http://whisper:8000/v1.
+#
+# CPU is fine for dictated notes (gate G2 = bursty, not streaming). The first
+# request downloads the model into the cache volume (~1–2 min), then it's warm.
+
+services:
+  whisper:
+    image: ghcr.io/speaches-ai/speaches:latest-cpu
+    restart: unless-stopped
+    environment:
+      # Model = a HuggingFace faster-whisper repo id. Trade-offs (approx CPU RAM):
+      #   Systran/faster-whisper-tiny.en   ~0.5 GB  fastest, roughest
+      #   Systran/faster-whisper-base.en   ~1 GB    good default if RAM is tight
+      #   Systran/faster-whisper-small     ~2 GB    recommended; multilingual + accurate
+      # The value here is only the model the server pre-warms; the CRM's
+      # "Model" setting must use the SAME id (it's sent on every request).
+      - WHISPER__MODEL=Systran/faster-whisper-small
+    volumes:
+      # Persist the downloaded model across restarts so it only downloads once.
+      - whisper-hf-cache:/home/ubuntu/.cache/huggingface/hub
+    # No host port is required — the app talks to it on the internal compose
+    # network. Expose to localhost ONLY if you want to curl it from the VPS host
+    # for debugging (keep it off the public internet — it has no auth):
+    #   ports:
+    #     - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s   # first boot downloads the model
+
+volumes:
+  whisper-hf-cache:
