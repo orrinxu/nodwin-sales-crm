@@ -6,6 +6,7 @@ const mockOrder = vi.fn()
 const mockLimit = vi.fn()
 const mockSelect = vi.fn()
 const mockFrom = vi.fn()
+const mockRpc = vi.fn()
 const mockCurrenciesIn = vi.fn()
 const mockCurrenciesSelect = vi.fn()
 const mockLookupRate = vi.fn()
@@ -14,6 +15,7 @@ const mockConvertWithRate = vi.fn()
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(() => ({
     from: mockFrom,
+    rpc: mockRpc,
   })),
 }))
 
@@ -52,10 +54,36 @@ beforeEach(() => {
   })
 })
 
+// getPipelineMetrics/getPipelineSummary now read the pipeline_metrics_agg RPC
+// (per stage×currency), not a raw opportunities select. Group the per-deal
+// fixtures into that bucket shape and mock the RPC — the aggregation result is
+// identical (buckets are just pre-summed deals of one currency).
+type OppFixture = { stage: string; amount?: number; currency: string; close_date?: string | null }
+function toBuckets(rows: OppFixture[]) {
+  const byKey = new Map<string, { stage: string; currency: string; gross_amount: number; deal_count: number }>()
+  for (const o of rows) {
+    const key = `${o.stage}|${o.currency}`
+    const b = byKey.get(key) ?? { stage: o.stage, currency: o.currency, gross_amount: 0, deal_count: 0 }
+    b.gross_amount += o.amount ?? 0
+    b.deal_count += 1
+    byKey.set(key, b)
+  }
+  return [...byKey.values()]
+}
+
 function buildQuery(returnData: unknown[] | null, error?: { message: string }) {
   mockSelect.mockResolvedValue({
     data: returnData,
     error: error ?? null,
+  })
+  mockRpc.mockImplementation((fn: string) => {
+    if (fn === "pipeline_metrics_agg") {
+      return Promise.resolve({
+        data: error ? null : toBuckets((returnData ?? []) as OppFixture[]),
+        error: error ?? null,
+      })
+    }
+    return Promise.resolve({ data: null, error: null })
   })
   mockFrom.mockImplementation((table: string) => {
     if (table === "currencies") {
@@ -372,8 +400,9 @@ describe("getPipelineSummary", () => {
   it("throws on supabase error", async () => {
     buildQuery(null, { message: "Connection refused" })
     const { getPipelineSummary } = await import("./metrics")
+    // Both pipeline functions now load through the shared pipeline_metrics_agg RPC.
     await expect(getPipelineSummary(defaultCtx)).rejects.toThrow(
-      "Failed to load pipeline summary: Connection refused",
+      "Failed to load pipeline metrics: Connection refused",
     )
   })
 })

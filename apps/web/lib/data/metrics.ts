@@ -175,48 +175,88 @@ export async function fetchAndConvert<T extends OpportunityRaw>(
   return { converted, unconvertibleCount }
 }
 
-export async function getPipelineMetrics(ctx: DashboardContext): Promise<PipelineMetrics> {
+// ── Pipeline aggregate (perf audit 2026-07-16) ───────────────────────────────
+// getPipelineMetrics/getPipelineSummary previously fetched EVERY opportunity and
+// reduced in JS — silently truncated at PostgREST's 1000-row cap, so the headline
+// numbers under-reported. This folds the bounded pipeline_metrics_agg() RPC (per
+// stage × currency) through fetchAndConvert at today's rate (asOf null), mirroring
+// forecast_pipeline_agg. deal_count is the per-bucket multiplier; unconvertible
+// deals = total − converted (preserving the prior per-deal semantics).
+interface PipelineBucketRow {
+  stage: string
+  currency: string
+  gross_amount: number
+  deal_count: number
+}
+
+interface PipelineBuckets {
+  buckets: Array<{ stage: string; amount: number; dealCount: number }>
+  convertedDealCount: number
+  unconvertibleCount: number
+  currency: string
+}
+
+async function loadPipelineBuckets(ctx: DashboardContext): Promise<PipelineBuckets> {
   const supabase = await createServerClient()
-
-  const { data: opportunities, error } = await supabase
-    .from("opportunities")
-    .select("stage, amount, currency, close_date")
-
+  const { data, error } = await supabase.rpc("pipeline_metrics_agg")
   if (error) {
     throw new Error(`Failed to load pipeline metrics: ${error.message}`)
   }
-
+  const rows = (data ?? []) as PipelineBucketRow[]
   const reportingCurrency = await resolveReportingCurrency(ctx)
-  const { converted: deals, unconvertibleCount } = await fetchAndConvert(
-    opportunities,
+
+  let totalDealCount = 0
+  for (const r of rows) totalDealCount += Number(r.deal_count)
+
+  const { converted } = await fetchAndConvert(
+    rows.map((r) => ({
+      stage: r.stage,
+      amount: r.gross_amount,
+      currency: r.currency,
+      close_date: null,
+      dealCount: Number(r.deal_count),
+    })),
     reportingCurrency,
   )
+
+  const buckets = converted.map((c) => ({ stage: c.stage, amount: c.amount, dealCount: c.dealCount }))
+  let convertedDealCount = 0
+  for (const b of buckets) convertedDealCount += b.dealCount
+
+  return {
+    buckets,
+    convertedDealCount,
+    unconvertibleCount: totalDealCount - convertedDealCount,
+    currency: reportingCurrency,
+  }
+}
+
+export async function getPipelineMetrics(ctx: DashboardContext): Promise<PipelineMetrics> {
+  const { buckets, convertedDealCount, unconvertibleCount, currency: reportingCurrency } =
+    await loadPipelineBuckets(ctx)
 
   let pipelineValue = 0
   let dealsWon = 0
   let dealsLost = 0
   let totalAmount = 0
 
-  for (const opp of deals) {
-    totalAmount += opp.amount
+  for (const b of buckets) {
+    totalAmount += b.amount
 
-    if (opp.stage === "closed_won") {
-      dealsWon++
-    } else if (opp.stage === "closed_lost") {
-      dealsLost++
+    if (b.stage === "closed_won") {
+      dealsWon += b.dealCount
+    } else if (b.stage === "closed_lost") {
+      dealsLost += b.dealCount
     } else {
-      pipelineValue += opp.amount
+      pipelineValue += b.amount
     }
   }
 
   const totalDeals = dealsWon + dealsLost
   const winRate = totalDeals > 0 ? Math.round((dealsWon / totalDeals) * 100) : 0
 
-  // `totalAmount` sums every converted deal (won + lost + active), so the
-  // average must divide by that same population — `deals.length`. The old
-  // denominator (dealsWon + activeCount) omitted lost deals and inflated the
-  // average against a numerator that included them.
-  const avgDealSize = computeAverage(totalAmount, deals.length)
+  // Average over the same converted population the totals were summed over.
+  const avgDealSize = computeAverage(totalAmount, convertedDealCount)
 
   return {
     pipelineValue,
@@ -239,21 +279,7 @@ export async function getPipelineSummary(ctx: DashboardContext): Promise<{
   totalAmount: number
   currency: string
 }> {
-  const supabase = await createServerClient()
-
-  const { data: opportunities, error } = await supabase
-    .from("opportunities")
-    .select("stage, amount, currency, close_date")
-
-  if (error) {
-    throw new Error(`Failed to load pipeline summary: ${error.message}`)
-  }
-
-  const reportingCurrency = await resolveReportingCurrency(ctx)
-  const { converted: deals, unconvertibleCount } = await fetchAndConvert(
-    opportunities,
-    reportingCurrency,
-  )
+  const { buckets, currency: reportingCurrency } = await loadPipelineBuckets(ctx)
 
   const stageBuckets = new Map<string, { count: number; amount: number }>()
 
@@ -264,20 +290,14 @@ export async function getPipelineSummary(ctx: DashboardContext): Promise<{
   let totalAmount = 0
   let totalCount = 0
 
-  for (const opp of deals) {
-    const stage = opp.stage as DealStage
-    const countInStage = stageBuckets.has(stage)
+  for (const b of buckets) {
+    totalCount += b.dealCount
+    totalAmount += b.amount
 
-    totalCount++
-
-    if (countInStage) {
-      stageBuckets.get(stage)!.count++
-    }
-
-    totalAmount += opp.amount
-
-    if (countInStage) {
-      stageBuckets.get(stage)!.amount += opp.amount
+    const sb = stageBuckets.get(b.stage)
+    if (sb) {
+      sb.count += b.dealCount
+      sb.amount += b.amount
     }
   }
 

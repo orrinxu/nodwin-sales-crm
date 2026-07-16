@@ -14,7 +14,13 @@ ORR-661, and cash-flow milestone follow-ups.
 
 ## 2026-07-16
 
+### Fixed
+
+- **Dashboard headline metrics silently under-reported past 1000 deals (perf audit):** `getPipelineMetrics` and `getPipelineSummary` fetched **every** opportunity and reduced in JS, so PostgREST's 1000-row cap silently truncated pipeline value, win rate, avg deal size and per-stage totals with no error once a tenant crossed 1000 deals. They now fold a bounded **`pipeline_metrics_agg()`** GROUP BY RPC (per stage × currency) through `fetchAndConvert` at today's rate — mirroring the existing `forecast_pipeline_agg` pattern — preserving the exact prior semantics (deal_count as the per-bucket multiplier; unconvertible = total − converted). 3-assertion pgTAP proves the aggregation.
+
 ### Changed
+
+- **Performance (perf audit):** added `idx_opportunities_updated_at (updated_at DESC)` + `idx_opportunities_owner_updated (owner_user_id, updated_at DESC)` — the main opportunities list and dashboard recent-deals sort by `updated_at` but had no supporting index. And the opportunities list page now runs its three independent enrichments (`attachDealHealth`, `attachLineItemsWarning`, `getStageTotals`) in one `Promise.all` instead of a ~4-hop serial chain.
 
 - **AI provider env reads go through the validated boundary + `.env.example` reconciled (ORR-730):** the `lib/ai/providers/*` adapters (Anthropic, Gemini, DeepSeek, Moonshot, Ollama, OpenAI-compatible + the env-fallback builder) now read their API keys / models via `@/lib/security/env` instead of raw `process.env`, completing the ARCH-1 migration; the eslint `no-process-env` exemption for those files is removed. `index.test.ts` now mocks the env boundary rather than mutating `process.env`. Separately, `.env.example` is reconciled to `env-schema.ts`: fixed the `NEXT_PUBLIC_SUPABASE_*` → `SUPABASE_*` and `NEXT_PUBLIC_APP_URL` → `APP_URL` name drift, added the required `POSTMARK_WEBHOOK_SECRET` + `NEXT_PUBLIC_API_URL` and all the AI provider key/model vars, and dropped stale unused entries (SMTP\_\*, `GOOGLE_OAUTH_CLIENT_SECRET`). Hygiene only — no runtime/security behaviour change (the security portion shipped earlier in #299).
 
