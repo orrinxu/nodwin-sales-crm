@@ -13,6 +13,7 @@ import {
   activityCreateSchema,
   type ActivityRecord,
 } from "@/lib/data/activities"
+import { createTask, setTaskStatus, taskCreateSchema } from "@/lib/data/tasks"
 
 export async function saveDashboardLayoutAction(input: unknown) {
   const user = await requireUser()
@@ -49,4 +50,22 @@ export async function logTouchAction(
   revalidatePath("/dashboard")
   revalidatePath(`/opportunities/${opportunityId}`)
   return activity
+}
+
+// ── Tasks (ORR-725) ──────────────────────────────────────────────────────────
+
+export async function createTaskAction(input: unknown) {
+  const user = await requireUser()
+  const ctx = { user, source: "web" as const }
+  const parsed = taskCreateSchema.parse(input)
+  const task = await createTask(ctx, parsed)
+  revalidatePath("/dashboard")
+  return task
+}
+
+export async function completeTaskAction(id: string) {
+  const user = await requireUser()
+  const ctx = { user, source: "web" as const }
+  await setTaskStatus(ctx, id, "done")
+  revalidatePath("/dashboard")
 }

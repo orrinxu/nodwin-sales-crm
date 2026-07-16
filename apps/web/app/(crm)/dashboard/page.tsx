@@ -7,6 +7,7 @@ import {
 } from "@/lib/data/metrics"
 import { getStuckDeals } from "@/lib/data/stuck-deals"
 import { getNeedsAttention } from "@/lib/data/needs-attention"
+import { getMyTasks } from "@/lib/data/tasks"
 import { getForecastData, getTeamScorecard, getGroupScorecard } from "@/lib/data/forecast"
 import { getConversionFunnel } from "@/lib/data/conversion"
 import { getTeamScope } from "@/lib/data/team"
@@ -20,6 +21,7 @@ import { ActivityTimeline } from "@/components/dashboard/activity-timeline"
 import { RecentDeals } from "@/components/dashboard/recent-deals"
 import { StuckDeals } from "@/components/dashboard/stuck-deals"
 import { NeedsAttention } from "@/components/dashboard/needs-attention"
+import { MyTasks } from "@/components/dashboard/my-tasks"
 import { ForecastTile } from "@/components/dashboard/forecast-tile"
 import { selectForecastTile } from "@/components/dashboard/forecast-tile-data"
 import { ConversionFunnel } from "@/components/dashboard/conversion-funnel"
@@ -37,13 +39,14 @@ export default async function DashboardPage() {
   // caller's role can actually see a Group rollup.
   const groupScope = getGroupScope(ctx)
 
-  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, needsAttention, forecast, teamScope, teamScorecard, teamConversionFunnel, groupScorecard, groupConversionFunnel, numberFormat] = await Promise.all([
+  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, needsAttention, myTasks, forecast, teamScope, teamScorecard, teamConversionFunnel, groupScorecard, groupConversionFunnel, numberFormat] = await Promise.all([
     getPipelineMetrics(ctx),
     getPipelineSummary(ctx),
     getRecentDeals(ctx),
     getRecentActivities(ctx),
     getStuckDeals(ctx),
     getNeedsAttention(ctx),
+    getMyTasks(ctx),
     getForecastData(ctx),
     getTeamScope(ctx),
     // Team tab (ORR-722): leaderboard + funnel scoped to the caller's reporting
@@ -87,6 +90,21 @@ export default async function DashboardPage() {
           overdue={needsAttention.overdue}
           approvals={needsAttention.approvals}
           total={needsAttention.total}
+        />
+      </DashboardSection>
+
+      <DashboardSection label="My tasks">
+        <MyTasks
+          tasks={myTasks.map((t) => ({
+            id: t.id,
+            title: t.title,
+            dueDate: t.dueDate,
+            priority: t.priority,
+            opportunityId: t.opportunityId,
+            opportunityName: t.opportunityName,
+            accountName: t.accountName,
+            contactName: t.contactName,
+          }))}
         />
       </DashboardSection>
 
