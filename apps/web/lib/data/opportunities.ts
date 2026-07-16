@@ -399,6 +399,8 @@ const opportunityCreateObject = z.object({
   probabilityPct: z.coerce.number().min(0).max(100).optional(),
   visibilityTier: z.enum(VISIBILITY_TIERS).optional(),
   customData: z.record(z.string(), z.unknown()).optional(),
+  // Set only by the Salesforce importer (ORR-699) to make re-imports idempotent.
+  legacySalesforceId: z.string().max(64).nullable().optional(),
 })
 
 export const opportunityCreateSchema = opportunityCreateObject
@@ -530,6 +532,9 @@ export async function createOpportunity(
   }
   if (parsed.customData) {
     dbData.custom_data = parsed.customData
+  }
+  if (parsed.legacySalesforceId) {
+    dbData.legacy_salesforce_id = parsed.legacySalesforceId
   }
 
   const { data, error } = await supabase

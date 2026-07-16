@@ -84,6 +84,8 @@ export const accountCreateSchema = z.object({
   accountOwnerUserId: z.string().uuid().nullable().optional(),
   emailDomains: z.array(z.string().min(1)).optional(),
   customData: z.record(z.string(), z.unknown()).optional(),
+  // Set only by the Salesforce importer (ORR-699) to make re-imports idempotent.
+  legacySalesforceId: z.string().max(64).nullable().optional(),
 })
 
 export const accountUpdateSchema = accountCreateSchema.partial()
@@ -483,6 +485,9 @@ function toDbAccount(input: AccountCreateInput): Record<string, unknown> {
   }
   if (input.customData !== undefined) {
     dbData.custom_data = input.customData
+  }
+  if (input.legacySalesforceId !== undefined) {
+    dbData.legacy_salesforce_id = input.legacySalesforceId || null
   }
 
   return dbData

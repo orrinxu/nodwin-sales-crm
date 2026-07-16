@@ -118,6 +118,7 @@ export type Database = {
           email_domains: string[] | null
           id: string
           industry: string | null
+          legacy_salesforce_id: string | null
           legal_name: string | null
           name: string
           updated_at: string
@@ -135,6 +136,7 @@ export type Database = {
           email_domains?: string[] | null
           id?: string
           industry?: string | null
+          legacy_salesforce_id?: string | null
           legal_name?: string | null
           name: string
           updated_at?: string
@@ -152,6 +154,7 @@ export type Database = {
           email_domains?: string[] | null
           id?: string
           industry?: string | null
+          legacy_salesforce_id?: string | null
           legal_name?: string | null
           name?: string
           updated_at?: string
@@ -1192,6 +1195,7 @@ export type Database = {
           email: string | null
           full_name: string
           id: string
+          legacy_salesforce_id: string | null
           notes: string | null
           owner_user_id: string | null
           phone: string | null
@@ -1208,6 +1212,7 @@ export type Database = {
           email?: string | null
           full_name: string
           id?: string
+          legacy_salesforce_id?: string | null
           notes?: string | null
           owner_user_id?: string | null
           phone?: string | null
@@ -1224,6 +1229,7 @@ export type Database = {
           email?: string | null
           full_name?: string
           id?: string
+          legacy_salesforce_id?: string | null
           notes?: string | null
           owner_user_id?: string | null
           phone?: string | null
