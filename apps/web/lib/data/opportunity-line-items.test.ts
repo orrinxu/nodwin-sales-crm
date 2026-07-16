@@ -119,3 +119,72 @@ describe("getOpportunityLineItems", () => {
     expect(result[0].productId).toBeNull()
   })
 })
+
+const lineRow = (id: string, lineTotal: string) => ({
+  id,
+  opportunity_id: OPP,
+  product_id: null,
+  description: "L",
+  quantity: "1",
+  unit_price_amount: lineTotal,
+  unit_cost_amount: "0",
+  discount_pct: "0",
+  position: 0,
+  line_total: lineTotal,
+})
+
+describe("getOpportunityLineItemsSummary", () => {
+  it("derives subtotal and total = subtotal − discount when not overridden", async () => {
+    mockSingle.mockResolvedValueOnce({
+      data: { currency: "USD", amount: "100", line_items_discount_amount: "30.0000", line_items_amount_overridden: false },
+      error: null,
+    })
+    mockOrder.mockResolvedValueOnce({
+      data: [lineRow("1", "180.0000"), lineRow("2", "50.0000")],
+      error: null,
+    })
+    const { getOpportunityLineItemsSummary } = await import("./opportunity-line-items")
+    const s = await getOpportunityLineItemsSummary(ctx, OPP)
+    expect(s.subtotal).toBe("230.00")
+    expect(s.discountAmount).toBe("30.00")
+    expect(s.total).toBe("200.00")
+    expect(s.overridden).toBe(false)
+  })
+
+  it("returns the manual amount as total when overridden", async () => {
+    mockSingle.mockResolvedValueOnce({
+      data: { currency: "USD", amount: "777", line_items_discount_amount: "30.0000", line_items_amount_overridden: true },
+      error: null,
+    })
+    mockOrder.mockResolvedValueOnce({ data: [lineRow("1", "180.0000")], error: null })
+    const { getOpportunityLineItemsSummary } = await import("./opportunity-line-items")
+    const s = await getOpportunityLineItemsSummary(ctx, OPP)
+    expect(s.overridden).toBe(true)
+    expect(s.total).toBe("777.00")
+  })
+
+  it("floors total at zero when the discount exceeds the subtotal", async () => {
+    mockSingle.mockResolvedValueOnce({
+      data: { currency: "USD", amount: "0", line_items_discount_amount: "1000", line_items_amount_overridden: false },
+      error: null,
+    })
+    mockOrder.mockResolvedValueOnce({ data: [lineRow("1", "100.0000")], error: null })
+    const { getOpportunityLineItemsSummary } = await import("./opportunity-line-items")
+    const s = await getOpportunityLineItemsSummary(ctx, OPP)
+    expect(s.total).toBe("0.00")
+  })
+})
+
+describe("setOpportunityLineItemsPricing", () => {
+  it("calls the pricing RPC with a Money-normalised discount", async () => {
+    mockSingle.mockResolvedValueOnce({ data: { currency: "USD" }, error: null })
+    mockRpc.mockResolvedValueOnce({ error: null })
+    const { setOpportunityLineItemsPricing } = await import("./opportunity-line-items")
+    await setOpportunityLineItemsPricing(ctx, OPP, { discountAmount: "50", overridden: true })
+    expect(mockRpc).toHaveBeenCalledWith("set_opportunity_line_items_pricing", {
+      _opportunity_id: OPP,
+      _discount_amount: "50.00",
+      _overridden: true,
+    })
+  })
+})

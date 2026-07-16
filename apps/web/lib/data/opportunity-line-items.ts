@@ -134,3 +134,108 @@ export async function replaceOpportunityLineItems(
     throw new Error(`Failed to save line items: ${error.message}`)
   }
 }
+
+export interface LineItemsSummary {
+  lines: OpportunityLineItem[]
+  currency: string
+  /** Σ line_total, in the deal currency. */
+  subtotal: string
+  /** Per-deal fixed discount, in the deal currency. */
+  discountAmount: string
+  /** When true, `total` is the manual amount and is not derived from lines. */
+  overridden: boolean
+  /**
+   * The effective deal amount: manual `amount` when overridden or line-less,
+   * else max(0, subtotal − discount). Mirrors the SQL recompute.
+   */
+  total: string
+}
+
+/**
+ * Read the lines plus the derived pricing for a deal — the shape the §D editor
+ * renders. `total` is computed the same way the DB recompute does, so the UI can
+ * preview it before saving.
+ */
+export async function getOpportunityLineItemsSummary(
+  ctx: LineItemsCallContext,
+  opportunityId: string,
+): Promise<LineItemsSummary> {
+  void ctx
+  const supabase = await createServerClient()
+
+  const { data: opp, error: oppError } = await supabase
+    .from("opportunities")
+    .select("currency, amount, line_items_discount_amount, line_items_amount_overridden")
+    .eq("id", opportunityId)
+    .single()
+  if (oppError || !opp) {
+    throw new Error(`Opportunity not found: ${oppError?.message ?? "not found"}`)
+  }
+  const currency = (opp.currency as string) ?? "USD"
+  const overridden = Boolean(opp.line_items_amount_overridden)
+
+  const { data, error } = await supabase
+    .from("opportunity_line_items")
+    .select("*")
+    .eq("opportunity_id", opportunityId)
+    .order("position", { ascending: true })
+  if (error) {
+    throw new Error(`Failed to load line items: ${error.message}`)
+  }
+  const lines = (data ?? []).map((r) => toDomain(r as Record<string, unknown>, currency))
+
+  const subtotal = lines.reduce(
+    (sum, line) => sum.add(Money.fromAmount(line.lineTotal, currency)),
+    Money.zero(currency),
+  )
+  const discount = Money.fromAmount(String(opp.line_items_discount_amount ?? 0), currency)
+  const manual = Money.fromAmount(String(opp.amount ?? 0), currency)
+
+  let total: Money
+  if (overridden || lines.length === 0) {
+    total = manual
+  } else {
+    const net = subtotal.subtract(discount)
+    total = net.gte(Money.zero(currency)) ? net : Money.zero(currency)
+  }
+
+  return {
+    lines,
+    currency,
+    subtotal: subtotal.toAmount(),
+    discountAmount: discount.toAmount(),
+    overridden,
+    total: total.toAmount(),
+  }
+}
+
+export const lineItemsPricingSchema = z.object({
+  discountAmount: z.string().max(30).optional(),
+  overridden: z.boolean(),
+})
+export type LineItemsPricingInput = z.input<typeof lineItemsPricingSchema>
+
+/**
+ * Set the per-deal fixed discount + the manual-override toggle, then recompute
+ * the deal amount (the RPC does both atomically and re-derives amount).
+ */
+export async function setOpportunityLineItemsPricing(
+  ctx: LineItemsCallContext,
+  opportunityId: string,
+  input: LineItemsPricingInput,
+): Promise<void> {
+  void ctx
+  const parsed = lineItemsPricingSchema.parse(input)
+  const supabase = await createServerClient()
+  const currency = await getOpportunityCurrency(supabase, opportunityId)
+
+  const { error } = await supabase.rpc("set_opportunity_line_items_pricing", {
+    _opportunity_id: opportunityId,
+    _discount_amount: Money.fromAmount(parsed.discountAmount || "0", currency).toAmount(),
+    _overridden: parsed.overridden,
+  })
+
+  if (error) {
+    throw new Error(`Failed to save line-item pricing: ${error.message}`)
+  }
+}
