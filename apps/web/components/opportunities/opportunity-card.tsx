@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useDraggable } from "@dnd-kit/core"
-import { GripVertical, Building2, DollarSign, User, Flame, Clock, Hourglass } from "lucide-react"
+import { GripVertical, Building2, DollarSign, User, Flame, Clock, Hourglass, ListPlus } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/primitives/status-badge"
@@ -43,6 +43,7 @@ export function OpportunityCard({ opportunity }: OpportunityCardProps) {
   // record (see lib/data/deal-health.ts). Each is null when it does not apply.
   const overdue = opportunity.health?.overdue ?? null
   const stale = opportunity.health?.stale ?? null
+  const needsLineItems = opportunity.needsLineItems ?? false
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -70,8 +71,14 @@ export function OpportunityCard({ opportunity }: OpportunityCardProps) {
               >
                 {opportunity.name}
               </Link>
-              {hot || overdue || stale ? (
+              {hot || overdue || stale || needsLineItems ? (
                 <div className="flex flex-wrap items-center gap-1">
+                  {needsLineItems ? (
+                    <StatusBadge tone="warning">
+                      <ListPlus className="size-3" />
+                      Line items
+                    </StatusBadge>
+                  ) : null}
                   {hot ? (
                     <Badge
                       variant="secondary"
