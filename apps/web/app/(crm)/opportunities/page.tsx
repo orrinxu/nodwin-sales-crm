@@ -105,20 +105,25 @@ export default async function OpportunitiesPage({
     redirect(`/opportunities?${to.toString()}`)
   }
 
-  // Attach batched deal-card health signals (overdue / stale) — one RPC for the
-  // whole scoped list, never per-card — then the line-items-required warning flag.
-  const opportunities = await attachLineItemsWarning(
-    ctx,
-    await attachDealHealth(ctx, rawOpportunities),
-  )
+  // Batched, INDEPENDENT enrichments over the scoped list — run in parallel
+  // (deal-health RPC, line-items-required flag, and FX board totals each read only
+  // rawOpportunities) instead of the previous serial chain of ~4 hops.
+  const [withHealth, withWarning, stageTotals] = await Promise.all([
+    attachDealHealth(ctx, rawOpportunities),
+    attachLineItemsWarning(ctx, rawOpportunities),
+    getStageTotals(ctx, rawOpportunities),
+  ])
+  // Merge the two per-deal flags (health + needsLineItems) onto one list.
+  const warnById = new Map(withWarning.map((o) => [o.id, o.needsLineItems]))
+  const opportunities = withHealth.map((o) => ({
+    ...o,
+    needsLineItems: warnById.get(o.id) ?? false,
+  }))
 
   const users: EntityOption[] = userOptions.map((u) => ({
     id: u.id,
     name: u.fullName,
   }))
-
-  // FX-normalised per-stage board totals over the scoped list.
-  const stageTotals = await getStageTotals(ctx, opportunities)
 
   // Entry default: explicit entry_currency_default, else "match display", else USD.
   const defaultCurrency =

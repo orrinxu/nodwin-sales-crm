@@ -4064,6 +4064,15 @@ export type Database = {
         Args: { _opp_id: string }
         Returns: boolean
       }
+      pipeline_metrics_agg: {
+        Args: never
+        Returns: {
+          currency: string
+          deal_count: number
+          gross_amount: number
+          stage: string
+        }[]
+      }
       reassign_approval_step: {
         Args: { _new_user_id: string; _step_id: string }
         Returns: undefined
