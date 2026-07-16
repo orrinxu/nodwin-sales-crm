@@ -5,6 +5,7 @@ import { createDeepseekAdapter } from "./deepseek"
 import { createMoonshotAdapter } from "./moonshot"
 import { createOllamaAdapter } from "./ollama"
 import { createOpenAICompatibleAdapter } from "./openai-compatible"
+import { env } from "@/lib/security/env"
 
 export type ProviderName = "claude" | "gemini" | "kimi" | "deepseek" | "ollama_local" | "openai_compatible"
 
@@ -55,27 +56,27 @@ export function createAdaptersFromChain(chain: ResolvedAdapterEntry[]): Map<Prov
 export function createAdaptersFromEnv(): Map<ProviderName, ProviderAdapter> {
   const adapters = new Map<ProviderName, ProviderAdapter>()
 
-  if (process.env.ANTHROPIC_API_KEY) {
+  if (env.ANTHROPIC_API_KEY) {
     adapters.set("claude", createAnthropicAdapter())
   }
 
-  if (process.env.GOOGLE_API_KEY) {
+  if (env.GOOGLE_API_KEY) {
     adapters.set("gemini", createGeminiAdapter())
   }
 
-  if (process.env.DEEPSEEK_API_KEY) {
+  if (env.DEEPSEEK_API_KEY) {
     adapters.set("deepseek", createDeepseekAdapter())
   }
 
-  if (process.env.MOONSHOT_API_KEY) {
+  if (env.MOONSHOT_API_KEY) {
     adapters.set("kimi", createMoonshotAdapter())
   }
 
-  if (process.env.OLLAMA_BASE_URL) {
+  if (env.OLLAMA_BASE_URL) {
     adapters.set("ollama_local", createOllamaAdapter())
   }
 
-  if (process.env.OPENAI_COMPATIBLE_BASE_URL) {
+  if (env.OPENAI_COMPATIBLE_BASE_URL) {
     adapters.set("openai_compatible", createOpenAICompatibleAdapter())
   }
 

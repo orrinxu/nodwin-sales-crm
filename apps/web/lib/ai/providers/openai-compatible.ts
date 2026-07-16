@@ -1,5 +1,6 @@
 import type { AdapterCallOptions, ProviderAdapter } from "../types"
 import { openAiUserContent } from "./content"
+import { env } from "@/lib/security/env"
 
 export interface OpenAICompatibleConfig {
   /**
@@ -24,9 +25,9 @@ export interface OpenAICompatibleConfig {
 export function createOpenAICompatibleAdapter(
   config: Partial<OpenAICompatibleConfig> = {},
 ): ProviderAdapter {
-  const baseUrl = (config.baseUrl ?? process.env.OPENAI_COMPATIBLE_BASE_URL ?? "").replace(/\/+$/, "")
-  const apiKey = config.apiKey ?? process.env.OPENAI_COMPATIBLE_API_KEY
-  const model = config.model ?? process.env.OPENAI_COMPATIBLE_MODEL ?? "gpt-4o-mini"
+  const baseUrl = (config.baseUrl ?? env.OPENAI_COMPATIBLE_BASE_URL ?? "").replace(/\/+$/, "")
+  const apiKey = config.apiKey ?? env.OPENAI_COMPATIBLE_API_KEY
+  const model = config.model ?? env.OPENAI_COMPATIBLE_MODEL ?? "gpt-4o-mini"
 
   return {
     async call(prompt: string, systemPrompt?: string, options?: AdapterCallOptions) {

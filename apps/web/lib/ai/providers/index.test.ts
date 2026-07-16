@@ -1,4 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import { describe, it, expect, vi, beforeEach } from "vitest"
+
+// Providers read optional keys through the validated env boundary; mock it with a
+// mutable object so each test controls which keys are "set".
+const { mockEnv } = vi.hoisted(() => ({ mockEnv: {} as Record<string, string | undefined> }))
+vi.mock("@/lib/security/env", () => ({ env: mockEnv }))
+
 import { createAdaptersFromEnv, createAdaptersFromChain } from "./index"
 import { createAnthropicAdapter } from "./anthropic"
 import { createGeminiAdapter } from "./gemini"
@@ -7,30 +13,21 @@ import { createMoonshotAdapter } from "./moonshot"
 import { createOllamaAdapter } from "./ollama"
 import { createOpenAICompatibleAdapter } from "./openai-compatible"
 
-describe("createAdaptersFromEnv", () => {
-  const originalEnv = { ...process.env }
-
-  function clearAiEnv() {
-    delete process.env.ANTHROPIC_API_KEY
-    delete process.env.GOOGLE_API_KEY
-    delete process.env.DEEPSEEK_API_KEY
-    delete process.env.MOONSHOT_API_KEY
-    delete process.env.OLLAMA_BASE_URL
-    delete process.env.OPENAI_COMPATIBLE_BASE_URL
+function clearAiEnv() {
+  for (const k of Object.keys(mockEnv)) {
+    // eslint-disable-next-line security/detect-object-injection -- k is an own key of mockEnv
+    delete mockEnv[k]
   }
+}
 
+describe("createAdaptersFromEnv", () => {
   beforeEach(() => {
-    vi.resetModules()
     clearAiEnv()
   })
 
-  afterEach(() => {
-    process.env = { ...originalEnv }
-  })
-
   it("creates adapters only for configured providers", () => {
-    process.env.ANTHROPIC_API_KEY = "test-key"
-    process.env.GOOGLE_API_KEY = "test-key"
+    mockEnv.ANTHROPIC_API_KEY = "test-key"
+    mockEnv.GOOGLE_API_KEY = "test-key"
 
     const adapters = createAdaptersFromEnv()
 
@@ -48,13 +45,12 @@ describe("createAdaptersFromEnv", () => {
   })
 
   it("creates all adapters when all env vars are set", () => {
-    clearAiEnv()
-    process.env.ANTHROPIC_API_KEY = "test-key"
-    process.env.GOOGLE_API_KEY = "test-key"
-    process.env.DEEPSEEK_API_KEY = "test-key"
-    process.env.MOONSHOT_API_KEY = "test-key"
-    process.env.OLLAMA_BASE_URL = "http://localhost:11434"
-    process.env.OPENAI_COMPATIBLE_BASE_URL = "http://localhost:1234/v1"
+    mockEnv.ANTHROPIC_API_KEY = "test-key"
+    mockEnv.GOOGLE_API_KEY = "test-key"
+    mockEnv.DEEPSEEK_API_KEY = "test-key"
+    mockEnv.MOONSHOT_API_KEY = "test-key"
+    mockEnv.OLLAMA_BASE_URL = "http://localhost:11434"
+    mockEnv.OPENAI_COMPATIBLE_BASE_URL = "http://localhost:1234/v1"
 
     const adapters = createAdaptersFromEnv()
 
@@ -68,6 +64,10 @@ describe("createAdaptersFromEnv", () => {
 })
 
 describe("createAdaptersFromChain", () => {
+  beforeEach(() => {
+    clearAiEnv()
+  })
+
   it("builds only the listed providers, preserving order (= router fallback order)", () => {
     const adapters = createAdaptersFromChain([
       { provider: "ollama_local", baseUrl: "http://h:11434", model: "q", apiKey: null },
@@ -78,8 +78,6 @@ describe("createAdaptersFromChain", () => {
   })
 
   it("injects DB config so an adapter works with no env vars set", async () => {
-    delete process.env.OPENAI_COMPATIBLE_BASE_URL
-    delete process.env.OPENAI_COMPATIBLE_API_KEY
     const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
       new Response(
         JSON.stringify({ model: "db-model", choices: [{ message: { content: "hi" } }], usage: {} }),
@@ -113,38 +111,36 @@ describe("createAdaptersFromChain", () => {
 })
 
 describe("provider adapters throw when env is missing", () => {
+  beforeEach(() => {
+    clearAiEnv()
+  })
+
   it("anthropic throws without ANTHROPIC_API_KEY", async () => {
-    delete process.env.ANTHROPIC_API_KEY
     const adapter = createAnthropicAdapter()
     await expect(adapter.call("hello")).rejects.toThrow("ANTHROPIC_API_KEY is not configured")
   })
 
   it("gemini throws without GOOGLE_API_KEY", async () => {
-    delete process.env.GOOGLE_API_KEY
     const adapter = createGeminiAdapter()
     await expect(adapter.call("hello")).rejects.toThrow("GOOGLE_API_KEY is not configured")
   })
 
   it("deepseek throws without DEEPSEEK_API_KEY", async () => {
-    delete process.env.DEEPSEEK_API_KEY
     const adapter = createDeepseekAdapter()
     await expect(adapter.call("hello")).rejects.toThrow("DEEPSEEK_API_KEY is not configured")
   })
 
   it("moonshot throws without MOONSHOT_API_KEY", async () => {
-    delete process.env.MOONSHOT_API_KEY
     const adapter = createMoonshotAdapter()
     await expect(adapter.call("hello")).rejects.toThrow("MOONSHOT_API_KEY is not configured")
   })
 
   it("ollama throws without OLLAMA_BASE_URL", async () => {
-    delete process.env.OLLAMA_BASE_URL
     const adapter = createOllamaAdapter()
     await expect(adapter.call("hello")).rejects.toThrow("OLLAMA_BASE_URL is not configured")
   })
 
   it("openai-compatible throws without OPENAI_COMPATIBLE_BASE_URL", async () => {
-    delete process.env.OPENAI_COMPATIBLE_BASE_URL
     const adapter = createOpenAICompatibleAdapter()
     await expect(adapter.call("hello")).rejects.toThrow("OPENAI_COMPATIBLE_BASE_URL is not configured")
   })

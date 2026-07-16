@@ -1,9 +1,10 @@
 import type { AdapterConfig, AdapterCallOptions, ProviderAdapter } from "../types"
 import { ollamaImages } from "./content"
+import { env } from "@/lib/security/env"
 
 export function createOllamaAdapter(config: AdapterConfig = {}): ProviderAdapter {
-  const model = config.model ?? process.env.OLLAMA_MODEL ?? "llama3.2"
-  const baseUrl = (config.baseUrl ?? process.env.OLLAMA_BASE_URL ?? "").replace(/\/+$/, "") || undefined
+  const model = config.model ?? env.OLLAMA_MODEL ?? "llama3.2"
+  const baseUrl = (config.baseUrl ?? env.OLLAMA_BASE_URL ?? "").replace(/\/+$/, "") || undefined
 
   return {
     async call(prompt: string, _systemPrompt?: string, options?: AdapterCallOptions) {

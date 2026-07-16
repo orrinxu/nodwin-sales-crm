@@ -1,9 +1,10 @@
 import type { AdapterConfig, AdapterCallOptions, ProviderAdapter } from "../types"
 import { openAiUserContent } from "./content"
+import { env } from "@/lib/security/env"
 
 export function createDeepseekAdapter(config: AdapterConfig = {}): ProviderAdapter {
-  const model = config.model ?? process.env.DEEPSEEK_MODEL ?? "deepseek-chat"
-  const apiKey = config.apiKey ?? process.env.DEEPSEEK_API_KEY
+  const model = config.model ?? env.DEEPSEEK_MODEL ?? "deepseek-chat"
+  const apiKey = config.apiKey ?? env.DEEPSEEK_API_KEY
 
   return {
     async call(prompt: string, systemPrompt?: string, options?: AdapterCallOptions) {

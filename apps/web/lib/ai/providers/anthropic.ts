@@ -1,9 +1,10 @@
 import type { AdapterConfig, AdapterCallOptions, ProviderAdapter } from "../types"
 import { anthropicUserContent } from "./content"
+import { env } from "@/lib/security/env"
 
 export function createAnthropicAdapter(config: AdapterConfig = {}): ProviderAdapter {
-  const model = config.model ?? process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6"
-  const apiKey = config.apiKey ?? process.env.ANTHROPIC_API_KEY
+  const model = config.model ?? env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6"
+  const apiKey = config.apiKey ?? env.ANTHROPIC_API_KEY
 
   return {
     async call(prompt: string, systemPrompt?: string, options?: AdapterCallOptions) {
