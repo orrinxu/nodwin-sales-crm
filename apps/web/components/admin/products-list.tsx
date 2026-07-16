@@ -65,6 +65,7 @@ const createFormSchema = z.object({
   sku: z.string().max(64).optional().or(z.literal("")),
   description: z.string().max(2000).optional().or(z.literal("")),
   unitPriceAmount: priceField,
+  unitCostAmount: priceField,
   unitPriceCurrency: z.string().max(10).optional().or(z.literal("")),
   displayOrder: z.coerce.number().int().min(0),
 })
@@ -118,6 +119,14 @@ function ProductFields({
       </div>
 
       <div className="grid gap-2">
+        <Label htmlFor="prod-cost">Unit Cost</Label>
+        <Input id="prod-cost" inputMode="decimal" {...form.register("unitCostAmount")} placeholder="0" />
+        {form.formState.errors.unitCostAmount && (
+          <p className="text-xs text-destructive">{form.formState.errors.unitCostAmount.message}</p>
+        )}
+      </div>
+
+      <div className="grid gap-2">
         <Label htmlFor="prod-currency">Currency</Label>
         <Input id="prod-currency" {...form.register("unitPriceCurrency")} placeholder="USD" />
       </div>
@@ -147,6 +156,7 @@ function CreateProductDialog({
       sku: "",
       description: "",
       unitPriceAmount: "",
+      unitCostAmount: "",
       unitPriceCurrency: "USD",
       displayOrder: 0,
     },
@@ -161,6 +171,7 @@ function CreateProductDialog({
         sku: data.sku || null,
         description: data.description || null,
         unitPriceAmount: data.unitPriceAmount || "0",
+        unitCostAmount: data.unitCostAmount || "0",
         unitPriceCurrency: data.unitPriceCurrency || "USD",
         displayOrder: data.displayOrder,
       })
@@ -226,6 +237,7 @@ function EditProductDialog({
       sku: product.sku ?? "",
       description: product.description ?? "",
       unitPriceAmount: product.unitPriceAmount,
+      unitCostAmount: product.unitCostAmount,
       unitPriceCurrency: product.unitPriceCurrency,
       displayOrder: product.displayOrder,
     },
@@ -240,6 +252,7 @@ function EditProductDialog({
         sku: data.sku || null,
         description: data.description || null,
         unitPriceAmount: data.unitPriceAmount || "0",
+        unitCostAmount: data.unitCostAmount || "0",
         unitPriceCurrency: data.unitPriceCurrency || "USD",
         displayOrder: data.displayOrder,
       })
