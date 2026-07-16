@@ -11,6 +11,7 @@ import { getAccountOptions } from "@/lib/data/contacts"
 import { getUserPreferences } from "@/lib/data/user-preferences"
 import { getStageTotals } from "@/lib/data/stage-totals"
 import { attachDealHealth } from "@/lib/data/deal-health"
+import { attachLineItemsWarning } from "@/lib/data/line-items-requirement"
 import { listSavedViews } from "@/lib/data/saved-views"
 import { OpportunitiesView } from "@/components/opportunities/opportunities-view"
 import type { EntityOption } from "@/components/entity-combobox"
@@ -105,8 +106,11 @@ export default async function OpportunitiesPage({
   }
 
   // Attach batched deal-card health signals (overdue / stale) — one RPC for the
-  // whole scoped list, never per-card.
-  const opportunities = await attachDealHealth(ctx, rawOpportunities)
+  // whole scoped list, never per-card — then the line-items-required warning flag.
+  const opportunities = await attachLineItemsWarning(
+    ctx,
+    await attachDealHealth(ctx, rawOpportunities),
+  )
 
   const users: EntityOption[] = userOptions.map((u) => ({
     id: u.id,

@@ -125,6 +125,12 @@ export interface OpportunityRecord {
    * rendering; `undefined` on records fetched elsewhere.
    */
   health?: DealHealth | null
+  /**
+   * True when the deal has reached the admin-configured stage without line items
+   * (ORR-753). Attached in a batched pass by attachLineItemsWarning for board /
+   * table rendering; `undefined` on records fetched elsewhere.
+   */
+  needsLineItems?: boolean
 }
 
 export interface OpportunityListResult {
