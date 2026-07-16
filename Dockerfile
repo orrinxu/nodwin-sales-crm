@@ -71,9 +71,11 @@ USER node
 
 # Standalone bundle is traced from the repo root, so the entrypoint lands at
 # apps/web/server.js and its static assets at apps/web/.next/static.
-# (No apps/web/public dir exists in this repo, so nothing to copy for it.)
 COPY --from=builder --chown=node:node /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=node:node /app/apps/web/.next/static ./apps/web/.next/static
+# public/ holds the PWA assets (manifest icons, sw.js, offline.html); standalone
+# output does NOT bundle it automatically, so copy it explicitly (ORR-705).
+COPY --from=builder --chown=node:node /app/apps/web/public ./apps/web/public
 
 EXPOSE 3000
 CMD ["node", "apps/web/server.js"]

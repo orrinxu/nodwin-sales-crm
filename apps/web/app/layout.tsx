@@ -1,9 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Inter } from "next/font/google";
 import { cookies } from "next/headers";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
+import { PWA_THEME_COLOR } from "@/lib/pwa/brand-color";
 import {
   THEME_STORAGE_KEY,
   resolveThemeMode,
@@ -15,6 +17,28 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 export const metadata: Metadata = {
   title: "Nodwin Sales CRM",
   description: "Sales CRM for Nodwin",
+  applicationName: "Nodwin CRM",
+  // Next serves the manifest metadata route at /manifest.webmanifest.
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Nodwin CRM",
+    statusBarStyle: "default",
+  },
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/apple-touch-icon.png",
+  },
+  formatDetection: { telephone: false },
+};
+
+export const viewport: Viewport = {
+  themeColor: PWA_THEME_COLOR,
+  width: "device-width",
+  initialScale: 1,
+  // Standalone app UX: prevent the double-tap/pinch zoom that makes an installed
+  // PWA feel like a web page, but keep it accessible (users can still zoom via OS).
+  maximumScale: 5,
 };
 
 // The app is fully auth-gated and renders per-request data (every page calls
@@ -50,6 +74,7 @@ export default async function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <ThemeProvider defaultTheme="light">{children}</ThemeProvider>
+        <ServiceWorkerRegister />
       </body>
     </html>
   );

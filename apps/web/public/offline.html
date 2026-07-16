@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#006818" />
+    <title>Offline · Nodwin CRM</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #1a1a1a;
+        --muted: #6b7280;
+        --brand: #006818;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b0f0c;
+          --fg: #f3f4f6;
+          --muted: #9ca3af;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        background: var(--bg);
+        color: var(--fg);
+        font-family:
+          Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        text-align: center;
+      }
+      .card {
+        max-width: 22rem;
+      }
+      .badge {
+        width: 64px;
+        height: 64px;
+        border-radius: 18px;
+        background: var(--brand);
+        color: #fff;
+        font-weight: 700;
+        font-size: 34px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.25rem;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 0 0 0.5rem;
+      }
+      p {
+        color: var(--muted);
+        line-height: 1.5;
+        margin: 0 0 1.5rem;
+      }
+      button {
+        appearance: none;
+        border: 0;
+        border-radius: 0.625rem;
+        background: var(--brand);
+        color: #fff;
+        font: inherit;
+        font-weight: 600;
+        padding: 0.625rem 1.25rem;
+        cursor: pointer;
+      }
+      button:hover {
+        opacity: 0.92;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="badge">N</div>
+      <h1>You're offline</h1>
+      <p>
+        Nodwin CRM can't reach the network right now. Check your connection and
+        try again — your work is safe.
+      </p>
+      <button type="button" onclick="location.reload()">Retry</button>
+    </div>
+  </body>
+</html>

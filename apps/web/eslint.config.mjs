@@ -88,6 +88,8 @@ const eslintConfig = defineConfig([
       "lib/supabase/client.ts",
       "app/(auth)/login/page.tsx",
       "components/documents/drive-import-button.tsx",
+      // Reads the Next-inlined NODE_ENV to gate SW registration to production.
+      "components/pwa/service-worker-register.tsx",
     ],
     rules: {
       "node/no-process-env": "off",
