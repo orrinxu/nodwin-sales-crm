@@ -25,6 +25,8 @@ export interface ProductRecord {
   description: string | null
   /** Decimal string in `unitPriceCurrency` (never a float). */
   unitPriceAmount: string
+  /** Default unit cost (same currency), used to prefill line-item cost. */
+  unitCostAmount: string
   unitPriceCurrency: string
   active: boolean
   displayOrder: number
@@ -38,6 +40,7 @@ export const productCreateSchema = z.object({
   description: z.string().max(2000).nullable().optional().or(z.literal("")),
   // Decimal string, e.g. "5000" or "199.99". Empty/undefined → 0.
   unitPriceAmount: z.string().max(30).optional(),
+  unitCostAmount: z.string().max(30).optional(),
   unitPriceCurrency: z.string().max(10).optional(),
   displayOrder: z.number().int().min(0).default(0),
   active: z.boolean().optional(),
@@ -57,6 +60,10 @@ function toDomainProduct(data: Record<string, unknown>): ProductRecord {
     description: (data.description as string) ?? null,
     unitPriceAmount: Money.fromAmount(
       String(data.unit_price_amount ?? 0),
+      currency,
+    ).toAmount(),
+    unitCostAmount: Money.fromAmount(
+      String(data.unit_cost_amount ?? 0),
       currency,
     ).toAmount(),
     unitPriceCurrency: currency,
@@ -106,6 +113,10 @@ export async function createProduct(
       parsed.unitPriceAmount || "0",
       currency,
     ).toAmount(),
+    unit_cost_amount: Money.fromAmount(
+      parsed.unitCostAmount || "0",
+      currency,
+    ).toAmount(),
     unit_price_currency: currency,
     display_order: parsed.displayOrder,
   }
@@ -148,6 +159,10 @@ export async function updateProduct(
     dbData.unit_price_currency = currency
   } else if (parsed.unitPriceCurrency !== undefined) {
     dbData.unit_price_currency = parsed.unitPriceCurrency
+  }
+  if (parsed.unitCostAmount !== undefined) {
+    const currency = parsed.unitPriceCurrency || "USD"
+    dbData.unit_cost_amount = Money.fromAmount(parsed.unitCostAmount, currency).toAmount()
   }
 
   if (Object.keys(dbData).length === 0) {

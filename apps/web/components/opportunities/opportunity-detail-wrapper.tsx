@@ -18,6 +18,11 @@ import { OpportunityForm } from "@/components/opportunities/opportunity-form"
 import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
 import { ActivityComposer } from "@/components/opportunities/activity-composer"
 import { OpportunitySplitsEditor } from "@/components/opportunities/opportunity-splits-editor"
+import {
+  OpportunityLineItemsEditor,
+  type ProductOption,
+} from "@/components/opportunities/opportunity-line-items-editor"
+import type { LineItemsSummary } from "@/lib/data/opportunity-line-items"
 import { OpportunityTeamEditor } from "@/components/opportunities/opportunity-team-editor"
 import { StageHistoryTimeline } from "@/components/opportunities/stage-history-timeline"
 import { ApprovalCard } from "@/components/opportunities/approval-card"
@@ -114,6 +119,9 @@ interface OpportunityDetailWrapperProps {
   cancelApprovalAction?: (opportunityId: string, instanceId: string) => Promise<void>
   updateSplitsAction?: (id: string, input: unknown) => Promise<void>
   updateTeamAction?: (id: string, input: unknown) => Promise<void>
+  lineItemsSummary?: LineItemsSummary
+  products?: ProductOption[]
+  saveLineItemsAction?: (id: string, input: unknown) => Promise<void>
   enforceGateStatus?: EnforceGateStatus
   dealCopilotConfigured?: boolean
   dealCopilotSummaryAction?: (opportunityId: string) => Promise<DealCopilotResult>
@@ -270,6 +278,9 @@ export function OpportunityDetailWrapper({
   cancelApprovalAction,
   updateSplitsAction,
   updateTeamAction,
+  lineItemsSummary,
+  products = [],
+  saveLineItemsAction,
   enforceGateStatus = { isBlocked: false },
   dealCopilotConfigured = false,
   dealCopilotSummaryAction,
@@ -360,6 +371,20 @@ export function OpportunityDetailWrapper({
     [updateSplitsAction, opportunity.id, router],
   )
 
+  const handleSaveLineItems = useCallback(
+    async (payload: { lines: unknown[]; discountAmount: string; overridden: boolean }) => {
+      if (!saveLineItemsAction) return
+      await saveLineItemsAction(opportunity.id, payload)
+      router.refresh()
+    },
+    [saveLineItemsAction, opportunity.id, router],
+  )
+
+  // The deal amount is derived from line items unless the rep pinned it manually
+  // (or there are no lines) — make the amount field read-only in the edit form.
+  const amountDerived =
+    !!lineItemsSummary && lineItemsSummary.lines.length > 0 && !lineItemsSummary.overridden
+
   const handleSaveTeam = useCallback(
     async (next: OpportunityTeamMemberInput[]) => {
       if (!updateTeamAction) return
@@ -433,6 +458,7 @@ export function OpportunityDetailWrapper({
               updateAction={updateAction}
               onSuccess={() => router.refresh()}
               searchUsersAction={searchUsersAction}
+              amountDerived={amountDerived}
               trigger={
                 <Button ref={editTriggerRef} variant="outline" size="sm">
                   <Pencil className="size-4" />
@@ -516,6 +542,9 @@ export function OpportunityDetailWrapper({
             <FacetTabsList>
               <FacetTabsTab value="overview">Overview</FacetTabsTab>
               <FacetTabsTab value="details">Details</FacetTabsTab>
+              {saveLineItemsAction ? (
+                <FacetTabsTab value="products">Products</FacetTabsTab>
+              ) : null}
               <FacetTabsTab value="files">Files</FacetTabsTab>
               <FacetTabsTab value="activity">Activity</FacetTabsTab>
               <FacetTabsTab value="team">Team &amp; Splits</FacetTabsTab>
@@ -708,6 +737,25 @@ export function OpportunityDetailWrapper({
                 <RelatedListCard title="Opportunity Splits" emptyMessage="No splits configured." />
               )}
             </FacetTabsPanel>
+
+            {/* PRODUCTS / LINE ITEMS */}
+            {saveLineItemsAction && lineItemsSummary ? (
+              <FacetTabsPanel value="products" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className={T.cardHeading}>Products &amp; line items</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <OpportunityLineItemsEditor
+                      currency={opportunity.currency}
+                      summary={lineItemsSummary}
+                      products={products}
+                      onSave={handleSaveLineItems}
+                    />
+                  </CardContent>
+                </Card>
+              </FacetTabsPanel>
+            ) : null}
 
             {/* CASH PLAN (gated) */}
             <FacetTabsPanel value="cash">
