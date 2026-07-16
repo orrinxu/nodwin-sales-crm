@@ -56,3 +56,19 @@ export async function createServerClient() {
     },
   })
 }
+
+/** The typed Supabase client shape callers get from {@link createServerClient}. */
+export type ServerDbClient = Awaited<ReturnType<typeof createServerClient>>
+
+/**
+ * Stateless service-role client that BYPASSES RLS. For system/background jobs
+ * only (no user session), e.g. the Drive-sync drain (ORR-698) which must read
+ * every opportunity's visibility set. Never use this on a user-facing request —
+ * it has no row-level protection. Cookie-less so it never mutates a session.
+ */
+export function createServiceRoleClient(): ServerDbClient {
+  return createSsrClient<Database>(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    cookies: { getAll: () => [], setAll: () => {} },
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+}

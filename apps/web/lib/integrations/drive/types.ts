@@ -22,3 +22,25 @@ export interface DriveClient {
    */
   fetchFile(driveFileId: string): Promise<DriveFile>
 }
+
+// ORR-698: server-side folder auto-create + permission sync.
+
+export interface DriveFolder {
+  id: string
+  name: string
+  webViewLink?: string
+}
+
+export interface DriveAdminClient {
+  /**
+   * Return the folder named `name` under `parentId`, creating it if absent
+   * (idempotent — safe to call on every sync).
+   */
+  ensureFolder(input: { name: string; parentId: string }): Promise<DriveFolder>
+  /**
+   * Reconcile a folder's user permissions to exactly `emails` (as readers):
+   * grant any missing, revoke any extra user grants. The owner/service account
+   * is never revoked.
+   */
+  syncPermissions(fileId: string, emails: string[]): Promise<void>
+}
