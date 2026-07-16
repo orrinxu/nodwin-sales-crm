@@ -2491,6 +2491,66 @@ export type Database = {
           },
         ]
       }
+      opportunity_line_items: {
+        Row: {
+          created_at: string
+          description: string
+          discount_pct: number
+          id: string
+          line_total: number | null
+          opportunity_id: string
+          position: number
+          product_id: string | null
+          quantity: number
+          unit_cost_amount: number
+          unit_price_amount: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          discount_pct?: number
+          id?: string
+          line_total?: number | null
+          opportunity_id: string
+          position?: number
+          product_id?: string | null
+          quantity?: number
+          unit_cost_amount?: number
+          unit_price_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          discount_pct?: number
+          id?: string
+          line_total?: number | null
+          opportunity_id?: string
+          position?: number
+          product_id?: string | null
+          quantity?: number
+          unit_cost_amount?: number
+          unit_price_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunity_line_items_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opportunity_line_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       opportunity_revenue_schedule: {
         Row: {
           amount: number
@@ -2760,6 +2820,7 @@ export type Database = {
           id: string
           name: string
           sku: string | null
+          unit_cost_amount: number
           unit_price_amount: number
           unit_price_currency: string
           updated_at: string
@@ -2772,6 +2833,7 @@ export type Database = {
           id?: string
           name: string
           sku?: string | null
+          unit_cost_amount?: number
           unit_price_amount?: number
           unit_price_currency?: string
           updated_at?: string
@@ -2784,6 +2846,7 @@ export type Database = {
           id?: string
           name?: string
           sku?: string | null
+          unit_cost_amount?: number
           unit_price_amount?: number
           unit_price_currency?: string
           updated_at?: string
@@ -3627,6 +3690,10 @@ export type Database = {
         Returns: boolean
       }
       can_write_account: { Args: { _account_id: string }; Returns: boolean }
+      can_write_opportunity_line_items: {
+        Args: { _opportunity_id: string }
+        Returns: boolean
+      }
       cancel_approval_instance: {
         Args: { _instance_id: string }
         Returns: undefined
@@ -3841,6 +3908,10 @@ export type Database = {
       }
       replace_account_tax_ids: {
         Args: { _account_id: string; _tax_ids: Json }
+        Returns: undefined
+      }
+      replace_opportunity_line_items: {
+        Args: { _opportunity_id: string; _rows: Json }
         Returns: undefined
       }
       replace_opportunity_splits: {
