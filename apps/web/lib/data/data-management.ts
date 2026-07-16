@@ -85,6 +85,9 @@ export const importJobCreateSchema = z.object({
   status: z
     .enum(["pending", "running", "completed", "failed"])
     .default("pending"),
+  // Populated by importers/exporters so the jobs list can show a summary.
+  recordCount: z.number().int().nonnegative().nullable().optional(),
+  errorLog: z.unknown().optional(),
 })
 
 export type ImportJobCreateInput = z.input<typeof importJobCreateSchema>
@@ -304,6 +307,12 @@ export async function createImportJob(
     target_entity_type: parsed.targetEntityType ?? null,
     status: parsed.status,
     created_by: ctx.user.id,
+  }
+  if (parsed.recordCount !== undefined) {
+    dbData.record_count = parsed.recordCount
+  }
+  if (parsed.errorLog !== undefined) {
+    dbData.error_log = parsed.errorLog ?? null
   }
 
   const { data, error } = await supabase

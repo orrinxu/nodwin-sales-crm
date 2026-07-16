@@ -5,6 +5,7 @@ import { getAllEntities } from "@/lib/data/entities"
 import { getBusinessUnitOptions } from "@/lib/data/opportunities"
 import { DataManagementList } from "@/components/admin/data-management-list"
 import { SalesforceImportCard } from "@/components/admin/salesforce-import-card"
+import { RecordsImportCard } from "@/components/admin/records-import-card"
 import {
   getFinanceExportConfigsAction,
   createFinanceExportConfigAction,
@@ -13,6 +14,7 @@ import {
   getImportJobsAction,
   exportRecordsAction,
   importSalesforceAction,
+  importRecordsAction,
 } from "./actions"
 
 export default async function AdminDataManagementPage() {
@@ -40,6 +42,7 @@ export default async function AdminDataManagementPage() {
         getJobsAction={getImportJobsAction}
         exportRecordsAction={exportRecordsAction}
       />
+      <RecordsImportCard importAction={importRecordsAction} />
       <SalesforceImportCard
         businessUnits={businessUnits}
         importAction={importSalesforceAction}
