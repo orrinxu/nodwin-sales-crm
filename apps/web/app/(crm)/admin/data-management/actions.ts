@@ -23,6 +23,10 @@ import {
   importSalesforceCsv,
   type ImportResult,
 } from "@/lib/data/import/salesforce-import"
+import {
+  importRecordsCsv,
+  type RecordsImportResult,
+} from "@/lib/data/import/records-import"
 
 // ORR-703 — real synchronous CSV export. Fetches the records (RLS-scoped,
 // paginated), returns the CSV for the browser to download, and writes a completed
@@ -116,6 +120,24 @@ export async function importSalesforceAction(input: {
     entity: input.entity as ImportResult["entity"],
     csvText: input.csvText,
     salesUnitId: input.salesUnitId,
+  })
+  revalidatePath("/admin/data-management")
+  return result
+}
+
+// ORR-731 — generic native CSV importer. Admin uploads an arbitrary CSV; columns
+// are matched to CRM fields by header name. Accounts only for now; rows whose name
+// already exists are skipped so re-uploads don't duplicate.
+export async function importRecordsAction(input: {
+  entity: string
+  csvText: string
+}): Promise<RecordsImportResult> {
+  const user = await requireUser()
+  requireRole(user, "admin")
+  const ctx = { user, source: "web" as const }
+  const result = await importRecordsCsv(ctx, {
+    entity: input.entity as RecordsImportResult["entity"],
+    csvText: input.csvText,
   })
   revalidatePath("/admin/data-management")
   return result

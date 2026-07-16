@@ -14,6 +14,10 @@ ORR-661, and cash-flow milestone follow-ups.
 
 ## 2026-07-16
 
+### Added
+
+- **Generic CSV import for Accounts (ORR-731):** a new "Import accounts from CSV" card on `/admin/data-management` takes an arbitrary CSV (not just a Salesforce export) and creates accounts. Columns are matched to fields by header name against an alias table (`Name`/`Company` → name; plus optional Legal Name, Website, Country, Industry, Description), so no per-import mapping UI is needed for the common cases; bare-domain websites are normalised to `https://…`. Rows whose name already exists (case-insensitive, paged scan to dodge the PostgREST 1000-row truncation) are **skipped**, so re-uploading the same file — or a double-click — won't duplicate. Each run writes an `import_jobs` audit row now carrying `record_count` + `error_log` (both columns existed but were unpopulated; `createImportJob` was extended). Reuses the ORR-699 `parseCsv` and `createAccount` (admin RLS, `created_by` trigger, audit). Contacts (account linking) and Opportunities (name→id resolution) are follow-ups.
+
 ### Docs
 
 - **Corrected the last stale secret-scanning references (ORR-602):** `docs/SOW.md` + `docs/_sources/SOW-v1.1.md` §9.5 item 5 described secret scanning as a **pre-commit hook** — the as-built runs **gitleaks in `deploy.yml`'s `checks` job on every push** (the standalone `secret-scan.yml` gate was descoped over a license issue; the pre-commit hook runs only the RLS linter). The other files flagged in the ticket (`README.md`, `BUILD_TICKETS.md`, `paperclip-org-chart.md`) were already reconciled by the #242 accuracy sweep.
