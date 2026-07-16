@@ -2266,6 +2266,8 @@ export type Database = {
           execution_date: string | null
           id: string
           legacy_salesforce_id: string | null
+          line_items_amount_overridden: boolean
+          line_items_discount_amount: number
           loss_reason: string | null
           name: string
           ops_unit_id: string | null
@@ -2310,6 +2312,8 @@ export type Database = {
           execution_date?: string | null
           id?: string
           legacy_salesforce_id?: string | null
+          line_items_amount_overridden?: boolean
+          line_items_discount_amount?: number
           loss_reason?: string | null
           name: string
           ops_unit_id?: string | null
@@ -2354,6 +2358,8 @@ export type Database = {
           execution_date?: string | null
           id?: string
           legacy_salesforce_id?: string | null
+          line_items_amount_overridden?: boolean
+          line_items_discount_amount?: number
           loss_reason?: string | null
           name?: string
           ops_unit_id?: string | null
@@ -3865,6 +3871,10 @@ export type Database = {
         Args: { _new_user_id: string; _step_id: string }
         Returns: undefined
       }
+      recompute_opportunity_amount_from_line_items: {
+        Args: { _opportunity_id: string }
+        Returns: undefined
+      }
       recompute_visibility_for_opportunity: {
         Args: { _opportunity_id: string }
         Returns: undefined
@@ -3950,6 +3960,14 @@ export type Database = {
           similarity: number
           visibility_tier: Database["public"]["Enums"]["visibility_tier"]
         }[]
+      }
+      set_opportunity_line_items_pricing: {
+        Args: {
+          _discount_amount: string
+          _opportunity_id: string
+          _overridden: boolean
+        }
+        Returns: undefined
       }
       set_role_permissions: {
         Args: { _keys: string[]; _role_id: string }
