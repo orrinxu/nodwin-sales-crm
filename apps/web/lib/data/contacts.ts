@@ -63,6 +63,8 @@ export const contactCreateSchema = z.object({
   ownerUserId: z.string().uuid().nullable().optional(),
   accountLinkIds: z.array(z.string().uuid()).optional(),
   customData: z.record(z.string(), z.unknown()).optional(),
+  // Set only by the Salesforce importer (ORR-699) to make re-imports idempotent.
+  legacySalesforceId: z.string().max(64).nullable().optional(),
 })
 
 export const contactUpdateSchema = contactCreateSchema.partial()
@@ -355,6 +357,9 @@ function toDbContact(input: ContactCreateInput): Record<string, unknown> {
   }
   if (input.customData !== undefined) {
     dbData.custom_data = input.customData
+  }
+  if (input.legacySalesforceId !== undefined) {
+    dbData.legacy_salesforce_id = input.legacySalesforceId || null
   }
 
   return dbData

@@ -19,6 +19,10 @@ import {
   EXPORT_ENTITIES,
   type ExportEntity,
 } from "@/lib/data/csv-export"
+import {
+  importSalesforceCsv,
+  type ImportResult,
+} from "@/lib/data/import/salesforce-import"
 
 // ORR-703 — real synchronous CSV export. Fetches the records (RLS-scoped,
 // paginated), returns the CSV for the browser to download, and writes a completed
@@ -95,4 +99,24 @@ export async function createExportJobAction(input: unknown) {
   const job = await createImportJob(ctx, parsed)
   revalidatePath("/admin/data-management")
   return job
+}
+
+// ORR-699 — Salesforce CSV migration importer. Admin uploads an export file for
+// one entity; each row is mapped, validated, and inserted (idempotent by
+// Salesforce Id). Returns a per-row summary for the UI.
+export async function importSalesforceAction(input: {
+  entity: string
+  csvText: string
+  salesUnitId?: string
+}): Promise<ImportResult> {
+  const user = await requireUser()
+  requireRole(user, "admin")
+  const ctx = { user, source: "web" as const }
+  const result = await importSalesforceCsv(ctx, {
+    entity: input.entity as ImportResult["entity"],
+    csvText: input.csvText,
+    salesUnitId: input.salesUnitId,
+  })
+  revalidatePath("/admin/data-management")
+  return result
 }
