@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Sliders,
   LinkIcon,
+  Package,
   Database,
   ClipboardCheck,
   Activity,
@@ -67,9 +68,10 @@ export const adminSections: AdminNavSection[] = [
   {
     label: "Data",
     icon: Database,
-    description: "Custom fields, relationship types, data management",
+    description: "Custom fields, products, relationship types, data management",
     items: [
       { name: "Custom Fields", href: "/admin/field-definitions", icon: Sliders },
+      { name: "Products", href: "/admin/products", icon: Package },
       { name: "Relationship Types", href: "/admin/relationship-types", icon: LinkIcon },
       { name: "Data Management", href: "/admin/data-management", icon: Database },
     ],
