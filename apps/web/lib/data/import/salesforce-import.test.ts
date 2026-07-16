@@ -19,10 +19,10 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }))
 
-const createAccount = vi.fn(async () => ({ id: "new-acct" }))
-const createContact = vi.fn(async () => ({ id: "new-contact" }))
-const createOpportunity = vi.fn(async () => ({ id: "new-opp" }))
-const createImportJob = vi.fn(async () => ({ id: "job-1" }))
+const createAccount = vi.fn(async (..._args: unknown[]) => ({ id: "new-acct" }))
+const createContact = vi.fn(async (..._args: unknown[]) => ({ id: "new-contact" }))
+const createOpportunity = vi.fn(async (..._args: unknown[]) => ({ id: "new-opp" }))
+const createImportJob = vi.fn(async (..._args: unknown[]) => ({ id: "job-1" }))
 
 vi.mock("@/lib/data/accounts", () => ({ createAccount: (...a: unknown[]) => createAccount(...a) }))
 vi.mock("@/lib/data/contacts", () => ({ createContact: (...a: unknown[]) => createContact(...a) }))
