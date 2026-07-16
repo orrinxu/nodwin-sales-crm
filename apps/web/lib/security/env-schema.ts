@@ -24,6 +24,16 @@ export const envSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   RESEND_DOMAIN: z.string().optional(),
   SLACK_BOT_TOKEN: z.string().optional(),
+  // ORR-698 server-side Google Drive (folder auto-create + permission sync). All
+  // optional so the app boots with the seam unwired. GOOGLE_SERVICE_ACCOUNT_KEY is
+  // the JSON key of a service account with domain-wide delegation;
+  // GOOGLE_WORKSPACE_ADMIN_SUBJECT is the Workspace user it impersonates;
+  // GOOGLE_DRIVE_SHARED_DRIVE_ID targets a shared drive; DRIVE_SYNC_CRON_SECRET
+  // gates the drain route.
+  GOOGLE_SERVICE_ACCOUNT_KEY: z.string().optional(),
+  GOOGLE_WORKSPACE_ADMIN_SUBJECT: z.string().optional(),
+  GOOGLE_DRIVE_SHARED_DRIVE_ID: z.string().optional(),
+  DRIVE_SYNC_CRON_SECRET: z.string().optional(),
   // ORR-620 document ingestion. All optional so the app boots with the seam
   // unwired — point EMBEDDINGS_* at a llama.cpp (OpenAI-compatible) server to
   // enable embedding. INGESTION_CRON_SECRET gates the worker drain route.
