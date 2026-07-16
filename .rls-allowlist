@@ -130,6 +130,10 @@
 .*revenue_recognition.*:USING \(true\)
 # Working-capital finance settings — read=all authenticated, write=admin.
 .*cost_of_cash.*:USING \(true\)
+# ── products ───────────────────────────────────────────────────────────────────
+# Product catalog (ORR-748). All authenticated users need read access to build
+# deal line items; write access is admin-only.
+.*products.*:USING \(true\)
 
 # ── admin_b_users_roles_access ────────────────────────────────────────────────
 # Untracked stray file; users/roles config table uses same pattern as other

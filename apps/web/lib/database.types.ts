@@ -2751,6 +2751,53 @@ export type Database = {
         }
         Relationships: []
       }
+      products: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          name: string
+          sku: string | null
+          unit_price_amount: number
+          unit_price_currency: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          name: string
+          sku?: string | null
+          unit_price_amount?: number
+          unit_price_currency?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          name?: string
+          sku?: string | null
+          unit_price_amount?: number
+          unit_price_currency?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_unit_price_currency_fkey"
+            columns: ["unit_price_currency"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       regions: {
         Row: {
           active: boolean
