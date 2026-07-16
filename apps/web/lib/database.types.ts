@@ -3117,6 +3117,30 @@ export type Database = {
         }
         Relationships: []
       }
+      sales_process_settings: {
+        Row: {
+          created_at: string
+          id: boolean
+          line_items_override_exempts: boolean
+          line_items_required_from_stage: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: boolean
+          line_items_override_exempts?: boolean
+          line_items_required_from_stage?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: boolean
+          line_items_override_exempts?: boolean
+          line_items_required_from_stage?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       salesforce_connections: {
         Row: {
           created_at: string
