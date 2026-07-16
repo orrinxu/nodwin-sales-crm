@@ -20,6 +20,7 @@ import {
   ScrollText,
   BarChart3,
   Route,
+  Target,
   type LucideIcon,
 } from "lucide-react"
 
@@ -52,6 +53,7 @@ export const adminSections: AdminNavSection[] = [
       { name: "Entities", href: "/admin/entities", icon: Globe },
       { name: "Regions", href: "/admin/regions", icon: MapIcon },
       { name: "Business Units", href: "/admin/business-units", icon: Briefcase },
+      { name: "Sales Targets", href: "/admin/targets", icon: Target },
       { name: "Finance", href: "/admin/finance", icon: Coins },
     ],
   },
