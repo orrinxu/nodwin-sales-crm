@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Work in flight on feature branches (not yet merged to `main`): admin landing page,
 ORR-661, and cash-flow milestone follow-ups.
 
+## 2026-07-16
+
+### Docs
+
+- **Corrected the last stale secret-scanning references (ORR-602):** `docs/SOW.md` + `docs/_sources/SOW-v1.1.md` §9.5 item 5 described secret scanning as a **pre-commit hook** — the as-built runs **gitleaks in `deploy.yml`'s `checks` job on every push** (the standalone `secret-scan.yml` gate was descoped over a license issue; the pre-commit hook runs only the RLS linter). The other files flagged in the ticket (`README.md`, `BUILD_TICKETS.md`, `paperclip-org-chart.md`) were already reconciled by the #242 accuracy sweep.
+
 ## 2026-07-13
 
 ### Added

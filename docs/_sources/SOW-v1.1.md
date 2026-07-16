@@ -845,7 +845,7 @@ In addition to AGENTS.md (which is a soft constraint — it depends on the agent
 2. ESLint rule banning direct `fetch()` to `*.anthropic.com`, `*.googleapis.com`, `openai.com` from anywhere except `lib/ai/router.ts`
 3. ESLint rule requiring `{ user, source }` parameter in any function declared in `lib/data/`
 4. RLS policy test runner: every policy in `supabase/policies/` has a corresponding `.test.sql` file. CI fails if any policy lacks tests or any test fails.
-5. Pre-commit hook scanning for committed secrets (gitleaks or truffleHog)
+5. Secret scanning (gitleaks) for committed secrets — runs in the `deploy.yml` `checks` job on every push (as-built; originally scoped as a pre-commit hook, and the standalone `secret-scan.yml` gate was descoped over a license issue). The pre-commit hook itself runs only the RLS policy linter.
 6. CI step that runs the full RLS policy test suite against a freshly migrated Postgres instance
 7. CI step that boots the app and exercises the inbound-email pipeline against a known-forged email and confirms it's rejected
 
