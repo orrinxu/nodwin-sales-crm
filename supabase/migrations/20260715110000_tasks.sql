@@ -78,7 +78,8 @@ CREATE POLICY "tasks_select_own"
   USING (
     assignee_user_id = auth.uid()
     OR created_by = auth.uid()
-    OR public.current_user_role() = 'admin'
+    OR (public.current_user_role() = 'admin'
+        AND NOT public.opportunity_is_confidential(opportunity_id))
   );
 
 DROP POLICY IF EXISTS "tasks_insert_creator" ON public.tasks;
@@ -96,12 +97,14 @@ CREATE POLICY "tasks_update_own"
   USING (
     assignee_user_id = auth.uid()
     OR created_by = auth.uid()
-    OR public.current_user_role() = 'admin'
+    OR (public.current_user_role() = 'admin'
+        AND NOT public.opportunity_is_confidential(opportunity_id))
   )
   WITH CHECK (
     assignee_user_id = auth.uid()
     OR created_by = auth.uid()
-    OR public.current_user_role() = 'admin'
+    OR (public.current_user_role() = 'admin'
+        AND NOT public.opportunity_is_confidential(opportunity_id))
   );
 
 DROP POLICY IF EXISTS "tasks_delete_creator" ON public.tasks;
@@ -109,7 +112,11 @@ CREATE POLICY "tasks_delete_creator"
   ON public.tasks
   FOR DELETE
   TO authenticated
-  USING (created_by = auth.uid() OR public.current_user_role() = 'admin');
+  USING (
+    created_by = auth.uid()
+    OR (public.current_user_role() = 'admin'
+        AND NOT public.opportunity_is_confidential(opportunity_id))
+  );
 
 DROP POLICY IF EXISTS "tasks_service_role" ON public.tasks;
 CREATE POLICY "tasks_service_role"
