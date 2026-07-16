@@ -134,6 +134,10 @@
 # Product catalog (ORR-748). All authenticated users need read access to build
 # deal line items; write access is admin-only.
 .*products.*:USING \(true\)
+# ── sales_process_settings ─────────────────────────────────────────────────────
+# Global sales-process config (ORR-753). All authenticated users read it to show
+# the line-items warning; write access is admin-only.
+.*sales_process_settings.*:USING \(true\)
 
 # ── admin_b_users_roles_access ────────────────────────────────────────────────
 # Untracked stray file; users/roles config table uses same pattern as other

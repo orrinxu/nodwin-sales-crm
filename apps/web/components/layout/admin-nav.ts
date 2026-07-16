@@ -19,6 +19,7 @@ import {
   PlugZap,
   ScrollText,
   BarChart3,
+  Route,
   type LucideIcon,
 } from "lucide-react"
 
@@ -79,8 +80,9 @@ export const adminSections: AdminNavSection[] = [
   {
     label: "Automation & AI",
     icon: Sparkles,
-    description: "Approval workflows, deal health, AI",
+    description: "Sales process, approval workflows, deal health, AI",
     items: [
+      { name: "Sales Process", href: "/admin/sales-process", icon: Route },
       { name: "Approval Workflows", href: "/admin/approval-workflows", icon: ClipboardCheck },
       { name: "Deal Health", href: "/admin/deal-health", icon: Activity },
       { name: "AI", href: "/admin/ai", icon: Sparkles },

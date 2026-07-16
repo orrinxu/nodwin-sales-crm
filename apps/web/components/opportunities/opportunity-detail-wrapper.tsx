@@ -123,6 +123,7 @@ interface OpportunityDetailWrapperProps {
   lineItemsSummary?: LineItemsSummary
   products?: ProductOption[]
   saveLineItemsAction?: (id: string, input: unknown) => Promise<void>
+  lineItemsWarning?: string | null
   enforceGateStatus?: EnforceGateStatus
   dealCopilotConfigured?: boolean
   dealCopilotSummaryAction?: (opportunityId: string) => Promise<DealCopilotResult>
@@ -282,6 +283,7 @@ export function OpportunityDetailWrapper({
   lineItemsSummary,
   products = [],
   saveLineItemsAction,
+  lineItemsWarning,
   enforceGateStatus = { isBlocked: false },
   dealCopilotConfigured = false,
   dealCopilotSummaryAction,
@@ -543,6 +545,12 @@ export function OpportunityDetailWrapper({
       {/* ── Main: tabbed detail (left) + persistent rail (right) ──────────────── */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         <div className="min-w-0 flex-1">
+          {lineItemsWarning ? (
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+              <span>{lineItemsWarning}</span>
+            </div>
+          ) : null}
           <FacetTabs value={activeTab} onValueChange={(v) => setActiveTab(v as string)}>
             <FacetTabsList>
               <FacetTabsTab value="overview">Overview</FacetTabsTab>

@@ -12,6 +12,9 @@ import {
 import { getStageHistoryForOpportunity } from "@/lib/data/opportunity-stage-history"
 import { getOpportunityLineItemsSummary } from "@/lib/data/opportunity-line-items"
 import { getAllProducts } from "@/lib/data/products"
+import { getSalesProcessSettings } from "@/lib/data/sales-process-settings"
+import { lineItemsRequirementUnmet } from "@/lib/opportunity"
+import { getStageLabel } from "@/lib/data/opportunities.types"
 import { getActivitiesForOpportunity } from "@/lib/data/activities"
 import {
   getApprovalHistoryForOpportunity,
@@ -85,7 +88,7 @@ export default async function OpportunityDetailPage({
     notFound()
   }
 
-  const [businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState, enforceGateStatus, dealCopilotConfigured, documents, revenueScheduleRows, costMilestones, workingCapitalResult, lineItemsSummary, productRecords] =
+  const [businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState, enforceGateStatus, dealCopilotConfigured, documents, revenueScheduleRows, costMilestones, workingCapitalResult, lineItemsSummary, productRecords, salesProcessSettings] =
     await Promise.all([
       getBusinessUnitOptions(ctx),
       getActivitiesForOpportunity(ctx, id),
@@ -110,7 +113,26 @@ export default async function OpportunityDetailPage({
       }),
       getOpportunityLineItemsSummary(ctx, id),
       getAllProducts(ctx),
+      getSalesProcessSettings(ctx),
     ])
+
+  // ORR-753: warn (not block) when a deal has reached the configured stage
+  // without line items and isn't waived by a manual override.
+  const lineItemsWarning =
+    salesProcessSettings.lineItemsRequiredFromStage &&
+    lineItemsRequirementUnmet({
+      stage: opportunity.stage,
+      hasLineItems: lineItemsSummary.lines.length > 0,
+      amountOverridden: lineItemsSummary.overridden,
+      config: {
+        requiredFromStage: salesProcessSettings.lineItemsRequiredFromStage,
+        overrideExempts: salesProcessSettings.lineItemsOverrideExempts,
+      },
+    })
+      ? `Line items are expected from the “${getStageLabel(
+          salesProcessSettings.lineItemsRequiredFromStage,
+        )}” stage — this deal has none. Add them in the Products tab.`
+      : null
 
   // Active catalog products, mapped to the light shape the line-item picker needs.
   const productOptions = productRecords
@@ -158,6 +180,7 @@ export default async function OpportunityDetailPage({
       lineItemsSummary={lineItemsSummary}
       products={productOptions}
       saveLineItemsAction={saveOpportunityLineItemsAction}
+      lineItemsWarning={lineItemsWarning}
       enforceGateStatus={enforceGateStatus}
       dealCopilotConfigured={dealCopilotConfigured}
       dealCopilotSummaryAction={dealCopilotSummaryAction}

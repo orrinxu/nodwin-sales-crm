@@ -11,6 +11,13 @@ export {
   createTransitionDescriptor,
 } from "./stage"
 
+export {
+  lineItemsRequiredAtStage,
+  lineItemsRequirementUnmet,
+} from "./line-items-requirement"
+
+export type { LineItemsRequirementConfig } from "./line-items-requirement"
+
 export type {
   DealStage,
   NonTerminalDealStage,
