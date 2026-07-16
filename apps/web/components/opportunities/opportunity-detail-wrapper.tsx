@@ -22,6 +22,7 @@ import {
   OpportunityLineItemsEditor,
   type ProductOption,
 } from "@/components/opportunities/opportunity-line-items-editor"
+import { OpportunityLineItemsSummary } from "@/components/opportunities/opportunity-line-items-summary"
 import type { LineItemsSummary } from "@/lib/data/opportunity-line-items"
 import { OpportunityTeamEditor } from "@/components/opportunities/opportunity-team-editor"
 import { StageHistoryTimeline } from "@/components/opportunities/stage-history-timeline"
@@ -384,6 +385,9 @@ export function OpportunityDetailWrapper({
   // (or there are no lines) — make the amount field read-only in the edit form.
   const amountDerived =
     !!lineItemsSummary && lineItemsSummary.lines.length > 0 && !lineItemsSummary.overridden
+  // Line amounts are stored in the deal currency, so changing it would mis-scale
+  // them — lock the currency field whenever the deal has any line items.
+  const currencyLocked = !!lineItemsSummary && lineItemsSummary.lines.length > 0
 
   const handleSaveTeam = useCallback(
     async (next: OpportunityTeamMemberInput[]) => {
@@ -459,6 +463,7 @@ export function OpportunityDetailWrapper({
               onSuccess={() => router.refresh()}
               searchUsersAction={searchUsersAction}
               amountDerived={amountDerived}
+              currencyLocked={currencyLocked}
               trigger={
                 <Button ref={editTriggerRef} variant="outline" size="sm">
                   <Pencil className="size-4" />
@@ -587,6 +592,17 @@ export function OpportunityDetailWrapper({
                   )}
                 </CardContent>
               </Card>
+
+              {lineItemsSummary && lineItemsSummary.lines.length > 0 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className={T.cardHeading}>Products &amp; line items</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <OpportunityLineItemsSummary summary={lineItemsSummary} />
+                  </CardContent>
+                </Card>
+              ) : null}
             </FacetTabsPanel>
 
             {/* DETAILS */}

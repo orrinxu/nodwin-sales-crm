@@ -169,6 +169,8 @@ interface OpportunityFormProps {
   searchUsersAction?: (query: string) => Promise<EntityOption[]>
   /** When true, the amount is derived from line items — render the field read-only. */
   amountDerived?: boolean
+  /** When true, the deal has line items priced in this currency — lock the field. */
+  currencyLocked?: boolean
   createContactQuickAction?: (input: { fullName: string; email?: string; accountId?: string }) => Promise<EntityOption>
   createAccountQuickAction?: (input: { name: string }) => Promise<EntityOption>
   currentUserId?: string
@@ -199,6 +201,7 @@ export function OpportunityForm({
   searchContactsAction,
   searchUsersAction,
   amountDerived = false,
+  currencyLocked = false,
   createContactQuickAction,
   createAccountQuickAction,
   currentUserId,
@@ -636,7 +639,19 @@ export function OpportunityForm({
 
         <div className="grid gap-1.5">
           <Label htmlFor="currency">Currency</Label>
-          <Input id="currency" {...form.register("currency")} placeholder="USD" />
+          <Input
+            id="currency"
+            {...form.register("currency")}
+            placeholder="USD"
+            readOnly={currencyLocked}
+            aria-readonly={currencyLocked}
+            className={currencyLocked ? "bg-muted text-muted-foreground" : undefined}
+          />
+          {currencyLocked && (
+            <p className="text-xs text-muted-foreground">
+              Locked while the deal has line items (they&rsquo;re priced in this currency).
+            </p>
+          )}
         </div>
 
         <div className="grid gap-1.5">
