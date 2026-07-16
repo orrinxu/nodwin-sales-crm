@@ -10,6 +10,8 @@ import {
   getUserOptions,
 } from "@/lib/data/opportunities"
 import { getStageHistoryForOpportunity } from "@/lib/data/opportunity-stage-history"
+import { getOpportunityLineItemsSummary } from "@/lib/data/opportunity-line-items"
+import { getAllProducts } from "@/lib/data/products"
 import { getActivitiesForOpportunity } from "@/lib/data/activities"
 import {
   getApprovalHistoryForOpportunity,
@@ -24,6 +26,7 @@ import {
   createActivityAction,
   updateOpportunitySplitsAction,
   updateOpportunityTeamMembersAction,
+  saveOpportunityLineItemsAction,
   submitOpportunityForApprovalAction,
   recordApprovalDecisionAction,
   reassignApprovalStepAction,
@@ -82,7 +85,7 @@ export default async function OpportunityDetailPage({
     notFound()
   }
 
-  const [businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState, enforceGateStatus, dealCopilotConfigured, documents, revenueScheduleRows, costMilestones, workingCapitalResult] =
+  const [businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState, enforceGateStatus, dealCopilotConfigured, documents, revenueScheduleRows, costMilestones, workingCapitalResult, lineItemsSummary, productRecords] =
     await Promise.all([
       getBusinessUnitOptions(ctx),
       getActivitiesForOpportunity(ctx, id),
@@ -105,7 +108,20 @@ export default async function OpportunityDetailPage({
         console.error(`Working-capital derivation failed for opportunity ${id}:`, e)
         return null
       }),
+      getOpportunityLineItemsSummary(ctx, id),
+      getAllProducts(ctx),
     ])
+
+  // Active catalog products, mapped to the light shape the line-item picker needs.
+  const productOptions = productRecords
+    .filter((p) => p.active)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      sku: p.sku,
+      unitPriceAmount: p.unitPriceAmount,
+      unitCostAmount: p.unitCostAmount,
+    }))
 
   const approvalStatus = approvalStatusLabel(summarizeApprovalStatus(approvals))
   const revenueSchedule = revenueScheduleRows.map((r) => ({ month: r.month.slice(0, 10), amount: r.amount }))
@@ -139,6 +155,9 @@ export default async function OpportunityDetailPage({
       cancelApprovalAction={cancelApprovalInstanceAction}
       updateSplitsAction={updateOpportunitySplitsAction}
       updateTeamAction={updateOpportunityTeamMembersAction}
+      lineItemsSummary={lineItemsSummary}
+      products={productOptions}
+      saveLineItemsAction={saveOpportunityLineItemsAction}
       enforceGateStatus={enforceGateStatus}
       dealCopilotConfigured={dealCopilotConfigured}
       dealCopilotSummaryAction={dealCopilotSummaryAction}

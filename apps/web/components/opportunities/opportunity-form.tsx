@@ -167,6 +167,8 @@ interface OpportunityFormProps {
   searchAccountsAction?: (query: string) => Promise<EntityOption[]>
   searchContactsAction?: (query: string, accountId?: string) => Promise<EntityOption[]>
   searchUsersAction?: (query: string) => Promise<EntityOption[]>
+  /** When true, the amount is derived from line items — render the field read-only. */
+  amountDerived?: boolean
   createContactQuickAction?: (input: { fullName: string; email?: string; accountId?: string }) => Promise<EntityOption>
   createAccountQuickAction?: (input: { name: string }) => Promise<EntityOption>
   currentUserId?: string
@@ -196,6 +198,7 @@ export function OpportunityForm({
   searchAccountsAction,
   searchContactsAction,
   searchUsersAction,
+  amountDerived = false,
   createContactQuickAction,
   createAccountQuickAction,
   currentUserId,
@@ -613,7 +616,22 @@ export function OpportunityForm({
 
         <div className="grid gap-1.5">
           <Label htmlFor="amount">Amount</Label>
-          <Input id="amount" type="number" step="0.01" min="0" {...form.register("amount")} placeholder="0.00" />
+          <Input
+            id="amount"
+            type="number"
+            step="0.01"
+            min="0"
+            {...form.register("amount")}
+            placeholder="0.00"
+            readOnly={amountDerived}
+            aria-readonly={amountDerived}
+            className={amountDerived ? "bg-muted text-muted-foreground" : undefined}
+          />
+          {amountDerived && (
+            <p className="text-xs text-muted-foreground">
+              Derived from line items — edit in the Products tab.
+            </p>
+          )}
         </div>
 
         <div className="grid gap-1.5">

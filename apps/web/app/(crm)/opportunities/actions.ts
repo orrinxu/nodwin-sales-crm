@@ -26,6 +26,11 @@ import { searchAccountOptions, searchContactOptions, createContact, contactCreat
 import type { ContactCallContext } from "@/lib/data/contacts"
 import { createAccount, accountCreateSchema } from "@/lib/data/accounts"
 import {
+  replaceOpportunityLineItems,
+  setOpportunityLineItemsPricing,
+  lineItemInputSchema,
+} from "@/lib/data/opportunity-line-items"
+import {
   submitOpportunityForApproval,
   recordApprovalDecision,
   reassignApprovalStep,
@@ -285,4 +290,26 @@ export async function createAccountQuickAction(input: { name: string }) {
   const account = await createAccount(ctx, parsed)
   revalidatePath("/opportunities")
   return { id: account.id, name: account.name }
+}
+
+const saveLineItemsSchema = z.object({
+  lines: z.array(lineItemInputSchema),
+  discountAmount: z.string().max(30).optional(),
+  overridden: z.boolean(),
+})
+
+// ORR-751 (§D): save a deal's line items + per-deal pricing in one call. Replace
+// swaps the lines (and recomputes amount); setPricing applies the discount +
+// override toggle (and recomputes again) so the final amount reflects both.
+export async function saveOpportunityLineItemsAction(id: string, input: unknown) {
+  const user = await requireUser()
+  const ctx = { user, source: "web" as const }
+  const parsed = saveLineItemsSchema.parse(input)
+  await replaceOpportunityLineItems(ctx, id, parsed.lines)
+  await setOpportunityLineItemsPricing(ctx, id, {
+    discountAmount: parsed.discountAmount,
+    overridden: parsed.overridden,
+  })
+  revalidatePath("/opportunities")
+  revalidatePath(`/opportunities/${id}`)
 }
