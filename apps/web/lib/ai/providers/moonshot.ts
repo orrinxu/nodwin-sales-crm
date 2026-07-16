@@ -1,9 +1,10 @@
 import type { AdapterConfig, AdapterCallOptions, ProviderAdapter } from "../types"
 import { openAiUserContent } from "./content"
+import { env } from "@/lib/security/env"
 
 export function createMoonshotAdapter(config: AdapterConfig = {}): ProviderAdapter {
-  const model = config.model ?? process.env.MOONSHOT_MODEL ?? "moonshot-v1-8k"
-  const apiKey = config.apiKey ?? process.env.MOONSHOT_API_KEY
+  const model = config.model ?? env.MOONSHOT_MODEL ?? "moonshot-v1-8k"
+  const apiKey = config.apiKey ?? env.MOONSHOT_API_KEY
 
   return {
     async call(prompt: string, systemPrompt?: string, options?: AdapterCallOptions) {

@@ -74,14 +74,8 @@ const eslintConfig = defineConfig([
       "node/no-process-env": "off",
     },
   },
-  // AI provider adapters read optional API keys from process.env to determine availability.
-  // These files are the only place direct AI API access is allowed.
-  {
-    files: ["lib/ai/providers/*.ts"],
-    rules: {
-      "node/no-process-env": "off",
-    },
-  },
+  // (ORR-730) AI provider adapters previously read process.env directly; they now
+  // go through the validated @/lib/security/env boundary, so no exemption is needed.
   // Client-side files that need NEXT_PUBLIC_ env vars (Next.js inlines these at build time).
   {
     files: [

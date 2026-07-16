@@ -14,6 +14,10 @@ ORR-661, and cash-flow milestone follow-ups.
 
 ## 2026-07-16
 
+### Changed
+
+- **AI provider env reads go through the validated boundary + `.env.example` reconciled (ORR-730):** the `lib/ai/providers/*` adapters (Anthropic, Gemini, DeepSeek, Moonshot, Ollama, OpenAI-compatible + the env-fallback builder) now read their API keys / models via `@/lib/security/env` instead of raw `process.env`, completing the ARCH-1 migration; the eslint `no-process-env` exemption for those files is removed. `index.test.ts` now mocks the env boundary rather than mutating `process.env`. Separately, `.env.example` is reconciled to `env-schema.ts`: fixed the `NEXT_PUBLIC_SUPABASE_*` → `SUPABASE_*` and `NEXT_PUBLIC_APP_URL` → `APP_URL` name drift, added the required `POSTMARK_WEBHOOK_SECRET` + `NEXT_PUBLIC_API_URL` and all the AI provider key/model vars, and dropped stale unused entries (SMTP\_\*, `GOOGLE_OAUTH_CLIENT_SECRET`). Hygiene only — no runtime/security behaviour change (the security portion shipped earlier in #299).
+
 ### Added
 
 - **"Line items" badge on the pipeline board (ORR-753 follow-up):** deals flagged by the line-items requirement now also show a warning **Line items** badge on their kanban card (alongside Hot / overdue / stale), so at-risk deals are visible from the board without opening each one. Computed in one batched pass (`attachLineItemsWarning`) over the scoped list — one settings read + at most two id-scoped queries, never per-card, mirroring `attachDealHealth`. `OpportunityRecord` gained an optional `needsLineItems` flag. Unit-tested; no migration.

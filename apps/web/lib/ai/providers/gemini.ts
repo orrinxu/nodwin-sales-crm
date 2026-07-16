@@ -1,11 +1,12 @@
 import type { AdapterConfig, AdapterCallOptions, ProviderAdapter } from "../types"
 import { geminiParts } from "./content"
+import { env } from "@/lib/security/env"
 
 const MODEL_REGEX = /^[a-zA-Z0-9_.-]+$/
 
 export function createGeminiAdapter(config: AdapterConfig = {}): ProviderAdapter {
-  const model = config.model ?? process.env.GEMINI_MODEL ?? "gemini-1.5-pro"
-  const apiKey = config.apiKey ?? process.env.GOOGLE_API_KEY
+  const model = config.model ?? env.GEMINI_MODEL ?? "gemini-1.5-pro"
+  const apiKey = config.apiKey ?? env.GOOGLE_API_KEY
 
   return {
     async call(prompt: string, _systemPrompt?: string, options?: AdapterCallOptions) {
