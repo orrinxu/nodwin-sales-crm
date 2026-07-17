@@ -33,20 +33,20 @@ Audit tally: **10 done · 3 partial · 10 absent** of 23. (Plus several beyond-�
 | SOW # | Feature | Effort | Gap | Blocked by |
 |---|---|---|---|---|
 | 9 | Inbound email (Postmark) | S | Code-complete: parser `lib/email/inbound.ts` + `lib/webhooks/postmark.ts` + the route `app/api/webhooks/postmark/route.ts` (ORR-690, secret-authenticated, with an `INBOUND_EMAIL_DISABLED` kill switch). Only external setup remains: point Postmark's Inbound webhook at the route and set `POSTMARK_WEBHOOK_SECRET`. | Postmark account/domain |
-| 11 | Slack integration | M | `sendSlackNotification` queries **phantom columns** (`slack_user_id`/`access_token`/`user_id`/`enabled` don't exist) → runtime error. Needs reconciled per-user Slack-identity schema + a signed slash-command/event route. | Slack app + `@slack/bolt` |
+| 11 | Slack integration | M | **Notification broadcasts SHIPPED (ORR-771):** per-workspace incoming webhooks configured in `/admin/slack` broadcast deal events (stage change, won/lost, assigned, approval) to a channel — no per-user OAuth, no `@slack/bolt`. Remaining (future expansion): the full bot-scoped app — slash command, per-user DMs, per-deal channels, approve-from-Slack (Block Kit) — which webhooks can't do. | `@slack/bolt` (only for the bot-app expansion) |
 | 17 | Dashboards (role-tiered) | M | Much more built since the last audit. Shipped: **revenue forecasting & rep scorecards** (#183, `lib/data/forecast.ts` → `components/dashboard/forecast-tile.tsx`, `rep-leaderboard.tsx`, `components/reports/forecast-scorecards.tsx`); **Team Leaderboard** (#190); **"Needs my attention"** (#185); **summary strip + Conversion-by-Stage funnel** (#189); **quarter forecast tile** (#186); **deal-card health signals** (#187); **Stuck Deals** (ORR-103, `lib/data/stuck-deals.ts`, `admin/deal-health/`); plus a **customizable per-user widget grid** (#192). Remaining gap: full **My / Team / Group role-tier separation** and a few named dashboards (Group Pipeline, Deals-at-Risk) are not yet distinct tiers. | — |
 
 ---
 
 ## ❌ Greenfield builds (absent — biggest chunk)
 
-**No Google/Slack/email SDK is in `apps/web/package.json`; only 2 API routes + 1 edge fn exist.** The whole Workspace + email layer is from-scratch.
+**No `googleapis` SDK is in `apps/web/package.json`.** The whole Google Workspace layer is from-scratch. Email inbound (Postmark) and Slack notification broadcasts (incoming webhooks) are shipped and need no SDK; the items below do. **The shared prerequisite for both Gmail two-way and Calendar is the per-user Google OAuth token subsystem (ORR-773) — build it once.**
 
 | SOW # | Feature | Effort | Notes |
 |---|---|---|---|
 | 12 | Google Drive — per-opp folder + permission sync | L | Config table + toggles only. Needs `googleapis`, folder creation, visibility-tier perm sync. (Client-side Drive→Storage *import* shipped under §8; the server byte-fetch seam `lib/integrations/drive/index.ts` still throws "not configured".) |
-| 10 | Outbound email composer (Gmail OAuth) | L | `gmail.send` OAuth, compose UI, log-as-activity. (Resend txn-notifications are unrelated.) |
-| 13 | Google Calendar | L | Event creation from deals + event→suggested-activity ingest. |
+| 10 | Outbound email composer (Gmail OAuth) | L | **ORR-775, needs ORR-773 first.** `gmail.send` OAuth, compose UI, log-as-activity. v1 ships user-composed email as deep-links (ORR-706); this is the in-CRM-send future expansion. (Resend txn-notifications are unrelated.) |
+| 13 | Google Calendar | L | **ORR-774, needs ORR-773 first.** Event creation from deals + event→suggested-activity ingest; also needs an events data model (extend `activities` or a `calendar_events` table). |
 | 14 | **P&L Google Sheet on close** | L | Headline SOW "why". Sheets API copy-of-template + prefill + Finance share + notify, on `closed_won`. |
 | 18 | Salesforce migration tooling | L | Only a `legacy_salesforce_id` column. Needs idempotent + incremental importer + `sf_field_map.yaml`. |
 | 20 | Audit-log **viewer** UI | M | Triggers write `audit_log`; nothing displays it. Needs per-record + global filterable view. |

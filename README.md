@@ -77,7 +77,7 @@ Shipped and wired:
 - **pnpm** (package manager)
 - Background jobs — `api/jobs/*` routes + `pg_cron` scaffold
 - Email — outbound via Resend/SMTP; **Postmark inbound webhook only** (parsed in `lib/email/`, no `postmark` SDK dependency)
-- Slack — optional, driven by a `SLACK_BOT_TOKEN` env var over raw `fetch` (no `@slack/bolt` dependency)
+- Slack — notification broadcasts via per-workspace **incoming webhooks** (admin-configured in `/admin/slack`, posted over raw `fetch`; no `@slack/bolt` dependency, no per-user OAuth). The full bot-scoped app (slash command, DMs, per-deal channels) is a future expansion.
 
 Aspirational / SOW targets (stubbed or not yet wired):
 
