@@ -41,7 +41,7 @@ export default async function DashboardPage() {
   // caller's role can actually see a Group rollup.
   const groupScope = getGroupScope(ctx)
 
-  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, needsAttention, myTasks, targetProgress, forecast, teamScope, teamScorecard, teamConversionFunnel, groupScorecard, groupConversionFunnel, numberFormat] = await Promise.all([
+  const [pipelineMetrics, pipelineSummary, deals, activities, stuck, needsAttention, myTasks, targetProgress, forecast, teamScope, groupScorecard, groupConversionFunnel, numberFormat] = await Promise.all([
     getPipelineMetrics(ctx),
     getPipelineSummary(ctx),
     getRecentDeals(ctx),
@@ -52,17 +52,24 @@ export default async function DashboardPage() {
     getMyTargetProgress(ctx),
     getForecastData(ctx),
     getTeamScope(ctx),
-    // Team tab (ORR-722): leaderboard + funnel scoped to the caller's reporting
-    // subtree, not everything RLS allows. Fetched regardless of hasReports (cheap
-    // bounded RPCs) and only rendered when the caller actually manages a team.
-    getTeamScorecard(ctx),
-    getConversionFunnel(ctx, { teamOnly: true }),
     // Group tab (ORR-723): region/group rollup. Only fetch for leadership roles;
     // non-leadership callers get an empty resolver set anyway, but skip the RPCs.
     groupScope.canViewGroup ? getGroupScorecard(ctx) : Promise.resolve(null),
     groupScope.canViewGroup ? getConversionFunnel(ctx, { groupOnly: true }) : Promise.resolve(null),
     getNumberFormat(ctx),
   ])
+
+  // Team tab (ORR-722 / ORR-768): the leaderboard + funnel only ever render when
+  // the caller manages a team, so skip both aggregate RPCs entirely otherwise —
+  // a non-manager's dashboard no longer runs them on every load. `teamScope`
+  // resolves in the parallel wave above, so this adds a round-trip only for the
+  // managers who actually need the data (and pay nothing for the common case).
+  const [teamScorecard, teamConversionFunnel] = teamScope.hasReports
+    ? await Promise.all([
+        getTeamScorecard(ctx),
+        getConversionFunnel(ctx, { teamOnly: true }),
+      ])
+    : [null, null]
 
   // Use the same resolved currency the metrics were converted into, so the
   // pipeline chart and recent-deal amounts match the metric cards. Digit grouping
@@ -179,7 +186,7 @@ export default async function DashboardPage() {
   //    one-row leaderboard of themselves. ──
   const team = (
     <DashboardSection label="Team">
-      {teamScope.hasReports ? (
+      {teamScorecard && teamConversionFunnel ? (
         <div className="grid gap-4 lg:grid-cols-2">
           <RepLeaderboard
             scorecard={teamScorecard.scorecard}
