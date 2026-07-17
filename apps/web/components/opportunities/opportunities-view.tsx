@@ -1,5 +1,6 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import { LayoutGridIcon, ListIcon, KanbanIcon } from "lucide-react"
 
@@ -25,8 +26,17 @@ import {
 import { cn } from "@/lib/utils"
 import { SectionHeader } from "@/components/primitives/section-header"
 import { EmptyState } from "@/components/primitives/empty-state"
-import { OpportunityBoard } from "@/components/opportunities/opportunity-board"
-import { OpportunityListTable } from "@/components/opportunities/opportunity-list-table"
+// Code-split the two views (ORR-760): the board pulls in dnd-kit and the table
+// pulls in tanstack-table, but only ONE renders per page load (the view is
+// server-driven — toggling is a navigation), so dynamic-importing both keeps the
+// non-rendered view's library out of the bundle. Default SSR is kept, so the
+// active view still server-renders (no loading flash).
+const OpportunityBoard = dynamic(() =>
+  import("@/components/opportunities/opportunity-board").then((m) => m.OpportunityBoard),
+)
+const OpportunityListTable = dynamic(() =>
+  import("@/components/opportunities/opportunity-list-table").then((m) => m.OpportunityListTable),
+)
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
 import { OpportunityGenerator } from "@/components/opportunities/opportunity-generator"
 import type { GenerateOpportunityResult, ExtractFileResult, TranscribeAudioResult } from "@/app/(crm)/opportunities/generate-actions"

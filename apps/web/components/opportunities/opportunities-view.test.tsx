@@ -76,21 +76,23 @@ describe("OpportunitiesView — defaultView", () => {
     vi.clearAllMocks()
   })
 
-  it('opens the board when defaultView="board"', () => {
+  // The board/table are dynamic() imports (ORR-760), so they resolve
+  // asynchronously — use findBy for the view that should mount.
+  it('opens the board when defaultView="board"', async () => {
     render(<OpportunitiesView {...baseProps} defaultView="board" />)
-    expect(screen.getByTestId("board")).toBeInTheDocument()
+    expect(await screen.findByTestId("board")).toBeInTheDocument()
     expect(screen.queryByTestId("table")).not.toBeInTheDocument()
   })
 
-  it('opens the table when defaultView="table"', () => {
+  it('opens the table when defaultView="table"', async () => {
     render(<OpportunitiesView {...baseProps} defaultView="table" />)
-    expect(screen.getByTestId("table")).toBeInTheDocument()
+    expect(await screen.findByTestId("table")).toBeInTheDocument()
     expect(screen.queryByTestId("board")).not.toBeInTheDocument()
   })
 
-  it("defaults to the board when defaultView is omitted", () => {
+  it("defaults to the board when defaultView is omitted", async () => {
     render(<OpportunitiesView {...baseProps} />)
-    expect(screen.getByTestId("board")).toBeInTheDocument()
+    expect(await screen.findByTestId("board")).toBeInTheDocument()
   })
 
   it("renders the empty state (not the board) when scope has no owned deals", () => {

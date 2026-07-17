@@ -7,13 +7,12 @@ import {
   getContactsForAccount,
   getOpportunitiesForAccount,
   getOwnerOptions,
-  getAccounts,
 } from "@/lib/data/accounts"
 import { listDocumentsForEntity } from "@/lib/data/documents"
 import { getFieldDefinitions } from "@/lib/data/field-definitions"
 import { getTaxIdTypes, getTaxIdsForAccount } from "@/lib/data/account-tax-ids"
 import { getActivitiesForAccount } from "@/lib/data/activities"
-import { getContactOptions } from "@/lib/data/contacts"
+import { getContactOptions, getAccountOptions } from "@/lib/data/contacts"
 import {
   updateAccountAction,
   upsertAccountRelationshipAction,
@@ -37,7 +36,7 @@ export default async function AccountDetailPage({
   // Attaching/creating contacts writes to admin-only RLS tables, so only offer
   // it (and fetch the picker list) for admins.
   const canManageContacts = isSuperAdmin(user)
-  const [account, fieldDefinitions, taxIdTypes, taxIds, relationships, relationshipGraph, contacts, opportunities, owners, documents, activities, { accounts: allAccounts }, contactOptions] = await Promise.all([
+  const [account, fieldDefinitions, taxIdTypes, taxIds, relationships, relationshipGraph, contacts, opportunities, owners, documents, activities, allAccounts, contactOptions] = await Promise.all([
     getAccountById(ctx, id),
     getFieldDefinitions(ctx, "account"),
     getTaxIdTypes(ctx),
@@ -49,7 +48,9 @@ export default async function AccountDetailPage({
     getOwnerOptions(ctx),
     listDocumentsForEntity(ctx, { accountId: id }),
     getActivitiesForAccount(ctx, id),
-    getAccounts(ctx),
+    // Lightweight id/name list for the relationship-target dropdown (ORR-760) —
+    // the old getAccounts fetched every column + a per-row contact_count subquery.
+    getAccountOptions(ctx),
     canManageContacts ? getContactOptions(ctx) : Promise.resolve([]),
   ])
 
