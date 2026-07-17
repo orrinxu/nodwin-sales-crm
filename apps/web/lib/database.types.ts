@@ -3942,6 +3942,12 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      distinct_account_industries: {
+        Args: never
+        Returns: {
+          industry: string
+        }[]
+      }
       forecast_pipeline_agg: {
         Args: {
           p_next_quarter_end: string
@@ -4049,6 +4055,12 @@ export type Database = {
         Returns: boolean
       }
       my_permissions: { Args: never; Returns: string[] }
+      opportunities_with_line_items: {
+        Args: { _ids: string[] }
+        Returns: {
+          opportunity_id: string
+        }[]
+      }
       opportunity_check_enforce_gate: {
         Args: {
           _opportunity_id: string
@@ -4161,6 +4173,26 @@ export type Database = {
         Args: { _steps: Json; _workflow_id: string }
         Returns: undefined
       }
+      report_monthly_agg: {
+        Args: never
+        Returns: {
+          created_count: number
+          currency: string
+          month: string
+          won_amount: number
+          won_count: number
+        }[]
+      }
+      report_top_accounts_agg: {
+        Args: never
+        Returns: {
+          account_id: string
+          account_name: string
+          currency: string
+          deal_count: number
+          gross_amount: number
+        }[]
+      }
       search_document_chunks: {
         Args: {
           _match_count?: number
@@ -4199,6 +4231,14 @@ export type Database = {
         Returns: {
           last_activity_at: string
           opportunity_id: string
+        }[]
+      }
+      stuck_deals_value_at_risk: {
+        Args: { _thresholds: Json }
+        Returns: {
+          currency: string
+          deal_count: number
+          gross_amount: number
         }[]
       }
       submit_opportunity_for_approval: {

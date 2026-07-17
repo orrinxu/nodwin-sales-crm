@@ -1,7 +1,6 @@
 import "server-only"
 import { createServerClient } from "@/lib/supabase/server"
 import { DEAL_STAGES, isTerminalStage } from "@/lib/opportunity"
-import type { DealStage } from "@/lib/opportunity"
 import { getStageLabel } from "@/lib/data/opportunities.types"
 import { fetchAndConvert, resolveReportingCurrency, type DashboardContext } from "@/lib/data/metrics"
 
@@ -57,108 +56,43 @@ export interface PipelineSummary {
   totalCount: number
 }
 
+/**
+ * Report-page rollups (ORR-757). Previously `.limit(500)`'d the opportunities
+ * table and reduced every rollup in JS — silently partial past 500 deals. Each
+ * rollup now comes from a bounded GROUP BY RPC (per dimension × currency), folded
+ * through fetchAndConvert at today's rate — the pipeline_metrics_agg /
+ * forecast_pipeline_agg pattern. Unconvertible-currency buckets are dropped from
+ * the totals (same as the prior fetchAndConvert behaviour).
+ */
 export async function getReportData(ctx: DashboardContext): Promise<ReportData> {
   const supabase = await createServerClient()
-
-  const { data: opportunities, error } = await supabase
-    .from("opportunities")
-    .select(`
-      id,
-      name,
-      stage,
-      amount,
-      currency,
-      close_date,
-      created_at,
-      account:account_id ( name )
-    `)
-    .order("created_at", { ascending: false })
-    .limit(500)
-
-  if (error) {
-    throw new Error(`Failed to load report data: ${error.message}`)
-  }
-
   const reportingCurrency = await resolveReportingCurrency(ctx)
-  const raw = (opportunities ?? []) as unknown as Array<{
-    id: string
-    name: string
-    stage: string
-    amount: string | number
-    currency: string
-    close_date: string | null
-    created_at: string
-    account: Array<{ name: string }> | null
-  }>
 
-  const { converted: records } = await fetchAndConvert(
-    raw.map((r) => ({
-      id: r.id,
-      name: r.name,
+  const [stageRes, monthRes, accountRes] = await Promise.all([
+    supabase.rpc("pipeline_metrics_agg"),
+    supabase.rpc("report_monthly_agg"),
+    supabase.rpc("report_top_accounts_agg"),
+  ])
+  if (stageRes.error) throw new Error(`Failed to load report stages: ${stageRes.error.message}`)
+  if (monthRes.error) throw new Error(`Failed to load report months: ${monthRes.error.message}`)
+  if (accountRes.error) throw new Error(`Failed to load report accounts: ${accountRes.error.message}`)
+
+  // ── Pipeline by stage / won-lost / totals (per stage × currency) ────────────
+  const { converted: stageConv } = await fetchAndConvert(
+    (stageRes.data ?? []).map((r) => ({
       stage: r.stage,
-      amount: Number(r.amount) || 0,
+      amount: Number(r.gross_amount) || 0,
       currency: r.currency,
-      close_date: r.close_date,
-      created_at: r.created_at,
-      account: Array.isArray(r.account) && r.account.length > 0 ? r.account[0] : null,
+      close_date: null,
+      count: Number(r.deal_count) || 0,
     })),
     reportingCurrency,
   )
-
-  /* eslint-disable security/detect-object-injection -- dynamic map keys originate from typed constants or DB strings */
-  const stageBuckets: Record<string, { count: number; amount: number }> = {}
-  for (const stage of DEAL_STAGES) {
-    stageBuckets[stage] = { count: 0, amount: 0 }
-  }
-
-  let totalWonAmount = 0
-  let totalLostAmount = 0
-  let wonCount = 0
-  let lostCount = 0
-  let openCount = 0
-  let openAmount = 0
-
-  const monthlyMap: Record<string, { created: number; won: number; amount: number }> = {}
-  const accountMap: Record<string, { name: string; amount: number; count: number }> = {}
-
-  for (const opp of records) {
-    const stage = opp.stage as DealStage
-    const amount = opp.amount
-    const bucket = stageBuckets[stage]
-    if (bucket) {
-      bucket.count++
-      bucket.amount += amount
-    }
-
-    if (stage === "closed_won") {
-      totalWonAmount += amount
-      wonCount++
-    } else if (stage === "closed_lost") {
-      totalLostAmount += amount
-      lostCount++
-    } else {
-      openCount++
-      openAmount += amount
-    }
-
-    const month = (opp.created_at ?? "").slice(0, 7)
-    if (month) {
-      if (!monthlyMap[month]) {
-        monthlyMap[month] = { created: 0, won: 0, amount: 0 }
-      }
-      monthlyMap[month].created++
-      if (stage === "closed_won") {
-        monthlyMap[month].won++
-        monthlyMap[month].amount += amount
-      }
-    }
-
-    const accountName = opp.account?.name ?? "Unknown"
-    if (!accountMap[accountName]) {
-      accountMap[accountName] = { name: accountName, amount: 0, count: 0 }
-    }
-    accountMap[accountName].amount += amount
-    accountMap[accountName].count++
+  const stageAmount = new Map<string, number>()
+  const stageCount = new Map<string, number>()
+  for (const b of stageConv) {
+    stageAmount.set(b.stage, (stageAmount.get(b.stage) ?? 0) + b.amount)
+    stageCount.set(b.stage, (stageCount.get(b.stage) ?? 0) + b.count)
   }
 
   const pipelineByStage: PipelineByStage[] = DEAL_STAGES.filter(
@@ -166,10 +100,22 @@ export async function getReportData(ctx: DashboardContext): Promise<ReportData> 
   ).map((stage) => ({
     stage,
     label: getStageLabel(stage),
-    count: stageBuckets[stage]?.count ?? 0,
-    amount: stageBuckets[stage]?.amount ?? 0,
+    count: stageCount.get(stage) ?? 0,
+    amount: stageAmount.get(stage) ?? 0,
   }))
-  /* eslint-enable security/detect-object-injection */
+
+  const totalWonAmount = stageAmount.get("closed_won") ?? 0
+  const totalLostAmount = stageAmount.get("closed_lost") ?? 0
+  const wonCount = stageCount.get("closed_won") ?? 0
+  const lostCount = stageCount.get("closed_lost") ?? 0
+
+  let openCount = 0
+  let openAmount = 0
+  for (const stage of DEAL_STAGES) {
+    if (isTerminalStage(stage)) continue
+    openCount += stageCount.get(stage) ?? 0
+    openAmount += stageAmount.get(stage) ?? 0
+  }
 
   const wonLostRevenue: WonLostRevenue[] = [
     { type: "won", amount: totalWonAmount, count: wonCount },
@@ -177,23 +123,60 @@ export async function getReportData(ctx: DashboardContext): Promise<ReportData> 
     { type: "open", amount: openAmount, count: openCount },
   ]
 
-  const monthlyTrends: MonthlyTrend[] = Object.entries(monthlyMap)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, data]) => ({
-      month,
-      created: data.created,
-      won: data.won,
-      amount: data.amount,
-    }))
-
-  const topAccounts: TopAccount[] = Object.values(accountMap)
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 10)
-
-  const totalPipeline = pipelineByStage.reduce((sum, s) => sum + s.amount, 0)
+  const totalPipeline = openAmount
   const totalDeals = wonCount + lostCount
   const winRate = totalDeals > 0 ? Math.round((wonCount / totalDeals) * 100) : 0
   const avgDealSize = computeAverage(totalWonAmount, wonCount)
+
+  // ── Monthly trends (per created-month × currency) ───────────────────────────
+  const { converted: monthConv } = await fetchAndConvert(
+    (monthRes.data ?? []).map((r) => ({
+      stage: "",
+      amount: Number(r.won_amount) || 0,
+      currency: r.currency,
+      close_date: null,
+      month: r.month,
+      created: Number(r.created_count) || 0,
+      won: Number(r.won_count) || 0,
+    })),
+    reportingCurrency,
+  )
+  const monthlyMap = new Map<string, { created: number; won: number; amount: number }>()
+  for (const b of monthConv) {
+    const m = monthlyMap.get(b.month) ?? { created: 0, won: 0, amount: 0 }
+    m.created += b.created
+    m.won += b.won
+    m.amount += b.amount
+    monthlyMap.set(b.month, m)
+  }
+  const monthlyTrends: MonthlyTrend[] = Array.from(monthlyMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, d]) => ({ month, created: d.created, won: d.won, amount: d.amount }))
+
+  // ── Top accounts by revenue (per account × currency, top 50 → FX → top 10) ──
+  const { converted: acctConv } = await fetchAndConvert(
+    (accountRes.data ?? []).map((r) => ({
+      stage: "",
+      amount: Number(r.gross_amount) || 0,
+      currency: r.currency,
+      close_date: null,
+      accountId: r.account_id,
+      name: r.account_name,
+      count: Number(r.deal_count) || 0,
+    })),
+    reportingCurrency,
+  )
+  const accountMap = new Map<string, { name: string; amount: number; count: number }>()
+  for (const b of acctConv) {
+    const a = accountMap.get(b.accountId) ?? { name: b.name, amount: 0, count: 0 }
+    a.amount += b.amount
+    a.count += b.count
+    accountMap.set(b.accountId, a)
+  }
+  const topAccounts: TopAccount[] = Array.from(accountMap.values())
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 10)
+    .map((a) => ({ name: a.name, amount: a.amount, count: a.count }))
 
   return {
     pipelineByStage,

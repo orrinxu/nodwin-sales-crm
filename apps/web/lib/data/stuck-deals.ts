@@ -42,6 +42,11 @@ export interface StuckDealsResult {
 
 const DAY_MS = 86_400_000
 
+// The stuck-deals widget shows the highest-value stuck deals; cap the display
+// fetch so it can never silently truncate mid-set (ORR-757). The headline total
+// is computed separately over the full set, so nothing is lost from the number.
+const STUCK_DISPLAY_CAP = 200
+
 type OpenOppRaw = {
   id: string
   name: string
@@ -61,14 +66,17 @@ type OpenOppRaw = {
 export async function getStuckDeals(ctx: DashboardContext): Promise<StuckDealsResult> {
   const supabase = await createServerClient()
 
-  // Open deals only (RLS scopes to the viewer's entitled set). Bounded by
-  // PostgREST max_rows (1000) — an org with >1000 open deals would omit some,
-  // accepted for v1 (the existing reports read caps at 500). Revisit with
-  // pagination if that ceiling is ever approached.
+  // Open deals only (RLS scopes to the viewer's entitled set). The DISPLAYED
+  // list is bounded to the highest-value open deals (ORR-757) so the fetch can't
+  // silently truncate mid-set; the headline totalValueAtRisk is computed
+  // separately over the WHOLE stuck set by stuck_deals_value_at_risk below, so it
+  // stays exact even when the list is capped.
   const { data: openDeals, error } = await supabase
     .from("opportunities")
     .select("id, name, stage, amount, currency, close_date, created_at, account:account_id ( name )")
     .in("stage", NON_TERMINAL_STAGES)
+    .order("amount", { ascending: false })
+    .limit(STUCK_DISPLAY_CAP)
 
   if (error) throw new Error(`Failed to load stuck deals: ${error.message}`)
 
@@ -97,7 +105,7 @@ export async function getStuckDeals(ctx: DashboardContext): Promise<StuckDealsRe
 
   const thresholds: StuckThresholds = await resolveStuckThresholds()
   const reportingCurrency = await resolveReportingCurrency(ctx)
-  const { converted, unconvertibleCount } = await fetchAndConvert(rows, reportingCurrency)
+  const { converted } = await fetchAndConvert(rows, reportingCurrency)
 
   const now = Date.now()
   const today = new Date(now).toISOString().slice(0, 10)
@@ -136,6 +144,34 @@ export async function getStuckDeals(ctx: DashboardContext): Promise<StuckDealsRe
   // Sort by value-at-risk (converted amount) descending.
   deals.sort((a, b) => b.amount - a.amount)
 
-  const totalValueAtRisk = deals.reduce((sum, d) => sum + d.amount, 0)
-  return { deals, currency: reportingCurrency, totalValueAtRisk, unconvertibleCount }
+  // Headline total across ALL stuck deals (not just the displayed page). The RPC
+  // applies the SAME stale/overdue predicate server-side over the whole visible
+  // open set and returns per-currency subtotals, which we FX-fold here. `deals`
+  // above may be a value-capped subset, so its own sum would under-report —
+  // that's exactly the truncation this replaces.
+  const { data: atRiskRows, error: atRiskErr } = await supabase.rpc(
+    "stuck_deals_value_at_risk",
+    { _thresholds: thresholds as unknown as Record<string, number> },
+  )
+  if (atRiskErr) {
+    throw new Error(`Failed to load value at risk: ${atRiskErr.message}`)
+  }
+  const { converted: atRiskConverted, unconvertibleCount: atRiskUnconvertible } =
+    await fetchAndConvert(
+      (atRiskRows ?? []).map((r) => ({
+        stage: "",
+        amount: Number(r.gross_amount) || 0,
+        currency: r.currency,
+        close_date: null,
+      })),
+      reportingCurrency,
+    )
+  const totalValueAtRisk = atRiskConverted.reduce((sum, r) => sum + r.amount, 0)
+
+  return {
+    deals,
+    currency: reportingCurrency,
+    totalValueAtRisk,
+    unconvertibleCount: atRiskUnconvertible,
+  }
 }
