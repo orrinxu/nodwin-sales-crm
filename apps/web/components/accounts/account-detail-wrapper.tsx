@@ -64,7 +64,8 @@ interface AccountDetailWrapperProps {
   accountOptions: EntityOption[]
   currentUserId?: string
   activities: ActivityRecord[]
-  parentRelationship?: { toAccountId: string; kind: AccountRelationshipKind } | null
+  parentRelationship?: { toAccountId: string; toAccountName?: string; kind: AccountRelationshipKind } | null
+  searchAccountsAction?: (query: string) => Promise<EntityOption[]>
   canManageContacts: boolean
   attachableContacts: ContactPickerOption[]
   updateAction: (id: string, input: AccountUpdateInput) => Promise<AccountRecord>
@@ -91,6 +92,7 @@ export function AccountDetailWrapper({
   currentUserId,
   activities,
   parentRelationship,
+  searchAccountsAction,
   canManageContacts,
   attachableContacts,
   updateAction,
@@ -177,6 +179,7 @@ export function AccountDetailWrapper({
       accountOptions={accountOptions}
       currentUserId={currentUserId}
       parentRelationship={parentRelationship}
+      searchAccountsAction={searchAccountsAction}
       createAction={async () => {
         throw new Error("Not available")
       }}

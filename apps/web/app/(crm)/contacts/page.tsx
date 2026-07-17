@@ -1,9 +1,9 @@
 import { requireUser } from "@/lib/security/auth"
-import { getAccountOptions, getContacts } from "@/lib/data/contacts"
+import { getAccountOptions, getAccountOptionsByIds, getContacts } from "@/lib/data/contacts"
 import { getOwnerOptions } from "@/lib/data/accounts"
 import { isTranscriptionAvailable } from "@/lib/data/ai-settings"
 import { DEFAULT_PAGE_SIZE, clampPage } from "@/lib/list/pagination"
-import { createContactAction, bulkDeleteContactsAction, createAccountQuickAction } from "./actions"
+import { createContactAction, bulkDeleteContactsAction, createAccountQuickAction, searchAccountsAction } from "./actions"
 import { generateContactAction } from "./generate-actions"
 import { extractDocumentTextAction, transcribeAudioAction } from "@/app/(crm)/opportunities/generate-actions"
 import { ContactsList } from "@/components/contacts/contacts-list"
@@ -38,6 +38,12 @@ export default async function ContactsPage({
     isTranscriptionAvailable(),
   ])
 
+  // ORR-767: resolve the active account filter's name (it may fall outside the
+  // bounded `accounts` list) so the filter shows its label rather than blank.
+  const selectedAccountName = sp.account
+    ? (await getAccountOptionsByIds(ctx, [sp.account]))[0]?.name ?? null
+    : null
+
   return (
     <ContactsList
       accounts={accounts}
@@ -52,6 +58,8 @@ export default async function ContactsPage({
       extractFileAction={extractDocumentTextAction}
       transcribeAction={voiceEnabled ? transcribeAudioAction : undefined}
       createAccountQuickAction={createAccountQuickAction}
+      searchAccountsAction={searchAccountsAction}
+      selectedAccountName={selectedAccountName}
     />
   )
 }

@@ -74,6 +74,8 @@ interface AccountsListProps {
   fieldDefinitions?: FieldDefinition[]
   taxIdTypes?: TaxIdType[]
   currentUserId?: string
+  /** Server-side account typeahead (ORR-767) for the create form's parent picker. */
+  searchAccountsAction?: (query: string) => Promise<EntityOption[]>
   createAction: (input: AccountCreateInput) => Promise<AccountRecord>
   saveTaxIdsAction?: (accountId: string, input: { taxIds: TaxIdRow[] }) => Promise<void>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
@@ -124,6 +126,7 @@ export function AccountsList({
   fieldDefinitions = [],
   taxIdTypes = [],
   currentUserId,
+  searchAccountsAction,
   createAction,
   saveTaxIdsAction,
   bulkDeleteAction,
@@ -346,6 +349,7 @@ export function AccountsList({
             extractFileAction={extractFileAction}
             transcribeAction={transcribeAction}
             createAction={createAction}
+            searchAccountsAction={searchAccountsAction}
             saveTaxIdsAction={saveTaxIdsAction}
             ownerOptions={ownerOptions}
             accountOptions={accountOptions}
@@ -357,6 +361,7 @@ export function AccountsList({
         ) : (
           <AccountForm
             createAction={createAction}
+            searchAccountsAction={searchAccountsAction}
             saveTaxIdsAction={saveTaxIdsAction}
             ownerOptions={ownerOptions}
             accountOptions={accountOptions}

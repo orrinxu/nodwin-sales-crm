@@ -21,6 +21,7 @@ import {
   attachContactsToAccountAction,
   detachContactFromAccountAction,
   createContactForAccountAction,
+  searchAccountsAction,
 } from "../actions"
 import { AccountDetailWrapper } from "@/components/accounts/account-detail-wrapper"
 
@@ -69,6 +70,7 @@ export default async function AccountDetailPage({
   const parentRelationship = firstRelationship
     ? {
         toAccountId: firstRelationship.toAccountId,
+        toAccountName: firstRelationship.toAccountName,
         kind: firstRelationship.kind,
       }
     : null
@@ -98,6 +100,7 @@ export default async function AccountDetailPage({
       currentUserId={user.id}
       activities={activities}
       parentRelationship={parentRelationship}
+      searchAccountsAction={searchAccountsAction}
       canManageContacts={canManageContacts}
       attachableContacts={attachableContacts}
       updateAction={updateAccountAction}

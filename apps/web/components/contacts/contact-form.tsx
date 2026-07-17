@@ -70,6 +70,18 @@ interface ContactFormProps {
    * account picker.
    */
   createAccountQuickAction?: (input: { name: string }) => Promise<EntityOption>
+  /**
+   * Server-side typeahead for the account pickers (ORR-767). The `accounts`
+   * prop is now a bounded initial list; `searchAction` lets a rep find any
+   * account beyond it. Optional so existing callers keep working.
+   */
+  searchAccountsAction?: (query: string) => Promise<EntityOption[]>
+  /**
+   * id → name for the contact's currently-linked/primary accounts, sourced from
+   * the record (not the bounded `accounts` list) so the link badges and the
+   * primary-account label still render names for accounts outside the bound.
+   */
+  linkedAccountNames?: Record<string, string>
 }
 
 export function ContactForm({
@@ -86,6 +98,8 @@ export function ContactForm({
   onOpenChange: onOpenChangeProp,
   banner,
   createAccountQuickAction,
+  searchAccountsAction,
+  linkedAccountNames,
 }: ContactFormProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const isControlledOpen = controlledOpen !== undefined
@@ -132,6 +146,24 @@ export function ContactForm({
   // combobox (needs the quick-create action). Editing keeps the plain picker.
   const canCreateAccount = !isEditing && !!createAccountQuickAction
   const accountItems: EntityOption[] = accounts.map((a) => ({ id: a.id, name: a.name }))
+
+  // ORR-767: names for accounts referenced by this contact may fall outside the
+  // bounded `accounts` list, so resolve display names from a map seeded by the
+  // bounded list + record-sourced names, and grown as the rep picks via search.
+  const [accountNames, setAccountNames] = useState<Map<string, string>>(() => {
+    const m = new Map<string, string>()
+    accounts.forEach((a) => m.set(a.id, a.name))
+    if (linkedAccountNames) {
+      for (const [id, name] of Object.entries(linkedAccountNames)) m.set(id, name)
+    }
+    return m
+  })
+  const rememberAccountName = (id: string | null, name?: string) => {
+    if (!id || !name) return
+    setAccountNames((prev) => (prev.has(id) ? prev : new Map(prev).set(id, name)))
+  }
+  const accountNameFor = (id: string | null | undefined): string | undefined =>
+    id ? accountNames.get(id) : undefined
 
   function addSocial() {
     form.setValue("socials", [...watchedSocials, { platform: "", url: "" }])
@@ -310,67 +342,67 @@ export function ContactForm({
               </button>
             )}
           </div>
-          {canCreateAccount ? (
-            // ORR-738: inline account-create — a rep can create an
-            // extracted-but-new account without leaving the contact form.
-            <EntityCombobox
-              items={accountItems}
-              value={watchedPrimaryAccountId || null}
-              onChange={(v) =>
-                form.setValue("primaryAccountId", v ?? "", { shouldValidate: true })
-              }
-              onCreate={(name) => createAccountQuickAction!({ name })}
-              placeholder="No primary account"
-              searchPlaceholder="Search or create an account..."
-            />
-          ) : (
-            <select
-              id="primaryAccountId"
-              className="h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              {...form.register("primaryAccountId")}
-            >
-              <option value="">No primary account</option>
-              {accounts.map((acct) => (
-                <option key={acct.id} value={acct.id}>{acct.name}</option>
-              ))}
-            </select>
-          )}
+          {/* ORR-767: typeahead-backed so a rep can pick any account beyond the
+              bounded initial list; ORR-738 inline account-create stays for NEW
+              contacts. `valueLabel` keeps the selected name visible even when the
+              chosen account isn't in the bounded items. */}
+          <EntityCombobox
+            items={accountItems}
+            value={watchedPrimaryAccountId || null}
+            onChange={(v, opt) => {
+              form.setValue("primaryAccountId", v ?? "", { shouldValidate: true })
+              rememberAccountName(v, opt?.name)
+            }}
+            valueLabel={accountNameFor(watchedPrimaryAccountId)}
+            searchAction={searchAccountsAction}
+            onCreate={
+              canCreateAccount ? (name) => createAccountQuickAction!({ name }) : undefined
+            }
+            placeholder="No primary account"
+            searchPlaceholder={
+              canCreateAccount ? "Search or create an account..." : "Search an account..."
+            }
+          />
         </div>
 
         <div className="col-span-full grid gap-1.5">
           <Label>Additional Account Links</Label>
           <div className="flex flex-wrap gap-2">
-            {watchedAccountLinkIds.map((accountId) => {
-              const acct = accounts.find((a) => a.id === accountId)
-              return (
-                <span
-                  key={accountId}
-                  className="inline-flex items-center gap-1 rounded-md border bg-muted px-2 py-1 text-xs"
+            {watchedAccountLinkIds.map((accountId) => (
+              <span
+                key={accountId}
+                className="inline-flex items-center gap-1 rounded-md border bg-muted px-2 py-1 text-xs"
+              >
+                {accountNameFor(accountId) ?? accountId}
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => removeAccountLink(accountId)}
                 >
-                  {acct?.name ?? accountId}
-                  <button
-                    type="button"
-                    className="text-muted-foreground hover:text-foreground"
-                    onClick={() => removeAccountLink(accountId)}
-                  >
-                    <X className="size-3" />
-                  </button>
-                </span>
-              )
-            })}
+                  <X className="size-3" />
+                </button>
+              </span>
+            ))}
           </div>
-          <select
-            className="mt-1 h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:max-w-xs"
-            value=""
-            onChange={(e) => addAccountLink(e.target.value)}
-          >
-            <option value="">Add account link...</option>
-            {accounts
-              .filter((a) => !watchedAccountLinkIds.includes(a.id) && a.id !== watchedPrimaryAccountId)
-              .map((acct) => (
-                <option key={acct.id} value={acct.id}>{acct.name}</option>
-              ))}
-          </select>
+          {/* ORR-767: typeahead add — value stays null so it acts as an "add"
+              trigger; the picked option's name is remembered for the badge even
+              when the account came from search (outside the bounded items). */}
+          <EntityCombobox
+            className="mt-1 sm:max-w-xs"
+            items={accountItems.filter(
+              (a) => !watchedAccountLinkIds.includes(a.id) && a.id !== watchedPrimaryAccountId,
+            )}
+            value={null}
+            onChange={(v, opt) => {
+              if (v) {
+                addAccountLink(v)
+                rememberAccountName(v, opt?.name)
+              }
+            }}
+            searchAction={searchAccountsAction}
+            placeholder="Add account link..."
+            searchPlaceholder="Search an account..."
+          />
         </div>
       </FormSection>
 

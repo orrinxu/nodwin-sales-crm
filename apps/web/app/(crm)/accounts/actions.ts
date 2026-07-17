@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { requireUser } from "@/lib/security/auth"
+import { searchAccountOptions } from "@/lib/data/contacts"
 import {
   createAccount,
   updateAccount,
@@ -119,4 +120,12 @@ export async function bulkDeleteAccountsAction(input: unknown) {
   const ctx = { user, source: "web" as const }
   await bulkDeleteAccounts(ctx, parsed)
   revalidatePath("/accounts")
+}
+
+// Server-side account typeahead for the AccountForm parent/related picker
+// (ORR-767). Mirrors the opportunities route action.
+export async function searchAccountsAction(query: string) {
+  const user = await requireUser()
+  const ctx = { user, source: "web" as const }
+  return searchAccountOptions(ctx, query)
 }

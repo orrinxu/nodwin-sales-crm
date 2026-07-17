@@ -13,7 +13,7 @@ import { getFieldDefinitions } from "@/lib/data/field-definitions"
 import { getTaxIdTypes } from "@/lib/data/account-tax-ids"
 import { isTranscriptionAvailable } from "@/lib/data/ai-settings"
 import { DEFAULT_PAGE_SIZE, clampPage } from "@/lib/list/pagination"
-import { createAccountAction, bulkDeleteAccountsAction, saveAccountTaxIdsAction } from "./actions"
+import { createAccountAction, bulkDeleteAccountsAction, saveAccountTaxIdsAction, searchAccountsAction } from "./actions"
 import { generateAccountAction } from "./generate-actions"
 import { extractDocumentTextAction, transcribeAudioAction } from "@/app/(crm)/opportunities/generate-actions"
 import { AccountsList } from "@/components/accounts/accounts-list"
@@ -92,6 +92,7 @@ export default async function AccountsPage({
       fieldDefinitions={fieldDefinitions}
       taxIdTypes={taxIdTypes}
       currentUserId={user.id}
+      searchAccountsAction={searchAccountsAction}
       createAction={createAccountAction}
       saveTaxIdsAction={saveAccountTaxIdsAction}
       bulkDeleteAction={bulkDeleteAccountsAction}

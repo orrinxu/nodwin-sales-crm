@@ -17,6 +17,7 @@ import { FacetTabs, FacetTabsList, FacetTabsTab, FacetTabsPanel } from "@/compon
 import { RecordHeader } from "@/components/primitives/record-header"
 import { DefinitionField, DefinitionFieldGrid } from "@/components/primitives/definition-grid"
 import type { ContactRecord, ContactCreateInput, AccountOption } from "@/lib/data/contacts"
+import type { EntityOption } from "@/components/entity-combobox"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import type { ActivityRecord } from "@/lib/data/activities"
 
@@ -24,6 +25,12 @@ interface ContactDetailWrapperProps {
   contact: ContactRecord
   accounts: AccountOption[]
   linkedAccountIds: string[]
+  /** id → name for this contact's primary + linked accounts, resolved from the
+   *  record so display works even when they fall outside the bounded `accounts`
+   *  list (ORR-767). */
+  accountNames?: Record<string, string>
+  /** Server-side account typeahead threaded into the edit form (ORR-767). */
+  searchAccountsAction?: (query: string) => Promise<EntityOption[]>
   ownerName?: string | null
   fieldDefinitions: FieldDefinition[]
   activities: ActivityRecord[]
@@ -46,6 +53,8 @@ export function ContactDetailWrapper({
   contact,
   accounts,
   linkedAccountIds,
+  accountNames,
+  searchAccountsAction,
   ownerName,
   fieldDefinitions,
   activities,
@@ -55,9 +64,14 @@ export function ContactDetailWrapper({
   const router = useRouter()
   const [tab, setTab] = useState("details")
 
-  const accountName = (id: string) => accounts.find((a) => a.id === id)?.name ?? id
+  // ORR-767: resolve display names from the record-sourced map first, then the
+  // bounded `accounts` list, so linked/primary accounts outside the bound still
+  // render a name rather than a raw id.
+  const accountNameMap = new Map(Object.entries(accountNames ?? {}))
+  const accountName = (id: string) =>
+    accountNameMap.get(id) ?? accounts.find((a) => a.id === id)?.name ?? id
   const primaryAccount = contact.primaryAccountId
-    ? accounts.find((a) => a.id === contact.primaryAccountId) ?? null
+    ? { id: contact.primaryAccountId, name: accountName(contact.primaryAccountId) }
     : null
   const otherLinkedAccountIds = linkedAccountIds.filter((id) => id !== contact.primaryAccountId)
   const socialEntries = Object.entries(contact.socials).filter(([, v]) => v)
@@ -91,6 +105,8 @@ export function ContactDetailWrapper({
       contact={contact}
       accounts={accounts}
       linkedAccountIds={linkedAccountIds}
+      linkedAccountNames={accountNames}
+      searchAccountsAction={searchAccountsAction}
       fieldDefinitions={fieldDefinitions}
       createAction={async () => {
         throw new Error("Not available")

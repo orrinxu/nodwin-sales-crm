@@ -165,7 +165,7 @@ describe("EntityCombobox", () => {
       await user.click(screen.getByRole("combobox"))
       await user.click(screen.getByText("Acme Corp"))
 
-      expect(onChange).toHaveBeenCalledWith("acct-1")
+      expect(onChange).toHaveBeenCalledWith("acct-1", expect.objectContaining({ id: "acct-1" }))
     })
 
     it("calls onChange when item is selected via keyboard", async () => {
@@ -184,7 +184,7 @@ describe("EntityCombobox", () => {
       await user.type(screen.getByPlaceholderText("Search..."), "Globex")
       await user.keyboard("{ArrowDown}{Enter}")
 
-      expect(onChange).toHaveBeenCalledWith("acct-2")
+      expect(onChange).toHaveBeenCalledWith("acct-2", expect.objectContaining({ id: "acct-2" }))
     })
   })
 
@@ -519,7 +519,7 @@ describe("EntityCombobox", () => {
 
       await waitFor(() => {
         expect(onCreate).toHaveBeenCalledWith("NewCorp")
-        expect(onChange).toHaveBeenCalledWith("new-1")
+        expect(onChange).toHaveBeenCalledWith("new-1", expect.objectContaining({ id: "new-1" }))
       })
     })
 
@@ -706,7 +706,7 @@ describe("EntityCombobox", () => {
 
       await waitFor(() => {
         expect(onCreate).toHaveBeenCalledWith("NewCorp")
-        expect(onChange).toHaveBeenCalledWith("new-1")
+        expect(onChange).toHaveBeenCalledWith("new-1", expect.objectContaining({ id: "new-1" }))
       })
 
       rerender(

@@ -119,17 +119,22 @@ describe("ContactForm", () => {
       )
     })
 
-    it("keeps the plain <select> when no quick-create action is given", async () => {
+    it("uses a non-creating account combobox when no quick-create action is given", async () => {
+      // ORR-767: the picker is always a typeahead combobox now; without a
+      // quick-create action it just can't create (search-only placeholder).
       const user = userEvent.setup({ pointerEventsCheck: 0 })
       render(<ContactForm {...defaultProps} />)
       await user.click(screen.getByRole("button", { name: /create contact/i }))
 
-      // Native select renders its "No primary account" option, not a combobox trigger.
-      const option = await screen.findByRole("option", { name: /no primary account/i })
-      expect(option).toBeInTheDocument()
+      // Combobox trigger (placeholder text), not a native <select> <option>.
+      expect(screen.queryByRole("option", { name: /no primary account/i })).toBeNull()
+      await user.click(screen.getByText("No primary account"))
+      // Search-only placeholder — no "or create" affordance.
+      expect(screen.getByPlaceholderText(/^search an account/i)).toBeInTheDocument()
+      expect(screen.queryByPlaceholderText(/search or create/i)).toBeNull()
     })
 
-    it("keeps the plain <select> when editing, even with a quick-create action", async () => {
+    it("uses a non-creating account combobox when editing, even with a quick-create action", async () => {
       const user = userEvent.setup({ pointerEventsCheck: 0 })
       render(
         <ContactForm
@@ -154,9 +159,12 @@ describe("ContactForm", () => {
       )
       // Default trigger button is labelled "Create Contact" even when editing.
       await user.click(screen.getByRole("button", { name: /create contact/i }))
-      expect(
-        await screen.findByRole("option", { name: /no primary account/i }),
-      ).toBeInTheDocument()
+      // No native <select> option; editing disables inline create. The combobox
+      // trigger shows the selected account's name (acct-1 → "Acme Corp").
+      expect(screen.queryByRole("option", { name: /no primary account/i })).toBeNull()
+      await user.click(screen.getByText("Acme Corp"))
+      expect(screen.getByPlaceholderText(/^search an account/i)).toBeInTheDocument()
+      expect(screen.queryByPlaceholderText(/search or create/i)).toBeNull()
     })
   })
 
