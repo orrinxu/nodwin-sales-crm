@@ -1,4 +1,5 @@
 import "server-only"
+import { cache } from "react"
 import { z } from "zod"
 import { createServerClient } from "@/lib/supabase/server"
 import type { AuthenticatedUser } from "@/lib/security/auth"
@@ -77,19 +78,24 @@ export async function getReportingCurrencyOverview(
 // otherwise the group-wide default, otherwise USD. This is the org-level half of
 // the two-tier resolution (the per-user display_currency layers on top of it in
 // metrics.ts::resolveReportingCurrency).
-export async function resolveOrgReportingCurrency(
-  ctx: OrgSettingsCallContext,
-): Promise<string> {
+// The viewer's primary entity. Request-memoized (ORR-765) — it was read once by
+// resolveOrgReportingCurrency AND again by getCurrentUserEntityId, and the former
+// runs ~9-20× per dashboard/reports render. cache() keys on the userId primitive
+// so the many callers within one request share a single round-trip.
+const loadUserPrimaryEntityId = cache(async (userId: string): Promise<string | null> => {
   const supabase = await createServerClient()
-
-  // The viewer's entity (used to pick a per-entity override).
-  const { data: userRow } = await supabase
+  const { data } = await supabase
     .from("users")
     .select("primary_entity_id")
-    .eq("id", ctx.user.id)
+    .eq("id", userId)
     .maybeSingle()
+  return (data?.primary_entity_id as string) ?? null
+})
 
-  const entityId = (userRow?.primary_entity_id as string) ?? null
+const loadOrgReportingCurrency = cache(async (userId: string): Promise<string> => {
+  const supabase = await createServerClient()
+
+  const entityId = await loadUserPrimaryEntityId(userId)
 
   if (entityId) {
     const { data: override } = await supabase
@@ -107,19 +113,19 @@ export async function resolveOrgReportingCurrency(
     .maybeSingle()
 
   return (group?.currency_code as string) ?? DEFAULT_REPORTING_CURRENCY
+})
+
+export async function resolveOrgReportingCurrency(
+  ctx: OrgSettingsCallContext,
+): Promise<string> {
+  return loadOrgReportingCurrency(ctx.user.id)
 }
 
 // The caller's own entity (used to scope an Entity Admin's view to their entity).
 export async function getCurrentUserEntityId(
   ctx: OrgSettingsCallContext,
 ): Promise<string | null> {
-  const supabase = await createServerClient()
-  const { data } = await supabase
-    .from("users")
-    .select("primary_entity_id")
-    .eq("id", ctx.user.id)
-    .maybeSingle()
-  return (data?.primary_entity_id as string) ?? null
+  return loadUserPrimaryEntityId(ctx.user.id)
 }
 
 // ── Writes: Super Admin any row (incl. group-wide); Entity Admin own entity only ──
