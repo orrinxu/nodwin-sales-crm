@@ -35,6 +35,13 @@ interface OpportunityBoardProps {
   opportunities: OpportunityRecord[]
   /** FX-normalised per-stage count / total / weighted, in the reporting currency. */
   stageTotals?: StageTotals
+  /**
+   * Total deals in scope across the whole board (ORR-755). The board renders a
+   * BOUNDED set of cards; when the scope has more deals than were fetched, a
+   * note tells the user the columns show the most recent N. The per-stage TOTALS
+   * (from stageTotals) stay accurate over the full scope regardless.
+   */
+  totalCount?: number
   accounts: AccountOption[]
   businessUnits: BusinessUnitOption[]
   users?: EntityOption[]
@@ -58,6 +65,7 @@ interface OpportunityBoardProps {
 export function OpportunityBoard({
   opportunities,
   stageTotals,
+  totalCount,
   accounts,
   businessUnits,
   users,
@@ -181,6 +189,14 @@ export function OpportunityBoard({
             />
           )}
         </div>
+
+        {totalCount != null && totalCount > opportunities.length ? (
+          <p className="text-sm text-muted-foreground">
+            Showing the {opportunities.length.toLocaleString()} most recently
+            updated of {totalCount.toLocaleString()} deals. Column totals reflect
+            all deals in scope — switch to Table view to page through every deal.
+          </p>
+        ) : null}
 
         <div className="flex flex-1 gap-4 overflow-x-auto pb-4">
           {columns.map((stage) => {

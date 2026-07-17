@@ -8,6 +8,12 @@ import {
   determineStageEvent,
 } from "@/lib/data/opportunity-stage-history"
 import { Money } from "@/lib/money"
+import {
+  clampPage,
+  clampPageSize,
+  rangeFor,
+  sanitizeSearchTerm,
+} from "@/lib/list/pagination"
 import type {
   OpportunityRecord,
   OpportunityListResult,
@@ -51,6 +57,17 @@ export interface OpportunityCallContext {
   user: AuthenticatedUser
   source: "web" | "mcp" | "webhook" | "system"
 }
+
+// Cap on the account-name search pre-resolution. A search box is meant to
+// narrow — if a term matches more accounts than this the user should refine it,
+// and capping keeps the `account_id.in.(…)` list (and the pre-query) bounded.
+const ACCOUNT_SEARCH_MATCH_CAP = 200
+
+// Guards the account ids before they're interpolated into the `.or()` filter
+// string — the ids come from the DB so this is belt-and-braces, not the primary
+// defence.
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export const opportunityStageUpdateSchema = z.object({
   stage: z.enum(DEAL_STAGES),
@@ -124,6 +141,38 @@ function toDomainOpportunity(data: Record<string, unknown>): OpportunityRecord {
  */
 export type OpportunityScope = "mine" | "all"
 
+/**
+ * Columns the server-driven list can sort by (ORR-755). Mapped to a concrete
+ * DB order in `applyOpportunitySort`. `account` and `owner` sort through their
+ * embedded relation; `amount` sorts on the RAW numeric column (a cross-currency
+ * approximation — the same rough order the old client sort used, since FX-exact
+ * ordering would need per-row conversion the DB can't do cheaply).
+ */
+export type OpportunitySortColumn =
+  | "name"
+  | "account"
+  | "stage"
+  | "amount"
+  | "owner"
+  | "closeDate"
+
+export const OPPORTUNITY_SORT_COLUMNS: readonly OpportunitySortColumn[] = [
+  "name",
+  "account",
+  "stage",
+  "amount",
+  "owner",
+  "closeDate",
+] as const
+
+export interface OpportunitySort {
+  column: OpportunitySortColumn
+  direction: "asc" | "desc"
+}
+
+/** Owner filter sentinel for deals with no owner (mirrors the table UI). */
+export const OPPORTUNITY_UNASSIGNED_OWNER = "__unassigned__"
+
 export interface OpportunityListParams {
   scope?: OpportunityScope
   /**
@@ -141,19 +190,29 @@ export interface OpportunityListParams {
    * Backs the ORR-717 entity-scope chips; deals with a null entity are excluded.
    */
   entityId?: string
+  /**
+   * Free-text search (ORR-755). Case-insensitive substring match on the deal
+   * NAME or its ACCOUNT name — the account match is resolved to account ids
+   * first so the two can be OR'd in one bounded query. Sanitised before it
+   * reaches the PostgREST filter string.
+   */
+  search?: string
+  /** Single-stage filter; omitted / "all" means every stage. */
+  stageFilter?: string
+  /**
+   * Owner filter (`owner_user_id`). `OPPORTUNITY_UNASSIGNED_OWNER` selects deals
+   * with no owner; omitted / "all" means every owner.
+   */
+  ownerFilter?: string
+  /** Sort column + direction; defaults to `updated_at` DESC when omitted. */
+  sort?: OpportunitySort
+  /** 1-based page index (server-driven pagination). Defaults to 1. */
+  page?: number
+  /** Rows per page. Clamped to `[1, MAX_PAGE_SIZE]`; defaults to `DEFAULT_PAGE_SIZE`. */
+  pageSize?: number
 }
 
-export async function getOpportunities(
-  ctx: OpportunityCallContext,
-  params: OpportunityListParams = {},
-): Promise<OpportunityListResult> {
-  const supabase = await createServerClient()
-  const scope: OpportunityScope = params.scope ?? "all"
-
-  let query = supabase
-    .from("opportunities")
-    .select(
-      `
+const OPPORTUNITY_LIST_SELECT = `
       id,
       name,
       account_id,
@@ -188,9 +247,45 @@ export async function getOpportunities(
       updated_at,
       account:account_id ( name ),
       owner:owner_user_id ( full_name )
-    `,
-      { count: "exact" },
-    )
+    `
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the PostgREST builder type is opaque across .order() chaining; the shape is preserved.
+function applyOpportunitySort(query: any, sort: OpportunitySort | undefined): any {
+  if (!sort) {
+    return query.order("updated_at", { ascending: false })
+  }
+  const ascending = sort.direction === "asc"
+  switch (sort.column) {
+    case "name":
+      return query.order("name", { ascending })
+    case "stage":
+      return query.order("stage", { ascending })
+    case "amount":
+      return query.order("amount", { ascending })
+    case "closeDate":
+      // Nulls last regardless of direction so blank close dates sink to the end.
+      return query.order("close_date", { ascending, nullsFirst: false })
+    case "account":
+      return query.order("name", { ascending, referencedTable: "account" })
+    case "owner":
+      return query.order("full_name", { ascending, referencedTable: "owner" })
+    default:
+      return query.order("updated_at", { ascending: false })
+  }
+}
+
+export async function getOpportunities(
+  ctx: OpportunityCallContext,
+  params: OpportunityListParams = {},
+): Promise<OpportunityListResult> {
+  const supabase = await createServerClient()
+  const scope: OpportunityScope = params.scope ?? "all"
+  const page = clampPage(params.page)
+  const pageSize = clampPageSize(params.pageSize)
+
+  let query = supabase
+    .from("opportunities")
+    .select(OPPORTUNITY_LIST_SELECT, { count: "exact" })
 
   // Owner-scope narrowing. Additional filter ON TOP of RLS — never widens access.
   if (scope === "mine") {
@@ -218,9 +313,51 @@ export async function getOpportunities(
     query = query.eq("entity_sales_id", params.entityId)
   }
 
-  const { data, error, count } = await query.order("updated_at", {
-    ascending: false,
-  })
+  // Stage filter (server-side; the old client-side useMemo filter is gone). The
+  // value is a UI-provided string; a non-stage value simply matches no rows.
+  if (params.stageFilter && params.stageFilter !== "all") {
+    query = query.eq("stage", params.stageFilter as DealStage)
+  }
+
+  // Owner filter. The unassigned sentinel maps to an IS NULL; any other value is
+  // a straight equality. Both only narrow.
+  if (params.ownerFilter && params.ownerFilter !== "all") {
+    if (params.ownerFilter === OPPORTUNITY_UNASSIGNED_OWNER) {
+      query = query.is("owner_user_id", null)
+    } else {
+      query = query.eq("owner_user_id", params.ownerFilter)
+    }
+  }
+
+  // Free-text search over deal name OR account name. Account name lives on the
+  // embedded `accounts` row, which PostgREST can't OR against the parent in one
+  // filter, so resolve matching account ids first (RLS-scoped, bounded) and fold
+  // them into a single `.or(name.ilike, account_id.in.(…))`. The term is
+  // sanitised so its punctuation can't corrupt the or-filter syntax.
+  const search = sanitizeSearchTerm(params.search)
+  if (search) {
+    const { data: matchedAccounts } = await supabase
+      .from("accounts")
+      .select("id")
+      .ilike("name", `%${search}%`)
+      .limit(ACCOUNT_SEARCH_MATCH_CAP)
+    const accountIds = ((matchedAccounts ?? []) as { id: string }[])
+      .map((a) => a.id)
+      .filter((id) => UUID_RE.test(id))
+
+    if (accountIds.length > 0) {
+      query = query.or(
+        `name.ilike.%${search}%,account_id.in.(${accountIds.join(",")})`,
+      )
+    } else {
+      query = query.ilike("name", `%${search}%`)
+    }
+  }
+
+  query = applyOpportunitySort(query, params.sort)
+
+  const [from, to] = rangeFor(page, pageSize)
+  const { data, error, count } = await query.range(from, to)
 
   if (error) {
     throw new Error(`Failed to load opportunities: ${error.message}`)
@@ -229,7 +366,7 @@ export async function getOpportunities(
   const opportunities = (data ?? []).map(toDomainOpportunity)
   const totalCount = count ?? 0
 
-  return { opportunities, totalCount }
+  return { opportunities, totalCount, page, pageSize }
 }
 
 export async function getOpportunityById(

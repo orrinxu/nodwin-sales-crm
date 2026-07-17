@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   flexRender,
   getCoreRowModel,
@@ -39,17 +39,34 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Card } from "@/components/ui/card"
+import { ListPagination } from "@/components/primitives/list-pagination"
 import { ContactForm } from "@/components/contacts/contact-form"
 import { ContactGenerator } from "@/components/contacts/contact-generator"
 import type { ImagePayload, ExtractFileResult, TranscribeAudioResult } from "@/components/generators/record-generator"
 import type { GenerateContactResult } from "@/app/(crm)/contacts/generate-actions"
 import type { EntityOption } from "@/components/entity-combobox"
 import type { AccountOption, ContactListRecord, ContactCreateInput, ContactRecord } from "@/lib/data/contacts"
+import { useListQuery } from "@/lib/list/use-list-query"
 import { usePreferences } from "@/components/providers/preferences-provider"
+
+const SEARCH_DEBOUNCE_MS = 350
+
+interface OwnerOption {
+  id: string
+  name: string
+}
 
 interface ContactsListProps {
   contacts: ContactListRecord[]
+  /** Total rows matching the active filters, across all pages. */
+  totalCount: number
+  /** 1-based current page. */
+  page: number
+  pageSize: number
   accounts: AccountOption[]
+  /** Full owner list for the filter dropdown — server-supplied so it isn't
+   *  limited to the owners on the current page. */
+  ownerOptions: OwnerOption[]
   createAction: (input: ContactCreateInput) => Promise<ContactRecord>
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
   // Contact Generator (ORR-736) — optional; when absent the plain form renders.
@@ -63,7 +80,11 @@ interface ContactsListProps {
 
 export function ContactsList({
   contacts,
+  totalCount,
+  page,
+  pageSize,
   accounts,
+  ownerOptions,
   createAction,
   bulkDeleteAction,
   generateAction,
@@ -73,50 +94,30 @@ export function ContactsList({
 }: ContactsListProps) {
   const router = useRouter()
   const { formatDate } = usePreferences()
+  const { searchParams, setParams } = useListQuery()
+
+  // Filter state comes from the URL — the server already applied it.
+  const urlSearch = searchParams.get("q") ?? ""
+  const accountFilter = searchParams.get("account") ?? "all"
+  const ownerFilter = searchParams.get("owner") ?? "all"
+
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isPending, setIsPending] = useState(false)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [accountFilter, setAccountFilter] = useState<string>("all")
+  const [searchInput, setSearchInput] = useState(urlSearch)
 
-  const ownerOptions = useMemo(() => {
-    const names = new Map<string, string>()
-    for (const c of contacts) {
-      if (c.ownerUserId && c.ownerName) {
-        names.set(c.ownerUserId, c.ownerName)
-      }
-    }
-    return Array.from(names.entries()).map(([id, name]) => ({ id, name }))
-  }, [contacts])
+  // Debounce the search box → URL. Seeded from the URL on mount and re-synced by
+  // the clear handler, so no URL→input effect is needed.
+  useEffect(() => {
+    const trimmed = searchInput.trim()
+    if (trimmed === urlSearch) return
+    const t = setTimeout(() => {
+      setParams({ q: trimmed || null }, { resetPage: true })
+    }, SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [searchInput, urlSearch, setParams])
 
-  const [ownerFilter, setOwnerFilter] = useState<string>("all")
-
-  const filteredContacts = useMemo(() => {
-    let result = contacts
-
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase()
-      result = result.filter(
-        (c) =>
-          c.fullName.toLowerCase().includes(q) ||
-          (c.email ?? "").toLowerCase().includes(q) ||
-          (c.phone ?? "").toLowerCase().includes(q) ||
-          (c.title ?? "").toLowerCase().includes(q),
-      )
-    }
-
-    if (accountFilter !== "all") {
-      result = result.filter((c) => c.primaryAccountId === accountFilter)
-    }
-
-    if (ownerFilter !== "all") {
-      result = result.filter((c) => c.ownerUserId === ownerFilter)
-    }
-
-    return result
-  }, [contacts, searchQuery, accountFilter, ownerFilter])
-
-  // getRowId keys the selection by contact id, so it survives filtering/sorting.
+  // getRowId keys the selection by contact id, so it survives paging.
   const selectedIds = useMemo(
     () =>
       Object.entries(rowSelection)
@@ -200,7 +201,7 @@ export function ContactsList({
   // TanStack Table is a compatible library; this is a known false positive.
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
-    data: filteredContacts,
+    data: contacts,
     columns,
     state: { rowSelection },
     enableRowSelection: true,
@@ -224,13 +225,13 @@ export function ContactsList({
     }
   }, [selectedIds, bulkDeleteAction, router])
 
-  const hasActiveFilters = searchQuery || accountFilter !== "all" || ownerFilter !== "all"
+  const hasActiveFilters =
+    urlSearch !== "" || accountFilter !== "all" || ownerFilter !== "all"
 
   const clearFilters = useCallback(() => {
-    setSearchQuery("")
-    setAccountFilter("all")
-    setOwnerFilter("all")
-  }, [])
+    setSearchInput("")
+    setParams({ q: null, account: null, owner: null }, { resetPage: true })
+  }, [setParams])
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
@@ -266,12 +267,15 @@ export function ContactsList({
           <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search contacts..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="pl-8"
           />
         </div>
-        <Select value={accountFilter} onValueChange={(v) => setAccountFilter(v ?? "all")}>
+        <Select
+          value={accountFilter}
+          onValueChange={(v) => setParams({ account: v === "all" ? null : v }, { resetPage: true })}
+        >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="All accounts" />
           </SelectTrigger>
@@ -285,7 +289,10 @@ export function ContactsList({
           </SelectContent>
         </Select>
         {ownerOptions.length > 0 && (
-          <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v ?? "all")}>
+          <Select
+            value={ownerFilter}
+            onValueChange={(v) => setParams({ owner: v === "all" ? null : v }, { resetPage: true })}
+          >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="All owners" />
             </SelectTrigger>
@@ -326,7 +333,7 @@ export function ContactsList({
           </div>
         )}
 
-        {filteredContacts.length > 0 ? (
+        {contacts.length > 0 ? (
           <div className="rounded-lg border">
             <Table>
               <TableHeader>
@@ -366,6 +373,13 @@ export function ContactsList({
                 ))}
               </TableBody>
             </Table>
+            <ListPagination
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              noun={{ singular: "contact", plural: "contacts" }}
+              onPageChange={(p) => setParams({ page: p <= 1 ? null : String(p) })}
+            />
           </div>
         ) : hasActiveFilters ? (
           <Card className="flex flex-1 items-center justify-center">

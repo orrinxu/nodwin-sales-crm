@@ -135,7 +135,12 @@ export interface OpportunityRecord {
 
 export interface OpportunityListResult {
   opportunities: OpportunityRecord[]
+  /** Total rows matching the filters across ALL pages (PostgREST count:'exact'). */
   totalCount: number
+  /** 1-based page index this result represents (server-driven pagination). */
+  page: number
+  /** Page size this result was fetched with. */
+  pageSize: number
 }
 
 const stageLabels: Record<DealStage, string> = {

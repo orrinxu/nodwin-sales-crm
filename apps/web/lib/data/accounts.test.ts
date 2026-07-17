@@ -5,7 +5,10 @@ vi.mock("server-only", () => ({}))
 const mockFrom = vi.fn()
 const mockSelect = vi.fn()
 const mockIs = vi.fn()
+const mockOr = vi.fn()
+const mockEq = vi.fn()
 const mockOrder = vi.fn()
+const mockRange = vi.fn()
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(() => ({ from: mockFrom })),
@@ -18,15 +21,28 @@ const ctx = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockFrom.mockReturnValue({ select: mockSelect })
-  mockSelect.mockReturnValue({ is: mockIs })
-  mockIs.mockReturnValue({ order: mockOrder, or: vi.fn(), eq: vi.fn() })
-  mockOrder.mockResolvedValue({ data: [], error: null, count: 0 })
+  // Chainable builder: select/is/or/eq/order return the builder; range() is
+  // terminal (server-driven pagination — ORR-755).
+  const builder = {
+    select: mockSelect,
+    is: mockIs,
+    or: mockOr,
+    eq: mockEq,
+    order: mockOrder,
+    range: mockRange,
+  }
+  mockFrom.mockReturnValue(builder)
+  mockSelect.mockReturnValue(builder)
+  mockIs.mockReturnValue(builder)
+  mockOr.mockReturnValue(builder)
+  mockEq.mockReturnValue(builder)
+  mockOrder.mockReturnValue(builder)
+  mockRange.mockResolvedValue({ data: [], error: null, count: 0 })
 })
 
 describe("getAccounts", () => {
   it("unwraps PostgREST [{count}] embeds into numeric counts", async () => {
-    mockOrder.mockResolvedValue({
+    mockRange.mockResolvedValue({
       data: [
         {
           id: "acct-1",
@@ -55,7 +71,7 @@ describe("getAccounts", () => {
   })
 
   it("defaults counts to 0 when the embed is empty or missing", async () => {
-    mockOrder.mockResolvedValue({
+    mockRange.mockResolvedValue({
       data: [
         {
           id: "acct-2",

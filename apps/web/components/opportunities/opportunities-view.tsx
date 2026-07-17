@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { LayoutGridIcon, ListIcon, KanbanIcon } from "lucide-react"
 
@@ -50,6 +49,14 @@ interface OpportunitiesViewProps {
   opportunities: OpportunityRecord[]
   /** FX-normalised per-stage totals for the board columns (count / value / weighted). */
   stageTotals?: StageTotals
+  /** Total rows matching the active filters/scope (server count). Table view uses
+   *  it for pagination; board view uses it for the "showing N of M" note. */
+  totalCount?: number
+  /** 1-based page for the table view. */
+  page?: number
+  pageSize?: number
+  /** Full owner list for the table's owner filter (server-supplied). */
+  ownerOptions?: { id: string; name: string }[]
   accounts: AccountOption[]
   businessUnits: BusinessUnitOption[]
   users?: EntityOption[]
@@ -102,6 +109,10 @@ export function OpportunitiesView({
   activeEntity = null,
   opportunities,
   stageTotals,
+  totalCount = 0,
+  page = 1,
+  pageSize = 25,
+  ownerOptions = [],
   accounts,
   businessUnits,
   users,
@@ -128,23 +139,21 @@ export function OpportunitiesView({
   deleteSavedViewAction,
 }: OpportunitiesViewProps) {
   const router = useRouter()
-  const [viewMode, setViewMode] = useState<ViewMode>(
-    defaultView === "table" ? "table" : "kanban",
-  )
+  // Server-driven (ORR-755): the board and table now fetch DIFFERENT data (the
+  // board a bounded set + scoped totals, the table one paginated page), so the
+  // rendered view follows the server `view` param rather than a client toggle.
+  const viewMode: ViewMode = defaultView === "table" ? "table" : "kanban"
 
-  // Toggling Board/Table stays instant (same data, no refetch) but syncs the
-  // `view` query param so the choice survives reload / share — no navigation.
+  // Switching Board/Table changes what the server must fetch, so it's a real
+  // navigation. Scope + entity are preserved; the table's own filter/sort/page
+  // reset (the board doesn't use them).
   function selectView(next: ViewMode) {
-    setViewMode(next)
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search)
-      params.set("view", next === "kanban" ? "board" : "table")
-      window.history.replaceState(
-        null,
-        "",
-        `${window.location.pathname}?${params.toString()}`,
-      )
-    }
+    if (next === viewMode) return
+    const params = new URLSearchParams()
+    if (scope != null) params.set("scope", scope)
+    params.set("view", next === "kanban" ? "board" : "table")
+    if (activeEntity) params.set("entity", activeEntity)
+    router.push(`/opportunities?${params.toString()}`)
   }
 
   // Switching scope loads a different (scoped) list, so it's a real navigation.
@@ -170,7 +179,11 @@ export function OpportunitiesView({
     router.push(`/opportunities?${params.toString()}`)
   }
 
-  const showEmptyState = emptyState != null && opportunities.length === 0
+  // The dedicated empty state belongs to the board (personal Pipeline). In table
+  // view a zero-row result is the table's own "no matches" body, so filtering to
+  // an empty page never swaps in the big board empty state.
+  const showEmptyState =
+    emptyState != null && opportunities.length === 0 && viewMode === "kanban"
 
   // Single "Create Opportunity" entry, reused by the header (table view) and the
   // empty state so the create flow is identical everywhere. When a generateAction
@@ -327,6 +340,7 @@ export function OpportunitiesView({
         <OpportunityBoard
           opportunities={opportunities}
           stageTotals={stageTotals}
+          totalCount={totalCount}
           accounts={accounts}
           businessUnits={businessUnits}
           users={users}
@@ -346,6 +360,10 @@ export function OpportunitiesView({
         <div className="flex-1 p-4 lg:p-6">
           <OpportunityListTable
             opportunities={opportunities}
+            totalCount={totalCount}
+            page={page}
+            pageSize={pageSize}
+            ownerOptions={ownerOptions}
             bulkDeleteAction={bulkDeleteAction}
             bulkUpdateStageAction={bulkUpdateStageAction}
             savedViews={savedViews}

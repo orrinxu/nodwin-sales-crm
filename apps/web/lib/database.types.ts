@@ -4073,6 +4073,21 @@ export type Database = {
           stage: string
         }[]
       }
+      pipeline_metrics_agg_scoped: {
+        Args: {
+          _close_from?: string
+          _close_to?: string
+          _entity_id?: string
+          _owner_only?: boolean
+        }
+        Returns: {
+          currency: string
+          deal_count: number
+          gross_amount: number
+          stage: string
+          weighted_amount: number
+        }[]
+      }
       reassign_approval_step: {
         Args: { _new_user_id: string; _step_id: string }
         Returns: undefined

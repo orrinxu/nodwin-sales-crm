@@ -5,7 +5,11 @@ vi.mock("server-only", () => ({}))
 const mockEq = vi.fn()
 const mockGte = vi.fn()
 const mockLte = vi.fn()
+const mockIs = vi.fn()
+const mockIlike = vi.fn()
+const mockOr = vi.fn()
 const mockOrder = vi.fn()
+const mockRange = vi.fn()
 const mockSelect = vi.fn()
 const mockFrom = vi.fn()
 const mockRpc = vi.fn()
@@ -27,19 +31,28 @@ const mockDbRow = {
 }
 
 function buildBuilder() {
-  // select()/eq()/gte()/lte() return the chainable builder; order() is terminal.
+  // select()/eq()/gte()/lte()/is()/ilike()/or()/order() return the chainable
+  // builder; range() is terminal (server-driven pagination — ORR-755).
   const builder = {
     select: mockSelect,
     eq: mockEq,
     gte: mockGte,
     lte: mockLte,
+    is: mockIs,
+    ilike: mockIlike,
+    or: mockOr,
     order: mockOrder,
+    range: mockRange,
   }
   mockSelect.mockReturnValue(builder)
   mockEq.mockReturnValue(builder)
   mockGte.mockReturnValue(builder)
   mockLte.mockReturnValue(builder)
-  mockOrder.mockResolvedValue({ data: [mockDbRow], error: null, count: 1 })
+  mockIs.mockReturnValue(builder)
+  mockIlike.mockReturnValue(builder)
+  mockOr.mockReturnValue(builder)
+  mockOrder.mockReturnValue(builder)
+  mockRange.mockResolvedValue({ data: [mockDbRow], error: null, count: 1 })
   mockFrom.mockReturnValue(builder)
 }
 
@@ -115,6 +128,43 @@ describe("getOpportunities — owner scope filter", () => {
     await getOpportunities(defaultCtx, { scope: "all" })
 
     expect(mockEq).not.toHaveBeenCalledWith("entity_sales_id", expect.anything())
+  })
+
+  it("applies a stage filter via .eq('stage', …)", async () => {
+    const { getOpportunities } = await import("../opportunities")
+    await getOpportunities(defaultCtx, { scope: "all", stageFilter: "propose" })
+    expect(mockEq).toHaveBeenCalledWith("stage", "propose")
+  })
+
+  it("ignores a stage filter of 'all'", async () => {
+    const { getOpportunities } = await import("../opportunities")
+    await getOpportunities(defaultCtx, { scope: "all", stageFilter: "all" })
+    expect(mockEq).not.toHaveBeenCalledWith("stage", expect.anything())
+  })
+
+  it("maps the unassigned owner sentinel to IS NULL", async () => {
+    const { getOpportunities, OPPORTUNITY_UNASSIGNED_OWNER } = await import(
+      "../opportunities"
+    )
+    await getOpportunities(defaultCtx, {
+      scope: "all",
+      ownerFilter: OPPORTUNITY_UNASSIGNED_OWNER,
+    })
+    expect(mockIs).toHaveBeenCalledWith("owner_user_id", null)
+  })
+
+  it("defaults to the first page range (0–24) at the default page size", async () => {
+    const { getOpportunities } = await import("../opportunities")
+    const result = await getOpportunities(defaultCtx, { scope: "all" })
+    expect(mockRange).toHaveBeenCalledWith(0, 24)
+    expect(result.page).toBe(1)
+    expect(result.pageSize).toBe(25)
+  })
+
+  it("offsets the range for a later page", async () => {
+    const { getOpportunities } = await import("../opportunities")
+    await getOpportunities(defaultCtx, { scope: "all", page: 3, pageSize: 10 })
+    expect(mockRange).toHaveBeenCalledWith(20, 29)
   })
 })
 

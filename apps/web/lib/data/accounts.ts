@@ -4,6 +4,12 @@ import { createServerClient } from "@/lib/supabase/server"
 import type { AuthenticatedUser } from "@/lib/security/auth"
 import type { ContactRecord } from "@/lib/data/contacts"
 import type { DealStage } from "@/lib/opportunity"
+import {
+  clampPage,
+  clampPageSize,
+  rangeFor,
+  sanitizeSearchTerm,
+} from "@/lib/list/pagination"
 
 export interface AccountCallContext {
   user: AuthenticatedUser
@@ -47,12 +53,35 @@ export interface AccountListRecord extends AccountRecord {
 export interface AccountListResult {
   accounts: AccountListRecord[]
   totalCount: number
+  /** 1-based page this result represents (server-driven pagination). */
+  page: number
+  pageSize: number
+}
+
+/** Columns the accounts table can sort by (ORR-755). */
+export type AccountSortColumn = "name" | "industry" | "country" | "createdAt"
+
+export const ACCOUNT_SORT_COLUMNS: readonly AccountSortColumn[] = [
+  "name",
+  "industry",
+  "country",
+  "createdAt",
+] as const
+
+export interface AccountSort {
+  column: AccountSortColumn
+  direction: "asc" | "desc"
 }
 
 export interface AccountListSearchParams {
   query?: string
   industry?: string
   ownerId?: string
+  sort?: AccountSort
+  /** 1-based page. Defaults to 1. */
+  page?: number
+  /** Rows per page. Clamped to `[1, MAX_PAGE_SIZE]`; defaults to `DEFAULT_PAGE_SIZE`. */
+  pageSize?: number
 }
 
 export interface AccountRelationship {
@@ -257,6 +286,9 @@ export async function getAccounts(
 ): Promise<AccountListResult> {
   const supabase = await createServerClient()
 
+  const page = clampPage(params?.page)
+  const pageSize = clampPageSize(params?.pageSize)
+
   let query = supabase
     .from("accounts")
     .select(
@@ -270,9 +302,12 @@ export async function getAccounts(
     )
     .is("deleted_at", null)
 
-  if (params?.query) {
-    const q = `%${params.query}%`
-    query = query.or(`name.ilike.${q},legal_name.ilike.${q},website.ilike.${q}`)
+  const search = sanitizeSearchTerm(params?.query)
+  if (search) {
+    const q = `%${search}%`
+    query = query.or(
+      `name.ilike.${q},legal_name.ilike.${q},website.ilike.${q},country.ilike.${q}`,
+    )
   }
 
   if (params?.industry) {
@@ -283,7 +318,10 @@ export async function getAccounts(
     query = query.eq("account_owner_user_id", params.ownerId)
   }
 
-  const { data, error, count } = await query.order("name", { ascending: true })
+  query = applyAccountSort(query, params?.sort)
+
+  const [from, to] = rangeFor(page, pageSize)
+  const { data, error, count } = await query.range(from, to)
 
   if (error) {
     throw new Error(`Failed to load accounts: ${error.message}`)
@@ -292,7 +330,24 @@ export async function getAccounts(
   const accounts = (data ?? []).map(toDomainAccountListRecord)
   const totalCount = count ?? 0
 
-  return { accounts, totalCount }
+  return { accounts, totalCount, page, pageSize }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- opaque PostgREST builder type across .order() chaining.
+function applyAccountSort(query: any, sort: AccountSort | undefined): any {
+  const ascending = sort ? sort.direction === "asc" : true
+  switch (sort?.column) {
+    case "industry":
+      return query.order("industry", { ascending, nullsFirst: false })
+    case "country":
+      return query.order("country", { ascending, nullsFirst: false })
+    case "createdAt":
+      return query.order("created_at", { ascending })
+    case "name":
+    default:
+      // Default (and explicit name) → alphabetical by name, ascending unless flipped.
+      return query.order("name", { ascending })
+  }
 }
 
 export async function getAccountRelationships(

@@ -2,6 +2,12 @@ import "server-only"
 import { z } from "zod"
 import { createServerClient } from "@/lib/supabase/server"
 import type { AuthenticatedUser } from "@/lib/security/auth"
+import {
+  clampPage,
+  clampPageSize,
+  rangeFor,
+  sanitizeSearchTerm,
+} from "@/lib/list/pagination"
 
 export interface ContactCallContext {
   user: AuthenticatedUser
@@ -31,12 +37,19 @@ export interface ContactListRecord extends ContactRecord {
 export interface ContactListResult {
   contacts: ContactListRecord[]
   totalCount: number
+  /** 1-based page this result represents (server-driven pagination). */
+  page: number
+  pageSize: number
 }
 
 export interface ContactListSearchParams {
   query?: string
   accountId?: string
   ownerId?: string
+  /** 1-based page. Defaults to 1. */
+  page?: number
+  /** Rows per page. Clamped to `[1, MAX_PAGE_SIZE]`; defaults to `DEFAULT_PAGE_SIZE`. */
+  pageSize?: number
 }
 
 export interface AccountOption {
@@ -126,6 +139,8 @@ export async function getContacts(
   params?: ContactListSearchParams,
 ): Promise<ContactListResult> {
   const supabase = await createServerClient()
+  const page = clampPage(params?.page)
+  const pageSize = clampPageSize(params?.pageSize)
 
   let query = supabase
     .from("contacts")
@@ -138,8 +153,9 @@ export async function getContacts(
       { count: "exact" },
     )
 
-  if (params?.query) {
-    const q = `%${params.query}%`
+  const search = sanitizeSearchTerm(params?.query)
+  if (search) {
+    const q = `%${search}%`
     query = query.or(
       `full_name.ilike.${q},email.ilike.${q},phone.ilike.${q},title.ilike.${q}`,
     )
@@ -153,7 +169,10 @@ export async function getContacts(
     query = query.eq("owner_user_id", params.ownerId)
   }
 
-  const { data, error, count } = await query.order("created_at", { ascending: false })
+  const [from, to] = rangeFor(page, pageSize)
+  const { data, error, count } = await query
+    .order("created_at", { ascending: false })
+    .range(from, to)
 
   if (error) {
     throw new Error(`Failed to load contacts: ${error.message}`)
@@ -162,7 +181,7 @@ export async function getContacts(
   const contacts = (data ?? []).map(toDomainContactListRecord)
   const totalCount = count ?? 0
 
-  return { contacts, totalCount }
+  return { contacts, totalCount, page, pageSize }
 }
 
 export const bulkDeleteContactsSchema = z.object({
