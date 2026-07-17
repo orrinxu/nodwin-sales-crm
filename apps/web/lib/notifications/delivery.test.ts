@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { renderEmailTemplate, evaluateNotificationChannels } from "./delivery"
+import {
+  renderEmailTemplate,
+  evaluateNotificationChannels,
+  sendSlackNotification,
+  postToSlackWebhook,
+} from "./delivery"
 
 vi.mock("server-only", () => ({}))
 
@@ -18,6 +23,7 @@ function mockChain(finalResult: { data: unknown; error: Error | null }) {
     "lt",
     "lte",
     "is",
+    "not",
     "in",
     "order",
     "limit",
@@ -353,5 +359,77 @@ describe("evaluateNotificationChannels", () => {
     await expect(
       evaluateNotificationChannels("user-1", "deal_won"),
     ).rejects.toThrow("Failed to load user overrides")
+  })
+})
+
+describe("postToSlackWebhook", () => {
+  it("POSTs the text to the webhook URL and returns true on ok", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal("fetch", fetchMock)
+
+    const ok = await postToSlackWebhook("https://hooks.slack.com/services/AAA", "hello")
+
+    expect(ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe("https://hooks.slack.com/services/AAA")
+    expect(init.method).toBe("POST")
+    expect(JSON.parse(init.body)).toEqual({ text: "hello" })
+
+    vi.unstubAllGlobals()
+  })
+
+  it("returns false (never throws) when Slack responds non-ok", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }))
+    expect(await postToSlackWebhook("https://hooks.slack.com/services/AAA", "x")).toBe(false)
+    vi.unstubAllGlobals()
+  })
+
+  it("returns false (never throws) when the request errors", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")))
+    expect(await postToSlackWebhook("https://hooks.slack.com/services/AAA", "x")).toBe(false)
+    vi.unstubAllGlobals()
+  })
+})
+
+describe("sendSlackNotification", () => {
+  it("broadcasts to every connected webhook", async () => {
+    mockFrom.mockReturnValue(
+      mockChain({
+        data: [
+          { webhook_url: "https://hooks.slack.com/services/AAA" },
+          { webhook_url: "https://hooks.slack.com/services/BBB" },
+        ],
+        error: null,
+      }),
+    )
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await sendSlackNotification("deal moved")
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const urls = fetchMock.mock.calls.map((c) => c[0]).sort()
+    expect(urls).toEqual([
+      "https://hooks.slack.com/services/AAA",
+      "https://hooks.slack.com/services/BBB",
+    ])
+    vi.unstubAllGlobals()
+  })
+
+  it("no-ops (no fetch) when no webhook is connected", async () => {
+    mockFrom.mockReturnValue(mockChain({ data: [], error: null }))
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await sendSlackNotification("deal moved")
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
+  it("throws when the connections query fails", async () => {
+    mockFrom.mockReturnValue(mockChain({ data: null, error: new Error("DB error") }))
+    await expect(sendSlackNotification("x")).rejects.toThrow("Failed to load Slack connections")
   })
 })

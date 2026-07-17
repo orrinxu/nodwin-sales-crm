@@ -15,6 +15,7 @@ import {
   Activity,
   Sparkles,
   Mail,
+  MessageSquare,
   Lock,
   PlugZap,
   ScrollText,
@@ -94,7 +95,10 @@ export const adminSections: AdminNavSection[] = [
   {
     label: "Integrations",
     icon: PlugZap,
-    description: "Email, and connected tools as they're added",
-    items: [{ name: "Email", href: "/admin/email", icon: Mail }],
+    description: "Email, Slack, and connected tools as they're added",
+    items: [
+      { name: "Email", href: "/admin/email", icon: Mail },
+      { name: "Slack", href: "/admin/slack", icon: MessageSquare },
+    ],
   },
 ]
