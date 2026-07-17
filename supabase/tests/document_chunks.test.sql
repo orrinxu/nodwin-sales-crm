@@ -70,8 +70,8 @@ INSERT INTO public.document_chunks (
   id, document_id, opportunity_id, account_id, visibility_tier, drive_file_id,
   chunk_index, content, embedding, embedding_model, embedding_dim, uploaded_by
 ) VALUES
-  ('c0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'standard',     'drive-std',  0, 'standard chunk text',     '[0.1,0.2,0.3]', 'test-embed', 3, '11111111-1111-1111-1111-111111111111'),
-  ('c0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'confidential', 'drive-conf', 0, 'confidential chunk text', '[0.4,0.5,0.6]', 'test-embed', 3, '11111111-1111-1111-1111-111111111111');
+  ('c0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'standard',     'drive-std',  0, 'standard chunk text',     ('[0.1' || repeat(',0',767) || ']')::vector, 'test-embed', 768, '11111111-1111-1111-1111-111111111111'),
+  ('c0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'confidential', 'drive-conf', 0, 'confidential chunk text', ('[0.4' || repeat(',0',767) || ']')::vector, 'test-embed', 768, '11111111-1111-1111-1111-111111111111');
 
 -- ── 1. Rep (owner) can read chunk on a visible opportunity ────────────────────
 SELECT tests.as_user('rep@nodwin.com');
@@ -118,7 +118,7 @@ SELECT tests.as_user('rep@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT throws_ok(
   $$INSERT INTO public.document_chunks (document_id, opportunity_id, account_id, visibility_tier, drive_file_id, chunk_index, content, embedding, embedding_model, embedding_dim)
-    VALUES ('d0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'standard', 'drive-std', 99, 'x', '[0.1,0.2,0.3]', 'test-embed', 3)$$,
+    VALUES ('d0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'standard', 'drive-std', 99, 'x', ('[0.1' || repeat(',0',767) || ']')::vector, 'test-embed', 768)$$,
   '42501',
   NULL,
   'authenticated user cannot insert chunks (only the service_role worker can)'
@@ -129,7 +129,7 @@ SELECT tests.as_service_role();
 SET LOCAL ROLE postgres;
 SELECT lives_ok(
   $$INSERT INTO public.document_chunks (document_id, opportunity_id, account_id, visibility_tier, drive_file_id, chunk_index, content, embedding, embedding_model, embedding_dim)
-    VALUES ('d0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'standard', 'drive-std', 1, 'worker chunk', '[0.7,0.8,0.9]', 'test-embed', 3)$$,
+    VALUES ('d0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'standard', 'drive-std', 1, 'worker chunk', ('[0.7' || repeat(',0',767) || ']')::vector, 'test-embed', 768)$$,
   'service_role worker can insert chunks'
 );
 

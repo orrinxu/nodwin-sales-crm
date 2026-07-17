@@ -106,6 +106,12 @@ SELECT results_eq(
   'match_count is clamped to 50 in SQL (63 entitled chunks, asked for 1000)'
 );
 
+SELECT results_eq(
+  $$ SELECT count(*)::int FROM public.search_document_chunks(('[1'||repeat(',0',767)||']')::vector, 'test-model', 3, 0) $$,
+  $$ VALUES (3) $$,
+  'a match_count under the clamp is honoured as-is (asked for 3)'
+);
+
 -- ══ Correctness guards ══
 SELECT is_empty(
   $$ SELECT id FROM public.search_document_chunks(('[1'||repeat(',0',767)||']')::vector, 'other-model', 10, 0) $$,
