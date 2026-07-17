@@ -119,9 +119,17 @@ export async function getActivities(
   return (data ?? []).map((r) => toDomainActivity(r as Record<string, unknown>))
 }
 
+// Default cap for the per-entity activity feeds (ORR-766). They were unbounded —
+// on a busy deal/account that fetched the entire history (wide rows incl. the full
+// body) on every detail-page render, and silently truncated at PostgREST's row
+// cap. 100 recent is plenty for the timelines + the deal copilot (which slices to
+// 8); pass an explicit limit to override.
+const ACTIVITY_FEED_LIMIT = 100
+
 export async function getActivitiesForOpportunity(
   ctx: ActivityCallContext,
   opportunityId: string,
+  limit: number = ACTIVITY_FEED_LIMIT,
 ): Promise<ActivityRecord[]> {
   const supabase = await createServerClient()
 
@@ -130,6 +138,7 @@ export async function getActivitiesForOpportunity(
     .select(ACTIVITY_SELECT)
     .eq("opportunity_id", opportunityId)
     .order("created_at", { ascending: false })
+    .limit(limit)
 
   if (error) {
     throw new Error(`Failed to load activities: ${error.message}`)
@@ -141,6 +150,7 @@ export async function getActivitiesForOpportunity(
 export async function getActivitiesForAccount(
   ctx: ActivityCallContext,
   accountId: string,
+  limit: number = ACTIVITY_FEED_LIMIT,
 ): Promise<ActivityRecord[]> {
   const supabase = await createServerClient()
 
@@ -149,6 +159,7 @@ export async function getActivitiesForAccount(
     .select(ACTIVITY_SELECT)
     .eq("account_id", accountId)
     .order("created_at", { ascending: false })
+    .limit(limit)
 
   if (error) {
     throw new Error(`Failed to load activities: ${error.message}`)
@@ -160,6 +171,7 @@ export async function getActivitiesForAccount(
 export async function getActivitiesForContact(
   ctx: ActivityCallContext,
   contactId: string,
+  limit: number = ACTIVITY_FEED_LIMIT,
 ): Promise<ActivityRecord[]> {
   const supabase = await createServerClient()
 
@@ -168,6 +180,7 @@ export async function getActivitiesForContact(
     .select(ACTIVITY_SELECT)
     .eq("contact_id", contactId)
     .order("created_at", { ascending: false })
+    .limit(limit)
 
   if (error) {
     throw new Error(`Failed to load activities: ${error.message}`)
