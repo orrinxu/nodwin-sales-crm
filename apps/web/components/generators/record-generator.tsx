@@ -7,7 +7,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog"
 import { GeneratorReviewBanner, type GeneratorReviewResult } from "@/components/generators/review-banner"
-import { VoiceRecorder } from "@/components/generators/voice-recorder"
+import { VoiceRecorderLazy } from "@/components/generators/voice-recorder.lazy"
 
 // Shared "generate a record from a note" shell (ORR-735). Factored out of the
 // opportunity generator so account/contact generators reuse the same chooser →
@@ -342,7 +342,7 @@ export function RecordGenerator<Prefill, Result extends GeneratorResult<Prefill>
                 <DialogTitle>Record a voice note</DialogTitle>
                 <DialogDescription>Speak naturally about the {entityLabel}. You&apos;ll review everything before it saves.</DialogDescription>
               </DialogHeader>
-              <VoiceRecorder onRecorded={setPendingAudio} />
+              <VoiceRecorderLazy onRecorded={setPendingAudio} />
               {errorMsg && <p className="text-sm text-destructive">{errorMsg}</p>}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => { setPhase("chooser"); setPendingAudio(null) }}>Back</Button>
