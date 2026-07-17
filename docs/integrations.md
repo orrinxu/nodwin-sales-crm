@@ -45,13 +45,13 @@ Inbound email is handled by Postmark Inbound (recommended) or AWS SES Inbound. T
 
 ### 6.4 Slack
 
-> **v1 decision (ORR-706, 2026-07): Slack ships as deep-links** — links that open Slack pre-filled, not a connected app posting on the CRM's behalf. The full Slack app below is a **future expansion**, not built.
+> **Status: notification broadcasts SHIPPED (ORR-771, 2026-07-17); the full bot app below is still a future expansion.**
 >
-> **Status: planned / not yet implemented (config scaffold only).** The full Slack app described below is **not** built. There is no `@slack/bolt` (or any Slack) dependency in the codebase, no slash-command or interactivity endpoint, no per-deal channel automation, and no approve-from-Slack flow.
+> **What is built today — channel broadcasts via incoming webhooks.** An admin connects a Slack **incoming webhook** per workspace/channel in **`/admin/slack`** (webhook URL stored on `slack_connections.webhook_url` — a bearer secret protected by the table's admin-only SELECT + service-role read, same posture as `email_transport`), and chooses which events broadcast. `sendSlackNotification()` (`lib/notifications/delivery.ts`) then POSTs those events to every connected webhook. Events wired: `stage_change`, `deal_won`, `deal_lost`, `deal_assigned`, `approval_requested` — each has a single recipient, so one channel post per event. No per-user OAuth and no `@slack/bolt` dependency — the webhook URL is the credential. This deliberately extends the ORR-706 "deep-links only" v1 stance (per Orrin's 2026-07-17 direction) with low-cost channel broadcasts; it does **not** replace the deep-links.
 >
-> What exists today is a thin notification scaffold: a `slack` value in the `notification_channel` enum, an `escapeSlackMrkdwn()` helper in `lib/notifications/delivery.ts` (which can post a basic DM via a stored `slack_connections` token), and a `slack_connections` config table whose `status` defaults to `'disconnected'` (`20260618000003_integration_config.sql`).
+> **What is NOT built (future expansion — the full bot-scoped app).** No slash command, no interactivity/events endpoint, no per-user DMs, no per-deal channel automation, no approve-from-Slack. Those require a bot-token OAuth app (`@slack/bolt`), which incoming webhooks can't do (webhooks are channel-post-only).
 
-The intended (planned) Slack app would run with bot scopes for the Nodwin Slack workspace(s) and provide:
+The future (planned) bot-scoped Slack app would run with bot scopes for the Nodwin Slack workspace(s) and add, on top of today's channel broadcasts:
 
 - Bot posts to per-Sales-Unit channels: stage advances, deal closures, approval requests, deals at risk.
 - Slash command `/crm <query>` performing a quick AI search and returning a card preview with a deep link into the CRM.
@@ -75,13 +75,13 @@ Folder permissions are managed by the CRM via the Drive API based on the opportu
 
 #### 6.5.2 Gmail
 
-> **Status: unbuilt / planned.** There is no `googleapis` dependency and no Gmail send/read code in the codebase. The design below is aspirational.
+> **Status: unbuilt / planned — tracked as ORR-775, blocked by ORR-773.** No `googleapis` dependency and no Gmail send/read code (verified 2026-07-17). Real two-way Gmail sync needs the **per-user Google OAuth token subsystem (ORR-773)** built first — that subsystem is the shared blocker with Calendar and does not exist yet (the Supabase Google login is identity only and captures no API tokens). The design below is aspirational.
 
 Per-user OAuth grants `gmail.send` (for outbound from CRM) and `gmail.readonly` (for the optional "my recent emails relevant to this deal" feature). The CRM does NOT continuously poll the user's inbox; readonly access is invoked only on-demand when the user opens an opportunity and clicks a "find related emails" button. This is both a privacy boundary and an AI cost control.
 
 #### 6.5.3 Calendar
 
-> **Status: unbuilt / planned.** No `googleapis` dependency and no Calendar integration code exists. The design below is aspirational.
+> **Status: unbuilt / planned — tracked as ORR-774, blocked by ORR-773.** No `googleapis` dependency and no Calendar integration code exists (verified 2026-07-17). Needs the **per-user Google OAuth token subsystem (ORR-773)** first (shared with Gmail), plus an events data model — extend `activities` (start/end/timezone/`external_event_id`) or a dedicated `calendar_events` table (today `activities.type='meeting'` exists but has no time columns). The design below is aspirational.
 
 Per-user OAuth grants `calendar.events` scope. Meetings created from a deal in CRM are written to the user's primary calendar with a structured description containing a deep link back to the CRM. Calendar events involving known CRM contacts (matched by attendee email) are surfaced as suggested Activities in the CRM ("You met with Jane Smith from Tencent yesterday — log meeting?").
 
