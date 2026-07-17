@@ -102,18 +102,15 @@ export async function getRoles(ctx: RolesCallContext): Promise<RoleRecord[]> {
 
   const rows = (data ?? []) as Record<string, unknown>[]
 
-  // Per-role head counts — bounded by #roles (never a raw #users scan).
-  const counts = await Promise.all(
-    rows.map(async (r) => {
-      const { count } = await supabase
-        .from("users")
-        .select("id", { count: "exact", head: true })
-        .eq("role_id", r.id as string)
-      return count ?? 0
-    }),
-  )
+  // Per-role head counts in ONE GROUP BY (ORR-761) — was N per-role round-trips.
+  const { data: countRows, error: countError } = await supabase.rpc("role_user_counts")
+  if (countError) throw new Error(`Failed to load role counts: ${countError.message}`)
+  const countByRole = new Map<string, number>()
+  for (const c of (countRows ?? []) as { role_id: string; user_count: number }[]) {
+    countByRole.set(c.role_id, Number(c.user_count))
+  }
 
-  return rows.map((r, i) => toDomainRole(r, counts.at(i) ?? 0))
+  return rows.map((r) => toDomainRole(r, countByRole.get(r.id as string) ?? 0))
 }
 
 export async function createRole(

@@ -5,6 +5,7 @@ import type { AuthenticatedUser } from "@/lib/security/auth"
 import { createAccount, type AccountCreateInput } from "@/lib/data/accounts"
 import { createImportJob } from "@/lib/data/data-management"
 import { parseCsv } from "./csv-parse"
+import { runWithConcurrency } from "./concurrency"
 
 /**
  * Generic native CSV importer (ORR-731).
@@ -45,6 +46,9 @@ export interface RecordsImportResult {
 /** Guardrails: keep a single upload bounded so one import can't run unbounded. */
 const MAX_ROWS = 10_000
 const MAX_REPORTED_ERRORS = 50
+/** Concurrent creates per wave (ORR-761) — bounded so a big import can't exhaust
+ *  the DB connection pool. */
+const CREATE_CONCURRENCY = 20
 /** PostgREST caps a single select; page the existing-name scan to avoid silent truncation. */
 const NAME_SCAN_PAGE = 1000
 
@@ -212,6 +216,10 @@ export async function importRecordsCsv(
     jobId: null,
   }
 
+  // Phase 1 — map + dedupe every row (no DB): decide skip vs create. Marking the
+  // name seen HERE (not after the insert) also dedupes within-file duplicates
+  // before the parallel creates below.
+  const toCreate: { rowNum: number; input: AccountCreateInput }[] = []
   for (let i = 0; i < rows.length; i++) {
     const rowNum = i + 1
     try {
@@ -225,15 +233,35 @@ export async function importRecordsCsv(
         continue
       }
 
-      await createAccount(ctx, input)
       if (key) existingNames.add(key)
-      result.created++
+      toCreate.push({ rowNum, input })
     } catch (err) {
       result.failed++
-      if (result.errors.length < MAX_REPORTED_ERRORS) {
-        result.errors.push({ row: rowNum, message: zodMessage(err) })
-      }
+      result.errors.push({ row: rowNum, message: zodMessage(err) })
     }
+  }
+
+  // Phase 2 — create with bounded concurrency (ORR-761): N sequential round-trips
+  // become ceil(N / CREATE_CONCURRENCY) waves. Each row is still its own create,
+  // so validation + per-row error attribution are preserved.
+  const settled = await runWithConcurrency(toCreate, CREATE_CONCURRENCY, (c) =>
+    createAccount(ctx, c.input),
+  )
+  settled.forEach((r, j) => {
+    if (r.status === "fulfilled") {
+      result.created++
+    } else {
+      result.failed++
+      // eslint-disable-next-line security/detect-object-injection -- numeric index over our own array
+      result.errors.push({ row: toCreate[j].rowNum, message: zodMessage(r.reason) })
+    }
+  })
+
+  // Keep the first MAX_REPORTED_ERRORS by row number (matches the old cap, which
+  // collected them in row order).
+  result.errors.sort((a, b) => a.row - b.row)
+  if (result.errors.length > MAX_REPORTED_ERRORS) {
+    result.errors = result.errors.slice(0, MAX_REPORTED_ERRORS)
   }
 
   // Record the run in import_jobs (audit + visible in the jobs list).

@@ -12,6 +12,7 @@ import {
   type ImportEntity,
 } from "./salesforce-map"
 import { parseCsv } from "./csv-parse"
+import { runWithConcurrency } from "./concurrency"
 
 export interface ImportContext {
   user: AuthenticatedUser
@@ -38,6 +39,9 @@ export interface ImportResult {
 /** Guardrails: keep a single upload bounded so one import can't run unbounded. */
 const MAX_ROWS = 10_000
 const MAX_REPORTED_ERRORS = 50
+/** Concurrent creates per wave (ORR-761) — bounded so a big import can't exhaust
+ *  the DB connection pool. */
+const CREATE_CONCURRENCY = 20
 
 export const importParamsSchema = z.object({
   entity: z.enum(SUPPORTED_IMPORT_ENTITIES),
@@ -113,6 +117,11 @@ export async function importSalesforceCsv(
     jobId: null,
   }
 
+  // Phase 1 — map + resolve + dedupe every row (no create yet). Marking a
+  // Salesforce Id seen HERE (not after the insert) dedupes within-file duplicates
+  // before the parallel creates. A row that can't be mapped/resolved (e.g. an
+  // opportunity with no parent account) fails here, exactly as before.
+  const toCreate: { rowNum: number; run: () => Promise<unknown> }[] = []
   for (let i = 0; i < rows.length; i++) {
     const rowNum = i + 1
     try {
@@ -133,21 +142,19 @@ export async function importSalesforceCsv(
       // derived values are checked at runtime; the cast only satisfies the
       // compile-time signature.
       if (entity === "accounts") {
-        const created = await createAccount(ctx, {
+        const input = {
           ...mapped.values,
           legacySalesforceId: mapped.legacyId || undefined,
-        } as unknown as AccountCreateInput)
-        if (mapped.legacyId) existing.set(mapped.legacyId, created.id)
-        result.created++
+        } as unknown as AccountCreateInput
+        toCreate.push({ rowNum, run: () => createAccount(ctx, input) })
       } else if (entity === "contacts") {
-        await createContact(ctx, {
+        const input = {
           ...mapped.values,
           // Link to the account if we imported it; otherwise leave unlinked.
           primaryAccountId: accountUuid,
           legacySalesforceId: mapped.legacyId || undefined,
-        } as unknown as ContactCreateInput)
-        if (mapped.legacyId) existing.set(mapped.legacyId, "1")
-        result.created++
+        } as unknown as ContactCreateInput
+        toCreate.push({ rowNum, run: () => createContact(ctx, input) })
       } else {
         // opportunities — account_id is required.
         if (!accountUuid) {
@@ -157,21 +164,41 @@ export async function importSalesforceCsv(
               : "no account id in row (opportunities require an account)",
           )
         }
-        await createOpportunity(ctx, {
+        const input = {
           ...mapped.values,
           accountId: accountUuid,
           salesUnitId: params.salesUnitId,
           legacySalesforceId: mapped.legacyId || undefined,
-        } as unknown as OpportunityCreateInput)
-        if (mapped.legacyId) existing.set(mapped.legacyId, "1")
-        result.created++
+        } as unknown as OpportunityCreateInput
+        toCreate.push({ rowNum, run: () => createOpportunity(ctx, input) })
       }
+      // The returned id is only used for within-run idempotency (this run imports
+      // one entity type; cross-entity links resolve via the DB-loaded index), so a
+      // placeholder is enough here.
+      if (mapped.legacyId) existing.set(mapped.legacyId, "1")
     } catch (err) {
       result.failed++
-      if (result.errors.length < MAX_REPORTED_ERRORS) {
-        result.errors.push({ row: rowNum, message: zodMessage(err) })
-      }
+      result.errors.push({ row: rowNum, message: zodMessage(err) })
     }
+  }
+
+  // Phase 2 — create with bounded concurrency (ORR-761): N sequential round-trips
+  // become ceil(N / CREATE_CONCURRENCY) waves; each row is still its own create.
+  const settled = await runWithConcurrency(toCreate, CREATE_CONCURRENCY, (c) => c.run())
+  settled.forEach((r, j) => {
+    if (r.status === "fulfilled") {
+      result.created++
+    } else {
+      result.failed++
+      // eslint-disable-next-line security/detect-object-injection -- numeric index over our own array
+      result.errors.push({ row: toCreate[j].rowNum, message: zodMessage(r.reason) })
+    }
+  })
+
+  // Keep the first MAX_REPORTED_ERRORS by row number (matches the old cap).
+  result.errors.sort((a, b) => a.row - b.row)
+  if (result.errors.length > MAX_REPORTED_ERRORS) {
+    result.errors = result.errors.slice(0, MAX_REPORTED_ERRORS)
   }
 
   // Record the run in import_jobs (audit + visible in the jobs list).
