@@ -1,4 +1,5 @@
 import "server-only"
+import { cache } from "react"
 import { createServerClient } from "@/lib/supabase/server"
 import type { AuthenticatedUser } from "@/lib/security/auth"
 import { DEAL_STAGES } from "@/lib/opportunity"
@@ -63,16 +64,25 @@ export async function resolveReportingCurrency(ctx: DashboardContext): Promise<s
   return preferred ?? (await resolveOrgReportingCurrency(ctx))
 }
 
-async function getCurrencyScaleMap(currencies: Iterable<string>): Promise<Map<string, number>> {
+// `currencies` is a tiny, request-stable reference table that was re-queried once
+// per rollup (~8-10× per dashboard/reports render). Load it ONCE per request
+// (ORR-765) and filter in memory — cheaper than N filtered round-trips.
+const loadCurrencyScales = cache(async (): Promise<Map<string, number>> => {
   const supabase = await createServerClient()
-  const { data } = await supabase
-    .from("currencies")
-    .select("code, scale")
-    .in("code", Array.from(new Set(currencies)))
-
+  const { data } = await supabase.from("currencies").select("code, scale")
   const map = new Map<string, number>()
-  for (const c of (data ?? [])) {
-    map.set(c.code, c.scale)
+  for (const c of data ?? []) {
+    map.set(c.code as string, c.scale as number)
+  }
+  return map
+})
+
+async function getCurrencyScaleMap(currencies: Iterable<string>): Promise<Map<string, number>> {
+  const all = await loadCurrencyScales()
+  const map = new Map<string, number>()
+  for (const code of new Set(currencies)) {
+    const scale = all.get(code)
+    if (scale !== undefined) map.set(code, scale)
   }
   return map
 }
@@ -196,13 +206,21 @@ interface PipelineBuckets {
   currency: string
 }
 
-async function loadPipelineBuckets(ctx: DashboardContext): Promise<PipelineBuckets> {
+// The pipeline_metrics_agg RPC is arg-less and RLS-scoped, so it's request-stable.
+// getPipelineMetrics AND getPipelineSummary both call loadPipelineBuckets, so the
+// dashboard fired the RPC twice — cache() collapses it to one call per request
+// (ORR-765).
+const loadPipelineMetricsRows = cache(async (): Promise<PipelineBucketRow[]> => {
   const supabase = await createServerClient()
   const { data, error } = await supabase.rpc("pipeline_metrics_agg")
   if (error) {
     throw new Error(`Failed to load pipeline metrics: ${error.message}`)
   }
-  const rows = (data ?? []) as PipelineBucketRow[]
+  return (data ?? []) as PipelineBucketRow[]
+})
+
+async function loadPipelineBuckets(ctx: DashboardContext): Promise<PipelineBuckets> {
+  const rows = await loadPipelineMetricsRows()
   const reportingCurrency = await resolveReportingCurrency(ctx)
 
   let totalDealCount = 0
