@@ -4108,6 +4108,10 @@ export type Database = {
         Args: { _opportunity_id: string }
         Returns: undefined
       }
+      recompute_visibility_for_opportunities: {
+        Args: { _ids: string[] }
+        Returns: undefined
+      }
       recompute_visibility_for_opportunity: {
         Args: { _opportunity_id: string }
         Returns: undefined
@@ -4118,6 +4122,10 @@ export type Database = {
       }
       recompute_visibility_for_user_subtree: {
         Args: { _user_id: string }
+        Returns: undefined
+      }
+      recompute_visibility_for_users_subtrees: {
+        Args: { _user_ids: string[] }
         Returns: undefined
       }
       record_approval_decision: {
