@@ -417,7 +417,7 @@ function NotificationsSection({
                   </td>
                   <td className="px-3 text-center">
                     <div className="inline-flex flex-col items-center gap-0.5">
-                      <Switch checked={false} disabled aria-label={`Slack for ${ev.label} (coming soon)`} />
+                      <Switch checked={false} disabled aria-label={`Slack for ${ev.label} (managed by admin)`} />
                     </div>
                   </td>
                 </tr>
@@ -426,7 +426,7 @@ function NotificationsSection({
           </table>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Slack delivery is coming soon. Digest frequency and quiet hours aren&rsquo;t available yet.
+          Slack delivery is configured by your admin (org-wide channel posts). Digest frequency and quiet hours aren&rsquo;t available yet.
         </p>
         {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
       </CardContent>

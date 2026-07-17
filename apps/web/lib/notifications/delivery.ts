@@ -257,60 +257,54 @@ export async function sendTestEmail(toEmail: string): Promise<void> {
   )
 }
 
-export async function sendSlackNotification(
-  userId: string,
-  message: string,
-): Promise<void> {
+// Post a single message to a Slack incoming webhook. Never throws — a Slack
+// failure must not break notification delivery (it is best-effort). Returns
+// whether the post succeeded (used by the admin "send test" action).
+export async function postToSlackWebhook(
+  url: string,
+  text: string,
+): Promise<boolean> {
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    })
+    if (!response.ok) {
+      console.warn(`[notifications] Slack webhook post failed: ${response.status}`)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.warn(
+      `[notifications] Slack webhook error: ${err instanceof Error ? err.message : String(err)}`,
+    )
+    return false
+  }
+}
+
+// Broadcast a message to every connected Slack incoming webhook — per-workspace
+// channel posts (ORR-771). No per-user OAuth: the webhook URL is the credential.
+// No-ops when nothing is connected, so routing events to Slack before an admin
+// has set up a webhook is harmless.
+export async function sendSlackNotification(message: string): Promise<void> {
   const client = createServiceRoleClient()
 
-  const { data: connections, error: connError } = await client
+  const { data, error } = await client
     .from("slack_connections")
-    .select("slack_user_id, access_token")
-    .eq("user_id", userId)
-    .eq("enabled", true)
+    .select("webhook_url")
+    .eq("status", "connected")
+    .not("webhook_url", "is", null)
 
-  if (connError) {
-    throw new Error(
-      `Failed to load Slack connection: ${connError.message}`,
-    )
+  if (error) {
+    throw new Error(`Failed to load Slack connections: ${error.message}`)
   }
 
-  if (!connections || connections.length === 0) {
-    return
-  }
+  const urls = ((data ?? []) as { webhook_url: string | null }[])
+    .map((r) => r.webhook_url)
+    .filter((u): u is string => !!u)
 
-  if (!env.SLACK_BOT_TOKEN) {
-    console.warn(
-      "[notifications] SLACK_BOT_TOKEN not configured; Slack notification skipped",
-    )
-    return
-  }
-
-  for (const conn of connections as { slack_user_id: string; access_token?: string }[]) {
-    try {
-      const response = await fetch("https://slack.com/api/chat.postMessage", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          channel: conn.slack_user_id,
-          text: message,
-        }),
-      })
-
-      if (!response.ok) {
-        console.warn(
-          `[notifications] Slack message failed for user ${userId}: ${response.status}`,
-        )
-      }
-    } catch (err) {
-      console.warn(
-        `[notifications] Slack message error for user ${userId}: ${err instanceof Error ? err.message : String(err)}`,
-      )
-    }
-  }
+  await Promise.all(urls.map((url) => postToSlackWebhook(url, message)))
 }
 
 export async function createInAppNotification(
@@ -375,7 +369,6 @@ export async function sendNotification(
           )
         case "slack":
           return sendSlackNotification(
-            userId,
             `*${escapeSlackMrkdwn(payload.title)}*\n${escapeSlackMrkdwn(payload.message)}${payload.linkUrl ? `\n<${escapeSlackMrkdwn(payload.linkUrl)}|View in Nodwin CRM>` : ""}`,
           )
       }

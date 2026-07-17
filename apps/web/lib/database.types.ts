@@ -3296,29 +3296,35 @@ export type Database = {
       }
       slack_connections: {
         Row: {
+          channel_label: string | null
           created_at: string
           event_routing: Json
           id: string
           status: string
           updated_at: string
+          webhook_url: string | null
           workspace_id: string
           workspace_name: string | null
         }
         Insert: {
+          channel_label?: string | null
           created_at?: string
           event_routing?: Json
           id?: string
           status?: string
           updated_at?: string
+          webhook_url?: string | null
           workspace_id: string
           workspace_name?: string | null
         }
         Update: {
+          channel_label?: string | null
           created_at?: string
           event_routing?: Json
           id?: string
           status?: string
           updated_at?: string
+          webhook_url?: string | null
           workspace_id?: string
           workspace_name?: string | null
         }

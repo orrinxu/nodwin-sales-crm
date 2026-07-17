@@ -92,10 +92,10 @@ describe("SettingsView", () => {
     })
   })
 
-  it("flags Slack as coming soon (Notifications) and shows the localization note", async () => {
+  it("notes Slack is admin-configured (Notifications) and shows the localization note", async () => {
     render(<SettingsView {...makeProps()} />)
     await openTab("Notifications")
-    expect(screen.getByText(/Slack delivery is coming soon/)).toBeInTheDocument()
+    expect(screen.getByText(/Slack delivery is configured by your admin/)).toBeInTheDocument()
     await openTab("Localization")
     expect(
       screen.getByText(/Number, date, and timezone preferences apply across the app/),
