@@ -4201,6 +4201,13 @@ export type Database = {
           gross_amount: number
         }[]
       }
+      role_user_counts: {
+        Args: never
+        Returns: {
+          role_id: string
+          user_count: number
+        }[]
+      }
       search_document_chunks: {
         Args: {
           _match_count?: number
