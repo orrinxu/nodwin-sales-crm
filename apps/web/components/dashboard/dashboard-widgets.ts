@@ -5,8 +5,8 @@ import type { DashboardLayout } from "@/lib/data/dashboard-layout"
  * the layout reconciliation is unit-testable and shared by the server page
  * (default) and the client grid (merge saved with current).
  *
- * Grid is 12 columns wide; `rowSpan` is in grid row-units (see DashboardGrid's
- * `--dash-row`). Order here is the default top-to-bottom order.
+ * Grid is 12 columns wide; `rowSpan` is in grid row-units. Order here is the
+ * default top-to-bottom order.
  */
 
 export interface WidgetSpec {

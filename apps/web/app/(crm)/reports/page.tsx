@@ -1,8 +1,8 @@
 import { requireUser } from "@/lib/security/auth"
 import { getReportData } from "@/lib/data/reports"
 import { getForecastData } from "@/lib/data/forecast"
-import { ReportsView } from "@/components/reports/reports-view"
-import { ForecastScorecards } from "@/components/reports/forecast-scorecards"
+import { ReportsViewLazy } from "@/components/reports/reports-view.lazy"
+import { ForecastScorecardsLazy } from "@/components/reports/forecast-scorecards.lazy"
 
 export const metadata = {
   title: "Reports - Nodwin CRM",
@@ -18,8 +18,8 @@ export default async function ReportsPage() {
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <ForecastScorecards data={forecastData} />
-      <ReportsView data={reportData} />
+      <ForecastScorecardsLazy data={forecastData} />
+      <ReportsViewLazy data={reportData} />
     </div>
   )
 }

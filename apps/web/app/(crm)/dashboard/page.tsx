@@ -17,7 +17,7 @@ import { getNumberFormat } from "@/lib/data/user-preferences"
 import { numberFormatLocale } from "@/lib/format"
 import { SummaryStrip } from "@/components/dashboard/summary-strip"
 import { selectSummaryStrip } from "@/components/dashboard/summary-strip-data"
-import { PipelineChart } from "@/components/dashboard/pipeline-chart"
+import { PipelineChartLazy } from "@/components/dashboard/pipeline-chart.lazy"
 import { ActivityTimeline } from "@/components/dashboard/activity-timeline"
 import { RecentDeals } from "@/components/dashboard/recent-deals"
 import { StuckDeals } from "@/components/dashboard/stuck-deals"
@@ -121,7 +121,7 @@ export default async function DashboardPage() {
 
       <DashboardSection label="My pipeline">
         <div className="grid gap-4 lg:grid-cols-2">
-          <PipelineChart stages={pipelineSummary.stages} currency={currency} locale={locale} />
+          <PipelineChartLazy stages={pipelineSummary.stages} currency={currency} locale={locale} />
           <StuckDeals
             totalAtRisk={fmt.format(stuck.totalValueAtRisk)}
             unconvertibleCount={stuck.unconvertibleCount}
