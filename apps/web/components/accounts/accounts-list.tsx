@@ -1,17 +1,23 @@
 "use client"
 
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   flexRender,
   getCoreRowModel,
-  getSortedRowModel,
   useReactTable,
   type ColumnDef,
   type RowSelectionState,
-  type SortingState,
 } from "@tanstack/react-table"
 import { useRouter } from "next/navigation"
-import { Search, Trash2Icon, Building2, X, ArrowUpDown } from "lucide-react"
+import {
+  Search,
+  Trash2Icon,
+  Building2,
+  X,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -40,6 +46,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Card } from "@/components/ui/card"
+import { ListPagination } from "@/components/primitives/list-pagination"
 import { AccountForm } from "@/components/accounts/account-form"
 import { AccountGenerator } from "@/components/accounts/account-generator"
 import type { AccountListRecord, AccountCreateInput, AccountRecord } from "@/lib/data/accounts"
@@ -47,10 +54,20 @@ import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import type { TaxIdType } from "@/lib/data/account-tax-ids"
 import type { TaxIdRow } from "@/components/accounts/tax-ids-editor"
 import type { EntityOption } from "@/components/entity-combobox"
+import { useListQuery } from "@/lib/list/use-list-query"
 import { usePreferences } from "@/components/providers/preferences-provider"
+
+// Sort tokens = the AccountSortColumn values the server understands.
+const SORT_COLUMNS = new Set(["name", "industry", "country", "createdAt"])
+const SEARCH_DEBOUNCE_MS = 350
 
 interface AccountsListProps {
   accounts: AccountListRecord[]
+  /** Total rows matching the active filters, across all pages. */
+  totalCount: number
+  /** 1-based current page. */
+  page: number
+  pageSize: number
   industryOptions: string[]
   ownerOptions: EntityOption[]
   accountOptions: EntityOption[]
@@ -71,8 +88,36 @@ interface AccountsListProps {
   transcribeAction?: (formData: FormData) => Promise<{ ok: boolean; text?: string; unconfigured?: boolean; unavailable?: boolean; error?: string }>
 }
 
+function SortHeader({
+  label,
+  active,
+  direction,
+  onClick,
+}: {
+  label: string
+  active: boolean
+  direction: "asc" | "desc"
+  onClick: () => void
+}) {
+  const Icon = !active ? ArrowUpDown : direction === "asc" ? ArrowUp : ArrowDown
+  return (
+    <Button
+      variant="ghost"
+      className="-ml-3 h-8 data-[sorted]:text-foreground"
+      onClick={onClick}
+      aria-label={`Sort by ${label}`}
+    >
+      {label}
+      <Icon className={active ? "ml-2 size-4" : "ml-2 size-4 text-muted-foreground"} />
+    </Button>
+  )
+}
+
 export function AccountsList({
   accounts,
+  totalCount,
+  page,
+  pageSize,
   industryOptions,
   ownerOptions,
   accountOptions,
@@ -88,40 +133,41 @@ export function AccountsList({
 }: AccountsListProps) {
   const router = useRouter()
   const { formatDate } = usePreferences()
+  const { searchParams, setParams } = useListQuery()
+
+  // Filter / sort state comes from the URL — the server already applied it.
+  const urlSearch = searchParams.get("q") ?? ""
+  const industryFilter = searchParams.get("industry") ?? "all"
+  const ownerFilter = searchParams.get("owner") ?? "all"
+  const activeSort = searchParams.get("sort")
+  const activeDir = (searchParams.get("dir") === "desc" ? "desc" : "asc") as "asc" | "desc"
+
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
-  const [sorting, setSorting] = useState<SortingState>([])
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isPending, setIsPending] = useState(false)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [industryFilter, setIndustryFilter] = useState<string>("all")
-  const [ownerFilter, setOwnerFilter] = useState<string>("all")
+  const [searchInput, setSearchInput] = useState(urlSearch)
 
-  const filteredAccounts = useMemo(() => {
-    let result = accounts
+  // Debounce the search box → URL. Seeded from the URL on mount and re-synced by
+  // the clear handler, so no URL→input effect is needed.
+  useEffect(() => {
+    const trimmed = searchInput.trim()
+    if (trimmed === urlSearch) return
+    const t = setTimeout(() => {
+      setParams({ q: trimmed || null }, { resetPage: true })
+    }, SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [searchInput, urlSearch, setParams])
 
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase()
-      result = result.filter(
-        (a) =>
-          a.name.toLowerCase().includes(q) ||
-          (a.legalName ?? "").toLowerCase().includes(q) ||
-          (a.website ?? "").toLowerCase().includes(q) ||
-          (a.country ?? "").toLowerCase().includes(q),
-      )
-    }
+  const pushSort = useCallback(
+    (columnId: string) => {
+      if (!SORT_COLUMNS.has(columnId)) return
+      const nextDir = activeSort === columnId && activeDir === "asc" ? "desc" : "asc"
+      setParams({ sort: columnId, dir: nextDir }, { resetPage: true })
+    },
+    [activeSort, activeDir, setParams],
+  )
 
-    if (industryFilter !== "all") {
-      result = result.filter((a) => a.industry === industryFilter)
-    }
-
-    if (ownerFilter !== "all") {
-      result = result.filter((a) => a.accountOwnerUserId === ownerFilter)
-    }
-
-    return result
-  }, [accounts, searchQuery, industryFilter, ownerFilter])
-
-  // getRowId keys the selection by account id, so it survives filtering/sorting.
+  // getRowId keys the selection by account id, so it survives paging/sorting.
   const selectedIds = useMemo(
     () =>
       Object.entries(rowSelection)
@@ -138,9 +184,7 @@ export function AccountsList({
           <Checkbox
             checked={table.getIsAllPageRowsSelected()}
             indeterminate={table.getIsSomePageRowsSelected() && !table.getIsAllPageRowsSelected()}
-            onCheckedChange={(value) =>
-              table.toggleAllPageRowsSelected(!!value)
-            }
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
             aria-label="Select all"
           />
         ),
@@ -157,15 +201,13 @@ export function AccountsList({
       },
       {
         accessorKey: "name",
-        header: ({ column }) => (
-          <Button
-            variant="ghost"
-            className="-ml-3 h-8 data-[sorted]:text-foreground"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Name
-            <ArrowUpDown className="ml-2 size-4" />
-          </Button>
+        header: () => (
+          <SortHeader
+            label="Name"
+            active={activeSort === "name"}
+            direction={activeDir}
+            onClick={() => pushSort("name")}
+          />
         ),
         cell: ({ row }) => (
           <button
@@ -178,43 +220,37 @@ export function AccountsList({
       },
       {
         accessorKey: "industry",
-        header: ({ column }) => (
-          <Button
-            variant="ghost"
-            className="-ml-3 h-8 data-[sorted]:text-foreground"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Industry
-            <ArrowUpDown className="ml-2 size-4" />
-          </Button>
+        header: () => (
+          <SortHeader
+            label="Industry"
+            active={activeSort === "industry"}
+            direction={activeDir}
+            onClick={() => pushSort("industry")}
+          />
         ),
         cell: ({ row }) => row.getValue("industry") ?? "—",
       },
       {
         accessorKey: "country",
-        header: ({ column }) => (
-          <Button
-            variant="ghost"
-            className="-ml-3 h-8 data-[sorted]:text-foreground"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Country
-            <ArrowUpDown className="ml-2 size-4" />
-          </Button>
+        header: () => (
+          <SortHeader
+            label="Country"
+            active={activeSort === "country"}
+            direction={activeDir}
+            onClick={() => pushSort("country")}
+          />
         ),
         cell: ({ row }) => row.getValue("country") ?? "—",
       },
       {
         accessorKey: "createdAt",
-        header: ({ column }) => (
-          <Button
-            variant="ghost"
-            className="-ml-3 h-8 data-[sorted]:text-foreground"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Created
-            <ArrowUpDown className="ml-2 size-4" />
-          </Button>
+        header: () => (
+          <SortHeader
+            label="Created"
+            active={activeSort === "createdAt"}
+            direction={activeDir}
+            onClick={() => pushSort("createdAt")}
+          />
         ),
         cell: ({ row }) => formatDate(row.getValue("createdAt"), "—"),
       },
@@ -253,21 +289,20 @@ export function AccountsList({
         cell: ({ row }) => row.getValue("ownerName") ?? "—",
       },
     ],
-    [router, formatDate],
+    [router, formatDate, activeSort, activeDir, pushSort],
   )
 
   // TanStack Table is a compatible library; this is a known false positive.
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
-    data: filteredAccounts,
+    data: accounts,
     columns,
-    state: { rowSelection, sorting },
+    state: { rowSelection },
     enableRowSelection: true,
     getRowId: (row) => row.id,
+    manualSorting: true,
     onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
   })
 
   const handleBulkDelete = useCallback(async () => {
@@ -285,13 +320,16 @@ export function AccountsList({
     }
   }, [selectedIds, bulkDeleteAction, router])
 
-  const hasActiveFilters = searchQuery || industryFilter !== "all" || ownerFilter !== "all"
+  const hasActiveFilters =
+    urlSearch !== "" || industryFilter !== "all" || ownerFilter !== "all"
 
   const clearFilters = useCallback(() => {
-    setSearchQuery("")
-    setIndustryFilter("all")
-    setOwnerFilter("all")
-  }, [])
+    setSearchInput("")
+    setParams(
+      { q: null, industry: null, owner: null, sort: null, dir: null },
+      { resetPage: true },
+    )
+  }, [setParams])
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
@@ -335,12 +373,15 @@ export function AccountsList({
           <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search accounts..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="pl-8"
           />
         </div>
-        <Select value={industryFilter} onValueChange={(v) => setIndustryFilter(v ?? "all")}>
+        <Select
+          value={industryFilter}
+          onValueChange={(v) => setParams({ industry: v === "all" ? null : v }, { resetPage: true })}
+        >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="All industries" />
           </SelectTrigger>
@@ -353,7 +394,10 @@ export function AccountsList({
             ))}
           </SelectContent>
         </Select>
-        <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v ?? "all")}>
+        <Select
+          value={ownerFilter}
+          onValueChange={(v) => setParams({ owner: v === "all" ? null : v }, { resetPage: true })}
+        >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="All owners" />
           </SelectTrigger>
@@ -393,7 +437,7 @@ export function AccountsList({
           </div>
         )}
 
-        {filteredAccounts.length > 0 ? (
+        {accounts.length > 0 ? (
           <div className="rounded-lg border">
             <Table>
               <TableHeader>
@@ -433,6 +477,13 @@ export function AccountsList({
                 ))}
               </TableBody>
             </Table>
+            <ListPagination
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              noun={{ singular: "account", plural: "accounts" }}
+              onPageChange={(p) => setParams({ page: p <= 1 ? null : String(p) })}
+            />
           </div>
         ) : hasActiveFilters ? (
           <Card className="flex flex-1 items-center justify-center">

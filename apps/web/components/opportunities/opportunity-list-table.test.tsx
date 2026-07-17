@@ -125,11 +125,29 @@ const mockOpportunities: OpportunityRecord[] = [
 
 vi.mock("server-only", () => ({}))
 
+// A controllable next/navigation mock: tests set `currentSearch` (the query
+// string the server-driven table reads its filter/sort/page from) and assert on
+// `pushMock` (where the table sends filter/sort/page changes).
+const pushMock = vi.fn()
+let currentSearch = ""
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), push: pushMock }),
+  usePathname: () => "/opportunities",
+  useSearchParams: () => new URLSearchParams(currentSearch),
 }))
 
 import { OpportunityListTable } from "./opportunity-list-table"
+
+const baseProps = {
+  totalCount: 3,
+  page: 1,
+  pageSize: 25,
+  ownerOptions: [
+    { id: "user-1", name: "Alice Johnson" },
+    { id: "user-2", name: "Bob Smith" },
+  ],
+}
 
 describe("OpportunityListTable", () => {
   const bulkDeleteAction = vi.fn()
@@ -137,33 +155,32 @@ describe("OpportunityListTable", () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    currentSearch = ""
   })
 
-  it("renders all opportunities", () => {
-    render(
+  function renderTable(
+    overrides: Partial<React.ComponentProps<typeof OpportunityListTable>> = {},
+  ) {
+    return render(
       <OpportunityListTable
         opportunities={mockOpportunities}
         bulkDeleteAction={bulkDeleteAction}
         bulkUpdateStageAction={bulkUpdateStageAction}
+        {...baseProps}
+        {...overrides}
       />,
     )
+  }
 
+  it("renders every provided opportunity (server already paged)", () => {
+    renderTable()
     expect(screen.getByText("Big Deal")).toBeTruthy()
     expect(screen.getByText("Small Deal")).toBeTruthy()
     expect(screen.getByText("Lost Deal")).toBeTruthy()
   })
 
   it("renders column headers", () => {
-    render(
-      <OpportunityListTable
-        opportunities={mockOpportunities}
-        bulkDeleteAction={bulkDeleteAction}
-        bulkUpdateStageAction={bulkUpdateStageAction}
-      />,
-    )
-
-    // Scope to the table so the labelled FilterBar controls (which also render
-    // "Stage"/"Owner" text) don't cause ambiguous matches.
+    renderTable()
     const headerLabels = screen
       .getAllByRole("columnheader")
       .map((h) => h.textContent ?? "")
@@ -173,76 +190,37 @@ describe("OpportunityListTable", () => {
   })
 
   it("renders empty state when no opportunities", () => {
-    render(
-      <OpportunityListTable
-        opportunities={[]}
-        bulkDeleteAction={bulkDeleteAction}
-        bulkUpdateStageAction={bulkUpdateStageAction}
-      />,
-    )
-
+    renderTable({ opportunities: [], totalCount: 0 })
     expect(
       screen.getByText("No opportunities yet. Create one to get started."),
     ).toBeTruthy()
   })
 
   it("renders stage labels correctly", () => {
-    render(
-      <OpportunityListTable
-        opportunities={mockOpportunities}
-        bulkDeleteAction={bulkDeleteAction}
-        bulkUpdateStageAction={bulkUpdateStageAction}
-      />,
-    )
-
+    renderTable()
     expect(screen.getByText("Propose")).toBeTruthy()
     expect(screen.getByText("Qualify")).toBeTruthy()
     expect(screen.getByText("Closed Lost")).toBeTruthy()
   })
 
   it("formats currency amounts", () => {
-    render(
-      <OpportunityListTable
-        opportunities={mockOpportunities}
-        bulkDeleteAction={bulkDeleteAction}
-        bulkUpdateStageAction={bulkUpdateStageAction}
-      />,
-    )
-
+    renderTable()
     expect(screen.getByText("$50,000.00")).toBeTruthy()
     expect(screen.getByText("$5,000.00")).toBeTruthy()
-    // EUR amount
     expect(screen.getByText("€100,000.00")).toBeTruthy()
   })
 
   it("shows '—' for null close date", () => {
-    render(
-      <OpportunityListTable
-        opportunities={mockOpportunities}
-        bulkDeleteAction={bulkDeleteAction}
-        bulkUpdateStageAction={bulkUpdateStageAction}
-      />,
-    )
-
+    renderTable()
     const dashes = screen.getAllByText("—")
     expect(dashes.length).toBeGreaterThan(0)
   })
 
   it("shows bulk action bar when items are selected", async () => {
     const user = userEvent.setup()
-
-    render(
-      <OpportunityListTable
-        opportunities={mockOpportunities}
-        bulkDeleteAction={bulkDeleteAction}
-        bulkUpdateStageAction={bulkUpdateStageAction}
-      />,
-    )
-
+    renderTable()
     const checkboxes = screen.getAllByRole("checkbox")
-    // First checkbox is "select all", second is row 1
     await user.click(checkboxes[1])
-
     expect(screen.getByText("1 selected")).toBeTruthy()
     expect(screen.getByText("Change Stage")).toBeTruthy()
     expect(screen.getByText("Delete")).toBeTruthy()
@@ -250,90 +228,61 @@ describe("OpportunityListTable", () => {
 
   it("selects all rows when header checkbox is clicked", async () => {
     const user = userEvent.setup()
-
-    render(
-      <OpportunityListTable
-        opportunities={mockOpportunities}
-        bulkDeleteAction={bulkDeleteAction}
-        bulkUpdateStageAction={bulkUpdateStageAction}
-      />,
-    )
-
+    renderTable()
     const checkboxes = screen.getAllByRole("checkbox")
-    // Click "select all"
     await user.click(checkboxes[0])
-
     expect(screen.getByText("3 selected")).toBeTruthy()
   })
 
-  it("filters the list by search query", async () => {
+  it("pushes a debounced ?q= to the URL when searching (server-driven)", async () => {
     const user = userEvent.setup()
-    render(
-      <OpportunityListTable
-        opportunities={mockOpportunities}
-        bulkDeleteAction={bulkDeleteAction}
-        bulkUpdateStageAction={bulkUpdateStageAction}
-      />,
-    )
-
-    await user.type(screen.getByPlaceholderText("Search opportunities..."), "Big")
-
-    expect(screen.getByText("Big Deal")).toBeTruthy()
-    expect(screen.queryByText("Small Deal")).toBeNull()
-    expect(screen.queryByText("Lost Deal")).toBeNull()
-  })
-
-  it("matches search against the account name too", async () => {
-    const user = userEvent.setup()
-    render(
-      <OpportunityListTable
-        opportunities={mockOpportunities}
-        bulkDeleteAction={bulkDeleteAction}
-        bulkUpdateStageAction={bulkUpdateStageAction}
-      />,
-    )
-
+    renderTable()
     await user.type(screen.getByPlaceholderText("Search opportunities..."), "Gamma")
-
-    expect(screen.getByText("Lost Deal")).toBeTruthy()
-    expect(screen.queryByText("Big Deal")).toBeNull()
+    await vi.waitFor(
+      () => {
+        expect(pushMock).toHaveBeenCalledWith(
+          expect.stringContaining("q=Gamma"),
+        )
+      },
+      { timeout: 1500 },
+    )
   })
 
-  it("shows the no-match empty state and clears filters", async () => {
+  it("pushes a sort param when a sortable header is clicked", async () => {
     const user = userEvent.setup()
-    render(
-      <OpportunityListTable
-        opportunities={mockOpportunities}
-        bulkDeleteAction={bulkDeleteAction}
-        bulkUpdateStageAction={bulkUpdateStageAction}
-      />,
+    renderTable()
+    await user.click(screen.getByRole("button", { name: /sort by amount/i }))
+    expect(pushMock).toHaveBeenCalledWith(
+      expect.stringMatching(/sort=amount.*dir=asc|dir=asc.*sort=amount/),
     )
+  })
 
-    await user.type(screen.getByPlaceholderText("Search opportunities..."), "zzzz")
+  it("flips sort direction when the active sort header is clicked again", async () => {
+    currentSearch = "sort=amount&dir=asc"
+    const user = userEvent.setup()
+    renderTable()
+    await user.click(screen.getByRole("button", { name: /sort by amount/i }))
+    expect(pushMock).toHaveBeenCalledWith(expect.stringContaining("dir=desc"))
+  })
+
+  it("clears filters back to a pristine URL", async () => {
+    currentSearch = "q=zzzz&stage=propose"
+    const user = userEvent.setup()
+    renderTable({ opportunities: [], totalCount: 0 })
     expect(screen.getByText("No opportunities match your filters.")).toBeTruthy()
-
     await user.click(screen.getByRole("button", { name: /clear/i }))
-    expect(screen.getByText("Big Deal")).toBeTruthy()
-    expect(screen.getByText("Small Deal")).toBeTruthy()
+    // Cleared push drops q + stage; nothing filter-related remains.
+    const lastCall = pushMock.mock.calls.at(-1)?.[0] as string
+    expect(lastCall).not.toContain("q=")
+    expect(lastCall).not.toContain("stage=")
   })
 
-  it("sorts by amount ascending when the Amount header is clicked", async () => {
+  it("renders the pagination summary and pushes the next page", async () => {
     const user = userEvent.setup()
-    render(
-      <OpportunityListTable
-        opportunities={mockOpportunities}
-        bulkDeleteAction={bulkDeleteAction}
-        bulkUpdateStageAction={bulkUpdateStageAction}
-      />,
-    )
-
-    await user.click(screen.getByRole("button", { name: /amount/i }))
-
-    const rowText = screen.getAllByRole("row").map((r) => r.textContent ?? "")
-    const idx = (name: string) => rowText.findIndex((t) => t.includes(name))
-    // ascending by amount: Small ($5k) < Big ($50k) < Lost (EUR 100k)
-    expect(idx("Small Deal")).toBeLessThan(idx("Big Deal"))
-    expect(idx("Big Deal")).toBeLessThan(idx("Lost Deal"))
+    renderTable({ totalCount: 100, page: 1, pageSize: 25 })
+    expect(screen.getByText(/1–25 of 100 opportunities/)).toBeTruthy()
+    expect(screen.getByText("Page 1 of 4")).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: /next page/i }))
+    expect(pushMock).toHaveBeenCalledWith(expect.stringContaining("page=2"))
   })
-
 })

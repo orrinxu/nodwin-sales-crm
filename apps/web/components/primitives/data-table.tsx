@@ -11,6 +11,7 @@ import {
   type RowSelectionState,
   type SortingState,
 } from "@tanstack/react-table"
+import type { ReactNode } from "react"
 
 import {
   Table,
@@ -36,6 +37,14 @@ interface DataTableProps<TData, TValue> {
   onRowClick?: (row: TData) => void
   /** Rendered in a full-span cell when there are no rows. */
   emptyState?: React.ReactNode
+  /**
+   * Server-driven sorting (ORR-755): the `data` arrives already ordered by the
+   * server, so the client sort model is skipped. Sort headers still fire
+   * `onSortingChange` so the caller can push the new order to the URL.
+   */
+  manualSorting?: boolean
+  /** Optional footer (e.g. pagination controls) rendered under the table. */
+  footer?: ReactNode
   className?: string
 }
 
@@ -55,6 +64,8 @@ export function DataTable<TData, TValue>({
   enableRowSelection,
   onRowClick,
   emptyState,
+  manualSorting,
+  footer,
   className,
 }: DataTableProps<TData, TValue>) {
   const [internalSorting, setInternalSorting] = useState<SortingState>([])
@@ -71,15 +82,18 @@ export function DataTable<TData, TValue>({
     },
     enableRowSelection: enableRowSelection ?? rowSelection !== undefined,
     ...(getRowId ? { getRowId: (row: TData) => getRowId(row) } : {}),
+    manualSorting: manualSorting ?? false,
     onSortingChange: onSortingChange ?? setInternalSorting,
     ...(onRowSelectionChange ? { onRowSelectionChange } : {}),
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    // Server-driven sorting pre-orders the rows, so the client sort model is
+    // omitted — attaching it would re-sort the current page by the raw cell value.
+    ...(manualSorting ? {} : { getSortedRowModel: getSortedRowModel() }),
   })
 
   const rows = table.getRowModel().rows
 
-  return (
+  const tableEl = (
     <Table className={className}>
       <TableHeader>
         {table.getHeaderGroups().map((headerGroup) => (
@@ -132,4 +146,14 @@ export function DataTable<TData, TValue>({
       </TableBody>
     </Table>
   )
+
+  if (footer) {
+    return (
+      <div>
+        {tableEl}
+        {footer}
+      </div>
+    )
+  }
+  return tableEl
 }

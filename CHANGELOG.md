@@ -12,7 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Work in flight on feature branches (not yet merged to `main`): admin landing page,
 ORR-661, and cash-flow milestone follow-ups.
 
-## 2026-07-16
+## 2026-07-17
+
+### Fixed
+
+- **Opportunity / account / contact lists silently truncated past 1000 rows (perf audit, ORR-755):** `getOpportunities`, `getAccounts` and `getContacts` requested `count:'exact'` but had no `.limit()`/`.range()`, so the UI showed the true total while PostgREST's 1000-row cap silently dropped the rest of the data — the same truncation class as the dashboard-metrics fix. The three lists are now **server-driven**: search, filter, sort and paging move to the query string and drive a bounded `.range()` query, so no page ever fetches more than one page of rows.
+
+### Changed
+
+- **Server-driven pagination for the opportunity / account / contact lists (ORR-755):** the hot tables previously fetched every row and did search/filter/sort **client-side** over the full array. They now push those controls to the URL and re-fetch a single server-paginated page (`DEFAULT_PAGE_SIZE = 25`), with a shared `ListPagination` footer, debounced search, and server-side sort. Opportunity search matches deal **name OR account name** (account ids pre-resolved into one bounded query). Saved views map to/from the URL params; bulk stage/delete and RLS scoping are unchanged.
+- **Opportunities board no longer fetches unbounded (ORR-755):** the kanban board can't paginate, so it now pulls a **bounded** set of cards (cap 500, most-recently-updated) and renders **accurate per-stage column totals over the full scope** from a new `pipeline_metrics_agg_scoped()` RPC (RLS-scoped, per stage × currency, probability-weighted, honouring the owner-scope / close-date / entity narrowing). A "showing N of M" note appears when the card set is capped; the Board/Table toggle is now a navigation since each view fetches different data. 6-assertion pgTAP proves the scoped aggregation.
 
 ### Fixed
 

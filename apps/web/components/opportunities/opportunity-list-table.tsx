@@ -1,10 +1,9 @@
 "use client"
 
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   type ColumnDef,
   type RowSelectionState,
-  type SortingState,
 } from "@tanstack/react-table"
 import { useRouter } from "next/navigation"
 
@@ -22,6 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { DataTable } from "@/components/primitives/data-table"
 import { FilterBar, FilterField } from "@/components/primitives/filter-bar"
+import { ListPagination } from "@/components/primitives/list-pagination"
 import { StageBadge } from "@/components/primitives/stage-badge"
 import { StatusBadge } from "@/components/primitives/status-badge"
 import { overdueLabel, staleLabel } from "@/lib/opportunity/deal-health"
@@ -40,12 +40,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Trash2Icon, ArrowUpDownIcon, SearchIcon, XIcon } from "lucide-react"
-import { SavedViewsMenu } from "@/components/opportunities/saved-views-menu"
 import {
-  buildSavedFilters,
-  applySavedFilters,
-} from "@/components/opportunities/saved-views-filters"
+  Trash2Icon,
+  ArrowUpDownIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
+  SearchIcon,
+  XIcon,
+} from "lucide-react"
+import { SavedViewsMenu } from "@/components/opportunities/saved-views-menu"
+import { useListQuery } from "@/lib/list/use-list-query"
 import type {
   SavedViewRecord,
   SavedViewFilters,
@@ -53,8 +57,21 @@ import type {
 } from "@/lib/data/saved-views"
 import { usePreferences } from "@/components/providers/preferences-provider"
 
+interface OwnerOption {
+  id: string
+  name: string
+}
+
 interface OpportunityListTableProps {
   opportunities: OpportunityRecord[]
+  /** Total rows matching the active filters, across all pages. */
+  totalCount: number
+  /** 1-based current page. */
+  page: number
+  pageSize: number
+  /** Full owner list for the filter dropdown — server-supplied so it isn't
+   *  limited to the owners visible on the current page. */
+  ownerOptions: OwnerOption[]
   bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
   bulkUpdateStageAction: (input: {
     ids: string[]
@@ -72,7 +89,23 @@ interface OpportunityListTableProps {
 }
 
 const ALL_STAGES = [...NON_TERMINAL_STAGES, ...TERMINAL_STAGES]
-const UNASSIGNED = "__unassigned__"
+
+// URL sort tokens ↔ the TanStack column ids saved views persist. Kept in sync so
+// a view saved before/after this rewrite maps cleanly to a server sort param.
+// Maps (not plain objects) so variable-key lookups aren't object-injection sinks.
+const COLUMN_TO_SORT = new Map<string, string>([
+  ["name", "name"],
+  ["accountName", "account"],
+  ["stage", "stage"],
+  ["amount", "amount"],
+  ["ownerName", "owner"],
+  ["closeDate", "closeDate"],
+])
+const SORT_TO_COLUMN = new Map<string, string>(
+  Array.from(COLUMN_TO_SORT, ([col, sort]) => [sort, col]),
+)
+
+const SEARCH_DEBOUNCE_MS = 350
 
 function formatCurrency(amount: string, currency: string): string {
   try {
@@ -82,34 +115,30 @@ function formatCurrency(amount: string, currency: string): string {
   }
 }
 
-// Raw minor-unit value for sorting; never throws. Cross-currency comparison is a
-// rough total order (fine for a list sort — the dashboards do FX conversion).
-function centsOf(opp: OpportunityRecord): number {
-  try {
-    return Money.fromAmount(opp.amount, opp.currency).cents
-  } catch {
-    return 0
-  }
-}
-
 function SortHeader({
   label,
+  active,
+  direction,
   onClick,
   align = "left",
 }: {
   label: string
+  active: boolean
+  direction: "asc" | "desc"
   onClick: () => void
   align?: "left" | "right"
 }) {
+  const Icon = !active ? ArrowUpDownIcon : direction === "asc" ? ArrowUpIcon : ArrowDownIcon
   return (
     <div className={align === "right" ? "text-right" : undefined}>
       <Button
         variant="ghost"
         className={align === "right" ? "-mr-3 h-8" : "-ml-3 h-8"}
         onClick={onClick}
+        aria-label={`Sort by ${label}`}
       >
         {label}
-        <ArrowUpDownIcon className="ml-2 size-4" />
+        <Icon className={active ? "ml-2 size-4" : "ml-2 size-4 text-muted-foreground"} />
       </Button>
     </div>
   )
@@ -117,6 +146,10 @@ function SortHeader({
 
 export function OpportunityListTable({
   opportunities,
+  totalCount,
+  page,
+  pageSize,
+  ownerOptions,
   bulkDeleteAction,
   bulkUpdateStageAction,
   savedViews,
@@ -126,73 +159,93 @@ export function OpportunityListTable({
 }: OpportunityListTableProps) {
   const router = useRouter()
   const { formatDate } = usePreferences()
+  const { searchParams, setParams } = useListQuery()
+
+  // Filter / sort state is read from the URL — the server already applied it.
+  const urlSearch = searchParams.get("q") ?? ""
+  const stageFilter = searchParams.get("stage") ?? "all"
+  const ownerFilter = searchParams.get("owner") ?? "all"
+  const activeSort = searchParams.get("sort")
+  const activeDir = (searchParams.get("dir") === "asc" ? "asc" : "desc") as "asc" | "desc"
+
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [searchQuery, setSearchQuery] = useState("")
-  const [stageFilter, setStageFilter] = useState<string>("all")
-  const [ownerFilter, setOwnerFilter] = useState<string>("all")
+  const [searchInput, setSearchInput] = useState(urlSearch)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showStageDialog, setShowStageDialog] = useState(false)
   const [targetStage, setTargetStage] = useState<DealStage>("qualify")
   const [isPending, setIsPending] = useState(false)
 
-  const ownerOptions = useMemo(() => {
-    const seen = new Map<string, string>()
-    for (const o of opportunities) {
-      const id = o.ownerUserId ?? UNASSIGNED
-      if (!seen.has(id)) seen.set(id, o.ownerName ?? "Unassigned")
-    }
-    return Array.from(seen, ([id, name]) => ({ id, name })).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    )
-  }, [opportunities])
-
-  const filteredOpportunities = useMemo(() => {
-    let result = opportunities
-    const q = searchQuery.trim().toLowerCase()
-    if (q) {
-      result = result.filter(
-        (o) =>
-          o.name.toLowerCase().includes(q) ||
-          (o.accountName?.toLowerCase().includes(q) ?? false),
-      )
-    }
-    if (stageFilter !== "all") {
-      result = result.filter((o) => o.stage === stageFilter)
-    }
-    if (ownerFilter !== "all") {
-      result = result.filter((o) => (o.ownerUserId ?? UNASSIGNED) === ownerFilter)
-    }
-    return result
-  }, [opportunities, searchQuery, stageFilter, ownerFilter])
+  // Debounce the search box → URL so each keystroke doesn't fire a navigation.
+  // The input is seeded from the URL on mount and re-synced explicitly by the
+  // clear / apply-view handlers, so no URL→input effect is needed here.
+  useEffect(() => {
+    const trimmed = searchInput.trim()
+    if (trimmed === urlSearch) return
+    const t = setTimeout(() => {
+      setParams({ q: trimmed || null }, { resetPage: true })
+    }, SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [searchInput, urlSearch, setParams])
 
   const hasActiveFilters =
-    searchQuery.trim() !== "" || stageFilter !== "all" || ownerFilter !== "all"
+    urlSearch !== "" || stageFilter !== "all" || ownerFilter !== "all"
 
   const clearFilters = useCallback(() => {
-    setSearchQuery("")
-    setStageFilter("all")
-    setOwnerFilter("all")
-  }, [])
+    setSearchInput("")
+    setParams(
+      { q: null, stage: null, owner: null, sort: null, dir: null },
+      { resetPage: true },
+    )
+  }, [setParams])
 
-  // Saved views: serialize the live filter/sort state, and restore it on apply.
-  const currentFilters = useMemo(
-    () => buildSavedFilters({ searchQuery, stageFilter, ownerFilter, sorting }),
-    [searchQuery, stageFilter, ownerFilter, sorting],
+  const pushSort = useCallback(
+    (columnId: string) => {
+      const sortToken = COLUMN_TO_SORT.get(columnId)
+      if (!sortToken) return
+      // Same column → flip direction; new column → start ascending.
+      const nextDir = activeSort === sortToken && activeDir === "asc" ? "desc" : "asc"
+      setParams({ sort: sortToken, dir: nextDir }, { resetPage: true })
+    },
+    [activeSort, activeDir, setParams],
   )
-  const applyView = useCallback((filters: SavedViewFilters) => {
-    const next = applySavedFilters(filters)
-    setSearchQuery(next.searchQuery)
-    setStageFilter(next.stageFilter)
-    setOwnerFilter(next.ownerFilter)
-    setSorting(next.sorting)
-  }, [])
+
+  // Serialize current URL filter/sort into a saved view, and restore one on apply.
+  const currentFilters = useMemo<SavedViewFilters>(() => {
+    const filters: SavedViewFilters = {}
+    if (urlSearch) filters.searchQuery = urlSearch
+    if (stageFilter !== "all") filters.stageFilter = stageFilter
+    if (ownerFilter !== "all") filters.ownerFilter = ownerFilter
+    const sortColumn = activeSort ? SORT_TO_COLUMN.get(activeSort) : undefined
+    if (sortColumn) {
+      filters.sorting = [{ id: sortColumn, desc: activeDir === "desc" }]
+    }
+    return filters
+  }, [urlSearch, stageFilter, ownerFilter, activeSort, activeDir])
+
+  const applyView = useCallback(
+    (filters: SavedViewFilters) => {
+      const sort = filters.sorting?.[0]
+      const sortToken = sort ? COLUMN_TO_SORT.get(sort.id) : undefined
+      setSearchInput(filters.searchQuery ?? "")
+      setParams(
+        {
+          q: filters.searchQuery ?? null,
+          stage: filters.stageFilter ?? null,
+          owner: filters.ownerFilter ?? null,
+          sort: sortToken ?? null,
+          dir: sortToken ? (sort!.desc ? "desc" : "asc") : null,
+        },
+        { resetPage: true },
+      )
+    },
+    [setParams],
+  )
+
   const savedViewsEnabled =
     savedViewScope != null &&
     saveViewAction != null &&
     deleteSavedViewAction != null
 
-  // getRowId keys the selection by opportunity id, so it survives filtering/sorting.
   const selectedIds = useMemo(
     () =>
       Object.entries(rowSelection)
@@ -209,9 +262,7 @@ export function OpportunityListTable({
           <Checkbox
             checked={table.getIsAllPageRowsSelected()}
             indeterminate={table.getIsSomePageRowsSelected() && !table.getIsAllPageRowsSelected()}
-            onCheckedChange={(value) =>
-              table.toggleAllPageRowsSelected(!!value)
-            }
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
             aria-label="Select all"
           />
         ),
@@ -228,10 +279,12 @@ export function OpportunityListTable({
       },
       {
         accessorKey: "name",
-        header: ({ column }) => (
+        header: () => (
           <SortHeader
             label="Name"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            active={activeSort === "name"}
+            direction={activeDir}
+            onClick={() => pushSort("name")}
           />
         ),
         cell: ({ row }) => (
@@ -245,20 +298,24 @@ export function OpportunityListTable({
       },
       {
         accessorKey: "accountName",
-        header: ({ column }) => (
+        header: () => (
           <SortHeader
             label="Account"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            active={activeSort === "account"}
+            direction={activeDir}
+            onClick={() => pushSort("accountName")}
           />
         ),
         cell: ({ row }) => row.getValue("accountName") ?? "—",
       },
       {
         accessorKey: "stage",
-        header: ({ column }) => (
+        header: () => (
           <SortHeader
             label="Stage"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            active={activeSort === "stage"}
+            direction={activeDir}
+            onClick={() => pushSort("stage")}
           />
         ),
         cell: ({ row }) => <StageBadge stage={row.getValue<DealStage>("stage")} />,
@@ -292,11 +349,13 @@ export function OpportunityListTable({
       },
       {
         accessorKey: "amount",
-        header: ({ column }) => (
+        header: () => (
           <SortHeader
             label="Amount"
             align="right"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            active={activeSort === "amount"}
+            direction={activeDir}
+            onClick={() => pushSort("amount")}
           />
         ),
         cell: ({ row }) => {
@@ -308,18 +367,15 @@ export function OpportunityListTable({
             </div>
           )
         },
-        sortingFn: (rowA, rowB) => {
-          const a = centsOf(rowA.original)
-          const b = centsOf(rowB.original)
-          return a < b ? -1 : a > b ? 1 : 0
-        },
       },
       {
         accessorKey: "ownerName",
-        header: ({ column }) => (
+        header: () => (
           <SortHeader
             label="Owner"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            active={activeSort === "owner"}
+            direction={activeDir}
+            onClick={() => pushSort("ownerName")}
           />
         ),
         cell: ({ row }) => (
@@ -332,16 +388,18 @@ export function OpportunityListTable({
       },
       {
         accessorKey: "closeDate",
-        header: ({ column }) => (
+        header: () => (
           <SortHeader
             label="Close Date"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            active={activeSort === "closeDate"}
+            direction={activeDir}
+            onClick={() => pushSort("closeDate")}
           />
         ),
         cell: ({ row }) => formatDate(row.getValue("closeDate"), "—"),
       },
     ],
-    [router, formatDate],
+    [router, formatDate, activeSort, activeDir, pushSort],
   )
 
   const handleBulkDelete = useCallback(async () => {
@@ -383,14 +441,17 @@ export function OpportunityListTable({
             <Input
               id="opp-search"
               placeholder="Search opportunities..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="pl-8"
             />
           </div>
         </FilterField>
         <FilterField label="Stage" htmlFor="opp-stage-filter">
-          <Select value={stageFilter} onValueChange={(v) => setStageFilter(v ?? "all")}>
+          <Select
+            value={stageFilter}
+            onValueChange={(v) => setParams({ stage: v === "all" ? null : v }, { resetPage: true })}
+          >
             <SelectTrigger id="opp-stage-filter" className="w-[180px]">
               <SelectValue placeholder="All stages" />
             </SelectTrigger>
@@ -405,7 +466,10 @@ export function OpportunityListTable({
           </Select>
         </FilterField>
         <FilterField label="Owner" htmlFor="opp-owner-filter">
-          <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v ?? "all")}>
+          <Select
+            value={ownerFilter}
+            onValueChange={(v) => setParams({ owner: v === "all" ? null : v }, { resetPage: true })}
+          >
             <SelectTrigger id="opp-owner-filter" className="w-[180px]">
               <SelectValue placeholder="All owners" />
             </SelectTrigger>
@@ -431,7 +495,7 @@ export function OpportunityListTable({
               savedViews={savedViews ?? []}
               scope={savedViewScope}
               currentFilters={currentFilters}
-              canSave={hasActiveFilters}
+              canSave={hasActiveFilters || activeSort != null}
               onApply={applyView}
               saveViewAction={saveViewAction}
               deleteSavedViewAction={deleteSavedViewAction}
@@ -469,10 +533,9 @@ export function OpportunityListTable({
       <Card className="p-0">
         <DataTable
           columns={columns}
-          data={filteredOpportunities}
+          data={opportunities}
           getRowId={(row) => row.id}
-          sorting={sorting}
-          onSortingChange={setSorting}
+          manualSorting
           rowSelection={rowSelection}
           onRowSelectionChange={setRowSelection}
           enableRowSelection
@@ -480,6 +543,15 @@ export function OpportunityListTable({
             hasActiveFilters
               ? "No opportunities match your filters."
               : "No opportunities yet. Create one to get started."
+          }
+          footer={
+            <ListPagination
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              noun={{ singular: "opportunity", plural: "opportunities" }}
+              onPageChange={(p) => setParams({ page: p <= 1 ? null : String(p) })}
+            />
           }
         />
       </Card>
