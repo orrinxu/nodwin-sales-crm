@@ -2,72 +2,45 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 
 vi.mock("server-only", () => ({}))
 
-const mockFrom = vi.fn()
-const mockSelect = vi.fn()
-const mockOrder = vi.fn()
-const mockLimit = vi.fn()
-const mockIn = vi.fn()
-const mockEq = vi.fn()
-const mockIs = vi.fn()
-const mockMaybeSingle = vi.fn()
-
-// Any authenticated user; getReportData now resolves the reporting currency
-// from this user's display_currency preference (defaults to USD when unset).
 const ctx = { user: { id: "u1", email: "u1@nodwin.com", role: "admin" }, source: "web" as const }
 
+// getReportData now reads three bounded GROUP BY RPCs (ORR-757) instead of a
+// .limit(500) fetch. Mock the RPC dispatcher by function name.
+const mockRpc = vi.fn()
+function setRpc(results: Record<string, unknown[]>) {
+  const byFn = new Map(Object.entries(results))
+  mockRpc.mockImplementation((fn: string) =>
+    Promise.resolve({ data: byFn.get(fn) ?? [], error: null }),
+  )
+}
+
 vi.mock("@/lib/supabase/server", () => ({
-  createServerClient: vi.fn(() => ({
-    from: mockFrom,
-  })),
+  createServerClient: vi.fn(() => ({ rpc: mockRpc })),
 }))
 
-function buildQueryBuilder() {
-  mockFrom.mockReturnValue({
-    select: mockSelect,
-  })
-  mockSelect.mockReturnValue({
-    order: mockOrder,
-    in: mockIn,
-    eq: mockEq,
-    is: mockIs,
-  })
-  mockOrder.mockReturnValue({
-    limit: mockLimit,
-  })
-  mockLimit.mockResolvedValue({ data: [], error: null })
-  mockIn.mockResolvedValue({ data: [], error: null })
-  // Reporting-currency resolution (getDisplayCurrency + resolveOrgReportingCurrency):
-  // user_preferences / users / reporting_currency_settings all → no row → USD.
-  mockEq.mockReturnValue({ maybeSingle: mockMaybeSingle })
-  mockIs.mockReturnValue({ maybeSingle: mockMaybeSingle })
-  mockMaybeSingle.mockResolvedValue({ data: null, error: null })
-  return { select: mockSelect, order: mockOrder, limit: mockLimit, in: mockIn }
-}
+// FX is exercised elsewhere; here the identity conversion keeps the arithmetic
+// readable (every bucket is already the reporting currency).
+vi.mock("@/lib/data/metrics", () => ({
+  resolveReportingCurrency: async () => "USD",
+  fetchAndConvert: async (data: Array<Record<string, unknown>>) => ({
+    converted: (data ?? []).map((d) => ({ ...d, amount: Number(d.amount) || 0, currency: "USD" })),
+    unconvertibleCount: 0,
+  }),
+}))
 
 beforeEach(() => {
   vi.clearAllMocks()
-  buildQueryBuilder()
+  setRpc({})
 })
 
 describe("getReportData", () => {
   it("aggregates pipeline by stage correctly", async () => {
-    const now = new Date().toISOString()
-    mockLimit.mockResolvedValue({
-      data: [
-        {
-          id: "1", name: "Deal 1", stage: "qualify", amount: 10000, currency: "USD",
-          close_date: null, created_at: now, account: [{ name: "Acme" }],
-        },
-        {
-          id: "2", name: "Deal 2", stage: "propose", amount: 50000, currency: "USD",
-          close_date: null, created_at: now, account: [{ name: "Beta" }],
-        },
-        {
-          id: "3", name: "Deal 3", stage: "closed_won", amount: 100000, currency: "USD",
-          close_date: now, created_at: now, account: [{ name: "Acme" }],
-        },
+    setRpc({
+      pipeline_metrics_agg: [
+        { stage: "qualify", currency: "USD", gross_amount: 10000, deal_count: 1 },
+        { stage: "propose", currency: "USD", gross_amount: 50000, deal_count: 1 },
+        { stage: "closed_won", currency: "USD", gross_amount: 100000, deal_count: 1 },
       ],
-      error: null,
     })
 
     const { getReportData } = await import("../reports")
@@ -88,7 +61,7 @@ describe("getReportData", () => {
   })
 
   it("handles empty data", async () => {
-    mockLimit.mockResolvedValue({ data: [], error: null })
+    setRpc({})
 
     const { getReportData } = await import("../reports")
     const result = await getReportData(ctx)
@@ -103,23 +76,11 @@ describe("getReportData", () => {
   })
 
   it("computes win rate correctly", async () => {
-    const now = new Date().toISOString()
-    mockLimit.mockResolvedValue({
-      data: [
-        {
-          id: "1", name: "Won 1", stage: "closed_won", amount: 50000, currency: "USD",
-          close_date: now, created_at: now, account: [{ name: "Acme" }],
-        },
-        {
-          id: "2", name: "Lost 1", stage: "closed_lost", amount: 0, currency: "USD",
-          close_date: now, created_at: now, account: [{ name: "Beta" }],
-        },
-        {
-          id: "3", name: "Lost 2", stage: "closed_lost", amount: 0, currency: "USD",
-          close_date: now, created_at: now, account: [{ name: "Gamma" }],
-        },
+    setRpc({
+      pipeline_metrics_agg: [
+        { stage: "closed_won", currency: "USD", gross_amount: 50000, deal_count: 1 },
+        { stage: "closed_lost", currency: "USD", gross_amount: 0, deal_count: 2 },
       ],
-      error: null,
     })
 
     const { getReportData } = await import("../reports")
@@ -130,23 +91,11 @@ describe("getReportData", () => {
   })
 
   it("ranks top accounts by revenue", async () => {
-    const now = new Date().toISOString()
-    mockLimit.mockResolvedValue({
-      data: [
-        {
-          id: "1", name: "Big Deal", stage: "closed_won", amount: 100000, currency: "USD",
-          close_date: now, created_at: now, account: [{ name: "Acme" }],
-        },
-        {
-          id: "2", name: "Small Deal", stage: "closed_won", amount: 5000, currency: "USD",
-          close_date: now, created_at: now, account: [{ name: "Beta" }],
-        },
-        {
-          id: "3", name: "Medium Deal", stage: "closed_won", amount: 30000, currency: "USD",
-          close_date: now, created_at: now, account: [{ name: "Acme" }],
-        },
+    setRpc({
+      report_top_accounts_agg: [
+        { account_id: "acme", account_name: "Acme", currency: "USD", gross_amount: 130000, deal_count: 2 },
+        { account_id: "beta", account_name: "Beta", currency: "USD", gross_amount: 5000, deal_count: 1 },
       ],
-      error: null,
     })
 
     const { getReportData } = await import("../reports")
@@ -156,5 +105,22 @@ describe("getReportData", () => {
     expect(result.topAccounts[0].amount).toBe(130000)
     expect(result.topAccounts[1].name).toBe("Beta")
     expect(result.topAccounts[1].amount).toBe(5000)
+  })
+
+  it("folds monthly trends per created-month", async () => {
+    setRpc({
+      report_monthly_agg: [
+        { month: "2026-02", currency: "USD", created_count: 3, won_count: 1, won_amount: 20000 },
+        { month: "2026-01", currency: "USD", created_count: 2, won_count: 0, won_amount: 0 },
+      ],
+    })
+
+    const { getReportData } = await import("../reports")
+    const result = await getReportData(ctx)
+
+    // Sorted ascending by month.
+    expect(result.monthlyTrends.map((m) => m.month)).toEqual(["2026-01", "2026-02"])
+    const feb = result.monthlyTrends.find((m) => m.month === "2026-02")
+    expect(feb).toMatchObject({ created: 3, won: 1, amount: 20000 })
   })
 })

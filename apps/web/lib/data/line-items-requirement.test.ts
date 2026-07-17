@@ -5,6 +5,7 @@ const mockSelect = vi.fn()
 const mockEq = vi.fn()
 const mockIn = vi.fn()
 const mockFrom = vi.fn()
+const mockRpc = vi.fn()
 
 function buildChain() {
   const qb = { select: mockSelect, eq: mockEq, in: mockIn }
@@ -19,7 +20,7 @@ beforeEach(() => {
 })
 
 vi.mock("@/lib/supabase/server", () => ({
-  createServerClient: vi.fn(() => ({ from: mockFrom })),
+  createServerClient: vi.fn(() => ({ from: mockFrom, rpc: mockRpc })),
 }))
 vi.mock("server-only", () => ({}))
 
@@ -43,11 +44,10 @@ describe("attachLineItemsWarning", () => {
       lineItemsRequiredFromStage: "verbal_agreement",
       lineItemsOverrideExempts: true,
     })
-    // 1st query (line-item presence): deal "a" has lines.
-    // 2nd query (override flags): deal "c" is overridden.
-    mockIn
-      .mockResolvedValueOnce({ data: [{ opportunity_id: "a" }], error: null })
-      .mockResolvedValueOnce({ data: [{ id: "c" }], error: null })
+    // Line-item presence is now a DISTINCT RPC: deal "a" has lines.
+    mockRpc.mockResolvedValue({ data: [{ opportunity_id: "a" }], error: null })
+    // Override-flags query (still .from().select().eq().in()): deal "c".
+    mockIn.mockResolvedValue({ data: [{ id: "c" }], error: null })
 
     const { attachLineItemsWarning } = await import("./line-items-requirement")
     const out = await attachLineItemsWarning(ctx, opps)
@@ -68,5 +68,6 @@ describe("attachLineItemsWarning", () => {
     const out = await attachLineItemsWarning(ctx, opps)
     expect(out.every((o) => o.needsLineItems === false)).toBe(true)
     expect(mockFrom).not.toHaveBeenCalled()
+    expect(mockRpc).not.toHaveBeenCalled()
   })
 })

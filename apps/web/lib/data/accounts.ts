@@ -658,23 +658,17 @@ export async function getIndustryOptions(
   void ctx
   const supabase = await createServerClient()
 
-  const { data, error } = await supabase
-    .from("accounts")
-    .select("industry")
-    .is("deleted_at", null)
-    .not("industry", "is", null)
-    .order("industry")
+  // Server-side DISTINCT (ORR-757). The old `new Set` over one row per account
+  // went partial past PostgREST's row cap once a tenant had >1000 accounts.
+  const { data, error } = await supabase.rpc("distinct_account_industries")
 
   if (error) {
     throw new Error(`Failed to load industries: ${error.message}`)
   }
 
-  const industries = new Set<string>()
-  for (const row of (data ?? [])) {
-    const val = (row as Record<string, unknown>).industry as string
-    if (val) industries.add(val)
-  }
-  return Array.from(industries)
+  return (data ?? [])
+    .map((r) => (r as { industry: string }).industry)
+    .filter((s): s is string => Boolean(s))
 }
 
 export async function getOwnerOptions(

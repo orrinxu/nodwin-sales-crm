@@ -25,10 +25,11 @@ async function getLineItemsSignals(
   }
   const supabase = await createServerClient()
   const [liRes, oppRes] = await Promise.all([
-    supabase
-      .from("opportunity_line_items")
-      .select("opportunity_id")
-      .in("opportunity_id", opportunityIds),
+    // Presence-only DISTINCT server-side (ORR-757). The old .in() fetched EVERY
+    // line-item row for the page's opps just to dedupe into a Set — which could
+    // exceed the row cap on a large visible page; the RPC returns at most one row
+    // per input id (RLS-scoped).
+    supabase.rpc("opportunities_with_line_items", { _ids: opportunityIds }),
     supabase
       .from("opportunities")
       .select("id")

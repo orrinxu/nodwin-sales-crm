@@ -3,6 +3,7 @@ import "server-only"
 import { z } from "zod"
 import { createServerClient } from "@/lib/supabase/server"
 import type { AuthenticatedUser } from "@/lib/security/auth"
+import { clampPage, clampPageSize, rangeFor } from "@/lib/list/pagination"
 
 export type NotificationEventType =
   | "stage_change"
@@ -418,8 +419,12 @@ export async function getUserNotifications(
   _ctx: NotificationCallContext,
   userId: string,
   unreadOnly?: boolean,
-): Promise<{ notifications: UserNotificationRecord[]; total: number }> {
+  page?: number,
+  pageSize?: number,
+): Promise<{ notifications: UserNotificationRecord[]; total: number; page: number; pageSize: number }> {
   const supabase = await createServerClient()
+  const p = clampPage(page)
+  const size = clampPageSize(pageSize)
 
   let query = supabase
     .from("user_notifications")
@@ -431,7 +436,11 @@ export async function getUserNotifications(
     query = query.is("read_at", null)
   }
 
-  const { data, error, count } = await query
+  // Bounded page (ORR-757) — the old unbounded select('*') loaded a user's ENTIRE
+  // notification history and silently truncated at the row cap. `count:'exact'`
+  // still returns the true total for the caller's pager.
+  const [from, to] = rangeFor(p, size)
+  const { data, error, count } = await query.range(from, to)
 
   if (error) {
     throw new Error(
@@ -444,6 +453,8 @@ export async function getUserNotifications(
       toDomainNotification,
     ),
     total: count ?? 0,
+    page: p,
+    pageSize: size,
   }
 }
 

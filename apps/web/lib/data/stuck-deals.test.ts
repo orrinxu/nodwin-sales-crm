@@ -15,23 +15,62 @@ const { store } = vi.hoisted(() => ({
 class QB {
   select() { return this }
   in() { return this }
+  order() { return this }
+  limit() { return this }
   then<T>(onF: (v: { data: unknown; error: null }) => T) {
     return Promise.resolve({ data: store.opportunities, error: null }).then(onF)
   }
 }
-async function rpc(_fn: string, args: { opp_ids: string[] }) {
-  const maxByOpp = new Map<string, string>()
-  for (const a of store.activities) {
-    const oppId = a.opportunity_id as string
-    const createdAt = a.created_at as string
-    if (!args.opp_ids.includes(oppId)) continue
-    const prev = maxByOpp.get(oppId)
-    if (prev === undefined || createdAt > prev) maxByOpp.set(oppId, createdAt)
+async function rpc(fn: string, args: Record<string, unknown>) {
+  if (fn === "stuck_deal_last_activity") {
+    const oppIds = (args.opp_ids as string[]) ?? []
+    const maxByOpp = new Map<string, string>()
+    for (const a of store.activities) {
+      const oppId = a.opportunity_id as string
+      const createdAt = a.created_at as string
+      if (!oppIds.includes(oppId)) continue
+      const prev = maxByOpp.get(oppId)
+      if (prev === undefined || createdAt > prev) maxByOpp.set(oppId, createdAt)
+    }
+    return {
+      data: [...maxByOpp].map(([opportunity_id, last_activity_at]) => ({ opportunity_id, last_activity_at })),
+      error: null,
+    }
   }
-  return {
-    data: [...maxByOpp].map(([opportunity_id, last_activity_at]) => ({ opportunity_id, last_activity_at })),
-    error: null,
+  if (fn === "stuck_deals_value_at_risk") {
+    // Replicate the RPC's stale/overdue predicate over the store, grouped by
+    // currency — the server computes this over the WHOLE open set (not the
+    // displayed page).
+    const thresholds = (args._thresholds ?? {}) as Record<string, number>
+    const nowMs = Date.now()
+    const today = new Date(nowMs).toISOString().slice(0, 10)
+    const lastAct = new Map<string, number>()
+    for (const a of store.activities) {
+      const oid = a.opportunity_id as string
+      lastAct.set(oid, Math.max(lastAct.get(oid) ?? 0, new Date(a.created_at as string).getTime()))
+    }
+    const byCurrency = new Map<string, { deal_count: number; gross_amount: number }>()
+    for (const o of store.opportunities) {
+      const stage = o.stage as string
+      if (stage === "closed_won" || stage === "closed_lost") continue
+      const baseMs = lastAct.get(o.id as string) ?? new Date(o.created_at as string).getTime()
+      const days = (nowMs - baseMs) / 86_400_000
+      // eslint-disable-next-line security/detect-object-injection -- stage is a DB enum value, thresholds is the caller-provided map
+      const stale = days >= (thresholds[stage] ?? 1e9)
+      const overdue = o.close_date != null && (o.close_date as string) < today
+      if (!stale && !overdue) continue
+      const cur = o.currency as string
+      const b = byCurrency.get(cur) ?? { deal_count: 0, gross_amount: 0 }
+      b.deal_count++
+      b.gross_amount += Number(o.amount ?? 0)
+      byCurrency.set(cur, b)
+    }
+    return {
+      data: [...byCurrency].map(([currency, v]) => ({ currency, deal_count: v.deal_count, gross_amount: v.gross_amount })),
+      error: null,
+    }
   }
+  return { data: [], error: null }
 }
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: async () => ({ from: () => new QB(), rpc }),
