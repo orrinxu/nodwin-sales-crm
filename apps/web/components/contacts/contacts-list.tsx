@@ -44,7 +44,7 @@ import { ContactForm } from "@/components/contacts/contact-form"
 import { ContactGenerator } from "@/components/contacts/contact-generator"
 import type { ImagePayload, ExtractFileResult, TranscribeAudioResult } from "@/components/generators/record-generator"
 import type { GenerateContactResult } from "@/app/(crm)/contacts/generate-actions"
-import type { EntityOption } from "@/components/entity-combobox"
+import { EntityCombobox, type EntityOption } from "@/components/entity-combobox"
 import type { AccountOption, ContactListRecord, ContactCreateInput, ContactRecord } from "@/lib/data/contacts"
 import { useListQuery } from "@/lib/list/use-list-query"
 import { usePreferences } from "@/components/providers/preferences-provider"
@@ -76,6 +76,12 @@ interface ContactsListProps {
   transcribeAction?: (formData: FormData) => Promise<TranscribeAudioResult>
   // ORR-738: inline account-create in the create/generator flow.
   createAccountQuickAction?: (input: { name: string }) => Promise<EntityOption>
+  // ORR-767: server-side account typeahead for the pickers + the account filter,
+  // now that `accounts` is a bounded initial list.
+  searchAccountsAction?: (query: string) => Promise<EntityOption[]>
+  /** Name of the account currently in the `?account=` filter (if any), resolved
+   *  server-side so the filter label shows even when it's outside `accounts`. */
+  selectedAccountName?: string | null
 }
 
 export function ContactsList({
@@ -91,6 +97,8 @@ export function ContactsList({
   extractFileAction,
   transcribeAction,
   createAccountQuickAction,
+  searchAccountsAction,
+  selectedAccountName,
 }: ContactsListProps) {
   const router = useRouter()
   const { formatDate } = usePreferences()
@@ -250,6 +258,7 @@ export function ContactsList({
             accounts={accounts}
             createAction={createAction}
             createAccountQuickAction={createAccountQuickAction}
+            searchAccountsAction={searchAccountsAction}
             onSuccess={() => router.refresh()}
           />
         ) : (
@@ -257,6 +266,7 @@ export function ContactsList({
             accounts={accounts}
             createAction={createAction}
             createAccountQuickAction={createAccountQuickAction}
+            searchAccountsAction={searchAccountsAction}
             onSuccess={() => router.refresh()}
           />
         )}
@@ -272,22 +282,19 @@ export function ContactsList({
             className="pl-8"
           />
         </div>
-        <Select
-          value={accountFilter}
-          onValueChange={(v) => setParams({ account: v === "all" ? null : v }, { resetPage: true })}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="All accounts" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All accounts</SelectItem>
-            {accounts.map((a) => (
-              <SelectItem key={a.id} value={a.id}>
-                {a.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* ORR-767: typeahead-backed so the filter can target any account, not
+            just the bounded initial list; `valueLabel` keeps the active filter's
+            name visible even when it's outside `accounts`. */}
+        <EntityCombobox
+          className="w-[180px]"
+          items={accounts.map((a) => ({ id: a.id, name: a.name }))}
+          value={accountFilter === "all" ? null : accountFilter}
+          onChange={(v) => setParams({ account: v ?? null }, { resetPage: true })}
+          valueLabel={selectedAccountName ?? undefined}
+          searchAction={searchAccountsAction}
+          placeholder="All accounts"
+          searchPlaceholder="Search an account..."
+        />
         {ownerOptions.length > 0 && (
           <Select
             value={ownerFilter}

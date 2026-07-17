@@ -32,7 +32,7 @@ export interface EntityComboboxProps {
    * falling back to showing the raw id.
    */
   valueLabel?: string
-  onChange: (value: string | null) => void
+  onChange: (value: string | null, option?: EntityOption) => void
   searchAction?: (query: string) => Promise<EntityOption[]>
   placeholder?: string
   searchPlaceholder?: string
@@ -162,7 +162,7 @@ export function EntityCombobox({
             allItems.find((i) => i.id === v)
           : undefined
       setPicked(chosen ? { id: chosen.id, label: getItemLabel(chosen) } : null)
-      onChange(v)
+      onChange(v, chosen)
       setInputValue("")
       setOpen(false)
     },
@@ -176,7 +176,7 @@ export function EntityCombobox({
     try {
       const newItem = await _createAction(inputValue.trim())
       setCreatedItems((prev) => [...prev, newItem])
-      onChange(newItem.id)
+      onChange(newItem.id, newItem)
       setInputValue("")
       setOpen(false)
     } catch (e) {

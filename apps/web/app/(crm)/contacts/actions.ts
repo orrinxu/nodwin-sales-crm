@@ -9,6 +9,7 @@ import {
   contactCreateSchema,
   contactUpdateSchema,
   bulkDeleteContactsSchema,
+  searchAccountOptions,
 } from "@/lib/data/contacts"
 import { createActivity, activityCreateSchema } from "@/lib/data/activities"
 import { createAccount, accountCreateSchema } from "@/lib/data/accounts"
@@ -64,4 +65,12 @@ export async function bulkDeleteContactsAction(input: unknown) {
   const ctx = { user, source: "web" as const }
   await bulkDeleteContacts(ctx, parsed)
   revalidatePath("/contacts")
+}
+
+// Server-side account typeahead for the contact form's account pickers + the
+// contacts-list account filter (ORR-767). Mirrors the opportunities route action.
+export async function searchAccountsAction(query: string) {
+  const user = await requireUser()
+  const ctx = { user, source: "web" as const }
+  return searchAccountOptions(ctx, query)
 }

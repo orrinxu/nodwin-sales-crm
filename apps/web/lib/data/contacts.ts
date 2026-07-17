@@ -229,18 +229,59 @@ export async function getContactAccountLinks(
   }))
 }
 
+/**
+ * Bounded initial list of accounts for the picker/filter dropdowns (ORR-767).
+ * Previously this scanned every account on each page load; the pickers are now
+ * typeahead-backed (`searchAccountOptions`) and display names are sourced from
+ * the record (`getAccountOptionsByIds`), so a bounded first page is enough —
+ * anything beyond it is reachable via search.
+ */
+export const ACCOUNT_OPTIONS_LIMIT = 50
+
 export async function getAccountOptions(
   ctx: ContactCallContext,
 ): Promise<AccountOption[]> {
+  void ctx
   const supabase = await createServerClient()
 
   const { data, error } = await supabase
     .from("accounts")
     .select("id, name")
     .order("name", { ascending: true })
+    .limit(ACCOUNT_OPTIONS_LIMIT)
 
   if (error) {
     throw new Error(`Failed to load account options: ${error.message}`)
+  }
+
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    name: r.name as string,
+  }))
+}
+
+/**
+ * Resolve a specific set of account ids to their names. Used to source display
+ * names (primary + linked accounts) on the contact detail/edit view without
+ * loading the whole account list — `getAccountOptions` is bounded (ORR-767), so
+ * a linked account outside that bound would otherwise show as a raw id.
+ */
+export async function getAccountOptionsByIds(
+  ctx: ContactCallContext,
+  ids: string[],
+): Promise<AccountOption[]> {
+  void ctx
+  const unique = Array.from(new Set(ids.filter((id) => id)))
+  if (unique.length === 0) return []
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("id, name")
+    .in("id", unique)
+
+  if (error) {
+    throw new Error(`Failed to load account names: ${error.message}`)
   }
 
   return (data ?? []).map((r) => ({

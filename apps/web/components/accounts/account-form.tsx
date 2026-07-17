@@ -60,8 +60,12 @@ interface AccountFormProps {
   currentUserId?: string
   parentRelationship?: {
     toAccountId: string
+    toAccountName?: string
     kind: AccountRelationshipKind
   } | null
+  /** Server-side account typeahead (ORR-767) — makes the parent picker searchable
+   *  so it isn't limited to the bounded initial `accountOptions`. */
+  searchAccountsAction?: (query: string) => Promise<EntityOption[]>
   createAction: (input: AccountCreateInput) => Promise<AccountRecord>
   updateAction?: (id: string, input: AccountUpdateInput) => Promise<AccountRecord>
   onSaveRelationship?: (data: { parentAccountId: string; kind: AccountRelationshipKind }) => Promise<void>
@@ -87,6 +91,7 @@ export function AccountForm({
   accountOptions,
   currentUserId,
   parentRelationship,
+  searchAccountsAction,
   createAction,
   updateAction,
   onSaveRelationship,
@@ -348,6 +353,8 @@ export function AccountForm({
           <EntityCombobox
             items={accountOptions}
             value={parentAccountId}
+            valueLabel={parentRelationship?.toAccountName}
+            searchAction={searchAccountsAction}
             onChange={(v) => setParentAccountId(v ?? "")}
             placeholder="Select account..."
             searchPlaceholder="Search accounts..."
