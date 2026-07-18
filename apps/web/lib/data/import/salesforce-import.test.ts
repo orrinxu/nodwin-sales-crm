@@ -7,13 +7,28 @@ const existingRows: Record<string, { id: string; legacy_salesforce_id: string }[
   opportunities: [],
 }
 
+// PostgREST caps a single response at 1000 rows. The fake DB enforces the same
+// cap on each .range() page so the paging loop is exercised, not bypassed.
+const PG_MAX_ROWS = 1000
+
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: async () => ({
     from: (table: string) => ({
       select: () => ({
-        not: () =>
-          // eslint-disable-next-line security/detect-object-injection -- test fixture lookup
-          Promise.resolve({ data: existingRows[table] ?? [], error: null }),
+        not: () => ({
+          order: () => ({
+            range: (from: number, to: number) => {
+              // eslint-disable-next-line security/detect-object-injection -- test fixture lookup
+              const all = existingRows[table] ?? []
+              const requested = to - from + 1
+              const capped = Math.min(requested, PG_MAX_ROWS)
+              return Promise.resolve({
+                data: all.slice(from, from + capped),
+                error: null,
+              })
+            },
+          }),
+        }),
       }),
     }),
   }),
@@ -101,6 +116,28 @@ describe("importSalesforceCsv (ORR-699)", () => {
     expect(createImportJob).toHaveBeenCalledWith(
       ctx,
       expect.objectContaining({ kind: "import", targetEntityType: "accounts" }),
+    )
+  })
+
+  it("skips already-imported rows even when >1000 accounts already exist (ORR-779)", async () => {
+    // Regression: an unpaged index scan truncates at max_rows (1000), so an
+    // existing Id past the cap looks "new" and a duplicate is created. Seed
+    // 1500 existing accounts and re-import an Id near the end of the set.
+    existingRows.accounts = Array.from({ length: 1500 }, (_, i) => ({
+      id: `acc-uuid-${i}`,
+      legacy_salesforce_id: `A${i}`,
+    }))
+    const csv = "Account ID,Account Name\nA1499,Already Imported\nANEW,Brand New"
+    const res = await importSalesforceCsv(ctx, { entity: "accounts", csvText: csv })
+
+    expect(res.total).toBe(2)
+    // A1499 (row 1450+, past the 1000-row cap) must be recognized as existing.
+    expect(res.skipped).toBe(1)
+    expect(res.created).toBe(1)
+    expect(createAccount).toHaveBeenCalledTimes(1)
+    expect(createAccount).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({ legacySalesforceId: "ANEW" }),
     )
   })
 })

@@ -159,6 +159,9 @@ async function loadExistingAccountNames(): Promise<Set<string>> {
     const { data, error } = await supabase
       .from("accounts")
       .select("name")
+      // Stable order so pages can't overlap/skip rows (Postgres gives no
+      // ordering guarantee for successive .range() queries without an ORDER BY).
+      .order("id", { ascending: true })
       .range(from, from + NAME_SCAN_PAGE - 1)
     if (error) throw new Error(`Failed to read existing accounts: ${error.message}`)
     const batch = (data ?? []) as { name: string | null }[]

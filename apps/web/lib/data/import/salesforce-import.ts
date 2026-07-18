@@ -39,6 +39,10 @@ export interface ImportResult {
 /** Guardrails: keep a single upload bounded so one import can't run unbounded. */
 const MAX_ROWS = 10_000
 const MAX_REPORTED_ERRORS = 50
+/** Page size for the existing-row index scan. PostgREST caps a single response
+ *  at max_rows (1000), so the scan MUST page or it silently truncates and the
+ *  "idempotent by Salesforce Id" contract breaks past 1000 existing rows. */
+const LEGACY_SCAN_PAGE = 1000
 /** Concurrent creates per wave (ORR-761) — bounded so a big import can't exhaust
  *  the DB connection pool. */
 const CREATE_CONCURRENCY = 20
@@ -65,14 +69,23 @@ async function loadLegacyIndex(
   table: "accounts" | "contacts" | "opportunities",
 ): Promise<Map<string, string>> {
   const supabase = await createServerClient()
-  const { data, error } = await supabase
-    .from(table)
-    .select("id, legacy_salesforce_id")
-    .not("legacy_salesforce_id", "is", null)
-  if (error) throw new Error(`Failed to read existing ${table}: ${error.message}`)
   const index = new Map<string, string>()
-  for (const r of (data ?? []) as { id: string; legacy_salesforce_id: string }[]) {
-    index.set(r.legacy_salesforce_id, r.id)
+  // Page the scan with a stable order so no existing row is missed: an
+  // unpaged .select() truncates at max_rows (1000), and paging without a
+  // deterministic order can overlap/skip rows across pages.
+  for (let from = 0; ; from += LEGACY_SCAN_PAGE) {
+    const { data, error } = await supabase
+      .from(table)
+      .select("id, legacy_salesforce_id")
+      .not("legacy_salesforce_id", "is", null)
+      .order("id", { ascending: true })
+      .range(from, from + LEGACY_SCAN_PAGE - 1)
+    if (error) throw new Error(`Failed to read existing ${table}: ${error.message}`)
+    const batch = (data ?? []) as { id: string; legacy_salesforce_id: string }[]
+    for (const r of batch) {
+      index.set(r.legacy_salesforce_id, r.id)
+    }
+    if (batch.length < LEGACY_SCAN_PAGE) break
   }
   return index
 }
