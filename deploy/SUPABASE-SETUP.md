@@ -92,14 +92,28 @@ a migration**.
 
 ### Optional: seed the org scaffold + admin login
 
+`supabase/seed/sandbox.sql` loads the Nodwin entities + business units and a
+Super Admin login (`orrin.xu@nodwin.com`).
+
+> ⚠️ **Never run the seed on a shared/internet-facing DB with its default
+> password.** The seeded admin password defaults to a well-known dev value; on
+> anything reachable from the internet that is a trivial full takeover.
+
+If you want the org scaffold on staging, **supply a strong admin password** via a
+session GUC so the default is never used:
+
 ```bash
-psql "$DB_URL" -f supabase/seed/sandbox.sql
+PGOPTIONS="-c seed.admin_password=$(openssl rand -base64 24)" \
+  psql "$DB_URL" -f supabase/seed/sandbox.sql
 ```
 
-This loads the Nodwin entities + business units and the Super Admin
-(`orrinxu@gmail.com`). **Rotate that password immediately on staging** — it is a
-dev default baked into the seed. (`pnpm db:seed` targets the _local_ stack only;
-for the VPS use the `psql` line above.)
+Capture the generated password from your shell history/output and store it in
+your secrets manager. Better still, skip the seeded admin entirely and create the
+first admin through Supabase Auth (Studio → Authentication → Add user, with a
+strong password), then promote it to `admin` in `public.users`.
+
+(`pnpm db:seed` targets the _local_ stack only and uses the dev default — that is
+fine locally.)
 
 ---
 

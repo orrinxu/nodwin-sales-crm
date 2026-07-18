@@ -71,6 +71,16 @@ ON CONFLICT (id) DO UPDATE SET
 -- ===========================================================================
 -- 3. ADMIN LOGIN -- real Super Admin so you can sign in and enter real data
 -- ===========================================================================
+-- ⚠️  SECURITY (ORR-778): this creates a Super Admin. The password defaults to a
+-- well-known dev value for the LOCAL sandbox only. NEVER apply this seed to a
+-- shared, staging, or internet-facing database with the default password — it
+-- is a trivial full-account takeover. For any non-local bootstrap, pass a strong
+-- password via a session GUC, e.g.:
+--     PGOPTIONS="-c seed.admin_password=$(openssl rand -base64 24)" \
+--       psql "$DB_URL" -f supabase/seed/sandbox.sql
+-- (and prefer creating the bootstrap admin through Supabase Auth instead — see
+-- deploy/SUPABASE-SETUP.md).
+--
 -- auth.users insert fires handle_new_auth_user(), which creates the matching
 -- public.users row as sales_rep. We then promote it to the admin role; the
 -- a_sync_primary_role_from_role_id trigger syncs primary_role from base_role,
@@ -86,7 +96,12 @@ INSERT INTO auth.users (
   'a0000000-0000-4000-8000-000000000001',
   'authenticated', 'authenticated',
   'orrin.xu@nodwin.com',
-  extensions.crypt('12345678', extensions.gen_salt('bf')),
+  -- Overridable: set `seed.admin_password` (GUC) for a non-local bootstrap;
+  -- falls back to the local-sandbox dev default. See the security note above.
+  extensions.crypt(
+    coalesce(current_setting('seed.admin_password', true), '12345678'),
+    extensions.gen_salt('bf')
+  ),
   now(), now(), now(),
   '{"provider":"email","providers":["email"]}'::jsonb,
   '{"full_name":"Orrin Xu"}'::jsonb,

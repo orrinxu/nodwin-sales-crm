@@ -103,7 +103,7 @@ The migrations in `supabase/migrations/` are ordered (numbered files) and run se
 pnpm db:reset
 ```
 
-Use `pnpm db:reset` to get a seeded local database. It runs `supabase db reset`, which re-applies every migration and then loads the seed defined in `config.toml` (`[db.seed] sql_paths` → `supabase/seed/sandbox.sql`). This creates the Nodwin legal entities, their business units, and a Super Admin login (`orrinxu@gmail.com` / `12345678`) so you can sign in and start entering real data.
+Use `pnpm db:reset` to get a seeded local database. It runs `supabase db reset`, which re-applies every migration and then loads the seed defined in `config.toml` (`[db.seed] sql_paths` → `supabase/seed/sandbox.sql`). This creates the Nodwin legal entities, their business units, and a Super Admin login (`orrin.xu@nodwin.com` / `12345678`) so you can sign in and start entering real data. This password is a **local-sandbox default** — never reuse this seed with its default password on a shared or internet-facing database (see `deploy/SUPABASE-SETUP.md` for the strong-password override).
 
 > **Note:** `pnpm db:seed` applies `supabase/seed/sandbox.sql` to the already-running local DB (idempotent). The same seed loads automatically on `supabase db reset`, so prefer `pnpm db:reset` for a clean rebuild.
 
