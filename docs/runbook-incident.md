@@ -65,7 +65,7 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 3. **Check DB health:** confirm the Postgres container is accepting connections (e.g. `docker compose exec db pg_isready`).
 4. **Check recent migrations:** `supabase db diff --db-url "postgresql://postgres:<password>@<vps-host>:5432/postgres"` to confirm schema matches expected state. A failed migration can leave the DB in an inconsistent state.
 5. **Rollback a bad deploy:** re-point the app service image to a previous `:sha-<sha>` tag and run `docker compose up -d app` on the VPS (see `../deploy/DEPLOYMENT.md`).
-6. **Restore from backup** — see [Restore from Backup](#restore-from-backup) below. ⚠️ **TODO:** the self-hosted VPS has no managed backup UI; the concrete backup/restore mechanism (pg_dump cron vs. volume/DO snapshots) is not yet defined — do not assume a one-click restore exists.
+6. **Restore from backup** — see [Restore from Backup](#restore-from-backup) below (daily off-box `pg_dump`; mechanism in [`deploy/BACKUPS.md`](../deploy/BACKUPS.md)). Confirm a recent dump exists before relying on it.
 
 ### P-2: Data Breach / RLS Leak
 
@@ -183,7 +183,7 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 1. **Do not deploy** — a failed migration blocks the deploy and must be resolved manually.
 2. **Check the failing migration SQL** — does it reference a table or column that doesn't exist yet? Does it depend on a migration that hasn't run?
 3. **Fix forward** — write a new migration that resolves the issue. Do NOT edit or delete the existing migration file on the `main` branch (migrations are append-only).
-4. **If production is in a broken state** — see [Restore from Backup](#restore-from-backup) (mechanism is a TODO on self-host — coordinate with Orrin Xu before attempting).
+4. **If production is in a broken state** — see [Restore from Backup](#restore-from-backup) (daily off-box `pg_dump`; confirm a recent dump exists and coordinate with Orrin Xu before a destructive restore).
 5. **Test locally first** — run `pnpm db:reset` on a clean local environment to verify the full migration chain works.
 
 ## Escalation Contacts
@@ -204,24 +204,26 @@ Per the [Pre-Launch Security Checklist](security.md#84-pre-launch-security-check
 
 ### Restore from Backup
 
-> ⚠️ **TODO — procedure not yet defined for the self-hosted stack.** The steps
-> below described **Supabase Cloud** (managed dashboard → Backups → Restore →
-> new project), which does **not** exist on the self-hosted DigitalOcean VPS.
-> Postgres runs in the `db` container with data on a Docker volume; there is no
-> managed backup UI. Before this section can be trusted in a real incident, the
-> team must decide and document the actual mechanism, e.g.:
->
-> - a scheduled `pg_dump`/`pg_basebackup` job on the VPS (define location + retention), restored with `pg_restore`/`psql` into the `db` container, **or**
-> - DigitalOcean volume/droplet snapshots (define cadence + restore steps).
->
-> Until then: **do not attempt an ad-hoc restore — escalate to Orrin Xu.**
+The self-hosted stack is backed up by a daily off-box `pg_dump` (ORR-780). Full
+mechanism, install, and verification steps: [`deploy/BACKUPS.md`](../deploy/BACKUPS.md).
 
-Provisional outline once a mechanism exists:
+> First check a backup actually exists before relying on this: `ls -lh
+> /var/backups/nodwin-crm/` on the VPS and the off-box bucket. If the
+> `nodwin-crm-backup.timer` was never installed there are no dumps to restore
+> from — escalate to Orrin Xu and fall back to a DigitalOcean volume snapshot if
+> one exists.
 
-1. Stop the app container so nothing writes during restore: `docker compose stop app`.
-2. Restore the database from the chosen backup source into the `db` container.
-3. Re-run any migrations from the backup point forward (the deploy runner is idempotent — see [`deploy/apply-migrations.sh`](../deploy/apply-migrations.sh)).
-4. `docker compose up -d app` and verify data integrity: spot-check a sample of accounts + opportunities.
+1. Stop the app so nothing writes during restore: `docker compose stop app`.
+2. Pick the dump to restore (local, or pull one back from the bucket first):
+   `ls -lh /var/backups/nodwin-crm/`.
+3. Restore it into the `db` container (DESTRUCTIVE — replaces current contents):
+   `sudo nodwin-crm-restore /var/backups/nodwin-crm/<dump-file>` and type `RESTORE`.
+   (Wraps `pg_restore --clean` — see [`deploy/restore-database.sh`](../deploy/restore-database.sh).)
+4. Re-run any migrations from the backup point forward — the deploy runner is
+   idempotent (see [`deploy/apply-migrations.sh`](../deploy/apply-migrations.sh)).
+5. `docker compose up -d app`, run `docker compose exec db pg_isready`, re-run the
+   pgTAP/RLS checks, and spot-check a sample of accounts + opportunities before
+   serving traffic.
 
 ### Manual Rollback of a Deploy
 
