@@ -11,7 +11,7 @@
 
 BEGIN;
 
-SELECT plan(7);
+SELECT plan(10);
 
 INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
   ('a1111111-1111-1111-1111-111111111111', 'admin696@nodwin.com', '{"full_name":"Admin"}'),
@@ -71,6 +71,23 @@ SELECT is(
     ORDER BY occurred_at DESC LIMIT 1),
   'deepseek',
   'audit_log still records non-secret columns');
+
+-- ── ORR-781: redact_secrets strips the later-added secret columns ──
+-- webhook_url (slack_connections) and transcription_api_key (ai_settings) were
+-- added after the redaction helper and slipped through. Test the function
+-- directly so the strip list is asserted regardless of per-table constraints.
+SELECT is(
+  audit.redact_secrets('{"webhook_url":"https://hooks.slack.com/services/SECRET","name":"ok"}'::jsonb) ? 'webhook_url',
+  false,
+  'redact_secrets strips webhook_url (Slack bearer secret)');
+SELECT is(
+  audit.redact_secrets('{"transcription_api_key":"sk-MUST-NOT-APPEAR","provider":"openai"}'::jsonb) ? 'transcription_api_key',
+  false,
+  'redact_secrets strips transcription_api_key');
+SELECT is(
+  audit.redact_secrets('{"webhook_url":"x","display_name":"keep-me"}'::jsonb) ->> 'display_name',
+  'keep-me',
+  'redact_secrets keeps non-secret columns alongside stripped ones');
 
 SELECT * FROM finish();
 ROLLBACK;
