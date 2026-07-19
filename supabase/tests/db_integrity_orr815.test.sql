@@ -153,7 +153,7 @@ VALUES
    'b0000000-0000-0000-0000-0000000000b2', 100, 'USD', 'standard');
 INSERT INTO public.tasks (id, title, assignee_user_id, created_by, opportunity_id, account_id, contact_id) VALUES
   ('7a000000-0000-0000-0000-000000000071', 'Follow up',
-   'a0000000-0000-0000-0000-000000000005',
+   'a0000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000005',
    '0d000000-0000-0000-0000-000000000033', 'ac000000-0000-0000-0000-0000000000a2',
    'c0000000-0000-0000-0000-0000000000c1');
 INSERT INTO public.opportunity_stage_history (opportunity_id, from_stage, to_stage, event, created_by) VALUES
