@@ -18,14 +18,19 @@ vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(() => ({ rpc: mockRpc })),
 }))
 
-// FX is exercised elsewhere; here the identity conversion keeps the arithmetic
-// readable (every bucket is already the reporting currency).
+// FX is exercised elsewhere; here USD buckets pass through as an identity
+// conversion (keeping the arithmetic readable) while any non-USD bucket is
+// treated as having no rate and dropped — mirroring fetchAndConvert, so the
+// unconvertible-count path is exercisable.
 vi.mock("@/lib/data/metrics", () => ({
   resolveReportingCurrency: async () => "USD",
-  fetchAndConvert: async (data: Array<Record<string, unknown>>) => ({
-    converted: (data ?? []).map((d) => ({ ...d, amount: Number(d.amount) || 0, currency: "USD" })),
-    unconvertibleCount: 0,
-  }),
+  fetchAndConvert: async (data: Array<Record<string, unknown>>) => {
+    const rows = data ?? []
+    const converted = rows
+      .filter((d) => d.currency === "USD")
+      .map((d) => ({ ...d, amount: Number(d.amount) || 0, currency: "USD" }))
+    return { converted, unconvertibleCount: rows.length - converted.length }
+  },
 }))
 
 beforeEach(() => {
@@ -105,6 +110,51 @@ describe("getReportData", () => {
     expect(result.topAccounts[0].amount).toBe(130000)
     expect(result.topAccounts[1].name).toBe("Beta")
     expect(result.topAccounts[1].amount).toBe(5000)
+  })
+
+  it("exposes the resolved reporting currency", async () => {
+    setRpc({
+      pipeline_metrics_agg: [
+        { stage: "qualify", currency: "USD", gross_amount: 10000, deal_count: 1 },
+      ],
+    })
+
+    const { getReportData } = await import("../reports")
+    const result = await getReportData(ctx)
+
+    expect(result.currency).toBe("USD")
+  })
+
+  it("surfaces deals dropped for lack of an FX rate", async () => {
+    setRpc({
+      pipeline_metrics_agg: [
+        { stage: "qualify", currency: "USD", gross_amount: 10000, deal_count: 1 },
+        // Two deals in a currency with no rate to USD → excluded, not counted.
+        { stage: "qualify", currency: "EUR", gross_amount: 99999, deal_count: 2 },
+      ],
+    })
+
+    const { getReportData } = await import("../reports")
+    const result = await getReportData(ctx)
+
+    expect(result.unconvertibleCount).toBe(2)
+    // Only the convertible bucket contributes to the visible totals.
+    const qualify = result.pipelineByStage.find((s) => s.stage === "qualify")
+    expect(qualify?.count).toBe(1)
+    expect(qualify?.amount).toBe(10000)
+  })
+
+  it("reports no exclusions when every bucket converts", async () => {
+    setRpc({
+      pipeline_metrics_agg: [
+        { stage: "qualify", currency: "USD", gross_amount: 10000, deal_count: 3 },
+      ],
+    })
+
+    const { getReportData } = await import("../reports")
+    const result = await getReportData(ctx)
+
+    expect(result.unconvertibleCount).toBe(0)
   })
 
   it("folds monthly trends per created-month", async () => {
