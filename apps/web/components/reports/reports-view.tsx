@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import {
   BarChart,
   Bar,
@@ -23,19 +24,23 @@ import {
   stageChartColor,
 } from "@/components/primitives/chart-theme"
 
-function fmt(v: unknown) {
-  const n = typeof v === "number" ? v : Number(v ?? 0)
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 0,
-  }).format(n)
-}
-
 const tooltipStyle = chartTooltipStyle
 
 export function ReportsView({ data }: { data: ReportData }) {
+  // Every money figure in `data` is FX-normalised into `data.currency` by
+  // getReportData — format in that currency, not a hardcoded USD (ORR-799).
+  // Mirrors ForecastScorecards' useMoneyFmt on the same page so both halves
+  // of /reports show one currency symbol for the same deals.
+  const fmt = useMemo(() => {
+    const nf = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: data.currency,
+      notation: "compact",
+      maximumFractionDigits: 0,
+    })
+    return (v: unknown) => nf.format(typeof v === "number" ? v : Number(v ?? 0))
+  }, [data.currency])
+
   const pipelineData = data.pipelineByStage.map((s) => ({
     name: s.label,
     amount: s.amount,
@@ -69,9 +74,17 @@ export function ReportsView({ data }: { data: ReportData }) {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Pipeline, revenue, and activity metrics.
+          Pipeline, revenue, and activity metrics — in {data.currency}.
         </p>
       </div>
+
+      {data.unconvertibleCount > 0 ? (
+        <p className="text-caption text-muted-foreground">
+          {data.unconvertibleCount} deal
+          {data.unconvertibleCount === 1 ? "" : "s"} excluded — no FX rate to{" "}
+          {data.currency}.
+        </p>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>

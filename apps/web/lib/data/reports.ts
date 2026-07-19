@@ -39,6 +39,14 @@ export interface ReportData {
   totalWon: number
   avgDealSize: number
   winRate: number
+  /** Reporting currency every money figure above is expressed in (ORR-799). */
+  currency: string
+  /**
+   * Deals dropped from the pipeline rollup because their currency has no FX rate
+   * to {@link ReportData.currency} (ORR-799). Surfaced so the exclusion is never
+   * silent — same convention as the dashboard summary strip / forecast section.
+   */
+  unconvertibleCount: number
 }
 
 export interface PipelineStageSummary {
@@ -94,6 +102,17 @@ export async function getReportData(ctx: DashboardContext): Promise<ReportData> 
     stageAmount.set(b.stage, (stageAmount.get(b.stage) ?? 0) + b.amount)
     stageCount.set(b.stage, (stageCount.get(b.stage) ?? 0) + b.count)
   }
+
+  // Deals dropped because their currency has no FX rate to the reporting
+  // currency (fetchAndConvert skips those buckets). Computed as total minus
+  // converted deal count over the pipeline aggregate — the same deal-based
+  // semantics getPipelineMetrics surfaces — so the exclusion is shown, not
+  // silently swallowed. (Count-preservation through the fold is a follow-up.)
+  let totalStageDeals = 0
+  for (const r of stageRes.data ?? []) totalStageDeals += Number(r.deal_count) || 0
+  let convertedStageDeals = 0
+  for (const c of stageCount.values()) convertedStageDeals += c
+  const unconvertibleCount = Math.max(0, totalStageDeals - convertedStageDeals)
 
   const pipelineByStage: PipelineByStage[] = DEAL_STAGES.filter(
     (s) => !isTerminalStage(s),
@@ -187,6 +206,8 @@ export async function getReportData(ctx: DashboardContext): Promise<ReportData> 
     totalWon: totalWonAmount,
     avgDealSize,
     winRate,
+    currency: reportingCurrency,
+    unconvertibleCount,
   }
 }
 
