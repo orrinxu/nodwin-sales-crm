@@ -214,7 +214,35 @@ export interface OpportunityListParams {
   pageSize?: number
 }
 
-const OPPORTUNITY_LIST_SELECT = `
+/**
+ * Builds the list SELECT.
+ *
+ * ORR-800: sorting by the embedded Account / Owner name only orders the PARENT
+ * rows when that embed is an INNER join. With a plain (LEFT) embed,
+ * `order("account(name)")` / `order(..., { referencedTable })` orders rows
+ * *inside* the embed and leaves the parent unordered — a silent no-op that also
+ * leaves the subsequent `.range()` paginating an unordered set (rows duplicate /
+ * skip across pages). So when the caller sorts by `account` / `owner` we promote
+ * that one embed to `!inner` and sort via the top-level `order("account(name)")`
+ * spread form, which is an unambiguous PARENT order.
+ *
+ * `!inner` drops parent rows whose embed has no match — but both `account_id`
+ * (opportunity_visibility migration :190) and `owner_user_id` (:195, kept NOT
+ * NULL, defaulted to auth.uid() by the owner-default trigger in
+ * 20260619000001) are NOT NULL FKs to existing rows, so `!inner` here drops
+ * ZERO rows. We only switch the embed actually being sorted, so the common
+ * browse path keeps its LEFT joins.
+ *
+ * TRADEOFF / follow-up: this correctness relies on `owner_user_id` being NOT
+ * NULL. If it is ever made nullable (the app carries an `__unassigned__`
+ * sentinel that today matches nothing), sorting by Owner would silently exclude
+ * unassigned deals — at that point denormalize an `owner_name` column or sort
+ * through a view instead of `!inner`.
+ */
+function opportunityListSelect(sortColumn?: OpportunitySortColumn): string {
+  const accountInner = sortColumn === "account" ? "!inner" : ""
+  const ownerInner = sortColumn === "owner" ? "!inner" : ""
+  return `
       id,
       name,
       account_id,
@@ -247,32 +275,50 @@ const OPPORTUNITY_LIST_SELECT = `
       custom_data,
       created_at,
       updated_at,
-      account:account_id ( name ),
-      owner:owner_user_id ( full_name )
+      account:account_id${accountInner} ( name ),
+      owner:owner_user_id${ownerInner} ( full_name )
     `
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the PostgREST builder type is opaque across .order() chaining; the shape is preserved.
 function applyOpportunitySort(query: any, sort: OpportunitySort | undefined): any {
+  // Every branch appends `.order("id")` as a stable, unique tiebreaker. Without
+  // it, rows tying on the primary sort key have no defined order, so `.range()`
+  // pagination can duplicate/skip them across pages (ORR-800; the broader
+  // tiebreaker sweep is ORR-790). `id` is the PK — unique and always present.
   if (!sort) {
-    return query.order("updated_at", { ascending: false })
+    return query
+      .order("updated_at", { ascending: false })
+      .order("id", { ascending: true })
   }
   const ascending = sort.direction === "asc"
   switch (sort.column) {
     case "name":
-      return query.order("name", { ascending })
+      return query.order("name", { ascending }).order("id", { ascending: true })
     case "stage":
-      return query.order("stage", { ascending })
+      return query.order("stage", { ascending }).order("id", { ascending: true })
     case "amount":
-      return query.order("amount", { ascending })
+      return query.order("amount", { ascending }).order("id", { ascending: true })
     case "closeDate":
       // Nulls last regardless of direction so blank close dates sink to the end.
-      return query.order("close_date", { ascending, nullsFirst: false })
+      return query
+        .order("close_date", { ascending, nullsFirst: false })
+        .order("id", { ascending: true })
     case "account":
-      return query.order("name", { ascending, referencedTable: "account" })
+      // Parent order by the embedded account name — valid because the select
+      // promotes `account` to `!inner` for this sort (see opportunityListSelect).
+      return query
+        .order("account(name)", { ascending })
+        .order("id", { ascending: true })
     case "owner":
-      return query.order("full_name", { ascending, referencedTable: "owner" })
+      // Parent order by the embedded owner name — `owner` is `!inner` here.
+      return query
+        .order("owner(full_name)", { ascending })
+        .order("id", { ascending: true })
     default:
-      return query.order("updated_at", { ascending: false })
+      return query
+        .order("updated_at", { ascending: false })
+        .order("id", { ascending: true })
   }
 }
 
@@ -287,7 +333,7 @@ export async function getOpportunities(
 
   let query = supabase
     .from("opportunities")
-    .select(OPPORTUNITY_LIST_SELECT, { count: "exact" })
+    .select(opportunityListSelect(params.sort?.column), { count: "exact" })
 
   // Owner-scope narrowing. Additional filter ON TOP of RLS — never widens access.
   if (scope === "mine") {
@@ -365,7 +411,13 @@ export async function getOpportunities(
     throw new Error(`Failed to load opportunities: ${error.message}`)
   }
 
-  const opportunities = (data ?? []).map(toDomainOpportunity)
+  // `data` is typed as the opaque row shape because the SELECT is now built at
+  // runtime (opportunityListSelect) rather than a string literal postgrest-js
+  // can parse at the type level. The row shape is unchanged, so map through the
+  // domain mapper via the same Record<string, unknown> contract it expects.
+  const opportunities = ((data ?? []) as unknown as Record<string, unknown>[]).map(
+    toDomainOpportunity,
+  )
   const totalCount = count ?? 0
 
   return { opportunities, totalCount, page, pageSize }

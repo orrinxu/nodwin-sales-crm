@@ -168,6 +168,83 @@ describe("getOpportunities — owner scope filter", () => {
   })
 })
 
+describe("getOpportunities — sort (ORR-800)", () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    buildBuilder()
+  })
+
+  it("sorts by Account against the PARENT via an !inner embed + spread order", async () => {
+    const { getOpportunities } = await import("../opportunities")
+    await getOpportunities(defaultCtx, {
+      scope: "all",
+      sort: { column: "account", direction: "asc" },
+    })
+
+    // The account embed is promoted to !inner so the order propagates to the
+    // parent rows (a plain embed would order rows INSIDE the embed — a no-op).
+    const selectArg = mockSelect.mock.calls[0][0] as string
+    expect(selectArg).toContain("account:account_id!inner ( name )")
+    // owner stays a LEFT embed when we aren't sorting by it.
+    expect(selectArg).toContain("owner:owner_user_id ( full_name )")
+    expect(selectArg).not.toContain("owner:owner_user_id!inner")
+
+    // Parent-level order by the embedded column, not referencedTable.
+    expect(mockOrder).toHaveBeenCalledWith("account(name)", { ascending: true })
+    // Stable tiebreaker so .range() pagination can't duplicate/skip ties.
+    expect(mockOrder).toHaveBeenCalledWith("id", { ascending: true })
+  })
+
+  it("sorts by Owner against the PARENT via an !inner embed + spread order", async () => {
+    const { getOpportunities } = await import("../opportunities")
+    await getOpportunities(defaultCtx, {
+      scope: "all",
+      sort: { column: "owner", direction: "desc" },
+    })
+
+    const selectArg = mockSelect.mock.calls[0][0] as string
+    expect(selectArg).toContain("owner:owner_user_id!inner ( full_name )")
+    expect(selectArg).toContain("account:account_id ( name )")
+    expect(selectArg).not.toContain("account:account_id!inner")
+
+    expect(mockOrder).toHaveBeenCalledWith("owner(full_name)", { ascending: false })
+    expect(mockOrder).toHaveBeenCalledWith("id", { ascending: true })
+  })
+
+  it("does NOT use referencedTable ordering (the old no-op) for account/owner", async () => {
+    const { getOpportunities } = await import("../opportunities")
+    await getOpportunities(defaultCtx, {
+      scope: "all",
+      sort: { column: "account", direction: "asc" },
+    })
+    // The buggy form ordered inside the embed and left the parent unordered.
+    expect(mockOrder).not.toHaveBeenCalledWith(
+      "name",
+      expect.objectContaining({ referencedTable: "account" }),
+    )
+  })
+
+  it("appends the id tiebreaker on a working top-level sort column", async () => {
+    const { getOpportunities } = await import("../opportunities")
+    await getOpportunities(defaultCtx, {
+      scope: "all",
+      sort: { column: "amount", direction: "desc" },
+    })
+    expect(mockOrder).toHaveBeenCalledWith("amount", { ascending: false })
+    expect(mockOrder).toHaveBeenCalledWith("id", { ascending: true })
+    // No !inner promotion when sorting by a native column.
+    const selectArg = mockSelect.mock.calls[0][0] as string
+    expect(selectArg).not.toContain("!inner")
+  })
+
+  it("appends the id tiebreaker on the default (updated_at) sort", async () => {
+    const { getOpportunities } = await import("../opportunities")
+    await getOpportunities(defaultCtx, { scope: "all" })
+    expect(mockOrder).toHaveBeenCalledWith("updated_at", { ascending: false })
+    expect(mockOrder).toHaveBeenCalledWith("id", { ascending: true })
+  })
+})
+
 describe("getEntityScopeOptions", () => {
   beforeEach(() => {
     vi.resetAllMocks()
