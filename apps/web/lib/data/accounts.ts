@@ -612,22 +612,44 @@ export const bulkDeleteAccountsSchema = z.object({
 
 export type BulkDeleteAccountsInput = z.infer<typeof bulkDeleteAccountsSchema>
 
+export type BulkDeleteAccountsResult = {
+  deletedIds: string[]
+  failures: { id: string; error: string }[]
+}
+
 export async function bulkDeleteAccounts(
   ctx: AccountCallContext,
   input: BulkDeleteAccountsInput,
-): Promise<void> {
+): Promise<BulkDeleteAccountsResult> {
   void ctx
   const parsed = bulkDeleteAccountsSchema.parse(input)
   const supabase = await createServerClient()
 
-  const { error } = await supabase
-    .from("accounts")
-    .delete()
-    .in("id", parsed.ids)
+  // ORR-804: soft-delete for parity with softDeleteAccount. A hard .delete()
+  // cascades away account activity history (activities.account_id ON DELETE
+  // CASCADE) and aborts the entire batch on the first account with deals or
+  // account-level documents (opportunities.account_id has no ON DELETE action;
+  // documents CHECK requires opportunity_id OR account_id). Soft-delete each row
+  // independently so one blocked row doesn't sink the rest, and collect per-row
+  // failures for the caller to surface.
+  const deletedIds: string[] = []
+  const failures: { id: string; error: string }[] = []
 
-  if (error) {
-    throw new Error(`Failed to bulk delete accounts: ${error.message}`)
+  for (const id of parsed.ids) {
+    const { error } = await supabase
+      .from("accounts")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", id)
+      .is("deleted_at", null)
+
+    if (error) {
+      failures.push({ id, error: error.message })
+    } else {
+      deletedIds.push(id)
+    }
   }
+
+  return { deletedIds, failures }
 }
 
 export async function softDeleteAccount(

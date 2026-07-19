@@ -4,11 +4,13 @@ vi.mock("server-only", () => ({}))
 
 let queue: unknown[][] = []
 let rangeCalls = 0
+let isCalls: [string, unknown][] = []
 
 function builder() {
   const b: Record<string, unknown> = {}
   b.select = () => b
   b.order = () => b
+  b.is = (col: string, val: unknown) => { isCalls.push([col, val]); return b }
   b.range = () => { rangeCalls++; return b }
   b.then = (resolve: (v: unknown) => unknown) => resolve({ data: queue.shift() ?? [], error: null })
   return b
@@ -25,6 +27,7 @@ const ctx = { user: { id: "admin-1", email: "a@nodwin.com", role: "admin" }, sou
 beforeEach(() => {
   queue = []
   rangeCalls = 0
+  isCalls = []
 })
 
 describe("csvField", () => {
@@ -58,6 +61,8 @@ describe("exportRecordsCsv", () => {
     const lines = out.csv.split("\r\n")
     expect(lines[0]).toBe("Name,Legal name,Website,Country,Industry,Description,Created at")
     expect(lines[1]).toBe("Acme,Acme Inc,acme.com,US,Tech,d,2026-07-14T00:00:00Z")
+    // ORR-804: accounts export excludes soft-deleted rows.
+    expect(isCalls).toContainEqual(["deleted_at", null])
   })
 
   it("flattens the embedded account name for opportunities", async () => {
@@ -68,6 +73,8 @@ describe("exportRecordsCsv", () => {
     const cols = out.csv.split("\r\n")[1].split(",")
     expect(cols[0]).toBe("Big Deal")
     expect(cols[1]).toBe("Acme") // the flattened account name
+    // Opportunities have no deleted_at column — no soft-delete filter applied.
+    expect(isCalls).toHaveLength(0)
   })
 
   it("paginates until a short batch, not stopping at the first full page", async () => {

@@ -174,6 +174,8 @@ export function OpportunityListTable({
   const [showStageDialog, setShowStageDialog] = useState(false)
   const [targetStage, setTargetStage] = useState<DealStage>("qualify")
   const [isPending, setIsPending] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [stageError, setStageError] = useState<string | null>(null)
 
   // Debounce the search box → URL so each keystroke doesn't fire a navigation.
   // The input is seeded from the URL on mount and re-synced explicitly by the
@@ -405,13 +407,16 @@ export function OpportunityListTable({
   const handleBulkDelete = useCallback(async () => {
     if (selectedIds.length === 0) return
     setIsPending(true)
+    setDeleteError(null)
     try {
       await bulkDeleteAction({ ids: selectedIds })
       setRowSelection({})
       setShowDeleteDialog(false)
       router.refresh()
-    } catch {
-      // handled by caller
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error ? error.message : "Failed to delete opportunities.",
+      )
     } finally {
       setIsPending(false)
     }
@@ -420,13 +425,16 @@ export function OpportunityListTable({
   const handleBulkStageChange = useCallback(async () => {
     if (selectedIds.length === 0) return
     setIsPending(true)
+    setStageError(null)
     try {
       await bulkUpdateStageAction({ ids: selectedIds, stage: targetStage })
       setRowSelection({})
       setShowStageDialog(false)
       router.refresh()
-    } catch {
-      // handled by caller
+    } catch (error) {
+      setStageError(
+        error instanceof Error ? error.message : "Failed to update stage.",
+      )
     } finally {
       setIsPending(false)
     }
@@ -556,7 +564,13 @@ export function OpportunityListTable({
         />
       </Card>
 
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <Dialog
+        open={showDeleteDialog}
+        onOpenChange={(open) => {
+          setShowDeleteDialog(open)
+          if (!open) setDeleteError(null)
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Opportunities</DialogTitle>
@@ -566,6 +580,14 @@ export function OpportunityListTable({
               undone.
             </DialogDescription>
           </DialogHeader>
+          {deleteError ? (
+            <p
+              role="alert"
+              className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {deleteError}
+            </p>
+          ) : null}
           <DialogFooter>
             <Button
               variant="outline"
@@ -585,7 +607,13 @@ export function OpportunityListTable({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showStageDialog} onOpenChange={setShowStageDialog}>
+      <Dialog
+        open={showStageDialog}
+        onOpenChange={(open) => {
+          setShowStageDialog(open)
+          if (!open) setStageError(null)
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Change Stage</DialogTitle>
@@ -594,6 +622,14 @@ export function OpportunityListTable({
               {selectedIds.length !== 1 ? "ies" : "y"} to a new stage.
             </DialogDescription>
           </DialogHeader>
+          {stageError ? (
+            <p
+              role="alert"
+              className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {stageError}
+            </p>
+          ) : null}
           <div className="py-2">
             <Select
               value={targetStage}

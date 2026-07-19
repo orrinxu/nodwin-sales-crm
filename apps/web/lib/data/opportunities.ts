@@ -1143,18 +1143,29 @@ export async function bulkUpdateOpportunityStage(
   const parsed = bulkStageUpdateSchema.parse(input)
   const supabase = await createServerClient()
 
+  // ORR-804: also fetch the fields the single-deal path needs to record stage
+  // history and fire owner notifications, so bulk closes aren't audit-trail /
+  // notification black holes.
   const { data: rows, error: fetchError } = await supabase
     .from("opportunities")
-    .select("id, stage")
+    .select("id, stage, name, owner_user_id, entity_sales_id")
     .in("id", parsed.ids)
   if (fetchError) {
     throw new Error(`Failed to load opportunities for bulk stage update: ${fetchError.message}`)
   }
 
+  type BulkStageRow = {
+    id: string
+    stage: DealStage
+    name: string
+    owner_user_id: string | null
+    entity_sales_id: string | null
+  }
+
   // Only rows actually changing stage need gating — and only they should have
   // close_date touched (writing to no-op rows would clobber an already-closed
   // deal's real close_date). ORR-797.
-  const changed = ((rows ?? []) as { id: string; stage: string }[]).filter(
+  const changed = ((rows ?? []) as BulkStageRow[]).filter(
     (row) => row.stage !== parsed.stage,
   )
   for (const row of changed) {
@@ -1176,33 +1187,70 @@ export async function bulkUpdateOpportunityStage(
     if (error) {
       throw new Error(`Failed to bulk update opportunity stages: ${error.message}`)
     }
-    return
-  }
-
-  // Moving to an open stage. Apply the stage to every changed row, then clear
-  // close_date only on rows that are actually reopening (coming from a terminal
-  // stage) — rows advancing between open stages keep any expected close_date.
-  const { error } = await supabase
-    .from("opportunities")
-    .update({ stage: parsed.stage } as never)
-    .in("id", changedIds)
-  if (error) {
-    throw new Error(`Failed to bulk update opportunity stages: ${error.message}`)
-  }
-
-  const reopenedIds = changed
-    .filter((row) => isTerminalStage(row.stage as DealStage))
-    .map((row) => row.id)
-  if (reopenedIds.length > 0) {
-    const { error: clearError } = await supabase
+  } else {
+    // Moving to an open stage. Apply the stage to every changed row, then clear
+    // close_date only on rows that are actually reopening (coming from a terminal
+    // stage) — rows advancing between open stages keep any expected close_date.
+    const { error } = await supabase
       .from("opportunities")
-      .update({ close_date: null } as never)
-      .in("id", reopenedIds)
-    if (clearError) {
-      throw new Error(
-        `Failed to clear close_date on reopened opportunities: ${clearError.message}`,
+      .update({ stage: parsed.stage } as never)
+      .in("id", changedIds)
+    if (error) {
+      throw new Error(`Failed to bulk update opportunity stages: ${error.message}`)
+    }
+
+    const reopenedIds = changed
+      .filter((row) => isTerminalStage(row.stage))
+      .map((row) => row.id)
+    if (reopenedIds.length > 0) {
+      const { error: clearError } = await supabase
+        .from("opportunities")
+        .update({ close_date: null } as never)
+        .in("id", reopenedIds)
+      if (clearError) {
+        throw new Error(
+          `Failed to clear close_date on reopened opportunities: ${clearError.message}`,
+        )
+      }
+    }
+  }
+
+  // ORR-804: record stage history + notify owners for every changed row, exactly
+  // like the single-deal updateOpportunityStage path. Without this a manager
+  // bulk-moving deals to Closed Lost leaves no history rows and sends no owner
+  // notifications. Loss reason is intentionally not collected here — this is at
+  // parity with the kanban board-drag path (updateOpportunityStage), which also
+  // records history + notifies without prompting for a loss reason.
+  for (const row of changed) {
+    const event = determineStageEvent(row.stage, parsed.stage)
+    try {
+      await insertStageHistoryEntry(ctx, {
+        opportunityId: row.id,
+        fromStage: row.stage,
+        toStage: parsed.stage,
+        event,
+        createdBy: ctx.user.id,
+      })
+    } catch (historyError) {
+      console.error(
+        "Stage updated but failed to record history:",
+        historyError instanceof Error ? historyError.message : historyError,
       )
     }
+  }
+
+  const { notifyStageChange } = await import("../notifications/triggers")
+  for (const row of changed) {
+    const event = determineStageEvent(row.stage, parsed.stage)
+    void notifyStageChange({
+      opportunityId: row.id,
+      opportunityName: row.name,
+      fromStage: row.stage,
+      toStage: parsed.stage,
+      event,
+      ownerUserId: row.owner_user_id ?? ctx.user.id,
+      entityId: row.entity_sales_id ?? undefined,
+    })
   }
 }
 
