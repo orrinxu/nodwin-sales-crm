@@ -6,7 +6,7 @@
 -- (apps/web/lib/notifications/delivery.ts) only delivers on routing rows, so a
 -- deal moving to Closed Won, an approval request, a mention, etc. resolved to
 -- [] and nothing was ever delivered — even though the Settings UI offers
--- per-event toggles for all of them.
+-- per-event toggles covering every one of them.
 --
 -- This seeds sane org-wide defaults (entity_id IS NULL) for the six core events:
 --   stage_change, deal_assigned, approval_requested, mention, deal_won, deal_lost
