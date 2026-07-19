@@ -121,12 +121,16 @@ export function ContactForm({
     ? Object.entries(contact.socials).map(([platform, url]) => ({ platform, url }))
     : []
 
-  const form = useForm<FormData>({
-    resolver: zodResolver(formSchema),
-    // ORR-736: on a NEW contact, `prefill` (AI-extracted) seeds the fields. Owner
-    // is never inferred (gate G5); primaryAccountId is set only when the extracted
-    // account matched an existing one (account-first resolution).
-    defaultValues: {
+  // ORR-801: build the RHF value object from the CURRENT `contact`/`prefill` props.
+  // RHF captures `defaultValues` once at mount, so `router.refresh()` after a save
+  // updates the props but NOT the form — reopening the edit dialog would otherwise
+  // show mount-time (pre-edit) values. `handleOpenChange` calls this on every open
+  // to re-seed, mirroring AccountForm/OpportunityForm.
+  function contactFormValues(): FormData {
+    return {
+      // ORR-736: on a NEW contact, `prefill` (AI-extracted) seeds the fields. Owner
+      // is never inferred (gate G5); primaryAccountId is set only when the extracted
+      // account matched an existing one (account-first resolution).
       fullName: contact?.fullName ?? prefill?.fullName ?? "",
       title: contact?.title ?? prefill?.title ?? "",
       email: contact?.email ?? prefill?.email ?? "",
@@ -135,7 +139,12 @@ export function ContactForm({
       notes: contact?.notes ?? prefill?.notes ?? "",
       socials: initialSocials.length > 0 ? initialSocials : [{ platform: "", url: "" }],
       accountLinkIds: linkedAccountIds,
-    },
+    }
+  }
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: contactFormValues(),
   })
 
   const watchedSocials = useWatch({ control: form.control, name: "socials" })
@@ -227,7 +236,12 @@ export function ContactForm({
       }
 
       setOpen(false)
-      form.reset()
+      // ORR-801: reset from the current props, not the stale mount-time defaults.
+      // A bare form.reset() reverted to the pre-edit contact, so saving a second
+      // field silently reverted the first. The dialog is closed here anyway and
+      // handleOpenChange re-seeds on the next open, but resetting keeps RHF's
+      // dirty state consistent for the create/controlled flows.
+      form.reset(contactFormValues())
       setCustomFieldValues(contact?.customData ?? {})
       onSuccess()
     } catch (e) {
@@ -240,7 +254,12 @@ export function ContactForm({
   function handleOpenChange(newOpen: boolean) {
     setOpen(newOpen)
     if (newOpen) {
+      // ORR-801: re-seed RHF state from the current `contact` prop on every open so
+      // the edit dialog reflects the latest persisted values (after router.refresh),
+      // not the mount-time defaults. Mirrors AccountForm/OpportunityForm.
+      form.reset(contactFormValues())
       setCustomFieldValues(contact?.customData ?? {})
+      setError(null)
     }
   }
 
