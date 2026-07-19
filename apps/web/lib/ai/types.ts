@@ -10,6 +10,8 @@ export type AiFeature =
   | "opportunity_extraction"
   | "account_extraction"
   | "contact_extraction"
+  | "transcription"
+  | "embedding"
   | "other"
 
 export type AiCallStatus =

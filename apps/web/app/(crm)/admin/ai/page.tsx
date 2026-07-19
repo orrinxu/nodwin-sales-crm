@@ -5,10 +5,11 @@ import {
   getIngestionStatusCounts,
   getFailedIngestionDocuments,
   getSkippedIngestionDocuments,
+  getEmbeddingIndexHealth,
 } from "@/lib/data/ai-settings"
 import { AiProvidersForm } from "@/components/admin/ai-providers-form"
 import { AiSettingsForm } from "@/components/admin/ai-settings-form"
-import { saveAiProvidersAction, saveAiSettingsAction, runIngestionNowAction, retryAllFailedAction } from "./actions"
+import { saveAiProvidersAction, saveAiSettingsAction, runIngestionNowAction, retryAllFailedAction, reindexAllAction } from "./actions"
 
 export const metadata = {
   title: "AI - Nodwin CRM",
@@ -19,12 +20,13 @@ export default async function AdminAiPage() {
   requireRole(user, "admin")
   const ctx = { user, source: "web" as const }
 
-  const [providers, settings, counts, failedDocuments, skippedDocuments] = await Promise.all([
+  const [providers, settings, counts, failedDocuments, skippedDocuments, indexHealth] = await Promise.all([
     getAiProviders(ctx),
     getAiSettings(ctx),
     getIngestionStatusCounts(ctx),
     getFailedIngestionDocuments(ctx),
     getSkippedIngestionDocuments(ctx),
+    getEmbeddingIndexHealth(),
   ])
 
   return (
@@ -43,9 +45,11 @@ export default async function AdminAiPage() {
           counts={counts}
           failedDocuments={failedDocuments}
           skippedDocuments={skippedDocuments}
+          indexHealth={indexHealth}
           saveAction={saveAiSettingsAction}
           runIngestionAction={runIngestionNowAction}
           retryFailedAction={retryAllFailedAction}
+          reindexAllAction={reindexAllAction}
           providersSlot={<AiProvidersForm data={providers} saveAction={saveAiProvidersAction} />}
         />
       </div>

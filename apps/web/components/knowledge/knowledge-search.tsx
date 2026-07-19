@@ -1,16 +1,17 @@
 "use client"
 
 import { useState } from "react"
-import { Sparkles, ExternalLink, Search } from "lucide-react"
+import { Sparkles, ExternalLink, Search, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { getDocumentDownloadUrlAction } from "@/app/(crm)/documents/actions"
 
 interface Source {
   documentId: string
-  driveFileId: string
-  driveUrl: string
+  documentName: string
+  driveFileId: string | null
   pageRefs: string[]
   opportunityId: string | null
   category: string | null
@@ -105,15 +106,7 @@ export function KnowledgeSearch() {
                   <div key={s.documentId} className="flex items-center justify-between gap-3 text-sm">
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="text-muted-foreground">[{i + 1}]</span>
-                      <a
-                        href={s.driveUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 truncate text-primary hover:underline"
-                      >
-                        <span className="truncate">Drive file {s.driveFileId}</span>
-                        <ExternalLink className="size-3 shrink-0" />
-                      </a>
+                      <SourceLink source={s} />
                       {s.pageRefs.length > 0 && (
                         <span className="text-xs text-muted-foreground">({s.pageRefs.join(", ")})</span>
                       )}
@@ -136,5 +129,50 @@ export function KnowledgeSearch() {
         </div>
       )}
     </div>
+  )
+}
+
+/** A cited source, rendered by document name. Clicking mints a short-lived in-app
+ *  signed download URL (RLS-checked) — no more "Drive file null" links to a 404.
+ *  The blank tab is opened synchronously (before the await) so the browser's
+ *  popup blocker allows it. */
+function SourceLink({ source }: { source: Source }) {
+  const [loading, setLoading] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  async function open() {
+    if (loading) return
+    setLoading(true)
+    setFailed(false)
+    const tab = window.open("", "_blank", "noopener,noreferrer")
+    try {
+      const { url } = await getDocumentDownloadUrlAction(source.documentId)
+      if (tab) tab.location.href = url
+      else window.location.href = url
+    } catch {
+      if (tab) tab.close()
+      setFailed(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={open}
+      disabled={loading}
+      className="inline-flex min-w-0 items-center gap-1 truncate text-primary hover:underline disabled:opacity-60"
+      title={source.documentName}
+    >
+      <FileText className="size-3 shrink-0" />
+      <span className="truncate">{source.documentName}</span>
+      {loading ? (
+        <span className="shrink-0 text-xs text-muted-foreground">…</span>
+      ) : (
+        <ExternalLink className="size-3 shrink-0" />
+      )}
+      {failed && <span className="shrink-0 text-xs text-destructive">unavailable</span>}
+    </button>
   )
 }

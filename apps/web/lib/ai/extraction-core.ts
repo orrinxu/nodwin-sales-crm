@@ -62,6 +62,48 @@ export function extractJsonObject(raw: string): unknown {
   return undefined
 }
 
+/** Count the top-level fields present in a parsed extraction object. */
+function fieldCount(data: unknown): number {
+  return data && typeof data === "object" && !Array.isArray(data) ? Object.keys(data).length : 0
+}
+
+export interface SalvageResult<T> {
+  /** The validated object (may be partial), or undefined when nothing salvaged. */
+  data?: T
+  /** How many fields survived validation. */
+  fieldCount: number
+}
+
+/**
+ * Validate an extracted object, salvaging per-field (ORR-808 e). A whole-object
+ * `safeParse` rejects ALL fields when even one is malformed (an over-long `source`
+ * snippet, a `"true"` string where a boolean is wanted). Since every field is
+ * optional, we instead drop only the invalid fields and keep the valid rest, so
+ * one bad field no longer discards a dozen good ones.
+ */
+export function salvageObject<S extends z.ZodTypeAny>(schema: S, raw: unknown): SalvageResult<z.infer<S>> {
+  const full = schema.safeParse(raw)
+  if (full.success) return { data: full.data, fieldCount: fieldCount(full.data) }
+
+  // Per-field salvage only makes sense for an object schema over an object input.
+  if (raw && typeof raw === "object" && !Array.isArray(raw) && schema instanceof z.ZodObject) {
+    const shape = schema.shape as Record<string, z.ZodTypeAny>
+    const out: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+      // eslint-disable-next-line security/detect-object-injection -- REASON: key comes from the model's JSON; only used to look up a known schema field, unknown keys are skipped
+      const fieldSchema = shape[key]
+      if (!fieldSchema) continue // unknown key → stripped, as before
+      const parsed = fieldSchema.safeParse(value)
+      // eslint-disable-next-line security/detect-object-injection -- REASON: key validated against the schema shape above
+      if (parsed.success && parsed.data !== undefined) out[key] = parsed.data
+    }
+    const revalidated = schema.safeParse(out)
+    if (revalidated.success) return { data: revalidated.data, fieldCount: fieldCount(revalidated.data) }
+  }
+
+  return { data: undefined, fieldCount: 0 }
+}
+
 export interface ExtractionDeps {
   resolveAdapters?: () => Promise<Map<ProviderName, ProviderAdapter>>
   aiCall?: typeof aiCall
@@ -128,11 +170,13 @@ export async function runExtraction<S extends z.ZodTypeAny>(
   const basePrompt = text ? params.buildTextPrompt(doc, truncated) : params.buildImagePrompt()
   const requestId = params.input.requestId ?? `${params.requestPrefix}-${randomUUID()}`
 
+  // Track WHY the previous attempt failed so the retry nudge is accurate (ORR-808
+  // e): a "reply with ONLY JSON" nudge is wrong when the JSON parsed fine but a
+  // field was malformed — it just reproduces the same bad field.
+  let previousFailure: "json" | "shape" | null = null
+
   for (let attempt = 0; attempt < 2; attempt++) {
-    const prompt =
-      attempt === 0
-        ? basePrompt
-        : `${basePrompt}\n\nYour previous reply could not be parsed. Reply with ONLY the JSON object — no prose, no code fences.`
+    const prompt = attempt === 0 ? basePrompt : `${basePrompt}\n\n${retryNudge(previousFailure)}`
 
     const result = await call(
       {
@@ -152,12 +196,30 @@ export async function runExtraction<S extends z.ZodTypeAny>(
 
     if (!result.ok) return { ok: false, error: failureMessage(result.reason) }
 
-    const validated = params.schema.safeParse(extractJsonObject(result.data ?? ""))
-    if (validated.success) {
-      return { ok: true, fields: validated.data, model: result.model ?? null, truncated }
+    const obj = extractJsonObject(result.data ?? "")
+    if (obj === undefined) {
+      previousFailure = "json"
+      continue // no JSON at all → retry asking for pure JSON
     }
-    // else: fall through and retry once with a corrective nudge
+    const salvaged = salvageObject(params.schema, obj)
+    if (salvaged.data !== undefined && salvaged.fieldCount > 0) {
+      return { ok: true, fields: salvaged.data, model: result.model ?? null, truncated }
+    }
+    previousFailure = "shape" // JSON parsed but no usable fields → retry on shape
   }
 
   return { ok: false, error: params.parseFailureMessage }
+}
+
+/** Corrective retry instruction matched to the prior failure (ORR-808 e). */
+export function retryNudge(previousFailure: "json" | "shape" | null): string {
+  if (previousFailure === "shape") {
+    return (
+      "Your previous reply was valid JSON but the field shapes were wrong. Every field must be " +
+      '{"value": <value>, "confidence": <0..1 number>, "source": "<short verbatim snippet>"}, ' +
+      "the value must match the requested type, and `source` must be short. Omit any field you " +
+      "have no evidence for. Reply with ONLY the JSON object — no prose, no code fences."
+    )
+  }
+  return "Your previous reply could not be parsed. Reply with ONLY the JSON object — no prose, no code fences."
 }

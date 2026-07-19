@@ -4257,14 +4257,15 @@ export type Database = {
           _query: string
         }
         Returns: {
-          account_id: string
+          account_id: string | null
           category: Database["public"]["Enums"]["document_category"]
           chunk_index: number
           content: string
           document_id: string
-          drive_file_id: string
+          document_name: string
+          drive_file_id: string | null
           id: string
-          opportunity_id: string
+          opportunity_id: string | null
           page_ref: string
           similarity: number
           visibility_tier: Database["public"]["Enums"]["visibility_tier"]
@@ -4337,6 +4338,8 @@ export type Database = {
         | "opportunity_extraction"
         | "account_extraction"
         | "contact_extraction"
+        | "transcription"
+        | "embedding"
       ai_provider:
         | "claude"
         | "gemini"
@@ -4585,6 +4588,8 @@ export const Constants = {
         "opportunity_extraction",
         "account_extraction",
         "contact_extraction",
+        "transcription",
+        "embedding",
       ],
       ai_provider: [
         "claude",
