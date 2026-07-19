@@ -145,10 +145,12 @@ export type OpportunityScope = "mine" | "all"
 
 /**
  * Columns the server-driven list can sort by (ORR-755). Mapped to a concrete
- * DB order in `applyOpportunitySort`. `account` and `owner` sort through their
- * embedded relation; `amount` sorts on the RAW numeric column (a cross-currency
- * approximation — the same rough order the old client sort used, since FX-exact
- * ordering would need per-row conversion the DB can't do cheaply).
+ * DB order in `applyOpportunitySort`. `account` and `owner` sort on the
+ * DENORMALIZED top-level `account_name` / `owner_name` columns (see ORR-800 note
+ * on `applyOpportunitySort`), NOT the embedded relation; `amount` sorts on the
+ * RAW numeric column (a cross-currency approximation — the same rough order the
+ * old client sort used, since FX-exact ordering would need per-row conversion
+ * the DB can't do cheaply).
  */
 export type OpportunitySortColumn =
   | "name"
@@ -214,35 +216,7 @@ export interface OpportunityListParams {
   pageSize?: number
 }
 
-/**
- * Builds the list SELECT.
- *
- * ORR-800: sorting by the embedded Account / Owner name only orders the PARENT
- * rows when that embed is an INNER join. With a plain (LEFT) embed,
- * `order("account(name)")` / `order(..., { referencedTable })` orders rows
- * *inside* the embed and leaves the parent unordered — a silent no-op that also
- * leaves the subsequent `.range()` paginating an unordered set (rows duplicate /
- * skip across pages). So when the caller sorts by `account` / `owner` we promote
- * that one embed to `!inner` and sort via the top-level `order("account(name)")`
- * spread form, which is an unambiguous PARENT order.
- *
- * `!inner` drops parent rows whose embed has no match — but both `account_id`
- * (opportunity_visibility migration :190) and `owner_user_id` (:195, kept NOT
- * NULL, defaulted to auth.uid() by the owner-default trigger in
- * 20260619000001) are NOT NULL FKs to existing rows, so `!inner` here drops
- * ZERO rows. We only switch the embed actually being sorted, so the common
- * browse path keeps its LEFT joins.
- *
- * TRADEOFF / follow-up: this correctness relies on `owner_user_id` being NOT
- * NULL. If it is ever made nullable (the app carries an `__unassigned__`
- * sentinel that today matches nothing), sorting by Owner would silently exclude
- * unassigned deals — at that point denormalize an `owner_name` column or sort
- * through a view instead of `!inner`.
- */
-function opportunityListSelect(sortColumn?: OpportunitySortColumn): string {
-  const accountInner = sortColumn === "account" ? "!inner" : ""
-  const ownerInner = sortColumn === "owner" ? "!inner" : ""
-  return `
+const OPPORTUNITY_LIST_SELECT = `
       id,
       name,
       account_id,
@@ -273,12 +247,13 @@ function opportunityListSelect(sortColumn?: OpportunitySortColumn): string {
       loss_reason,
       visibility_tier,
       custom_data,
+      account_name,
+      owner_name,
       created_at,
       updated_at,
-      account:account_id${accountInner} ( name ),
-      owner:owner_user_id${ownerInner} ( full_name )
+      account:account_id ( name ),
+      owner:owner_user_id ( full_name )
     `
-}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the PostgREST builder type is opaque across .order() chaining; the shape is preserved.
 function applyOpportunitySort(query: any, sort: OpportunitySort | undefined): any {
@@ -305,15 +280,24 @@ function applyOpportunitySort(query: any, sort: OpportunitySort | undefined): an
         .order("close_date", { ascending, nullsFirst: false })
         .order("id", { ascending: true })
     case "account":
-      // Parent order by the embedded account name — valid because the select
-      // promotes `account` to `!inner` for this sort (see opportunityListSelect).
-      return query
-        .order("account(name)", { ascending })
-        .order("id", { ascending: true })
     case "owner":
-      // Parent order by the embedded owner name — `owner` is `!inner` here.
+      // ORR-800: sort on the DENORMALIZED top-level `account_name` / `owner_name`
+      // columns — NOT the embedded relation. Ordering through the embed only
+      // affects the parent with `!inner`, but `!inner` inner-joins accounts /
+      // users UNDER RLS: those SELECT policies are narrow (accounts =
+      // owner/creator/admin; users = self/same-entity/admin), whereas the
+      // opportunity_visibility model grants access across entities. So a deal you
+      // can legitimately see whose account/owner row you CANNOT see would be
+      // silently dropped from the sorted+paginated result — the exact
+      // missing-rows class this ticket fixes. The denormalized columns live on
+      // the opportunity row itself (which RLS already lets you read) and are kept
+      // current by triggers + backfill (migration 20260719020000). Nulls last so
+      // any un-backfilled row sinks rather than reordering the visible set.
       return query
-        .order("owner(full_name)", { ascending })
+        .order(sort.column === "account" ? "account_name" : "owner_name", {
+          ascending,
+          nullsFirst: false,
+        })
         .order("id", { ascending: true })
     default:
       return query
@@ -333,7 +317,7 @@ export async function getOpportunities(
 
   let query = supabase
     .from("opportunities")
-    .select(opportunityListSelect(params.sort?.column), { count: "exact" })
+    .select(OPPORTUNITY_LIST_SELECT, { count: "exact" })
 
   // Owner-scope narrowing. Additional filter ON TOP of RLS — never widens access.
   if (scope === "mine") {
@@ -411,13 +395,7 @@ export async function getOpportunities(
     throw new Error(`Failed to load opportunities: ${error.message}`)
   }
 
-  // `data` is typed as the opaque row shape because the SELECT is now built at
-  // runtime (opportunityListSelect) rather than a string literal postgrest-js
-  // can parse at the type level. The row shape is unchanged, so map through the
-  // domain mapper via the same Record<string, unknown> contract it expects.
-  const opportunities = ((data ?? []) as unknown as Record<string, unknown>[]).map(
-    toDomainOpportunity,
-  )
+  const opportunities = (data ?? []).map(toDomainOpportunity)
   const totalCount = count ?? 0
 
   return { opportunities, totalCount, page, pageSize }

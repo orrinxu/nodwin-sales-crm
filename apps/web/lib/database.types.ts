@@ -2249,6 +2249,7 @@ export type Database = {
       opportunities: {
         Row: {
           account_id: string
+          account_name: string | null
           amount: number
           barter_value: number | null
           billing_entity_id: string | null
@@ -2271,6 +2272,7 @@ export type Database = {
           loss_reason: string | null
           name: string
           ops_unit_id: string | null
+          owner_name: string | null
           owner_user_id: string
           primary_contact_id: string | null
           probability_pct: number
@@ -2295,6 +2297,7 @@ export type Database = {
         }
         Insert: {
           account_id: string
+          account_name?: string | null
           amount?: number
           barter_value?: number | null
           billing_entity_id?: string | null
@@ -2317,6 +2320,7 @@ export type Database = {
           loss_reason?: string | null
           name: string
           ops_unit_id?: string | null
+          owner_name?: string | null
           owner_user_id: string
           primary_contact_id?: string | null
           probability_pct?: number
@@ -2341,6 +2345,7 @@ export type Database = {
         }
         Update: {
           account_id?: string
+          account_name?: string | null
           amount?: number
           barter_value?: number | null
           billing_entity_id?: string | null
@@ -2363,6 +2368,7 @@ export type Database = {
           loss_reason?: string | null
           name?: string
           ops_unit_id?: string | null
+          owner_name?: string | null
           owner_user_id?: string
           primary_contact_id?: string | null
           probability_pct?: number
