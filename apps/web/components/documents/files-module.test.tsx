@@ -100,7 +100,17 @@ describe("FilesModule", () => {
       expect.objectContaining({ documentId: "d1", name: "Proposal.pdf", mimeType: "application/pdf" }),
     )
     expect(uploadToSignedUrl).toHaveBeenCalledWith("opp1/y.pdf", "tok", file)
-    await waitFor(() => expect(finalizeDocumentReplacementAction).toHaveBeenCalledWith({ opportunityId: "opp1", documentId: "d1" }))
+    // ORR-802: finalize (the destructive commit) runs only AFTER the byte upload,
+    // and carries the freshly-uploaded path so the server repoints to it.
+    await waitFor(() =>
+      expect(finalizeDocumentReplacementAction).toHaveBeenCalledWith({
+        opportunityId: "opp1",
+        documentId: "d1",
+        newPath: "opp1/y.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 2,
+      }),
+    )
     // Optimistic: the "missing source" badge clears (moves to pending).
     await waitFor(() => expect(screen.queryByText(/source file missing/i)).not.toBeInTheDocument())
   })

@@ -8,12 +8,13 @@ import type { AuthenticatedUser } from "@/lib/security/auth"
 import {
   createStoredDocument,
   createReplacementUpload,
-  finalizeReplacement,
+  confirmReplacementUpload,
   createDocumentDownloadUrl,
   deleteStoredDocument,
   updateDocumentCategory,
   documentUploadSchema,
   documentReplacementSchema,
+  replacementConfirmSchema,
   documentCategorySchema,
 } from "@/lib/data/documents"
 
@@ -72,12 +73,20 @@ export async function createDocumentReplacementAction(input: unknown) {
   }
 }
 
-/** Step 2 of re-upload: reset the doc to 'pending' so ingestion re-indexes it,
- *  and refresh the entity page. */
+/** Step 2 of re-upload: commit the replacement AFTER the new bytes have landed —
+ *  repoint the row at the freshly-uploaded object, reset it to 'pending' so
+ *  ingestion re-indexes it, delete the old object, and refresh the entity page.
+ *  Only invoked on a successful client upload, so the old bytes survive a failed
+ *  or abandoned upload (ORR-802). */
 export async function finalizeDocumentReplacementAction(input: unknown) {
   const user = await requireUser()
-  const parsed = entityRef.extend({ documentId: z.string().uuid() }).parse(input)
-  await finalizeReplacement(webCtx(user), parsed.documentId)
+  const parsed = entityRef.merge(replacementConfirmSchema).parse(input)
+  await confirmReplacementUpload(webCtx(user), {
+    documentId: parsed.documentId,
+    newPath: parsed.newPath,
+    mimeType: parsed.mimeType,
+    sizeBytes: parsed.sizeBytes,
+  })
   revalidateEntity(parsed)
 }
 

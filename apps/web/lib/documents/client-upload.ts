@@ -61,19 +61,27 @@ export async function finalizeUpload(target: UploadTarget): Promise<void> {
 }
 
 /**
- * Re-attach source bytes to an EXISTING document (recovery for a 'skipped' doc
- * whose Storage object was lost). Repoints the row, pushes the new bytes to a
- * signed URL, then resets it to 'pending' so ingestion re-indexes it.
+ * Re-attach source bytes to an EXISTING document (ORR-747 in-place re-upload /
+ * recovery for a 'skipped' doc whose Storage object was lost).
+ *
+ * ORR-802 ordering — the previous good bytes must survive a failed upload:
+ *   1. mint a signed upload URL for a FRESH storage_path (the row is NOT
+ *      repointed and the old object is NOT deleted here);
+ *   2. push the new bytes to that URL — on failure we throw before step 3, so
+ *      the row still points at the old, intact object;
+ *   3. only now confirm: repoint the row, reset to 'pending', delete the old
+ *      object.
  */
 export async function replaceDocumentSource(
   target: UploadTarget,
   documentId: string,
   file: File,
 ): Promise<void> {
+  const mimeType = file.type || "application/octet-stream"
   const res = await createDocumentReplacementAction({
     documentId,
     name: file.name,
-    mimeType: file.type || "application/octet-stream",
+    mimeType,
     sizeBytes: file.size,
   })
   const supabase = createClient()
@@ -81,5 +89,11 @@ export async function replaceDocumentSource(
     .from(res.bucket)
     .uploadToSignedUrl(res.path, res.token, file)
   if (error) throw new Error(error.message)
-  await finalizeDocumentReplacementAction({ ...target, documentId })
+  await finalizeDocumentReplacementAction({
+    ...target,
+    documentId,
+    newPath: res.path,
+    mimeType,
+    sizeBytes: file.size,
+  })
 }
