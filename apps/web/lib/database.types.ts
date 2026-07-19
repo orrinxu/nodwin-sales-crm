@@ -4257,15 +4257,15 @@ export type Database = {
           _query: string
         }
         Returns: {
-          account_id: string | null
+          account_id: string
           category: Database["public"]["Enums"]["document_category"]
           chunk_index: number
           content: string
           document_id: string
           document_name: string
-          drive_file_id: string | null
+          drive_file_id: string
           id: string
-          opportunity_id: string | null
+          opportunity_id: string
           page_ref: string
           similarity: number
           visibility_tier: Database["public"]["Enums"]["visibility_tier"]

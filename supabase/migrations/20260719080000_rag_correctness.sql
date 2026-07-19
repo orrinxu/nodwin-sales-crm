@@ -97,24 +97,27 @@ BEGIN
 
   RETURN QUERY
   SELECT
-    s.id, s.document_id, s.document_name, s.drive_file_id, s.page_ref, s.chunk_index,
+    s.id, s.document_id, d.name AS document_name, s.drive_file_id, s.page_ref, s.chunk_index,
     s.opportunity_id, s.account_id, s.visibility_tier, s.category, s.content,
     s.similarity
   FROM (
-    -- Inner: the ANN top-k. `ORDER BY embedding <=> query LIMIT k` on the base
-    -- table lets the planner use the HNSW index. The entitlement gate now covers
-    -- BOTH arms:
+    -- Inner: the ANN top-k. `ORDER BY embedding <=> query LIMIT k` on the BASE
+    -- table (no JOIN) is what lets the planner use the HNSW index and fixes the
+    -- candidate ordering — the document name is joined in the OUTER query below,
+    -- on the ≤50 survivors, so it can neither change the plan nor perturb the
+    -- tie-order of the ANN scan (ORR-808 b: joining inside the inner query flipped
+    -- the plan and dropped legitimately-entitled rows under the 50-row clamp).
+    -- The entitlement gate now covers BOTH arms:
     --   • opportunity-linked chunks → opportunity_visibility (unchanged), and
     --   • account-only chunks (opportunity_id NULL) → can_read_account (ORR-808 c).
     -- The model guard prevents cross-model comparison. iterative_scan backfills
     -- past rows these predicates discard.
     SELECT
-      dc.id, dc.document_id, d.name AS document_name, dc.drive_file_id, dc.page_ref,
+      dc.id, dc.document_id, dc.drive_file_id, dc.page_ref,
       dc.chunk_index, dc.opportunity_id, dc.account_id, dc.visibility_tier, dc.category,
       dc.content,
       1 - (dc.embedding <=> _query) AS similarity
     FROM public.document_chunks dc
-    JOIN public.documents d ON d.id = dc.document_id
     WHERE dc.embedding IS NOT NULL
       AND dc.embedding_model = _model
       AND (
@@ -135,6 +138,10 @@ BEGIN
     ORDER BY dc.embedding <=> _query
     LIMIT LEAST(GREATEST(_match_count, 0), 50)
   ) s
+  -- Outer: attach the parent document name (ORR-808 b) on the clamped survivor
+  -- set, drop anything below the similarity floor, and guarantee a stable
+  -- distance ordering regardless of iterative_scan's relaxed order.
+  JOIN public.documents d ON d.id = s.document_id
   WHERE s.similarity >= _min_similarity
   ORDER BY s.similarity DESC;
 END;
