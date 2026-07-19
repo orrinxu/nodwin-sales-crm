@@ -444,7 +444,10 @@ export async function notifyCurrentApprover(opportunityId: string): Promise<void
 
     const { notifyApprovalRequested } = await import("../notifications/triggers")
     await Promise.allSettled(
-      approverIds.map((id) =>
+      // Every approver gets their own in-app/email notification, but the Slack
+      // channel is org-wide: post it once for the step (first approver) rather
+      // than once per approver, which spammed the shared channel (ORR-811b).
+      approverIds.map((id, index) =>
         notifyApprovalRequested({
           approverUserId: id,
           opportunityName,
@@ -452,6 +455,7 @@ export async function notifyCurrentApprover(opportunityId: string): Promise<void
           stepNumber: current.step_order,
           totalSteps: stepRows.length,
           entityId: instance.business_entity_id ?? undefined,
+          suppressSlack: index !== 0,
         }),
       ),
     )

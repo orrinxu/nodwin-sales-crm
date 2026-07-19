@@ -96,24 +96,34 @@ export interface ApprovalRequestedContext {
   stepNumber: number
   totalSteps: number
   entityId?: string
+  // A step can have several approvers (a named list, or every holder of a role).
+  // Each gets their own in-app/email notification, but the Slack channel post
+  // must happen once per step, not once per approver — so the caller sets this
+  // on all-but-one approver to dedupe the shared-channel broadcast (ORR-811b).
+  suppressSlack?: boolean
 }
 
 export async function notifyApprovalRequested(
   ctx: ApprovalRequestedContext,
 ): Promise<void> {
   try {
-    await sendNotification(ctx.approverUserId, "approval_requested", {
-      title: `Approval requested: ${ctx.opportunityName}`,
-      message: `Your approval is needed for "${ctx.opportunityName}" (step ${ctx.stepNumber} of ${ctx.totalSteps}).`,
-      linkUrl: `/opportunities/${ctx.opportunityId}`,
-      entityId: ctx.entityId,
-      metadata: {
-        event_type: "approval_requested",
-        opportunity_id: ctx.opportunityId,
-        step_number: ctx.stepNumber,
-        total_steps: ctx.totalSteps,
+    await sendNotification(
+      ctx.approverUserId,
+      "approval_requested",
+      {
+        title: `Approval requested: ${ctx.opportunityName}`,
+        message: `Your approval is needed for "${ctx.opportunityName}" (step ${ctx.stepNumber} of ${ctx.totalSteps}).`,
+        linkUrl: `/opportunities/${ctx.opportunityId}`,
+        entityId: ctx.entityId,
+        metadata: {
+          event_type: "approval_requested",
+          opportunity_id: ctx.opportunityId,
+          step_number: ctx.stepNumber,
+          total_steps: ctx.totalSteps,
+        },
       },
-    })
+      { suppressSlack: ctx.suppressSlack },
+    )
   } catch (err) {
     console.error(
       `[notifications] Failed to send approval requested notification: ${err instanceof Error ? err.message : String(err)}`,

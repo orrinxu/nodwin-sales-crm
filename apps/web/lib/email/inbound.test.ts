@@ -451,5 +451,105 @@ describe("processInboundEmail", () => {
 
     expect(result.status).toBe("accepted")
   })
+
+  // ORR-811d — a malformed [OPP-…] ref must NOT reach the uuid-cast query (which
+  // would throw `invalid input syntax for type uuid` → 500 → Postmark retry loop).
+  it("does not query opportunities for a non-uuid [OPP-…] ref, and still accepts the email", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "users") return mockUsers(true)
+      if (table === "activities") return mockActivitySelect(false)
+      if (table === "inbound_email_deadletter") return mockDeadletterSelect(false)
+      if (table === "opportunities")
+        throw new Error("must not query opportunities for a non-uuid ref")
+      return {}
+    })
+
+    const payload = makePayload({
+      Dkim: "Pass",
+      Subject: "Re: [OPP-1234] pricing",
+      ToFull: [addr("token123@crm.nodwin.com")],
+    })
+
+    const result = await processInboundEmail(payload)
+
+    expect(result.status).toBe("accepted")
+    expect(mockFrom).not.toHaveBeenCalledWith("opportunities")
+  })
+
+  it("resolves the opportunity for a valid-uuid [OPP-…] ref the sender can see", async () => {
+    const oppUuid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "users") return mockUsers(true)
+      if (table === "activities") return mockActivitySelect(false)
+      if (table === "inbound_email_deadletter") return mockDeadletterSelect(false)
+      if (table === "opportunities")
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({ data: { id: oppUuid }, error: null }),
+            }),
+          }),
+        }
+      if (table === "opportunity_visibility")
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                maybeSingle: () =>
+                  Promise.resolve({ data: { opportunity_id: oppUuid }, error: null }),
+              }),
+            }),
+          }),
+        }
+      return {}
+    })
+
+    const payload = makePayload({
+      Dkim: "Pass",
+      Subject: `Re: [OPP-${oppUuid}] pricing`,
+      ToFull: [addr("token123@crm.nodwin.com")],
+    })
+
+    const result = await processInboundEmail(payload)
+
+    expect(result.status).toBe("accepted")
+    expect(mockFrom).toHaveBeenCalledWith("opportunities")
+  })
+
+  // ORR-811e — sender lookup lowercases the From address (stored crm_inbound_email
+  // is always lowercase), so a mixed-case From no longer deadletters a real user.
+  it("looks up the sender case-insensitively (lowercases the From address)", async () => {
+    const capturedEq: [string, unknown][] = []
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "users")
+        return {
+          select: () => ({
+            eq: (col: string, val: unknown) => {
+              capturedEq.push([col, val])
+              return {
+                maybeSingle: () =>
+                  Promise.resolve({ data: { id: "user-123" }, error: null }),
+              }
+            },
+          }),
+        }
+      if (table === "activities") return mockActivitySelect(false)
+      if (table === "inbound_email_deadletter") return mockDeadletterSelect(false)
+      return {}
+    })
+
+    const payload = makePayload({
+      Dkim: "Pass",
+      From: "Mixed.Case@Example.com",
+      FromFull: addr("Mixed.Case@Example.com", "Mixed"),
+      ToFull: [addr("token123@crm.nodwin.com")],
+    })
+
+    const result = await processInboundEmail(payload)
+
+    expect(result.status).toBe("accepted")
+    expect(capturedEq).toContainEqual(["crm_inbound_email", "mixed.case@example.com"])
+  })
 })
 

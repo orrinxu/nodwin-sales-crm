@@ -4,6 +4,16 @@ import { z } from "zod"
 import { createServerClient } from "@/lib/supabase/server"
 import type { AuthenticatedUser } from "@/lib/security/auth"
 import { clampPage, clampPageSize, rangeFor } from "@/lib/list/pagination"
+import { SLACK_ROUTABLE_EVENTS } from "@/lib/data/slack"
+
+// The only events that may broadcast to the shared Slack channel. Enforced here
+// (not just in the admin UI) so a direct action/POST cannot route a confidential
+// or per-recipient event — break-glass, mention, direct-report reassignment,
+// which would leak a deal name + actor's reason to a whole workspace — to Slack
+// (ORR-811c). Single source of truth lives in lib/data/slack.ts.
+const SLACK_ROUTABLE_EVENT_TYPES = new Set<string>(
+  SLACK_ROUTABLE_EVENTS.map((e) => e.value),
+)
 
 export type NotificationEventType =
   | "stage_change"
@@ -157,38 +167,56 @@ function toDomainNotification(
   }
 }
 
-export const notificationRoutingUpsertSchema = z.object({
-  eventType: z.enum([
-    "stage_change",
-    "deal_assigned",
-    "approval_requested",
-    "mention",
-    "deal_won",
-    "deal_lost",
-    "confidential_break_glass",
-    "direct_report_reassigned",
-  ]),
-  channel: z.enum(["in_app", "email", "slack"]),
-  enabled: z.boolean(),
-  entityId: z.string().uuid().nullable().optional(),
-})
+export const notificationRoutingUpsertSchema = z
+  .object({
+    eventType: z.enum([
+      "stage_change",
+      "deal_assigned",
+      "approval_requested",
+      "mention",
+      "deal_won",
+      "deal_lost",
+      "confidential_break_glass",
+      "direct_report_reassigned",
+    ]),
+    channel: z.enum(["in_app", "email", "slack"]),
+    enabled: z.boolean(),
+    entityId: z.string().uuid().nullable().optional(),
+  })
+  .refine(
+    (v) => v.channel !== "slack" || SLACK_ROUTABLE_EVENT_TYPES.has(v.eventType),
+    {
+      path: ["eventType"],
+      message:
+        "This event cannot be routed to Slack — confidential and per-recipient events must never broadcast to a shared channel.",
+    },
+  )
 
-export const userNotificationOverrideUpsertSchema = z.object({
-  id: z.string().uuid().optional(),
-  userId: z.string().uuid(),
-  eventType: z.enum([
-    "stage_change",
-    "deal_assigned",
-    "approval_requested",
-    "mention",
-    "deal_won",
-    "deal_lost",
-    "confidential_break_glass",
-    "direct_report_reassigned",
-  ]),
-  channel: z.enum(["in_app", "email", "slack"]),
-  enabled: z.boolean(),
-})
+export const userNotificationOverrideUpsertSchema = z
+  .object({
+    id: z.string().uuid().optional(),
+    userId: z.string().uuid(),
+    eventType: z.enum([
+      "stage_change",
+      "deal_assigned",
+      "approval_requested",
+      "mention",
+      "deal_won",
+      "deal_lost",
+      "confidential_break_glass",
+      "direct_report_reassigned",
+    ]),
+    channel: z.enum(["in_app", "email", "slack"]),
+    enabled: z.boolean(),
+  })
+  // Slack is an org-wide channel broadcast, not a per-recipient delivery, so a
+  // per-user Slack override is meaningless AND dangerous: it would mute/unmute an
+  // org-wide broadcast for one user via a direct POST. Reject it (ORR-811c).
+  .refine((v) => v.channel !== "slack", {
+    path: ["channel"],
+    message:
+      "Slack is an org-wide broadcast channel and cannot be overridden per user.",
+  })
 
 export const emailTemplateUpsertSchema = z.object({
   id: z.string().uuid().optional(),
