@@ -17,7 +17,7 @@
 --     behaviour even differs by role.
 --
 -- DECISION: a soft-deleted account's opportunities are EXCLUDED from every
--- reporting aggregate, consistently for all roles. This matches the ORR-804
+-- reporting aggregate, consistently for every role. This matches the ORR-804
 -- export/search fix (a deleted account disappears from CSV export and global
 -- search) and the soft-delete intent (a "deleted" account should not keep
 -- inflating pipeline/forecast/report numbers). The alternative — showing them
