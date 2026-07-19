@@ -6,7 +6,6 @@ import { Phone, StickyNote } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Tabs,
   TabsList,
@@ -58,42 +57,38 @@ export function ActivityComposer({
     )
   }
 
+  // No wrapping Card here: callers (the opportunity detail wrapper) supply their
+  // own titled "Log activity" card, so an inner Card produced nested double
+  // chrome. Render just the tabbed forms.
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Log Activity</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="note">
-          <TabsList>
-            <TabsTab value="note">
-              <StickyNote className="size-4" />
-              Note
-            </TabsTab>
-            <TabsTab value="call">
-              <Phone className="size-4" />
-              Call
-            </TabsTab>
-          </TabsList>
-          <TabsPanel value="note">
-            <NoteForm
-              revalidateId={revalidateId}
-              scope={scope}
-              createAction={createAction}
-              onCreated={onCreated}
-            />
-          </TabsPanel>
-          <TabsPanel value="call">
-            <CallForm
-              revalidateId={revalidateId}
-              scope={scope}
-              createAction={createAction}
-              onCreated={onCreated}
-            />
-          </TabsPanel>
-        </Tabs>
-      </CardContent>
-    </Card>
+    <Tabs defaultValue="note">
+      <TabsList>
+        <TabsTab value="note">
+          <StickyNote className="size-4" />
+          Note
+        </TabsTab>
+        <TabsTab value="call">
+          <Phone className="size-4" />
+          Call
+        </TabsTab>
+      </TabsList>
+      <TabsPanel value="note">
+        <NoteForm
+          revalidateId={revalidateId}
+          scope={scope}
+          createAction={createAction}
+          onCreated={onCreated}
+        />
+      </TabsPanel>
+      <TabsPanel value="call">
+        <CallForm
+          revalidateId={revalidateId}
+          scope={scope}
+          createAction={createAction}
+          onCreated={onCreated}
+        />
+      </TabsPanel>
+    </Tabs>
   )
 }
 
@@ -107,23 +102,38 @@ interface FormProps {
 function NoteForm({ revalidateId, scope, createAction, onCreated }: FormProps) {
   const [body, setBody] = useState("")
   const [subject, setSubject] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const createNote = async () => {
-    if (!body.trim()) return
-    await createAction(revalidateId, {
-      ...scope,
-      type: "note" as ActivityType,
-      subject: subject.trim() || null,
-      body: body.trim(),
-      metadata: {},
-    })
-    setBody("")
-    setSubject("")
-    onCreated?.()
+    if (!body.trim() || saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      await createAction(revalidateId, {
+        ...scope,
+        type: "note" as ActivityType,
+        subject: subject.trim() || null,
+        body: body.trim(),
+        metadata: {},
+      })
+      setBody("")
+      setSubject("")
+      onCreated?.()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save the note. Please try again.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <div className="mt-4 grid gap-3">
+      {error && (
+        <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
       <div className="grid gap-1.5">
         <Label htmlFor="note-subject">Subject</Label>
         <Input
@@ -144,8 +154,8 @@ function NoteForm({ revalidateId, scope, createAction, onCreated }: FormProps) {
         />
       </div>
       <div className="flex justify-end">
-        <Button type="button" size="sm" onClick={createNote} disabled={!body.trim()}>
-          Save Note
+        <Button type="button" size="sm" onClick={createNote} disabled={!body.trim() || saving}>
+          {saving ? "Saving..." : "Save Note"}
         </Button>
       </div>
     </div>
@@ -156,26 +166,41 @@ function CallForm({ revalidateId, scope, createAction, onCreated }: FormProps) {
   const [subject, setSubject] = useState("")
   const [notes, setNotes] = useState("")
   const [duration, setDuration] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const logCall = async () => {
-    if (!subject.trim() && !notes.trim()) return
-    await createAction(revalidateId, {
-      ...scope,
-      type: "call" as ActivityType,
-      subject: subject.trim() || null,
-      body: notes.trim() || null,
-      metadata: {
-        duration_minutes: duration ? Number(duration) : null,
-      },
-    })
-    setSubject("")
-    setNotes("")
-    setDuration("")
-    onCreated?.()
+    if ((!subject.trim() && !notes.trim()) || saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      await createAction(revalidateId, {
+        ...scope,
+        type: "call" as ActivityType,
+        subject: subject.trim() || null,
+        body: notes.trim() || null,
+        metadata: {
+          duration_minutes: duration ? Number(duration) : null,
+        },
+      })
+      setSubject("")
+      setNotes("")
+      setDuration("")
+      onCreated?.()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't log the call. Please try again.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <div className="mt-4 grid gap-3">
+      {error && (
+        <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
       <div className="grid gap-1.5">
         <Label htmlFor="call-subject">Subject</Label>
         <Input
@@ -207,8 +232,8 @@ function CallForm({ revalidateId, scope, createAction, onCreated }: FormProps) {
         />
       </div>
       <div className="flex justify-end">
-        <Button type="button" size="sm" onClick={logCall} disabled={!subject.trim() && !notes.trim()}>
-          Log Call
+        <Button type="button" size="sm" onClick={logCall} disabled={(!subject.trim() && !notes.trim()) || saving}>
+          {saving ? "Logging..." : "Log Call"}
         </Button>
       </div>
     </div>

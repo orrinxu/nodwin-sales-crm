@@ -580,7 +580,11 @@ const opportunityCreateObject = z.object({
   closeDate: z.string().optional().or(z.literal("")),
   executionDate: z.string().optional().or(z.literal("")),
   estimatedGrossMarginPct: z.coerce.number().optional(),
-  countryExecution: z.string().max(100).optional().or(z.literal("")),
+  // Stored as a comma-joined list of ISO country codes. The picker offers 33
+  // countries → the joined string can exceed 100 chars, so the cap must clear the
+  // full selection (was max(100) → a full pick failed server-side with a redacted
+  // error). country_execution is a `text` column, so 500 is well within bounds.
+  countryExecution: z.string().max(500).optional().or(z.literal("")),
   projectType: z.enum(PROJECT_TYPES).optional(),
   revenueCategory: z.enum(REVENUE_CATEGORIES).optional(),
   recurring: z.coerce.boolean().optional(),

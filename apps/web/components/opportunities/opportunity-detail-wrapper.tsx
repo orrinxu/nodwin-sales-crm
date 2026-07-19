@@ -36,6 +36,8 @@ import { StageTracker } from "@/components/opportunities/stage-tracker"
 import type { DocumentSummary } from "@/lib/data/documents"
 import type { DealCopilotResult } from "@/lib/ai/deal-copilot"
 import type { EntityOption } from "@/components/entity-combobox"
+import type { AccountOption } from "@/lib/data/contacts"
+import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import type {
   OpportunityRecord,
   BusinessUnitOption,
@@ -104,6 +106,16 @@ interface OpportunityDetailWrapperProps {
   documents: DocumentSummary[]
   createActivityAction: (opportunityId: string, input: unknown) => Promise<ActivityRecord>
   searchUsersAction?: (query: string) => Promise<EntityOption[]>
+  // Account/contact pickers for the edit dialog (ORR-812): without these the
+  // detail-page edit form's account/contact comboboxes are dead (empty items, no
+  // search) — the account of an existing deal was unchangeable from anywhere.
+  accounts?: AccountOption[]
+  searchAccountsAction?: (query: string) => Promise<EntityOption[]>
+  searchContactsAction?: (query: string, accountId?: string) => Promise<EntityOption[]>
+  createContactQuickAction?: (input: { fullName: string; email?: string; accountId?: string }) => Promise<EntityOption>
+  createAccountQuickAction?: (input: { name: string }) => Promise<EntityOption>
+  /** Admin-defined opportunity custom fields, rendered + enforced in the edit dialog. */
+  fieldDefinitions?: FieldDefinition[]
   splits?: OpportunitySplit[]
   teamMembers?: OpportunityTeamMember[]
   stageHistory?: StageHistoryRecord[]
@@ -264,6 +276,12 @@ export function OpportunityDetailWrapper({
   documents,
   createActivityAction,
   searchUsersAction,
+  accounts = [],
+  searchAccountsAction,
+  searchContactsAction,
+  createContactQuickAction,
+  createAccountQuickAction,
+  fieldDefinitions = [],
   splits = [],
   teamMembers = [],
   stageHistory = [],
@@ -301,6 +319,9 @@ export function OpportunityDetailWrapper({
   const router = useRouter()
   const { formatDate } = usePreferences()
   const [updatingStage, setUpdatingStage] = useState(false)
+  // A rejected stage change (approval gate / illegal transition) carries a
+  // user-facing message — show it instead of only logging to the console.
+  const [stageError, setStageError] = useState<string | null>(null)
   const [approvalPending, setApprovalPending] = useState(false)
   // ORR-803(f): the approval server actions throw (no matching workflow, RLS
   // denial, already-pending, stale-approval invalidation, …). Surface the message
@@ -434,11 +455,16 @@ export function OpportunityDetailWrapper({
   const handleStageClick = useCallback(async (stage: DealStage) => {
     if (updatingStage) return
     setUpdatingStage(true)
+    setStageError(null)
     try {
       await updateStageAction(opportunity.id, { stage })
       router.refresh()
     } catch (err) {
-      console.error("Failed to update stage:", err instanceof Error ? err.message : err)
+      setStageError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Couldn't update the stage. Please try again.",
+      )
     } finally {
       setUpdatingStage(false)
     }
@@ -482,10 +508,16 @@ export function OpportunityDetailWrapper({
               opportunity={opportunity}
               businessUnits={businessUnits}
               users={users}
+              accounts={accounts}
+              fieldDefinitions={fieldDefinitions}
               createAction={async () => { throw new Error("Not available") }}
               updateAction={updateAction}
               onSuccess={() => router.refresh()}
               searchUsersAction={searchUsersAction}
+              searchAccountsAction={searchAccountsAction}
+              searchContactsAction={searchContactsAction}
+              createContactQuickAction={createContactQuickAction}
+              createAccountQuickAction={createAccountQuickAction}
               amountDerived={amountDerived}
               currencyLocked={currencyLocked}
               trigger={
@@ -541,6 +573,21 @@ export function OpportunityDetailWrapper({
             disabled={isTerminal || updatingStage}
             onSelect={handleStageClick}
           />
+          {stageError ? (
+            <div
+              role="alert"
+              className="mt-3 flex items-start justify-between gap-3 rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
+            >
+              <span>{stageError}</span>
+              <button
+                type="button"
+                onClick={() => setStageError(null)}
+                className="shrink-0 font-medium underline underline-offset-2"
+              >
+                Dismiss
+              </button>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

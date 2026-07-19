@@ -25,6 +25,7 @@ import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-selec
 import type { OpportunityRecord, OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/opportunities.types"
 import type { AccountOption } from "@/lib/data/contacts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
+import { findMissingRequiredFields } from "@/lib/data/field-definitions.types"
 import { CustomFieldsForm } from "@/components/contacts/custom-fields-form"
 import {
   DEAL_STAGES,
@@ -64,7 +65,7 @@ const formSchema = z.object({
   servicePeriodEnd: z.string().optional().or(z.literal("")),
   executionDate: z.string().optional().or(z.literal("")),
   estimatedGrossMarginPct: z.coerce.number().optional(),
-  countryExecution: z.string().max(100).optional().or(z.literal("")),
+  countryExecution: z.string().max(500).optional().or(z.literal("")),
   projectType: z.enum(PROJECT_TYPES).optional().or(z.literal("")),
   revenueCategory: z.enum(REVENUE_CATEGORIES).optional().or(z.literal("")),
   recurring: z.coerce.boolean().optional(),
@@ -224,6 +225,7 @@ export function OpportunityForm({
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>(
     () => opportunity?.customData ?? {},
   )
+  const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({})
   const [countryExecutionValue, setCountryExecutionValue] = useState<string[]>(
     () => {
       const raw = opportunity?.countryExecution ?? prefill?.countryExecution
@@ -281,6 +283,11 @@ export function OpportunityForm({
   const watchRecurring = form.watch("recurring")
   const watchStage = form.watch("stage")
   const watchAccountId = form.watch("accountId")
+  // Subscribe the relation/owner fields so the comboboxes re-render on selection
+  // (they write via setValue, which doesn't re-render on a getValues read → the
+  // trigger showed a stale label even though the value submitted correctly).
+  const watchPrimaryContactId = form.watch("primaryContactId")
+  const watchOwnerUserId = form.watch("ownerUserId")
   const isClosedLost = watchStage === "closed_lost"
 
   // Reveal commercial/legal fields at Propose+, when editing a deal that already
@@ -305,6 +312,18 @@ export function OpportunityForm({
   }, [form])
 
   async function onSubmit(data: FormData) {
+    // Enforce admin-defined required custom fields client-side so they surface as
+    // inline field errors — the server enforces them too (ORR-812), but that
+    // throw would otherwise reach the user as a prod-redacted generic error.
+    const missingRequired = findMissingRequiredFields(fieldDefinitions, customFieldValues)
+    if (missingRequired.length > 0) {
+      setCustomFieldErrors(
+        Object.fromEntries(missingRequired.map((d) => [d.key, `${d.label} is required`])),
+      )
+      setError("Please fill in the required fields below.")
+      return
+    }
+    setCustomFieldErrors({})
     setPending(true)
     setError(null)
     try {
@@ -410,6 +429,8 @@ export function OpportunityForm({
   function handleOpenChange(newOpen: boolean) {
     setOpen(newOpen)
     setShowAllFields(false)
+    setCustomFieldErrors({})
+    setError(null)
     if (newOpen && opportunity) {
       form.reset({
         name: opportunity.name,
@@ -566,7 +587,7 @@ export function OpportunityForm({
           </Label>
           <EntityCombobox
             items={accountsForCombobox}
-            value={form.getValues("accountId")}
+            value={watchAccountId || null}
             valueLabel={opportunity?.accountName ?? undefined}
             onChange={(v) => {
               form.setValue("accountId", v ?? "", { shouldValidate: true })
@@ -588,7 +609,7 @@ export function OpportunityForm({
           <Label>Primary Contact</Label>
           <EntityCombobox
             items={[]}
-            value={form.getValues("primaryContactId") || null}
+            value={watchPrimaryContactId || null}
             valueLabel={opportunity?.primaryContactName ?? undefined}
             onChange={(v) => form.setValue("primaryContactId", v ?? "", { shouldValidate: true })}
             searchAction={
@@ -636,7 +657,7 @@ export function OpportunityForm({
           <Label>Owner</Label>
           <EntityCombobox
             items={usersProp}
-            value={form.getValues("ownerUserId") || null}
+            value={watchOwnerUserId || null}
             valueLabel={opportunity?.ownerName ?? undefined}
             onChange={(v) => form.setValue("ownerUserId", v ?? "", { shouldValidate: true })}
             searchAction={searchUsersAction}
@@ -928,8 +949,15 @@ export function OpportunityForm({
             <CustomFieldsForm
               fieldDefinitions={fieldDefinitions}
               values={customFieldValues}
-              onChange={(key, value) => setCustomFieldValues((prev) => ({ ...prev, [key]: value }))}
-              errors={{}}
+              onChange={(key, value) => {
+                setCustomFieldValues((prev) => ({ ...prev, [key]: value }))
+                setCustomFieldErrors((prev) =>
+                  Object.prototype.hasOwnProperty.call(prev, key)
+                    ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== key))
+                    : prev,
+                )
+              }}
+              errors={customFieldErrors}
             />
           </div>
         )}
