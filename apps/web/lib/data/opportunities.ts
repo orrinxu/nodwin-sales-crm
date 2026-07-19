@@ -15,6 +15,8 @@ import {
   clampPageSize,
   rangeFor,
   sanitizeSearchTerm,
+  MAX_PAGE_SIZE,
+  BOARD_FETCH_CAP,
 } from "@/lib/list/pagination"
 import type {
   OpportunityRecord,
@@ -212,8 +214,19 @@ export interface OpportunityListParams {
   sort?: OpportunitySort
   /** 1-based page index (server-driven pagination). Defaults to 1. */
   page?: number
-  /** Rows per page. Clamped to `[1, MAX_PAGE_SIZE]`; defaults to `DEFAULT_PAGE_SIZE`. */
+  /** Rows per page. Clamped to `[1, maxPageSize]`; defaults to `DEFAULT_PAGE_SIZE`. */
   pageSize?: number
+  /**
+   * Optional explicit ceiling for `pageSize` (ORR-805). Defaults to
+   * `MAX_PAGE_SIZE` (100) for normal list callers. The kanban board can't
+   * paginate, so it opts into a larger bounded fetch by passing
+   * `BOARD_FETCH_CAP` (500) here — otherwise `clampPageSize` silently caps its
+   * card fetch at 100 and drops deals the ORR-755 design meant to show. The
+   * value is itself clamped to `[1, BOARD_FETCH_CAP]`, so a caller can never
+   * re-introduce the unbounded fetch. See ORR-762 (at-scale re-check): staging
+   * data was too small to trip this.
+   */
+  maxPageSize?: number
 }
 
 const OPPORTUNITY_LIST_SELECT = `
@@ -313,7 +326,17 @@ export async function getOpportunities(
   const supabase = await createServerClient()
   const scope: OpportunityScope = params.scope ?? "all"
   const page = clampPage(params.page)
-  const pageSize = clampPageSize(params.pageSize)
+  // Resolve the pageSize ceiling. Normal list callers get MAX_PAGE_SIZE (100);
+  // the board opts into a larger bounded fetch by passing
+  // maxPageSize = BOARD_FETCH_CAP (ORR-805). An explicit ceiling is itself
+  // clamped to [1, BOARD_FETCH_CAP] so a caller can never re-introduce the
+  // unbounded fetch. Feed the SAME ceiling to rangeFor below, or its
+  // belt-and-suspenders re-clamp drops the board's 500 back to 100.
+  const maxPageSize =
+    params.maxPageSize == null
+      ? MAX_PAGE_SIZE
+      : Math.min(Math.max(1, Math.floor(params.maxPageSize)), BOARD_FETCH_CAP)
+  const pageSize = clampPageSize(params.pageSize, maxPageSize)
 
   let query = supabase
     .from("opportunities")
@@ -388,7 +411,7 @@ export async function getOpportunities(
 
   query = applyOpportunitySort(query, params.sort)
 
-  const [from, to] = rangeFor(page, pageSize)
+  const [from, to] = rangeFor(page, pageSize, maxPageSize)
   const { data, error, count } = await query.range(from, to)
 
   if (error) {

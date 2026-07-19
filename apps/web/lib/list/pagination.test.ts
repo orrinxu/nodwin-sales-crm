@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest"
 import {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
+  BOARD_FETCH_CAP,
   clampPage,
   clampPageSize,
   rangeFor,
@@ -38,6 +39,11 @@ describe("clampPageSize", () => {
   it("passes an in-range size through", () => {
     expect(clampPageSize(40)).toBe(40)
   })
+  it("honours an explicit higher max (ORR-805 board fetch)", () => {
+    // The board opts into BOARD_FETCH_CAP; the default 100 clamp must not apply.
+    expect(clampPageSize(BOARD_FETCH_CAP, BOARD_FETCH_CAP)).toBe(BOARD_FETCH_CAP)
+    expect(clampPageSize(BOARD_FETCH_CAP + 1, BOARD_FETCH_CAP)).toBe(BOARD_FETCH_CAP)
+  })
 })
 
 describe("rangeFor", () => {
@@ -49,6 +55,16 @@ describe("rangeFor", () => {
   })
   it("clamps a bogus page/size before computing", () => {
     expect(rangeFor(0, 0)).toEqual([0, 0])
+  })
+  it("re-clamps to MAX_PAGE_SIZE by default", () => {
+    // Belt-and-suspenders: a caller that skips the max drops back to 100.
+    expect(rangeFor(1, BOARD_FETCH_CAP)).toEqual([0, MAX_PAGE_SIZE - 1])
+  })
+  it("honours an explicit higher max so the board's 500 survives (ORR-805)", () => {
+    expect(rangeFor(1, BOARD_FETCH_CAP, BOARD_FETCH_CAP)).toEqual([
+      0,
+      BOARD_FETCH_CAP - 1,
+    ])
   })
 })
 

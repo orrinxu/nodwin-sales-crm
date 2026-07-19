@@ -125,7 +125,11 @@ export default async function OpportunitiesPage({
 
   if (view === "board") {
     // Board: cap the card fetch; totals come from the scoped RPC over the full set.
+    // maxPageSize lifts getOpportunities' clamp to BOARD_FETCH_CAP for this call
+    // only (ORR-805) — without it the fetch is silently capped at 100 and the
+    // board drops deals the ORR-755 design meant to render.
     listParams.pageSize = BOARD_FETCH_CAP
+    listParams.maxPageSize = BOARD_FETCH_CAP
     listParams.page = 1
   } else {
     // Table: apply the URL-driven search / stage / owner / sort / page.
