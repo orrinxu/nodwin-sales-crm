@@ -204,6 +204,43 @@ describe("generateFlatSchedule", () => {
     }
   })
 
+  it("does not skip/double months for a day-31 service-period start (ORR-814d sleeper)", async () => {
+    const { generateFlatSchedule } = await import("../revenue-schedule")
+    const result = generateFlatSchedule(
+      {
+        amount: "60000.00",
+        currency: "USD",
+        servicePeriodStart: "2026-01-31",
+        servicePeriodEnd: "2026-06-30",
+      },
+      defaultCtx,
+    )
+
+    // Six months, each once: Jan, Feb, Mar, Apr, May, Jun — NOT Jan,Mar,Mar,May,May,Jul.
+    expect(result).toHaveLength(6)
+
+    // Bucket exactly as finance-actions monthBucket does (getUTC* → "YYYY-MM").
+    const buckets = result.map(
+      (m) =>
+        `${m.month.getUTCFullYear()}-${String(m.month.getUTCMonth() + 1).padStart(2, "0")}`,
+    )
+    expect(buckets).toEqual([
+      "2026-01",
+      "2026-02",
+      "2026-03",
+      "2026-04",
+      "2026-05",
+      "2026-06",
+    ])
+    // No duplicates and no skipped months.
+    expect(new Set(buckets).size).toBe(6)
+
+    // Flat split holds and sums back to the total.
+    for (const m of result) expect(m.amount).toBe("10000.00")
+    const sum = result.reduce((acc, m) => acc + parseFloat(m.amount), 0)
+    expect(sum).toBe(60000)
+  })
+
   it("ignores execution_date when earlier than service_period_start", async () => {
     const { generateFlatSchedule } = await import("../revenue-schedule")
     const result = generateFlatSchedule(

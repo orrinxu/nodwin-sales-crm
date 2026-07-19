@@ -42,6 +42,22 @@ function toDate(value: string | Date | null | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d
 }
 
+// A bare calendar date from a PG `date` column: no time, no zone. `new Date("2026-07-19")`
+// parses as UTC midnight, so localizing it to a west-of-UTC zone renders the *previous*
+// day (ORR-814a). Detect these and format them as the literal calendar date, pinning the
+// formatter to UTC so the entered day is preserved regardless of ambient/preference zone.
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+function formatDateOnly(
+  value: string,
+  pref: DateFormatPreference | null | undefined,
+): string {
+  const [y, m, d] = value.split("-").map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  const { locale, opts } = dateParts(pref)
+  return dt.toLocaleDateString(locale, { ...opts, timeZone: "UTC" })
+}
+
 // Adds an explicit `timeZone` to Intl options only when the user has chosen one.
 // A null/empty timezone leaves the option off, so Intl uses the ambient zone —
 // keeping output identical to the pre-preference behaviour.
@@ -63,6 +79,11 @@ export function formatPreferenceDate(
   fallback = "",
   timeZone?: string | null,
 ): string {
+  // Date-only strings ("YYYY-MM-DD") render as the literal calendar date, never
+  // shifted by the ambient/preference timezone (ORR-814a).
+  if (typeof value === "string" && DATE_ONLY_RE.test(value)) {
+    return formatDateOnly(value, pref)
+  }
   const d = toDate(value)
   if (!d) return fallback
   const { locale, opts } = dateParts(pref)
