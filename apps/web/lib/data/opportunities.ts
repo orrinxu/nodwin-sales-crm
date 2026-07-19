@@ -761,6 +761,7 @@ export async function createOpportunity(
         opportunityId: opportunity.id,
         opportunityName: opportunity.name,
         newOwnerUserId: opportunity.ownerUserId!,
+        entityId: opportunity.entitySalesId ?? undefined,
       }),
     )
   }
@@ -937,6 +938,7 @@ export async function updateOpportunity(
         toStage,
         event,
         ownerUserId: existing.ownerUserId ?? ctx.user.id,
+        entityId: existing.entitySalesId ?? undefined,
       }),
     )
   }
@@ -951,6 +953,7 @@ export async function updateOpportunity(
         opportunityId: updated.id,
         opportunityName: updated.name,
         newOwnerUserId,
+        entityId: updated.entitySalesId ?? undefined,
       }),
     )
   }
@@ -1019,6 +1022,7 @@ export async function updateOpportunityStage(
         toStage: parsed.stage,
         event,
         ownerUserId: existing.ownerUserId ?? ctx.user.id,
+        entityId: existing.entitySalesId ?? undefined,
       }),
     )
   }

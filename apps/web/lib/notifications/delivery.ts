@@ -77,11 +77,14 @@ export async function evaluateNotificationChannels(
 ): Promise<NotificationChannel[]> {
   const client = createServiceRoleClient()
 
+  // Load ALL routing rows for the event (enabled AND disabled). We must NOT
+  // filter `.eq("enabled", true)` here: an entity-scoped disabled row has to be
+  // able to shadow an enabled org-wide row ("on globally, off for entity X"),
+  // which is unrepresentable if disabled rows never reach the resolver (ORR-798).
   const { data: routingData, error: routingError } = await client
     .from("notification_routing")
     .select("*")
     .eq("event_type", eventType)
-    .eq("enabled", true)
 
   if (routingError) {
     throw new Error(
@@ -113,35 +116,54 @@ export async function evaluateNotificationChannels(
     overrideMap.set(ov.channel, ov.enabled)
   }
 
-  const activeChannels: NotificationChannel[] = []
-
+  // Resolve exactly one effective route per channel. An entity-scoped row that
+  // matches this event's entity shadows the org-wide (entity_id NULL) row for
+  // that channel — enabled or not. A scoped row for a *different* entity, or any
+  // scoped row when the event carries no entity context, must never apply: a
+  // per-entity rule firing org-wide was the second half of the ORR-798 scoping
+  // bug. Then a per-user override wins over whatever the resolved route says.
+  const byChannel = new Map<NotificationChannel, NotificationRoutingRecord>()
   for (const route of routingRows) {
-    if (entityId !== undefined && route.entityId !== null && route.entityId !== entityId) {
+    if (route.entityId !== null && route.entityId !== entityId) {
+      // Scoped row that doesn't match (incl. entityId === undefined) — skip.
       continue
     }
-
-    if (route.entityId === null && entityId !== undefined) {
-      const entitySpecificRoute = routingRows.find(
-        (r) =>
-          r.channel === route.channel &&
-          r.eventType === route.eventType &&
-          r.entityId === entityId,
-      )
-      if (entitySpecificRoute) {
-        continue
-      }
+    const existing = byChannel.get(route.channel)
+    if (!existing) {
+      byChannel.set(route.channel, route)
+      continue
     }
+    // Prefer the more specific (entity-scoped) row over the org-wide one.
+    if (existing.entityId === null && route.entityId !== null) {
+      byChannel.set(route.channel, route)
+    }
+  }
 
-    const resolvedEnabled = overrideMap.has(route.channel)
-      ? overrideMap.get(route.channel)!
+  const activeChannels: NotificationChannel[] = []
+  for (const [channel, route] of byChannel) {
+    const resolvedEnabled = overrideMap.has(channel)
+      ? overrideMap.get(channel)!
       : route.enabled
 
     if (resolvedEnabled) {
-      activeChannels.push(route.channel)
+      activeChannels.push(channel)
     }
   }
 
   return [...new Set(activeChannels)]
+}
+
+// Prefix a relative deep link (e.g. "/opportunities/abc") with the app's
+// absolute base URL for EXTERNAL delivery (email/Slack) — a relative href is
+// dead in an inbox and breaks Slack's <url|label> syntax (ORR-798). In-app feed
+// links stay relative (the browser resolves them against the current origin).
+// Absolute links (already http/https) and undefined pass through unchanged.
+export function toExternalUrl(linkUrl: string | undefined): string | undefined {
+  if (!linkUrl) return linkUrl
+  if (/^https?:\/\//i.test(linkUrl)) return linkUrl
+  const base = env.APP_URL.replace(/\/+$/, "")
+  const path = linkUrl.startsWith("/") ? linkUrl : `/${linkUrl}`
+  return `${base}${path}`
 }
 
 export function renderEmailTemplate(
@@ -360,17 +382,21 @@ export async function sendNotification(
             payload.entityId,
             payload.metadata,
           )
-        case "email":
+        case "email": {
+          const emailLink = toExternalUrl(payload.linkUrl)
           return sendEmailNotification(
             userId,
             escapeHtml(payload.title),
-            `<p>${escapeHtml(payload.message)}</p>${payload.linkUrl ? `<p><a href="${escapeHtml(payload.linkUrl)}">View in Nodwin CRM</a></p>` : ""}`,
+            `<p>${escapeHtml(payload.message)}</p>${emailLink ? `<p><a href="${escapeHtml(emailLink)}">View in Nodwin CRM</a></p>` : ""}`,
             payload.message,
           )
-        case "slack":
+        }
+        case "slack": {
+          const slackLink = toExternalUrl(payload.linkUrl)
           return sendSlackNotification(
-            `*${escapeSlackMrkdwn(payload.title)}*\n${escapeSlackMrkdwn(payload.message)}${payload.linkUrl ? `\n<${escapeSlackMrkdwn(payload.linkUrl)}|View in Nodwin CRM>` : ""}`,
+            `*${escapeSlackMrkdwn(payload.title)}*\n${escapeSlackMrkdwn(payload.message)}${slackLink ? `\n<${escapeSlackMrkdwn(slackLink)}|View in Nodwin CRM>` : ""}`,
           )
+        }
       }
     }),
   )

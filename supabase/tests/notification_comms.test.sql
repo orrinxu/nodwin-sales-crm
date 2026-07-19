@@ -38,10 +38,14 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- notification_routing fixture
+-- Both rows are entity-scoped (entity_id NOT NULL) so they never collide with
+-- the org-wide (entity_id NULL) core-event seed added in
+-- 20260719010000_seed_core_notification_routing.sql (ORR-798). aaaa0002 is only
+-- used as the target of the admin DELETE test below, so its scope is arbitrary.
 INSERT INTO public.notification_routing (id, event_type, channel, enabled, entity_id, created_by, updated_by)
 VALUES
   ('aaaa0001-0001-0001-0001-000000000001', 'stage_change', 'in_app', true, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '22222222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222'),
-  ('aaaa0002-0002-0002-0002-000000000002', 'deal_won',     'email',  true, NULL,                                          '22222222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222');
+  ('aaaa0002-0002-0002-0002-000000000002', 'deal_won',     'email',  true, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222');
 
 -- user_notification_overrides fixture (rep overrides one event)
 INSERT INTO public.user_notification_overrides (id, user_id, event_type, channel, enabled, created_by, updated_by)
