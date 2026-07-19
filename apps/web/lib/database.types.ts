@@ -2435,6 +2435,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "opportunities_primary_contact_id_fkey"
+            columns: ["primary_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "opportunities_revenue_recognition_unit_id_fkey"
             columns: ["revenue_recognition_unit_id"]
             isOneToOne: false
@@ -2688,7 +2695,29 @@ export type Database = {
           reason?: string | null
           to_stage?: Database["public"]["Enums"]["deal_stage"]
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "opportunity_stage_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "ai_usage_daily_rollup"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "opportunity_stage_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opportunity_stage_history_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       opportunity_team_members: {
         Row: {

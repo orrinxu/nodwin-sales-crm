@@ -325,8 +325,8 @@ describe("softDeleteFieldDefinition", () => {
 })
 
 describe("reorderFieldDefinitions", () => {
-  it("upserts all items in a single batch call", async () => {
-    mockUpsert.mockResolvedValueOnce({ data: null, error: null })
+  it("updates each item by id (tolerant of a concurrently-deleted row)", async () => {
+    mockEq.mockResolvedValue({ data: null, error: null })
 
     const { reorderFieldDefinitions } = await import("./field-definitions")
     await reorderFieldDefinitions(defaultCtx, {
@@ -336,13 +336,13 @@ describe("reorderFieldDefinitions", () => {
       ],
     })
 
-    expect(mockFrom).toHaveBeenCalledTimes(1)
+    expect(mockFrom).toHaveBeenCalledTimes(2)
     expect(mockFrom).toHaveBeenCalledWith("field_definitions")
-    expect(mockUpsert).toHaveBeenCalledTimes(1)
-    expect(mockUpsert).toHaveBeenCalledWith([
-      { id: "field-2", display_order: 1 },
-      { id: "field-1", display_order: 0 },
-    ])
+    expect(mockUpdate).toHaveBeenCalledTimes(2)
+    expect(mockUpdate).toHaveBeenNthCalledWith(1, { display_order: 1 })
+    expect(mockUpdate).toHaveBeenNthCalledWith(2, { display_order: 0 })
+    expect(mockEq).toHaveBeenNthCalledWith(1, "id", "field-2")
+    expect(mockEq).toHaveBeenNthCalledWith(2, "id", "field-1")
   })
 
   it("returns early when items array is empty", async () => {
@@ -350,11 +350,11 @@ describe("reorderFieldDefinitions", () => {
     await reorderFieldDefinitions(defaultCtx, { items: [] })
 
     expect(mockFrom).not.toHaveBeenCalled()
-    expect(mockUpsert).not.toHaveBeenCalled()
+    expect(mockUpdate).not.toHaveBeenCalled()
   })
 
   it("throws on supabase error", async () => {
-    mockUpsert.mockResolvedValueOnce({ data: null, error: new Error("DB error") })
+    mockEq.mockResolvedValueOnce({ data: null, error: new Error("DB error") })
 
     const { reorderFieldDefinitions } = await import("./field-definitions")
     await expect(
