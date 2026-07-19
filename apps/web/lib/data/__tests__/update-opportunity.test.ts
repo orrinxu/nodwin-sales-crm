@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 
 vi.mock("server-only", () => ({}))
 
@@ -40,8 +40,15 @@ const triggerMocks = vi.hoisted(() => ({
   notifyStageChange: vi.fn(),
   notifyDealAssigned: vi.fn(),
 }))
+const prefsMocks = vi.hoisted(() => ({
+  getUserPreferences: vi.fn(),
+}))
 vi.mock("@/lib/data/opportunity-stage-history", () => stageHistoryMocks)
 vi.mock("@/lib/notifications/triggers", () => triggerMocks)
+// ORR-797: closing a deal now resolves close_date in the caller's timezone via
+// getUserPreferences. Mock it so the unit tests don't hit the DB and stay
+// deterministic.
+vi.mock("@/lib/data/user-preferences", () => prefsMocks)
 
 const defaultCtx = {
   user: { id: "user-1", email: "alice@nodwin.com", role: "admin" },
@@ -76,6 +83,7 @@ describe("updateOpportunity", () => {
     mockFrom.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder, update: mockUpdate })
     mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
     mockMoneyFromAmount.mockReturnValue({ toAmount: () => "50000.00" })
+    prefsMocks.getUserPreferences.mockResolvedValue({ timezone: "UTC" })
   })
 
   it("updates a single field (name only)", async () => {
@@ -110,7 +118,11 @@ describe("updateOpportunity", () => {
     const { updateOpportunity } = await import("../opportunities")
     await updateOpportunity(defaultCtx, "opp-1", { stage: "closed_won" })
     expect(mockRpc).toHaveBeenCalledWith("opportunity_has_approved_approval", { _opportunity_id: "opp-1" })
-    expect(mockUpdate).toHaveBeenCalledWith({ stage: "closed_won" })
+    // ORR-797: closing also stamps close_date (today, user TZ). No explicit
+    // close_date in this edit, so the auto value is applied.
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ stage: "closed_won", close_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }),
+    )
   })
 
   it("blocks BULK Closed Won when an opp lacks an approved approval (3c gate)", async () => {
@@ -139,7 +151,10 @@ describe("updateOpportunity", () => {
 
     const { bulkUpdateOpportunityStage } = await import("../opportunities")
     await bulkUpdateOpportunityStage(defaultCtx, { ids: ["opp-1"], stage: "closed_won" })
-    expect(updateFn).toHaveBeenCalledWith({ stage: "closed_won" })
+    // ORR-797: bulk-closing stamps close_date on the transitioning rows too.
+    expect(updateFn).toHaveBeenCalledWith(
+      expect.objectContaining({ stage: "closed_won", close_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }),
+    )
     expect(updateIn).toHaveBeenCalledWith("id", ["opp-1"])
   })
 
@@ -279,6 +294,7 @@ describe("updateOpportunity — stage change side effects (ORR-694)", () => {
     mockFrom.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder, update: mockUpdate })
     mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
     mockMoneyFromAmount.mockReturnValue({ toAmount: () => "50000.00" })
+    prefsMocks.getUserPreferences.mockResolvedValue({ timezone: "UTC" })
     // enforce/approval gates pass by default so we reach the stage-change path
     mockRpc.mockResolvedValue({ data: true, error: null })
     stageHistoryMocks.determineStageEvent.mockReturnValue("advanced")
@@ -354,6 +370,7 @@ describe("enforce_gate (Phase 4)", () => {
     mockFrom.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder, update: mockUpdate })
     mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
     mockMoneyFromAmount.mockReturnValue({ toAmount: () => "50000.00" })
+    prefsMocks.getUserPreferences.mockResolvedValue({ timezone: "UTC" })
   })
 
   it("blocks forward stage advance when enforce_gate RPC returns false", async () => {
@@ -475,5 +492,148 @@ describe("enforce_gate (Phase 4)", () => {
     await expect(
       updateOpportunityStage(defaultCtx, "opp-1", { stage: "verbal_agreement" }),
     ).rejects.toThrow("Failed to check approval gate")
+  })
+})
+
+describe("close_date on stage transition (ORR-797)", () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    vi.useFakeTimers()
+    // Fixed instant so today's date is deterministic; TZ is UTC via the prefs mock.
+    vi.setSystemTime(new Date("2026-07-19T12:00:00Z"))
+    buildQueryBuilder()
+    mockFrom.mockReturnValue({ select: mockSelect, eq: mockEq, single: mockSingle, order: mockOrder, update: mockUpdate })
+    mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+    mockMoneyFromAmount.mockReturnValue({ toAmount: () => "50000.00" })
+    mockRpc.mockResolvedValue({ data: true, error: null })
+    prefsMocks.getUserPreferences.mockResolvedValue({ timezone: "UTC" })
+    stageHistoryMocks.determineStageEvent.mockReturnValue("CLOSE_WON")
+    stageHistoryMocks.insertStageHistoryEntry.mockResolvedValue(undefined)
+    triggerMocks.notifyStageChange.mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("updateOpportunityStage stamps today's close_date when closing won", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "negotiate" }, error: null })
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "closed_won", close_date: "2026-07-19" }, error: null })
+
+    const { updateOpportunityStage } = await import("../opportunities")
+    await updateOpportunityStage(defaultCtx, "opp-1", { stage: "closed_won" })
+
+    expect(mockUpdate).toHaveBeenCalledWith({ stage: "closed_won", close_date: "2026-07-19" })
+  })
+
+  it("updateOpportunityStage stamps close_date when closing lost", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "negotiate" }, error: null })
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "closed_lost", close_date: "2026-07-19" }, error: null })
+
+    const { updateOpportunityStage } = await import("../opportunities")
+    await updateOpportunityStage(defaultCtx, "opp-1", { stage: "closed_lost" })
+
+    expect(mockUpdate).toHaveBeenCalledWith({ stage: "closed_lost", close_date: "2026-07-19" })
+  })
+
+  it("updateOpportunityStage overwrites a stale expected close_date with today", async () => {
+    // existing.close_date is the *expected* date 2026-06-30; closing now must
+    // replace it with the actual close date.
+    mockSingle
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "negotiate", close_date: "2026-06-30" }, error: null })
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "closed_won", close_date: "2026-07-19" }, error: null })
+
+    const { updateOpportunityStage } = await import("../opportunities")
+    await updateOpportunityStage(defaultCtx, "opp-1", { stage: "closed_won" })
+
+    expect(mockUpdate).toHaveBeenCalledWith({ stage: "closed_won", close_date: "2026-07-19" })
+  })
+
+  it("updateOpportunityStage clears close_date on reopen (closed → open)", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "closed_won", close_date: "2026-07-19" }, error: null })
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "negotiate", close_date: null }, error: null })
+
+    const { updateOpportunityStage } = await import("../opportunities")
+    await updateOpportunityStage(defaultCtx, "opp-1", { stage: "negotiate" })
+
+    expect(mockUpdate).toHaveBeenCalledWith({ stage: "negotiate", close_date: null })
+  })
+
+  it("updateOpportunity (full edit) auto-sets close_date when closing without explicit date", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "negotiate" }, error: null })
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "closed_won", close_date: "2026-07-19" }, error: null })
+
+    const { updateOpportunity } = await import("../opportunities")
+    await updateOpportunity(defaultCtx, "opp-1", { stage: "closed_won" })
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ stage: "closed_won", close_date: "2026-07-19" }),
+    )
+  })
+
+  it("updateOpportunity (full edit) respects an explicit close_date over the auto value", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "negotiate" }, error: null })
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, stage: "closed_won", close_date: "2026-05-01" }, error: null })
+
+    const { updateOpportunity } = await import("../opportunities")
+    await updateOpportunity(defaultCtx, "opp-1", { stage: "closed_won", closeDate: "2026-05-01" })
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ stage: "closed_won", close_date: "2026-05-01" }),
+    )
+    expect(prefsMocks.getUserPreferences).not.toHaveBeenCalled()
+  })
+
+  it("bulkUpdateOpportunityStage stamps close_date only on rows that actually close", async () => {
+    const updateIn = vi.fn().mockResolvedValue({ error: null })
+    const updateFn = vi.fn().mockReturnValue({ in: updateIn })
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        in: vi.fn().mockResolvedValue({
+          // opp-2 is already closed_won → a no-op that must NOT be re-stamped.
+          data: [{ id: "opp-1", stage: "negotiate" }, { id: "opp-2", stage: "closed_won" }],
+          error: null,
+        }),
+      }),
+      update: updateFn,
+    })
+
+    const { bulkUpdateOpportunityStage } = await import("../opportunities")
+    await bulkUpdateOpportunityStage(defaultCtx, { ids: ["opp-1", "opp-2"], stage: "closed_won" })
+
+    expect(updateFn).toHaveBeenCalledWith({ stage: "closed_won", close_date: "2026-07-19" })
+    expect(updateIn).toHaveBeenCalledWith("id", ["opp-1"])
+  })
+
+  it("bulkUpdateOpportunityStage clears close_date only on reopened rows", async () => {
+    const updateInStage = vi.fn().mockResolvedValue({ error: null })
+    const updateInClear = vi.fn().mockResolvedValue({ error: null })
+    const updateFn = vi
+      .fn()
+      .mockReturnValueOnce({ in: updateInStage })
+      .mockReturnValueOnce({ in: updateInClear })
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        in: vi.fn().mockResolvedValue({
+          // opp-1 reopens from closed_won; opp-2 is a plain open→open advance.
+          data: [{ id: "opp-1", stage: "closed_won" }, { id: "opp-2", stage: "qualify" }],
+          error: null,
+        }),
+      }),
+      update: updateFn,
+    })
+
+    const { bulkUpdateOpportunityStage } = await import("../opportunities")
+    await bulkUpdateOpportunityStage(defaultCtx, { ids: ["opp-1", "opp-2"], stage: "negotiate" })
+
+    expect(updateFn).toHaveBeenNthCalledWith(1, { stage: "negotiate" })
+    expect(updateInStage).toHaveBeenCalledWith("id", ["opp-1", "opp-2"])
+    expect(updateFn).toHaveBeenNthCalledWith(2, { close_date: null })
+    expect(updateInClear).toHaveBeenCalledWith("id", ["opp-1"])
   })
 })

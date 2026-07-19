@@ -119,6 +119,22 @@ export function resolveEntityScope(
 }
 
 /**
+ * Today's calendar day as a `YYYY-MM-DD` string, resolved in `timeZone` when
+ * given (else the ambient zone). en-CA renders as YYYY-MM-DD; the timeZone pins
+ * the calendar day correctly regardless of the server's own zone. Used both for
+ * the "Closing This Month" preset bounds and to stamp `close_date` when a deal
+ * transitions into a closed stage (ORR-797).
+ */
+export function todayInTimeZone(timeZone?: string | null): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: timeZone || undefined,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date())
+}
+
+/**
  * First and last calendar day (inclusive) of the current month, as `YYYY-MM-DD`
  * strings, resolved in `timeZone` when given (else the ambient zone). Used to
  * bound the `close_date` filter for the "Closing This Month" preset.
@@ -127,14 +143,7 @@ export function currentMonthRange(timeZone?: string | null): {
   from: string
   to: string
 } {
-  const now = new Date()
-  // en-CA renders as YYYY-MM-DD; timeZone pins the calendar day correctly.
-  const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: timeZone || undefined,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now)
+  const today = todayInTimeZone(timeZone)
   const [year, month] = today.split("-").map(Number)
   const mm = String(month).padStart(2, "0")
   // Day 0 of the next month (month is 1-based here, 0-based in Date.UTC) = last
