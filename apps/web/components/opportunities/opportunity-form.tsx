@@ -308,21 +308,20 @@ export function OpportunityForm({
     setPending(true)
     setError(null)
     try {
-      const input: OpportunityCreateInput = {
+      const serviceTypeArr = serviceTypeValue as ServiceType[]
+      const countryStr =
+        countryExecutionValue.length > 0 ? countryExecutionValue.join(", ") : ""
+
+      // Fields shared by create + edit whose empties are NOT user-clearable
+      // (structural selects, required fields, numbers). These keep the create
+      // mapping in both modes.
+      const commonInput = {
         name: data.name,
         accountId: data.accountId,
-        primaryContactId: data.primaryContactId || undefined,
         stage: data.stage,
         salesUnitId: data.salesUnitId,
-        ownerUserId: data.ownerUserId || undefined,
-        amount: data.amount || undefined,
         currency: data.currency || "USD",
-        closeDate: data.closeDate || undefined,
         probabilityPct: data.probabilityPct ?? 0,
-        description: data.description || undefined,
-        servicePeriodStart: data.servicePeriodStart || undefined,
-        servicePeriodEnd: data.servicePeriodEnd || undefined,
-        executionDate: data.executionDate || undefined,
         estimatedGrossMarginPct: data.estimatedGrossMarginPct ?? undefined,
         projectType: (data.projectType as ProjectType) || undefined,
         revenueCategory: (data.revenueCategory as RevenueCategory) || undefined,
@@ -331,14 +330,63 @@ export function OpportunityForm({
         visibilityTier: (data.visibilityTier as VisibilityTier) || undefined,
         billingEntityId: data.billingEntityId || undefined,
         entitySalesId: data.entitySalesId || undefined,
-        barterValue: data.barterValue || undefined,
-        serviceType: serviceTypeValue.length > 0 ? serviceTypeValue as ServiceType[] : undefined,
         propertyType: (data.propertyType || undefined) as PropertyType | undefined,
         lossReason: data.stage === "closed_lost" ? data.lossReason || undefined : undefined,
-        countryExecution: countryExecutionValue.length > 0
-          ? countryExecutionValue.join(", ")
-          : undefined,
         customData: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
+      }
+
+      let input: OpportunityCreateInput
+      if (isEditing && opportunity) {
+        // ORR-806: In EDIT mode we must distinguish "field left untouched" from
+        // "field the user cleared". The create path maps every empty optional to
+        // `undefined` (= "absent, use default"), but on the partial UPDATE
+        // `undefined` means "don't touch this column" — so a blanked field would
+        // silently keep its old value. We therefore diff each optional field
+        // against the existing record: unchanged → omit (undefined); changed →
+        // send the new value verbatim, where "" / [] clears it (the server maps
+        // those to NULL, and amount to 0 since its column is NOT NULL). Sending
+        // only changed fields also preserves the ORR-797 close_date auto-stamp,
+        // which relies on an untouched closeDate staying `undefined`.
+        const diff = (current: string, original: string): string | undefined =>
+          current === original ? undefined : current
+        const origServiceType: string[] = opportunity.serviceType ?? []
+        const serviceTypeChanged =
+          origServiceType.length !== serviceTypeValue.length ||
+          !origServiceType.every((v) => serviceTypeValue.includes(v))
+        input = {
+          ...commonInput,
+          // Owner may be reassigned but never cleared — every deal keeps an
+          // owner (the column has no NULL apply branch).
+          ownerUserId:
+            data.ownerUserId && data.ownerUserId !== opportunity.ownerUserId
+              ? data.ownerUserId
+              : undefined,
+          primaryContactId: diff(data.primaryContactId ?? "", opportunity.primaryContactId ?? ""),
+          amount: diff(data.amount ?? "", String(opportunity.amount)),
+          closeDate: diff(data.closeDate ?? "", opportunity.closeDate ?? ""),
+          description: diff(data.description ?? "", opportunity.description ?? ""),
+          servicePeriodStart: diff(data.servicePeriodStart ?? "", opportunity.servicePeriodStart ?? ""),
+          servicePeriodEnd: diff(data.servicePeriodEnd ?? "", opportunity.servicePeriodEnd ?? ""),
+          executionDate: diff(data.executionDate ?? "", opportunity.executionDate ?? ""),
+          barterValue: diff(data.barterValue ?? "", opportunity.barterValue ?? ""),
+          serviceType: serviceTypeChanged ? serviceTypeArr : undefined,
+          countryExecution: diff(countryStr, opportunity.countryExecution ?? ""),
+        }
+      } else {
+        input = {
+          ...commonInput,
+          primaryContactId: data.primaryContactId || undefined,
+          ownerUserId: data.ownerUserId || undefined,
+          amount: data.amount || undefined,
+          closeDate: data.closeDate || undefined,
+          description: data.description || undefined,
+          servicePeriodStart: data.servicePeriodStart || undefined,
+          servicePeriodEnd: data.servicePeriodEnd || undefined,
+          executionDate: data.executionDate || undefined,
+          barterValue: data.barterValue || undefined,
+          serviceType: serviceTypeArr.length > 0 ? serviceTypeArr : undefined,
+          countryExecution: countryStr || undefined,
+        }
       }
 
       if (isEditing && opportunity && updateAction) {

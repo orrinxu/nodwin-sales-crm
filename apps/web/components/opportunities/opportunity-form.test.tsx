@@ -535,6 +535,76 @@ describe("OpportunityForm", () => {
     })
   })
 
+  // ORR-806: clearing an optional field in EDIT mode must send an explicit
+  // clearing value ("" / 0) so the server persists NULL/0, instead of mapping
+  // the empty to `undefined` (which the partial update reads as "unchanged").
+  describe("submission — edit clears optional fields (ORR-806)", () => {
+    const filledOpportunity = {
+      ...mockOpportunity,
+      closeDate: "2026-06-30",
+      description: "Some notes",
+      barterValue: "1000.00",
+    }
+
+    it("sends empty string (not undefined) for fields the user clears", async () => {
+      const updateAction = vi.fn().mockResolvedValue(filledOpportunity)
+      const user = setupUser()
+      render(
+        <OpportunityForm
+          {...defaultProps}
+          opportunity={filledOpportunity}
+          updateAction={updateAction}
+          users={mockUsers}
+        />,
+      )
+      await openForm(user)
+
+      await user.clear(screen.getByLabelText("Close Date"))
+      await user.clear(screen.getByLabelText("Description"))
+      await user.clear(screen.getByLabelText("Barter Value"))
+      await user.clear(screen.getByLabelText("Amount"))
+
+      await user.click(screen.getByRole("button", { name: /save changes/i }))
+
+      await waitFor(() => expect(updateAction).toHaveBeenCalled())
+      const [, payload] = updateAction.mock.calls[0]
+      expect(payload.closeDate).toBe("")
+      expect(payload.description).toBe("")
+      expect(payload.barterValue).toBe("")
+      expect(payload.amount).toBe("")
+    })
+
+    it("omits (undefined) the optional fields the user did not touch", async () => {
+      const updateAction = vi.fn().mockResolvedValue(filledOpportunity)
+      const user = setupUser()
+      render(
+        <OpportunityForm
+          {...defaultProps}
+          opportunity={filledOpportunity}
+          updateAction={updateAction}
+          users={mockUsers}
+        />,
+      )
+      await openForm(user)
+
+      const nameInput = screen.getByLabelText(/name/i)
+      await user.clear(nameInput)
+      await user.type(nameInput, "Renamed")
+
+      await user.click(screen.getByRole("button", { name: /save changes/i }))
+
+      await waitFor(() => expect(updateAction).toHaveBeenCalled())
+      const [, payload] = updateAction.mock.calls[0]
+      expect(payload.name).toBe("Renamed")
+      // Untouched → absent, so the ORR-797 close_date auto-stamp still works and
+      // no other column is needlessly rewritten.
+      expect(payload.closeDate).toBeUndefined()
+      expect(payload.description).toBeUndefined()
+      expect(payload.barterValue).toBeUndefined()
+      expect(payload.amount).toBeUndefined()
+    })
+  })
+
   describe("error handling", () => {
     it("displays error message when createAction throws", async () => {
       const createAction = vi.fn().mockRejectedValue(new Error("Server error"))

@@ -239,6 +239,100 @@ describe("updateOpportunity", () => {
     expect(mockUpdate).toHaveBeenCalledWith({ description: null })
   })
 
+  // ORR-806: optional fields the user clears in the edit form must actually
+  // persist as NULL (or 0 for the NOT NULL amount column) rather than silently
+  // keeping the old value.
+  it("clears primaryContactId when empty string is passed", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
+      .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
+
+    const { updateOpportunity } = await import("../opportunities")
+    await updateOpportunity(defaultCtx, "opp-1", { primaryContactId: "" })
+
+    expect(mockUpdate).toHaveBeenCalledWith({ primary_contact_id: null })
+  })
+
+  it("clears countryExecution when empty string is passed", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, country_execution: "IN" }, error: null })
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, country_execution: null }, error: null })
+
+    const { updateOpportunity } = await import("../opportunities")
+    await updateOpportunity(defaultCtx, "opp-1", { countryExecution: "" })
+
+    expect(mockUpdate).toHaveBeenCalledWith({ country_execution: null })
+  })
+
+  it("clears executionDate + service period when empty strings are passed", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
+      .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
+
+    const { updateOpportunity } = await import("../opportunities")
+    await updateOpportunity(defaultCtx, "opp-1", {
+      executionDate: "",
+      servicePeriodStart: "",
+      servicePeriodEnd: "",
+    })
+
+    expect(mockUpdate).toHaveBeenCalledWith({
+      execution_date: null,
+      service_period_start: null,
+      service_period_end: null,
+    })
+  })
+
+  it("clears serviceType to NULL when an empty array is passed", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, service_type: ["digital"] }, error: null })
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, service_type: null }, error: null })
+
+    const { updateOpportunity } = await import("../opportunities")
+    await updateOpportunity(defaultCtx, "opp-1", { serviceType: [] })
+
+    expect(mockUpdate).toHaveBeenCalledWith({ service_type: null })
+  })
+
+  it("clears barterValue when empty string is passed", async () => {
+    mockSingle
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, barter_value: 1000 }, error: null })
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, barter_value: null }, error: null })
+
+    const { updateOpportunity } = await import("../opportunities")
+    await updateOpportunity(defaultCtx, "opp-1", { barterValue: "" })
+
+    expect(mockUpdate).toHaveBeenCalledWith({ barter_value: null })
+  })
+
+  it("zeroes amount when an empty string is passed (column is NOT NULL)", async () => {
+    mockMoneyFromAmount.mockReturnValue({ toAmount: () => "0.00" })
+    mockSingle
+      .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, amount: 0 }, error: null })
+
+    const { updateOpportunity } = await import("../opportunities")
+    await updateOpportunity(defaultCtx, "opp-1", { amount: "" })
+
+    // "" preprocesses to "0" on the update schema, so Money zeroes the amount
+    // instead of the field being dropped (which would keep the old value).
+    expect(mockMoneyFromAmount).toHaveBeenCalledWith("0", "USD")
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ amount: "0.00" }))
+  })
+
+  it("zeroes amount when explicit 0 is passed", async () => {
+    mockMoneyFromAmount.mockReturnValue({ toAmount: () => "0.00" })
+    mockSingle
+      .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
+      .mockResolvedValueOnce({ data: { ...mockDbOpportunity, amount: 0 }, error: null })
+
+    const { updateOpportunity } = await import("../opportunities")
+    await updateOpportunity(defaultCtx, "opp-1", { amount: "0" })
+
+    expect(mockMoneyFromAmount).toHaveBeenCalledWith("0", "USD")
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ amount: "0.00" }))
+  })
+
   it("throws on supabase update error", async () => {
     mockSingle
       .mockResolvedValueOnce({ data: mockDbOpportunity, error: null })
