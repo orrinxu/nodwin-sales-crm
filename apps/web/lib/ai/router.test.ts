@@ -183,8 +183,12 @@ describe("aiCall", () => {
     expect(result.ok).toBe(true)
     expect(result.data).toBe("second")
     expect(result.provider).toBe("claude")
-    expect(logger.calls).toHaveLength(1)
-    expect(logger.calls[0].provider).toBe("claude")
+    // ORR-807d: the failed first attempt is now logged too (was invisible before).
+    expect(logger.calls).toHaveLength(2)
+    expect(logger.calls[0].provider).toBe("gemini")
+    expect(logger.calls[0].status).toBe("error")
+    expect(logger.calls[1].provider).toBe("claude")
+    expect(logger.calls[1].status).toBe("success")
   })
 
   it("returns service_unavailable on hard cap even with adapters available", async () => {
@@ -201,6 +205,113 @@ describe("aiCall", () => {
 
     expect(result.ok).toBe(false)
     expect(result.reason).toBe("service_unavailable")
+  })
+
+  it("does NOT degrade a zero-cost call — self-hosted RAG stays on its own chain (ORR-807c)", async () => {
+    const logger = mockLogger()
+    // Soft cap breached ($3.50 > $3) but the call is free and the chain has NO
+    // ollama_local adapter (RAG hands the router only openai_compatible). The
+    // old code degraded → empty chain → provider_error. Now it must proceed.
+    const result = await aiCall(
+      { ...defaultParams, estimatedCost: Money.zero("USD") },
+      {
+        adapters: new Map([["openai_compatible", stubAdapter("rag answer")]]),
+        capSource: mockCapSource({
+          userDailyUsage: { cost: mockMoney(3.50), totalPromptTokens: 0, totalCompletionTokens: 0, callCount: 8 },
+          userCaps: { userSoftCap: mockMoney(3), userHardCap: mockMoney(5) },
+        }),
+        usageLogger: logger,
+      },
+    )
+
+    expect(result.ok).toBe(true)
+    expect(result.data).toBe("rag answer")
+    expect(result.provider).toBe("openai_compatible")
+    expect(logger.calls[0].status).toBe("success") // not "fallback", not degraded
+  })
+
+  it("soft-cap degrade with no ollama_local adapter falls back to the chain, not an outage (ORR-807c)", async () => {
+    const logger = mockLogger()
+    const result = await aiCall(
+      { ...defaultParams, estimatedCost: mockMoney(0.02) },
+      {
+        adapters: new Map([["claude", stubAdapter("claude answer")]]),
+        capSource: mockCapSource({
+          userDailyUsage: { cost: mockMoney(3.50), totalPromptTokens: 0, totalCompletionTokens: 0, callCount: 8 },
+          userCaps: { userSoftCap: mockMoney(3), userHardCap: mockMoney(5) },
+        }),
+        usageLogger: logger,
+      },
+    )
+
+    expect(result.ok).toBe(true)
+    expect(result.provider).toBe("claude")
+    // still operating under a soft-cap breach → logged as fallback, but served
+    expect(logger.calls[0].status).toBe("fallback")
+  })
+
+  it("keeps a good completion even if the success usage-log insert throws (ORR-807d)", async () => {
+    const throwingLogger: UsageLogger = {
+      async log(): Promise<UsageRecord> { throw new Error("insert hiccup") },
+    }
+    const second = stubAdapter("second")
+    const secondSpy = vi.spyOn(second, "call")
+
+    const result = await aiCall(
+      { ...defaultParams },
+      {
+        adapters: new Map<string, ProviderAdapter>([
+          ["claude", stubAdapter("first")],
+          ["gemini", second],
+        ]),
+        capSource: mockCapSource(),
+        usageLogger: throwingLogger,
+      },
+    )
+
+    // A logging failure must NOT discard the completion or fall through to B.
+    expect(result.ok).toBe(true)
+    expect(result.data).toBe("first")
+    expect(result.provider).toBe("claude")
+    expect(secondSpy).not.toHaveBeenCalled()
+  })
+
+  it("logs a failed provider attempt before falling through (ORR-807d)", async () => {
+    const failing: ProviderAdapter = { async call() { throw new Error("boom") } }
+    const logger = mockLogger()
+
+    const result = await aiCall(
+      { ...defaultParams },
+      {
+        adapters: new Map<string, ProviderAdapter>([
+          ["gemini", failing],
+          ["claude", stubAdapter("ok")],
+        ]),
+        capSource: mockCapSource(),
+        usageLogger: logger,
+      },
+    )
+
+    expect(result.ok).toBe(true)
+    const gem = logger.calls.find((c) => c.provider === "gemini")
+    expect(gem?.status).toBe("error") // the failed attempt is now visible
+    expect(logger.calls.find((c) => c.provider === "claude")?.status).toBe("success")
+  })
+
+  it("fails CLOSED when the cap source throws — does not bypass caps (ORR-807f)", async () => {
+    const source = mockCapSource()
+    source.getUserDailyUsage = async () => { throw new Error("usage query down") }
+    const adapter = stubAdapter()
+    const spy = vi.spyOn(adapter, "call")
+
+    const result = await aiCall(
+      { ...defaultParams },
+      { adapters: new Map([["claude", adapter]]), capSource: source },
+    )
+
+    expect(result.ok).toBe(false)
+    expect(result.reason).toBe("service_unavailable")
+    expect(spy).not.toHaveBeenCalled() // never spent under an unknown-usage state
   })
 
   it("returns provider_error when no adapters match", async () => {
