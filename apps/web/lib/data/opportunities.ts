@@ -145,10 +145,12 @@ export type OpportunityScope = "mine" | "all"
 
 /**
  * Columns the server-driven list can sort by (ORR-755). Mapped to a concrete
- * DB order in `applyOpportunitySort`. `account` and `owner` sort through their
- * embedded relation; `amount` sorts on the RAW numeric column (a cross-currency
- * approximation — the same rough order the old client sort used, since FX-exact
- * ordering would need per-row conversion the DB can't do cheaply).
+ * DB order in `applyOpportunitySort`. `account` and `owner` sort on the
+ * DENORMALIZED top-level `account_name` / `owner_name` columns (see ORR-800 note
+ * on `applyOpportunitySort`), NOT the embedded relation; `amount` sorts on the
+ * RAW numeric column (a cross-currency approximation — the same rough order the
+ * old client sort used, since FX-exact ordering would need per-row conversion
+ * the DB can't do cheaply).
  */
 export type OpportunitySortColumn =
   | "name"
@@ -245,6 +247,8 @@ const OPPORTUNITY_LIST_SELECT = `
       loss_reason,
       visibility_tier,
       custom_data,
+      account_name,
+      owner_name,
       created_at,
       updated_at,
       account:account_id ( name ),
@@ -253,26 +257,52 @@ const OPPORTUNITY_LIST_SELECT = `
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the PostgREST builder type is opaque across .order() chaining; the shape is preserved.
 function applyOpportunitySort(query: any, sort: OpportunitySort | undefined): any {
+  // Every branch appends `.order("id")` as a stable, unique tiebreaker. Without
+  // it, rows tying on the primary sort key have no defined order, so `.range()`
+  // pagination can duplicate/skip them across pages (ORR-800; the broader
+  // tiebreaker sweep is ORR-790). `id` is the PK — unique and always present.
   if (!sort) {
-    return query.order("updated_at", { ascending: false })
+    return query
+      .order("updated_at", { ascending: false })
+      .order("id", { ascending: true })
   }
   const ascending = sort.direction === "asc"
   switch (sort.column) {
     case "name":
-      return query.order("name", { ascending })
+      return query.order("name", { ascending }).order("id", { ascending: true })
     case "stage":
-      return query.order("stage", { ascending })
+      return query.order("stage", { ascending }).order("id", { ascending: true })
     case "amount":
-      return query.order("amount", { ascending })
+      return query.order("amount", { ascending }).order("id", { ascending: true })
     case "closeDate":
       // Nulls last regardless of direction so blank close dates sink to the end.
-      return query.order("close_date", { ascending, nullsFirst: false })
+      return query
+        .order("close_date", { ascending, nullsFirst: false })
+        .order("id", { ascending: true })
     case "account":
-      return query.order("name", { ascending, referencedTable: "account" })
     case "owner":
-      return query.order("full_name", { ascending, referencedTable: "owner" })
+      // ORR-800: sort on the DENORMALIZED top-level `account_name` / `owner_name`
+      // columns — NOT the embedded relation. Ordering through the embed only
+      // affects the parent with `!inner`, but `!inner` inner-joins accounts /
+      // users UNDER RLS: those SELECT policies are narrow (accounts =
+      // owner/creator/admin; users = self/same-entity/admin), whereas the
+      // opportunity_visibility model grants access across entities. So a deal you
+      // can legitimately see whose account/owner row you CANNOT see would be
+      // silently dropped from the sorted+paginated result — the exact
+      // missing-rows class this ticket fixes. The denormalized columns live on
+      // the opportunity row itself (which RLS already lets you read) and are kept
+      // current by triggers + backfill (migration 20260719020000). Nulls last so
+      // any un-backfilled row sinks rather than reordering the visible set.
+      return query
+        .order(sort.column === "account" ? "account_name" : "owner_name", {
+          ascending,
+          nullsFirst: false,
+        })
+        .order("id", { ascending: true })
     default:
-      return query.order("updated_at", { ascending: false })
+      return query
+        .order("updated_at", { ascending: false })
+        .order("id", { ascending: true })
   }
 }
 
