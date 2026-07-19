@@ -4068,6 +4068,10 @@ export type Database = {
         }[]
       }
       has_permission: { Args: { perm_key: string }; Returns: boolean }
+      invalidate_opportunity_approvals: {
+        Args: { _opportunity_id: string }
+        Returns: number
+      }
       is_email_domain_allowed: { Args: { _email: string }; Returns: boolean }
       job_pipeline_health_snapshot: { Args: never; Returns: undefined }
       list_visible_sales_entities: {
@@ -4091,10 +4095,6 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
-      }
-      invalidate_opportunity_approvals: {
-        Args: { _opportunity_id: string }
-        Returns: number
       }
       money_eq: {
         Args: {

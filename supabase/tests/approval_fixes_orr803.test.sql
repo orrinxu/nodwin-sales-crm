@@ -12,7 +12,7 @@
 
 BEGIN;
 
-SELECT plan(10);
+SELECT plan(11);
 
 INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
   ('80300000-0000-0000-0000-000000000001', 'admin803@nodwin.com', '{"full_name":"Admin"}'),
@@ -37,7 +37,7 @@ INSERT INTO public.users (id, email, full_name, primary_role, primary_entity_id)
   ('80300000-0000-0000-0000-00000000000a', 'a803@nodwin.com',     'A',     'sales_rep', '80310000-0000-0000-0000-0000000000e1'),
   ('80300000-0000-0000-0000-00000000000b', 'b803@nodwin.com',     'B',     'sales_rep', '80310000-0000-0000-0000-0000000000e1'),
   ('80300000-0000-0000-0000-00000000000c', 'c803@nodwin.com',     'C',     'sales_rep', '80310000-0000-0000-0000-0000000000e1')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET primary_role = EXCLUDED.primary_role, primary_entity_id = EXCLUDED.primary_entity_id;
 
 INSERT INTO public.business_units (id, name, entity_id, kind, manager_user_id)
 VALUES ('80320000-0000-0000-0000-0000000000b1', 'BU-803', '80310000-0000-0000-0000-0000000000e1', 'sales', '80300000-0000-0000-0000-000000000002')
@@ -126,6 +126,7 @@ SELECT lives_ok(
   $$SELECT public.record_approval_decision('80370000-0000-0000-0000-000000000002', 'approved')$$,
   'the reassigned single approver can decide the step'
 );
+-- 7. The step completes on the single reassigned approver's decision.
 SELECT tests.as_service_role();
 SET LOCAL ROLE postgres;
 SELECT is(
@@ -139,7 +140,7 @@ SELECT is(
 INSERT INTO public.approval_instances (id, workflow_id, entity_type, entity_id, status)
 VALUES ('80360000-0000-0000-0000-000000000003', '80350000-0000-0000-0000-0000000000e1', 'opportunity', '80340000-0000-0000-0000-000000000003', 'approved');
 
--- 7. A non-manager (not owner/team/admin/gsl) cannot invalidate.
+-- 8. A non-manager (not owner/team/admin/gsl) cannot invalidate.
 SELECT tests.as_user('other803@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT throws_ok(
@@ -147,7 +148,7 @@ SELECT throws_ok(
   '42501', NULL, 'a non-manager cannot invalidate approvals'
 );
 
--- 8. The owner (can_manage) invalidates: returns 1 (one approved instance cancelled).
+-- 9. The owner (can_manage) invalidates: returns 1 (one approved instance cancelled).
 SELECT tests.as_user('rep803@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT is(
@@ -156,7 +157,7 @@ SELECT is(
   'invalidate cancels the standing approved instance and returns its count'
 );
 
--- 9. The instance is now cancelled.
+-- 10. The instance is now cancelled.
 SELECT tests.as_service_role();
 SET LOCAL ROLE postgres;
 SELECT is(
@@ -165,7 +166,7 @@ SELECT is(
   'the approved instance is cancelled after invalidation'
 );
 
--- 10. Invalidating again is a no-op (nothing approved remains) → returns 0.
+-- 11. Invalidating again is a no-op (nothing approved remains) → returns 0.
 SELECT tests.as_user('rep803@nodwin.com');
 SET LOCAL ROLE authenticated;
 SELECT is(
