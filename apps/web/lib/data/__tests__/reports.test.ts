@@ -24,6 +24,7 @@ vi.mock("@/lib/supabase/server", () => ({
 // unconvertible-count path is exercisable.
 vi.mock("@/lib/data/metrics", () => ({
   resolveReportingCurrency: async () => "USD",
+  resolveReportTimeZone: async () => "UTC",
   fetchAndConvert: async (data: Array<Record<string, unknown>>) => {
     const rows = data ?? []
     const converted = rows

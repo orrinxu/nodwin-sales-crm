@@ -20,7 +20,8 @@ export interface SummaryStripData {
   winRate: number
   dealsWon: number
   dealsLost: number
-  /** Average value of active + won deals, in `currency`. */
+  /** Average value of won deals, in `currency` (ORR-813 — won-only, matching
+   *  the /reports Avg Deal Size so the two never disagree). */
   avgDealSize: number
   /** Reporting currency all money figures are normalised into. */
   currency: string

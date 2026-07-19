@@ -168,7 +168,7 @@ describe("getPipelineMetrics", () => {
     expect(result.dealsLost).toBe(1)
   })
 
-  it("averages deal size across all deals, including lost ones", async () => {
+  it("averages deal size over WON deals only (matching /reports)", async () => {
     buildQuery([
       { stage: "qualify", amount: 10000, currency: "USD" }, // active
       { stage: "propose", amount: 5000, currency: "USD" }, // active
@@ -178,9 +178,11 @@ describe("getPipelineMetrics", () => {
     const { getPipelineMetrics } = await import("./metrics")
     const result = await getPipelineMetrics(defaultCtx)
 
-    // totalAmount 50000 over all 4 deals → 12500. The old denominator omitted
-    // the lost deal (50000 / 3 ≈ 16667), which was the bug.
-    expect(result.avgDealSize).toBe(12500)
+    // ORR-813: avg deal size = won amount (25000) / won deals (1) = 25000 — the
+    // same won-only definition getReportData uses, so the dashboard strip and the
+    // /reports card never show different numbers one click apart. Open and lost
+    // deals no longer inflate the denominator (or the numerator).
+    expect(result.avgDealSize).toBe(25000)
   })
 
   it("calculates win rate correctly", async () => {

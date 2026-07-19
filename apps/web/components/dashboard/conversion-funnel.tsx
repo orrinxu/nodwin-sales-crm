@@ -31,7 +31,9 @@ interface ConversionFunnelProps {
  */
 export function ConversionFunnel({ data, locale }: ConversionFunnelProps) {
   const nf = new Intl.NumberFormat(locale)
-  const isEmpty = data.topCount === 0
+  // Empty only when NOTHING entered — an all-lost funnel (topCount 0, lost > 0)
+  // still has deals to report honestly (ORR-813), so it is not "empty".
+  const isEmpty = data.enteredCount === 0
 
   return (
     <Card>
@@ -43,7 +45,7 @@ export function ConversionFunnel({ data, locale }: ConversionFunnelProps) {
           <CardDescription>
             {isEmpty
               ? "How deals progress through the pipeline"
-              : `${nf.format(data.topCount)} entered · ${nf.format(data.wonCount)} won · ${data.overallConversion}% overall`}
+              : `${nf.format(data.enteredCount)} entered · ${nf.format(data.wonCount)} won · ${data.overallConversion}% overall`}
           </CardDescription>
         </div>
       </CardHeader>

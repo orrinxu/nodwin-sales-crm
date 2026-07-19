@@ -79,18 +79,20 @@ SELECT results_eq(
   'report_monthly_agg: this month has 1 won worth 5000'
 );
 
--- report_top_accounts_agg: Acme (A+B+D+E = 15500) leads Beta (C = 2000).
+-- report_top_accounts_agg (ORR-813): CLOSED-WON revenue only. Acme's only won
+-- deal is E (5000); A/B/D are open and no longer counted. Beta's only deal C is
+-- open, so Beta drops off the "Revenue" ranking entirely.
 SELECT results_eq(
-  $$ SELECT gross_amount
+  $$ SELECT gross_amount, deal_count::int
      FROM public.report_top_accounts_agg()
      WHERE account_name = 'Acme' AND currency = 'USD' $$,
-  $$ VALUES (15500::numeric) $$,
-  'report_top_accounts_agg: sums all of an account''s deals'
+  $$ VALUES (5000::numeric, 1) $$,
+  'report_top_accounts_agg: counts closed_won revenue only, not open/lost amounts'
 );
 SELECT results_eq(
   $$ SELECT count(*)::int FROM public.report_top_accounts_agg() $$,
-  $$ VALUES (2) $$,
-  'report_top_accounts_agg: one row per (account, currency) among the top accounts'
+  $$ VALUES (1) $$,
+  'report_top_accounts_agg: an account with no wins (Beta, only open) is excluded'
 );
 
 -- distinct_account_industries: Gaming + Media, distinct + ordered.

@@ -24,6 +24,11 @@ interface RepLeaderboardProps {
   currency: string
   /** Intl locale for digit grouping. */
   locale: string
+  /** What population the leaderboard ranks — "Team" (reporting subtree) or
+   *  "Group" (region/org rollup). Titles the card honestly; the same widget
+   *  serves both the dashboard Team and Group tabs (ORR-813). Defaults to
+   *  "Team" for existing call sites. */
+  scopeLabel?: string
 }
 
 const MEDALS = ["🥇", "🥈", "🥉"] as const
@@ -33,22 +38,34 @@ function rankLabel(rank: number): string {
 }
 
 /**
- * Team leaderboard — ranks the top reps this quarter by a viewer-selected metric
- * (won revenue / weighted pipeline / win rate). Reuses the forecast scorecard
- * data already loaded for the dashboard, so it adds no new query. The ranking is
- * the pure {@link rankLeaderboard}; this component owns the metric toggle and the
- * presentation (medals, relative bars, and highlighting the signed-in rep).
+ * Rep leaderboard — ranks the top reps in a scope (Team or Group) by a
+ * viewer-selected metric (won revenue / weighted pipeline / win rate). Reuses the
+ * forecast scorecard data already loaded for the dashboard, so it adds no new
+ * query. The ranking is the pure {@link rankLeaderboard}; this component owns the
+ * metric toggle and the presentation (medals, relative bars, and highlighting the
+ * signed-in rep).
+ *
+ * The caption is metric-aware (ORR-813): "Won" and "Win rate" are period metrics
+ * (rep_scorecard_agg filters them to this quarter by close_date), so they read
+ * "top reps this quarter"; "Weighted" is a live pipeline snapshot (the RPC does
+ * NOT period-filter open deals), so it reads "current weighted pipeline" rather
+ * than mislabelling all-time pipeline as a quarterly figure.
  */
 export function RepLeaderboard({
   scorecard,
   currentUserId,
   currency,
   locale,
+  scopeLabel = "Team",
 }: RepLeaderboardProps) {
   const [metric, setMetric] = useState<LeaderboardMetric>("won")
   const entries = rankLeaderboard(scorecard, metric, currentUserId)
   const kind =
     LEADERBOARD_METRICS.find((m) => m.key === metric)?.kind ?? "money"
+  const caption =
+    metric === "weightedPipeline"
+      ? "Current weighted pipeline"
+      : "Top reps this quarter"
 
   const money = new Intl.NumberFormat(locale, {
     style: "currency",
@@ -63,9 +80,9 @@ export function RepLeaderboard({
       <CardHeader className="flex-row items-start justify-between gap-3">
         <div>
           <CardTitle className="flex items-center gap-2">
-            <Trophy className="size-4 text-primary" /> Team leaderboard
+            <Trophy className="size-4 text-primary" /> {scopeLabel} leaderboard
           </CardTitle>
-          <CardDescription>Top reps this quarter</CardDescription>
+          <CardDescription>{caption}</CardDescription>
         </div>
         <div className="flex rounded-md border p-0.5" role="group" aria-label="Rank by">
           {LEADERBOARD_METRICS.map((m) => (

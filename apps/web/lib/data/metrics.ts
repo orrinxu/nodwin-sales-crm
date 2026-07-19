@@ -8,7 +8,7 @@ import { getStageLabel } from "@/lib/data/opportunities.types"
 import type { ActivityRecord, ActivityType } from "./activities"
 import { lookupRate, convertWithRate } from "@/lib/money/convert"
 import type { RawRate } from "@/lib/money/convert"
-import { getDisplayCurrency } from "@/lib/data/user-preferences"
+import { getDisplayCurrency, getUserPreferences } from "@/lib/data/user-preferences"
 import { resolveOrgReportingCurrency } from "@/lib/data/organisation-settings"
 
 export interface DashboardContext {
@@ -62,6 +62,17 @@ export function getReportingCurrency(): string {
 export async function resolveReportingCurrency(ctx: DashboardContext): Promise<string> {
   const preferred = await getDisplayCurrency(ctx)
   return preferred ?? (await resolveOrgReportingCurrency(ctx))
+}
+
+// The IANA timezone month-bucketing rollups should group created_at by (ORR-813).
+// A deal created just after local midnight must fall in the caller's calendar
+// month, not the server's — so report_monthly_agg buckets created_at AT TIME ZONE
+// this value. Falls back to "UTC" (the RPC's own default) when the user has set
+// none, matching resolveCloseDate's tz-aware close resolution (ORR-797). Postgres
+// AT TIME ZONE assumes a valid zone name, the same assumption todayInTimeZone makes.
+export async function resolveReportTimeZone(ctx: DashboardContext): Promise<string> {
+  const prefs = await getUserPreferences(ctx)
+  return prefs.timezone ?? "UTC"
 }
 
 // `currencies` is a tiny, request-stable reference table that was re-queried once
@@ -250,19 +261,18 @@ async function loadPipelineBuckets(ctx: DashboardContext): Promise<PipelineBucke
 }
 
 export async function getPipelineMetrics(ctx: DashboardContext): Promise<PipelineMetrics> {
-  const { buckets, convertedDealCount, unconvertibleCount, currency: reportingCurrency } =
+  const { buckets, unconvertibleCount, currency: reportingCurrency } =
     await loadPipelineBuckets(ctx)
 
   let pipelineValue = 0
   let dealsWon = 0
   let dealsLost = 0
-  let totalAmount = 0
+  let wonAmount = 0
 
   for (const b of buckets) {
-    totalAmount += b.amount
-
     if (b.stage === "closed_won") {
       dealsWon += b.dealCount
+      wonAmount += b.amount
     } else if (b.stage === "closed_lost") {
       dealsLost += b.dealCount
     } else {
@@ -273,8 +283,12 @@ export async function getPipelineMetrics(ctx: DashboardContext): Promise<Pipelin
   const totalDeals = dealsWon + dealsLost
   const winRate = totalDeals > 0 ? Math.round((dealsWon / totalDeals) * 100) : 0
 
-  // Average over the same converted population the totals were summed over.
-  const avgDealSize = computeAverage(totalAmount, convertedDealCount)
+  // Avg deal size = average value of WON deals (ORR-813). This is the same
+  // won-only definition getReportData uses on /reports, so the dashboard strip
+  // and the reports card agree. Previously this divided all-stage amount
+  // (including lost) by every converted deal — disagreeing with reports one
+  // click away and violating its own "won" selector doc.
+  const avgDealSize = computeAverage(wonAmount, dealsWon)
 
   return {
     pipelineValue,
