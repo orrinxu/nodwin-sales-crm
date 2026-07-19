@@ -76,10 +76,10 @@ SELECT lives_ok(
 
 -- ═══ (b) Line-item DIRECT DML recomputes opportunities.amount ════════════════
 INSERT INTO public.opportunities
-  (id, name, account_id, stage, sales_initiator_user_id, owner_user_id, sales_unit_id, amount, currency, visibility_tier)
+  (id, name, account_id, stage, owner_user_id, sales_unit_id, amount, currency, visibility_tier)
 VALUES
   ('0d000000-0000-0000-0000-000000000011', 'LI', 'ac000000-0000-0000-0000-0000000000a1', 'qualify',
-   'a0000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000005',
+   'a0000000-0000-0000-0000-000000000005',
    'b0000000-0000-0000-0000-0000000000b2', 0, 'USD', 'standard');
 
 -- Direct INSERT (NOT via the RPC) → statement trigger recomputes amount.
@@ -99,10 +99,10 @@ SELECT is(
 
 -- ═══ (a) business_units manager change recomputes split-unit visibility ══════
 INSERT INTO public.opportunities
-  (id, name, account_id, stage, sales_initiator_user_id, owner_user_id, sales_unit_id, amount, currency, visibility_tier)
+  (id, name, account_id, stage, owner_user_id, sales_unit_id, amount, currency, visibility_tier)
 VALUES
   ('0d000000-0000-0000-0000-000000000022', 'BUV', 'ac000000-0000-0000-0000-0000000000a1', 'qualify',
-   'a0000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000005',
+   'a0000000-0000-0000-0000-000000000005',
    'b0000000-0000-0000-0000-0000000000b1', 100, 'USD', 'standard');
 INSERT INTO public.opportunity_splits (opportunity_id, sales_unit_id, pct) VALUES
   ('0d000000-0000-0000-0000-000000000022', 'b0000000-0000-0000-0000-0000000000b1', 100);
@@ -146,14 +146,14 @@ SELECT ok(
 
 -- ═══ (f) tasks record links SET NULL on record delete; (e) stage_history CASCADE
 INSERT INTO public.opportunities
-  (id, name, account_id, stage, sales_initiator_user_id, owner_user_id, sales_unit_id, amount, currency, visibility_tier)
+  (id, name, account_id, stage, owner_user_id, sales_unit_id, amount, currency, visibility_tier)
 VALUES
   ('0d000000-0000-0000-0000-000000000033', 'TaskOpp', 'ac000000-0000-0000-0000-0000000000a2', 'qualify',
-   'a0000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000005',
+   'a0000000-0000-0000-0000-000000000005',
    'b0000000-0000-0000-0000-0000000000b2', 100, 'USD', 'standard');
 INSERT INTO public.tasks (id, title, assignee_user_id, created_by, opportunity_id, account_id, contact_id) VALUES
   ('7a000000-0000-0000-0000-000000000071', 'Follow up',
-   'a0000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000005',
+   'a0000000-0000-0000-0000-000000000005',
    '0d000000-0000-0000-0000-000000000033', 'ac000000-0000-0000-0000-0000000000a2',
    'c0000000-0000-0000-0000-0000000000c1');
 INSERT INTO public.opportunity_stage_history (opportunity_id, from_stage, to_stage, event, created_by) VALUES

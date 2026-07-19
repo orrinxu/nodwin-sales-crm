@@ -39,7 +39,14 @@ INSERT INTO public.opportunities (id, name, account_id, stage, owner_user_id, sa
 INSERT INTO public.activities (opportunity_id, user_id, type, created_at) VALUES
   ('00000000-0000-0000-0000-0000000000d1', '11111111-1111-1111-1111-111111111111', 'note', now() - interval '5 days');
 
--- Line items on A only.
+-- Line items on A only. A's seeded amount (1000) is the authoritative figure the
+-- aggregate assertions below are built around, so pin it with the manual-override
+-- flag: ORR-815 added a safety-net trigger that recomputes amount from line items
+-- on direct DML, which would otherwise drive A's amount down to the line subtotal
+-- (100). The override keeps the line item present (for opportunities_with_line_items)
+-- while leaving amount manually fixed at 1000.
+UPDATE public.opportunities SET line_items_amount_overridden = true
+ WHERE id = '00000000-0000-0000-0000-0000000000a1';
 INSERT INTO public.opportunity_line_items (opportunity_id, description, quantity, unit_price_amount, position) VALUES
   ('00000000-0000-0000-0000-0000000000a1', 'Item', 1, 100, 0);
 
