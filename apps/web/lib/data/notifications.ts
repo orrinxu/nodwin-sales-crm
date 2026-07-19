@@ -241,25 +241,60 @@ export async function upsertNotificationRouting(
   input: NotificationRoutingUpsertInput,
 ): Promise<NotificationRoutingRecord> {
   const supabase = await createServerClient()
+  const entityId = input.entityId ?? null
 
-  const payload: Record<string, unknown> = {
-    event_type: input.eventType,
-    channel: input.channel,
-    enabled: input.enabled,
-    entity_id: input.entityId ?? null,
-    updated_by: ctx.user.id,
+  // The natural key is UNIQUE (event_type, channel, entity_id), but Postgres
+  // treats NULL entity_id as DISTINCT, so `.upsert({...}, { onConflict:
+  // "event_type, channel, entity_id" })` NEVER conflicts on the org-wide
+  // (entity_id NULL) rows — every "disable" inserted a duplicate while the
+  // enabled original kept firing (ORR-798). Hand-roll the natural-key update,
+  // exactly like lib/data/slack.ts:setSlackEventRouting. `.is`/`.eq` on
+  // entity_id below is NULL-safe because we branch on it explicitly.
+  let selectQuery = supabase
+    .from("notification_routing")
+    .select("id")
+    .eq("event_type", input.eventType)
+    .eq("channel", input.channel)
+  selectQuery =
+    entityId === null
+      ? selectQuery.is("entity_id", null)
+      : selectQuery.eq("entity_id", entityId)
+
+  const { data: existing, error: selErr } = await selectQuery.maybeSingle()
+  if (selErr) {
+    throw new Error(`Failed to read notification routing: ${selErr.message}`)
+  }
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from("notification_routing")
+      .update({ enabled: input.enabled, updated_by: ctx.user.id } as never)
+      .eq("id", (existing as { id: string }).id)
+      .select()
+      .single()
+
+    if (error) {
+      throw new Error(`Failed to update notification routing: ${error.message}`)
+    }
+
+    return toDomainRouting(data as Record<string, unknown>)
   }
 
   const { data, error } = await supabase
     .from("notification_routing")
-    .upsert(payload as never, { onConflict: "event_type, channel, entity_id" })
+    .insert({
+      event_type: input.eventType,
+      channel: input.channel,
+      enabled: input.enabled,
+      entity_id: entityId,
+      created_by: ctx.user.id,
+      updated_by: ctx.user.id,
+    } as never)
     .select()
     .single()
 
   if (error) {
-    throw new Error(
-      `Failed to upsert notification routing: ${error.message}`,
-    )
+    throw new Error(`Failed to insert notification routing: ${error.message}`)
   }
 
   return toDomainRouting(data as Record<string, unknown>)

@@ -24,7 +24,7 @@ export function CrmHeader({ user }: CrmHeaderProps) {
       <div className="flex items-center gap-1 lg:gap-1.5">
         <CreateLauncher />
         <ModeToggle />
-        <NotificationsDrawer />
+        <NotificationsDrawer isAdmin={user.role === "admin"} />
       </div>
     </header>
   )

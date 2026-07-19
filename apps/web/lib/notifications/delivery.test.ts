@@ -4,6 +4,7 @@ import {
   evaluateNotificationChannels,
   sendSlackNotification,
   postToSlackWebhook,
+  toExternalUrl,
 } from "./delivery"
 
 vi.mock("server-only", () => ({}))
@@ -53,6 +54,7 @@ vi.mock("../security/env", () => ({
   env: {
     SUPABASE_URL: "https://test.supabase.co",
     SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
+    APP_URL: "https://crm.example.com",
   },
 }))
 
@@ -332,6 +334,66 @@ describe("evaluateNotificationChannels", () => {
     expect(channels.filter((c) => c === "email").length).toBe(1)
   })
 
+  it("resolves a core-event global routing row to its channel (ORR-798 seed)", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "notification_routing") {
+        return mockChain({
+          data: [
+            makeRoutingRow({ id: "r1", event_type: "deal_won", channel: "in_app", enabled: true, entity_id: null }),
+            makeRoutingRow({ id: "r2", event_type: "deal_won", channel: "email", enabled: true, entity_id: null }),
+          ],
+          error: null,
+        })
+      }
+      if (table === "user_notification_overrides") return mockChain({ data: [], error: null })
+      return mockChain({ data: null, error: new Error("unknown table") })
+    })
+
+    const channels = await evaluateNotificationChannels("user-1", "deal_won")
+    expect(channels).toEqual(expect.arrayContaining(["in_app", "email"]))
+  })
+
+  it("does NOT apply an entity-scoped route when the event carries no entity (ORR-798 skip fix)", async () => {
+    // A route scoped to entity-sg must never fire org-wide when the trigger
+    // passes no entityId — the old skip condition let it match everything.
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "notification_routing") {
+        return mockChain({
+          data: [
+            makeRoutingRow({ id: "r1", event_type: "deal_won", channel: "in_app", enabled: true, entity_id: "entity-sg" }),
+          ],
+          error: null,
+        })
+      }
+      if (table === "user_notification_overrides") return mockChain({ data: [], error: null })
+      return mockChain({ data: null, error: new Error("unknown table") })
+    })
+
+    const channels = await evaluateNotificationChannels("user-1", "deal_won")
+    expect(channels).toEqual([])
+  })
+
+  it("entity-scoped DISABLED row shadows an enabled global row for that entity (ORR-798 shadowing)", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "notification_routing") {
+        return mockChain({
+          data: [
+            makeRoutingRow({ id: "r1", event_type: "deal_won", channel: "email", enabled: true, entity_id: null }),
+            makeRoutingRow({ id: "r2", event_type: "deal_won", channel: "email", enabled: false, entity_id: "entity-sg" }),
+          ],
+          error: null,
+        })
+      }
+      if (table === "user_notification_overrides") return mockChain({ data: [], error: null })
+      return mockChain({ data: null, error: new Error("unknown table") })
+    })
+
+    // For entity-sg the disabled scoped row wins → email off.
+    expect(await evaluateNotificationChannels("user-1", "deal_won", "entity-sg")).toEqual([])
+    // For a different entity the global enabled row applies → email on.
+    expect(await evaluateNotificationChannels("user-1", "deal_won", "entity-other")).toContain("email")
+  })
+
   it("throws when routing query fails", async () => {
     mockFrom.mockImplementation((table: string) => {
       if (table === "notification_routing") {
@@ -359,6 +421,30 @@ describe("evaluateNotificationChannels", () => {
     await expect(
       evaluateNotificationChannels("user-1", "deal_won"),
     ).rejects.toThrow("Failed to load user overrides")
+  })
+})
+
+describe("toExternalUrl", () => {
+  it("prefixes a relative deep link with APP_URL for external delivery", () => {
+    expect(toExternalUrl("/opportunities/abc123")).toBe(
+      "https://crm.example.com/opportunities/abc123",
+    )
+  })
+
+  it("adds a leading slash when the path lacks one", () => {
+    expect(toExternalUrl("opportunities/abc")).toBe(
+      "https://crm.example.com/opportunities/abc",
+    )
+  })
+
+  it("leaves an already-absolute URL untouched", () => {
+    expect(toExternalUrl("https://other.example.com/x")).toBe(
+      "https://other.example.com/x",
+    )
+  })
+
+  it("passes undefined through (no link)", () => {
+    expect(toExternalUrl(undefined)).toBeUndefined()
   })
 })
 
