@@ -2,11 +2,13 @@ import "server-only"
 import { z } from "zod"
 import { createServerClient } from "@/lib/supabase/server"
 import type { AuthenticatedUser } from "@/lib/security/auth"
-import { DEAL_STAGES, STAGE_ORDER, type DealStage } from "@/lib/opportunity"
+import { DEAL_STAGES, STAGE_ORDER, isTerminalStage, type DealStage } from "@/lib/opportunity"
+import { todayInTimeZone } from "@/lib/opportunity/scope-presets"
 import {
   insertStageHistoryEntry,
   determineStageEvent,
 } from "@/lib/data/opportunity-stage-history"
+import { getUserPreferences } from "@/lib/data/user-preferences"
 import { Money } from "@/lib/money"
 import {
   clampPage,
@@ -780,6 +782,19 @@ async function assertEnforceGateApproval(
   }
 }
 
+// ORR-797: The actual close date a deal earns when it transitions into a closed
+// stage (closed_won/closed_lost). Resolved in the caller's timezone (falling back
+// to the server's ambient zone when they have none set) so a deal moved to Closed
+// Won late in the day lands on the right calendar day — and therefore the right
+// forecast quarter, scorecard period, and quota window, all of which filter
+// won/lost deals by close_date. Overwrite policy: on an actual close we stamp
+// today, replacing any pre-filled *expected* close date, because the realised
+// close date is what drives revenue recognition and the rollups above.
+async function resolveCloseDate(ctx: OpportunityCallContext): Promise<string> {
+  const prefs = await getUserPreferences(ctx)
+  return todayInTimeZone(prefs.timezone)
+}
+
 export async function updateOpportunity(
   ctx: OpportunityCallContext,
   id: string,
@@ -830,6 +845,23 @@ export async function updateOpportunity(
   if (parsed.probabilityPct !== undefined) dbData.probability_pct = parsed.probabilityPct
   if (parsed.visibilityTier !== undefined) dbData.visibility_tier = parsed.visibilityTier || null
   if (parsed.customData !== undefined) dbData.custom_data = parsed.customData
+
+  // ORR-797: A stage change made through the full-edit form must maintain
+  // close_date the same way the dedicated stage path does — but only when the
+  // same edit isn't already setting close_date explicitly (parsed.closeDate
+  // undefined), in which case the user's own value wins. Into a closed stage →
+  // stamp today's actual close date; reopen (closed → open) → clear it.
+  if (
+    parsed.stage !== undefined &&
+    parsed.stage !== existing.stage &&
+    parsed.closeDate === undefined
+  ) {
+    if (isTerminalStage(parsed.stage)) {
+      dbData.close_date = await resolveCloseDate(ctx)
+    } else if (isTerminalStage(existing.stage)) {
+      dbData.close_date = null
+    }
+  }
 
   if (Object.keys(dbData).length > 0) {
     const { error } = await supabase
@@ -913,9 +945,21 @@ export async function updateOpportunityStage(
 
     const event = determineStageEvent(existing.stage, parsed.stage)
 
+    // ORR-797: This path (kanban drag / stage-only update) carries no close_date
+    // input, so stamp it here. Into a closed stage → set today's actual close
+    // date (overwriting any stale expected date). Out of a closed stage back to
+    // open (reopen) → clear the now-stale close_date so the deal no longer counts
+    // as won/lost in any period.
+    const stageUpdate: Record<string, unknown> = { stage: parsed.stage }
+    if (isTerminalStage(parsed.stage)) {
+      stageUpdate.close_date = await resolveCloseDate(ctx)
+    } else if (isTerminalStage(existing.stage)) {
+      stageUpdate.close_date = null
+    }
+
     const { error } = await supabase
       .from("opportunities")
-      .update({ stage: parsed.stage })
+      .update(stageUpdate as never)
       .eq("id", id)
 
     if (error) {
@@ -976,19 +1020,58 @@ export async function bulkUpdateOpportunityStage(
     throw new Error(`Failed to load opportunities for bulk stage update: ${fetchError.message}`)
   }
 
-  for (const row of (rows ?? []) as { id: string; stage: string }[]) {
-    if (row.stage === parsed.stage) continue
+  // Only rows actually changing stage need gating — and only they should have
+  // close_date touched (writing to no-op rows would clobber an already-closed
+  // deal's real close_date). ORR-797.
+  const changed = ((rows ?? []) as { id: string; stage: string }[]).filter(
+    (row) => row.stage !== parsed.stage,
+  )
+  for (const row of changed) {
     await assertClosedWonApprovalGate(supabase, row.id, row.stage, parsed.stage)
     await assertEnforceGateApproval(supabase, row.id, row.stage, parsed.stage)
   }
 
+  const changedIds = changed.map((row) => row.id)
+  if (changedIds.length === 0) return
+
+  if (isTerminalStage(parsed.stage)) {
+    // ORR-797: Bulk-closing — stamp today's actual close date on every
+    // transitioning row so they register in forecast/scorecard/quota rollups.
+    const closeDate = await resolveCloseDate(ctx)
+    const { error } = await supabase
+      .from("opportunities")
+      .update({ stage: parsed.stage, close_date: closeDate } as never)
+      .in("id", changedIds)
+    if (error) {
+      throw new Error(`Failed to bulk update opportunity stages: ${error.message}`)
+    }
+    return
+  }
+
+  // Moving to an open stage. Apply the stage to every changed row, then clear
+  // close_date only on rows that are actually reopening (coming from a terminal
+  // stage) — rows advancing between open stages keep any expected close_date.
   const { error } = await supabase
     .from("opportunities")
-    .update({ stage: parsed.stage })
-    .in("id", parsed.ids)
-
+    .update({ stage: parsed.stage } as never)
+    .in("id", changedIds)
   if (error) {
     throw new Error(`Failed to bulk update opportunity stages: ${error.message}`)
+  }
+
+  const reopenedIds = changed
+    .filter((row) => isTerminalStage(row.stage as DealStage))
+    .map((row) => row.id)
+  if (reopenedIds.length > 0) {
+    const { error: clearError } = await supabase
+      .from("opportunities")
+      .update({ close_date: null } as never)
+      .in("id", reopenedIds)
+    if (clearError) {
+      throw new Error(
+        `Failed to clear close_date on reopened opportunities: ${clearError.message}`,
+      )
+    }
   }
 }
 
