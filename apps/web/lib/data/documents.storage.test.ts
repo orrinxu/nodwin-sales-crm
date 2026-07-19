@@ -23,27 +23,42 @@ const createSignedUrl = vi
   .fn()
   .mockResolvedValue({ data: { signedUrl: "https://dl" }, error: null })
 
-// Records every table insert so tests can assert the persisted payload.
+// Records every table insert/update so tests can assert the persisted payload.
 const insertSpy = vi.fn()
+const updateSpy = vi.fn()
+// Optional per-table result for UPDATE probes (falls back to the select result).
+const updateResults = new Map<string, Result>()
 
 function builder(result: Result, table: string) {
+  let isUpdate = false
   const b = {
     select: () => b,
     insert: (payload: unknown) => {
       insertSpy(table, payload)
       return b
     },
-    update: () => b,
+    update: (payload: unknown) => {
+      updateSpy(table, payload)
+      isUpdate = true
+      return b
+    },
     delete: () => b,
     eq: () => b,
     order: () => b,
-    maybeSingle: () => Promise.resolve(result),
-    single: () => Promise.resolve(result),
+    maybeSingle: () =>
+      Promise.resolve(isUpdate ? (updateResults.get(table) ?? result) : result),
+    single: () => Promise.resolve(isUpdate ? (updateResults.get(table) ?? result) : result),
     // Awaitable: `await query` (list path) resolves to the same result.
     then: (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
       Promise.resolve(result).then(onF, onR),
   }
   return b
+}
+
+/** The payload passed to `.from(table).update(...)` in the current test. */
+function updatePayload(table = "documents"): Record<string, unknown> | undefined {
+  const call = updateSpy.mock.calls.find(([t]) => t === table)
+  return call?.[1] as Record<string, unknown> | undefined
 }
 
 const NO_ROW: Result = { data: null, error: null }
@@ -68,6 +83,7 @@ const ctx = { user: { id: "u1", email: "rep@nodwin.com", role: "sales_rep" }, so
 beforeEach(() => {
   vi.clearAllMocks()
   userResults.clear()
+  updateResults.clear()
 })
 
 describe("createStoredDocument", () => {
@@ -149,6 +165,117 @@ describe("deleteStoredDocument", () => {
     userResults.set("documents", { data: [], error: null })
     const { deleteStoredDocument } = await import("./documents")
     await expect(deleteStoredDocument(ctx, "doc1")).rejects.toThrow(/permission to delete/i)
+    expect(removeSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe("createReplacementUpload (ORR-802 step 1)", () => {
+  const input = {
+    documentId: "00000000-0000-0000-0000-0000000000d1",
+    name: "Proposal v3.pdf",
+    mimeType: "application/pdf",
+    sizeBytes: 4096,
+  }
+  const existingDoc = {
+    id: "d1",
+    opportunity_id: "opp1",
+    account_id: null,
+    storage_path: "opp1/old-object.pdf",
+  }
+
+  it("mints an upload URL for a FRESH path WITHOUT repointing the row or deleting the old object", async () => {
+    userResults.set("documents", { data: existingDoc, error: null })
+    const { createReplacementUpload } = await import("./documents")
+    const handle = await createReplacementUpload(ctx, input)
+
+    // A fresh path under the same entity is handed to the client to upload to.
+    expect(handle.storagePath).toMatch(/^opp1\/.+Proposal_v3\.pdf$/)
+    expect(handle.storagePath).not.toBe(existingDoc.storage_path)
+    expect(createSignedUploadUrl).toHaveBeenCalledTimes(1)
+    expect(createSignedUploadUrl).toHaveBeenCalledWith(handle.storagePath)
+
+    // The invariant: the old bytes are NOT destroyed and the row is NOT repointed
+    // before the client has uploaded the replacement.
+    expect(removeSpy).not.toHaveBeenCalled()
+    // The only UPDATE is the no-op authz probe against the CURRENT path — never
+    // the new one.
+    expect(updatePayload()).toEqual({ storage_path: existingDoc.storage_path })
+  })
+
+  it("rejects when RLS allows SEE but not WRITE (authz probe returns 0 rows)", async () => {
+    userResults.set("documents", { data: existingDoc, error: null })
+    updateResults.set("documents", { data: null, error: null }) // UPDATE probe blocked
+    const { createReplacementUpload } = await import("./documents")
+    await expect(createReplacementUpload(ctx, input)).rejects.toThrow(/permission to replace/i)
+    // No destructive side effects and no upload URL minted.
+    expect(removeSpy).not.toHaveBeenCalled()
+    expect(createSignedUploadUrl).not.toHaveBeenCalled()
+  })
+
+  it("rejects when the doc is not visible", async () => {
+    userResults.set("documents", { data: null, error: null })
+    const { createReplacementUpload } = await import("./documents")
+    await expect(createReplacementUpload(ctx, input)).rejects.toThrow(/not found or not accessible/i)
+    expect(removeSpy).not.toHaveBeenCalled()
+    expect(createSignedUploadUrl).not.toHaveBeenCalled()
+  })
+})
+
+describe("confirmReplacementUpload (ORR-802 step 2)", () => {
+  const existingDoc = {
+    id: "d1",
+    opportunity_id: "opp1",
+    account_id: null,
+    storage_path: "opp1/old-object.pdf",
+  }
+  const confirm = {
+    documentId: "00000000-0000-0000-0000-0000000000d1",
+    newPath: "opp1/new-object.pdf",
+    mimeType: "application/pdf",
+    sizeBytes: 4096,
+  }
+
+  it("repoints the row to the new path, resets to pending, THEN deletes the old object", async () => {
+    userResults.set("documents", { data: existingDoc, error: null })
+    const { confirmReplacementUpload } = await import("./documents")
+    await confirmReplacementUpload(ctx, confirm)
+
+    expect(updatePayload()).toEqual({
+      storage_path: "opp1/new-object.pdf",
+      mime_type: "application/pdf",
+      size_bytes: 4096,
+      index_status: "pending",
+      index_error: null,
+    })
+    // The old object is removed only now — after the row no longer references it.
+    expect(removeSpy).toHaveBeenCalledWith(["opp1/old-object.pdf"])
+  })
+
+  it("does NOT delete the object on a same-path replace", async () => {
+    userResults.set("documents", {
+      data: { ...existingDoc, storage_path: "opp1/new-object.pdf" },
+      error: null,
+    })
+    const { confirmReplacementUpload } = await import("./documents")
+    await confirmReplacementUpload(ctx, confirm)
+    expect(removeSpy).not.toHaveBeenCalled()
+  })
+
+  it("rejects a newPath not scoped to the doc's entity (no repoint, no delete)", async () => {
+    userResults.set("documents", { data: existingDoc, error: null })
+    const { confirmReplacementUpload } = await import("./documents")
+    await expect(
+      confirmReplacementUpload(ctx, { ...confirm, newPath: "other-entity/x.pdf" }),
+    ).rejects.toThrow(/not scoped to the document's entity/i)
+    expect(updateSpy).not.toHaveBeenCalled()
+    expect(removeSpy).not.toHaveBeenCalled()
+  })
+
+  it("rejects when RLS blocks the commit UPDATE (no old object deleted)", async () => {
+    userResults.set("documents", { data: existingDoc, error: null })
+    updateResults.set("documents", { data: null, error: null })
+    const { confirmReplacementUpload } = await import("./documents")
+    await expect(confirmReplacementUpload(ctx, confirm)).rejects.toThrow(/permission to replace/i)
     expect(removeSpy).not.toHaveBeenCalled()
   })
 })

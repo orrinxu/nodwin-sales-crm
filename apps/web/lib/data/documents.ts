@@ -436,11 +436,16 @@ export type DocumentReplacementInput = z.infer<typeof documentReplacementSchema>
 /**
  * Re-attach SOURCE bytes to an EXISTING document — the durable remedy for a doc
  * whose Storage object was lost (e.g. the self-host migration carried the row but
- * not the object, so the worker marked it 'skipped'). Points the row at a fresh
- * storage_path (RLS enforces uploader/admin write), removes the old — usually
- * already-missing — object, and hands back a signed upload URL. After the bytes
- * land, {@link finalizeReplacement} resets the row to 'pending' so ingestion
- * re-indexes it. Works whether or not the old bytes were ever recoverable.
+ * not the object, so the worker marked it 'skipped'), and the ORR-747 in-place
+ * Re-upload flow used on documents whose bytes are still intact.
+ *
+ * ORR-802: this is STEP 1 only. It mints a signed upload URL for a FRESH
+ * storage_path and returns it — it does NOT repoint the row or delete the old
+ * object. The previous good bytes must survive until the replacement is durably
+ * uploaded, so the destructive part (repoint + old-object delete) happens in
+ * {@link confirmReplacementUpload}, which the client calls only AFTER the byte
+ * upload to `newPath` succeeds. A failed/abandoned upload therefore leaves the
+ * row still pointing at the old, intact object.
  */
 export async function createReplacementUpload(
   ctx: DocumentCallContext,
@@ -461,30 +466,24 @@ export async function createReplacementUpload(
   const entityId = (doc.opportunity_id ?? doc.account_id) as string | null
   if (!entityId) throw new Error("Document is not linked to an entity.")
 
-  const newPath = storageObjectPath(entityId, input.name)
-
-  // Repoint the row through the RLS-scoped client — the documents UPDATE policy
-  // (uploader OR non-confidential admin) is the write authorisation. A 0-row
-  // result means the caller may see but not modify this doc.
-  const { data: updated, error: updErr } = await supabase
+  // Write-authorisation probe: a no-op self-UPDATE through the RLS-scoped client.
+  // The documents UPDATE policy (uploader OR non-confidential admin) gates this
+  // exactly as the pre-ORR-802 repoint did; a 0-row result means the caller may
+  // see but not modify the doc. Crucially this changes NOTHING — storage_path is
+  // set to its current value — so no bytes are put at risk before the new upload.
+  const { data: writable, error: authzErr } = await supabase
     .from("documents")
-    .update({ storage_path: newPath, mime_type: input.mimeType, size_bytes: input.sizeBytes })
+    .update({ storage_path: doc.storage_path })
     .eq("id", input.documentId)
     .select("id")
     .maybeSingle()
-  if (updErr) throw new Error(`Failed to update document: ${updErr.message}`)
-  if (!updated) throw new Error("You do not have permission to replace this document.")
+  if (authzErr) throw new Error(`Failed to authorize replacement: ${authzErr.message}`)
+  if (!writable) throw new Error("You do not have permission to replace this document.")
 
-  const svc = serviceRoleClient()
-  // Best-effort: drop the stale object (a no-op when it's the missing one we're
-  // fixing). Never fail the replace on this.
-  const oldPath = doc.storage_path as string | null
-  if (oldPath && oldPath !== newPath) {
-    await svc.storage.from(STORAGE_BUCKET).remove([oldPath]).catch(() => {})
-  }
+  const newPath = storageObjectPath(entityId, input.name)
 
-  const { data: signed, error: urlErr } = await svc.storage
-    .from(STORAGE_BUCKET)
+  const { data: signed, error: urlErr } = await serviceRoleClient()
+    .storage.from(STORAGE_BUCKET)
     .createSignedUploadUrl(newPath)
   if (urlErr || !signed) {
     throw new Error(`Failed to create upload URL: ${urlErr?.message ?? "unknown"}`)
@@ -499,17 +498,68 @@ export async function createReplacementUpload(
   }
 }
 
-/** Reset a replaced document to 'pending' so the ingestion worker re-indexes it. */
-export async function finalizeReplacement(
+export const replacementConfirmSchema = z.object({
+  documentId: z.string().uuid(),
+  /** The storage_path minted by {@link createReplacementUpload} that the client
+   *  has now uploaded the replacement bytes to. */
+  newPath: z.string().trim().min(1).max(1024),
+  mimeType: z.string().trim().min(1).max(255),
+  sizeBytes: z.number().int().nonnegative(),
+})
+export type ReplacementConfirmInput = z.infer<typeof replacementConfirmSchema>
+
+/**
+ * ORR-802 STEP 2: commit a replacement once the new bytes are durably uploaded.
+ * Repoints the row at `newPath`, resets it to 'pending' for re-ingestion, then
+ * best-effort deletes the OLD object. Only reached after a successful client
+ * upload, so the previous good bytes are only discarded once the replacement
+ * exists. RLS UPDATE (uploader OR non-confidential admin) is the write authz.
+ */
+export async function confirmReplacementUpload(
   ctx: DocumentCallContext,
-  documentId: string,
+  input: ReplacementConfirmInput,
 ): Promise<void> {
   const supabase = await clientForSource(ctx.source)
-  const { error } = await supabase
+
+  // Re-load under RLS to recover the OLD path and to bound `newPath` to this
+  // doc's own entity (defence against repointing the row at another entity's
+  // object — the path is client-supplied on this leg).
+  const { data: doc, error } = await supabase
     .from("documents")
-    .update({ index_status: "pending", index_error: null })
-    .eq("id", documentId)
-  if (error) throw new Error(`Failed to reset index status: ${error.message}`)
+    .select("id, opportunity_id, account_id, storage_path")
+    .eq("id", input.documentId)
+    .maybeSingle()
+  if (error) throw new Error(`Failed to load document: ${error.message}`)
+  if (!doc) throw new Error("Document not found or not accessible.")
+
+  const entityId = (doc.opportunity_id ?? doc.account_id) as string | null
+  if (!entityId) throw new Error("Document is not linked to an entity.")
+  if (!input.newPath.startsWith(`${entityId}/`)) {
+    throw new Error("Replacement path is not scoped to the document's entity.")
+  }
+
+  const oldPath = doc.storage_path as string | null
+
+  const { data: updated, error: updErr } = await supabase
+    .from("documents")
+    .update({
+      storage_path: input.newPath,
+      mime_type: input.mimeType,
+      size_bytes: input.sizeBytes,
+      index_status: "pending",
+      index_error: null,
+    })
+    .eq("id", input.documentId)
+    .select("id")
+    .maybeSingle()
+  if (updErr) throw new Error(`Failed to update document: ${updErr.message}`)
+  if (!updated) throw new Error("You do not have permission to replace this document.")
+
+  // Best-effort: drop the old object now the row no longer references it. Skip a
+  // same-path replace so we never delete what we just wrote. Never fail on this.
+  if (oldPath && oldPath !== input.newPath) {
+    await serviceRoleClient().storage.from(STORAGE_BUCKET).remove([oldPath]).catch(() => {})
+  }
 }
 
 /** Short-lived signed download URL for a document the caller may see. Returns
