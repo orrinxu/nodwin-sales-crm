@@ -54,21 +54,6 @@ export interface ReportData {
   unconvertibleCount: number
 }
 
-export interface PipelineStageSummary {
-  stage: string
-  label: string
-  count: number
-  totalAmount: string
-  currency: string
-}
-
-export interface PipelineSummary {
-  stages: PipelineStageSummary[]
-  totalAmount: string
-  currency: string
-  totalCount: number
-}
-
 /**
  * Report-page rollups (ORR-757). Previously `.limit(500)`'d the opportunities
  * table and reduced every rollup in JS — silently partial past 500 deals. Each

@@ -65,6 +65,8 @@ describe("FilesModule", () => {
     const user = userEvent.setup()
     render(<FilesModule opportunityId="opp1" initialDocuments={[doc]} />)
     await user.click(screen.getByRole("button", { name: "Delete Proposal.pdf" }))
+    // A confirmation dialog now gates the destructive delete.
+    await user.click(screen.getByRole("button", { name: "Delete" }))
     expect(deleteDocumentAction).toHaveBeenCalledWith({ opportunityId: "opp1", documentId: "d1" })
     await waitFor(() => expect(screen.queryByText("Proposal.pdf")).not.toBeInTheDocument())
     expect(screen.getByText("Files (0)")).toBeInTheDocument()

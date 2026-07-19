@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Bell, CheckCheck, Loader2, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -105,6 +105,15 @@ export function NotificationsDrawer({ isAdmin = false }: NotificationsDrawerProp
     }
   }, [isAdmin])
 
+  // Compute the unread badge on mount, not only when the drawer is opened —
+  // otherwise the bell shows "no unread" until the user clicks it. `unreadCount`
+  // itself is server-computed over the full set (the /api/notifications route),
+  // so the badge is accurate as soon as this fetch resolves.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchFeed's initial loading state is the intended mount reaction; it resolves async
+    fetchFeed()
+  }, [fetchFeed])
+
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
       setOpen(isOpen)
@@ -153,42 +162,61 @@ export function NotificationsDrawer({ isAdmin = false }: NotificationsDrawerProp
   }, [])
 
   const markAllRead = useCallback(async () => {
+    // Only clear locally what the server actually accepted — never zero the
+    // counts optimistically and then swallow failures, which would show "All
+    // caught up" while PATCHes silently failed. Any failure surfaces an error
+    // and re-syncs against server truth.
+    let anyFailure = false
+
     if (unreadCount > 0) {
       try {
-        await fetch("/api/notifications", {
+        const res = await fetch("/api/notifications", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ all: true }),
         })
+        if (!res.ok) throw new Error("Failed to mark all read")
         setItems((prev) =>
           prev.map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })),
         )
         setUnreadCount(0)
       } catch {
-        // best-effort
+        anyFailure = true
       }
     }
+
     const unacked = alerts.filter((a) => !a.acknowledged_at)
+    const acknowledgedIds = new Set<string>()
     for (const a of unacked) {
       try {
-        await fetch("/api/admin/alerts", {
+        const res = await fetch("/api/admin/alerts", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: a.id }),
         })
+        if (!res.ok) throw new Error("Failed to acknowledge alert")
+        acknowledgedIds.add(a.id)
       } catch {
-        // continue
+        anyFailure = true
       }
     }
-    if (unacked.length > 0) {
+    if (acknowledgedIds.size > 0) {
       setAlerts((prev) =>
-        prev.map((a) => ({
-          ...a,
-          acknowledged_at: a.acknowledged_at ?? new Date().toISOString(),
-        })),
+        prev.map((a) =>
+          acknowledgedIds.has(a.id)
+            ? { ...a, acknowledged_at: a.acknowledged_at ?? new Date().toISOString() }
+            : a,
+        ),
       )
     }
-  }, [unreadCount, alerts])
+
+    if (anyFailure) {
+      setError("Some notifications couldn't be marked read. Please retry.")
+      // Reconcile the badge/counts with the server rather than leaving a
+      // half-applied local state.
+      fetchFeed()
+    }
+  }, [unreadCount, alerts, fetchFeed])
 
   const isEmpty = items.length === 0 && alerts.length === 0
 

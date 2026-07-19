@@ -91,4 +91,12 @@ describe("sanitizeSearchTerm", () => {
     expect(sanitizeSearchTerm("   ")).toBe("")
     expect(sanitizeSearchTerm(",,,")).toBe("")
   })
+  it("strips ilike wildcards so they match literally, not as wildcards", () => {
+    // %, _, \ and * are LIKE/ILIKE metacharacters — "50%" must not match any
+    // "50", and a trailing backslash must not break contains-matching.
+    expect(sanitizeSearchTerm("50% off")).toBe("50 off")
+    expect(sanitizeSearchTerm("a_b")).toBe("a b")
+    expect(sanitizeSearchTerm("path\\")).toBe("path")
+    expect(sanitizeSearchTerm("a*b")).toBe("a b")
+  })
 })

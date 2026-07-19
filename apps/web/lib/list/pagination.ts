@@ -82,14 +82,18 @@ export function pageCount(total: number, pageSize: number): number {
 
 /**
  * Sanitise a free-text search term for safe embedding inside a PostgREST
- * `.or("col.ilike.%term%,…")` filter string. Commas and parentheses are logical
- * syntax in the or-tree, so they must never reach it as literal search
- * characters — they're stripped (not escaped: this is a substring search box,
- * dropping punctuation is fine and avoids a malformed filter). Leading/trailing
- * whitespace is trimmed. Returns `""` when nothing usable remains, so callers can
- * skip the search clause entirely.
+ * `.ilike`/`.or("col.ilike.%term%,…")` filter. Two classes of character are
+ * stripped:
+ *   - or-tree syntax: commas and parentheses (would corrupt the filter string);
+ *   - LIKE/ILIKE wildcards: `%`, `_`, `\`, `*` (would make "50%" match any "50",
+ *     and a trailing `\` breaks contains-matching).
+ * They're stripped, not escaped — this is a substring search box, so dropping
+ * punctuation is fine and avoids both a malformed filter and unintended
+ * wildcarding (matches the global-search sanitiser in search.ts). Leading/
+ * trailing whitespace is trimmed. Returns `""` when nothing usable remains, so
+ * callers can skip the search clause entirely.
  */
 export function sanitizeSearchTerm(term: string | undefined | null): string {
   if (!term) return ""
-  return term.replace(/[(),]/g, " ").replace(/\s+/g, " ").trim()
+  return term.replace(/[(),%_\\*]/g, " ").replace(/\s+/g, " ").trim()
 }

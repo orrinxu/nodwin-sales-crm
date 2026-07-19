@@ -430,6 +430,7 @@ export function OpportunityForm({
     setOpen(newOpen)
     setShowAllFields(false)
     setCustomFieldErrors({})
+    // Clear any error from a previous attempt so it can't linger on reopen.
     setError(null)
     if (newOpen && opportunity) {
       form.reset({

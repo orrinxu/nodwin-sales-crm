@@ -177,6 +177,14 @@ export function OpportunityListTable({
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [stageError, setStageError] = useState<string | null>(null)
 
+  // Clear the row selection whenever the visible set changes (page, filters,
+  // search, or sort). Otherwise "3 selected" can retain off-screen rows and a
+  // bulk delete would remove records the user can no longer see.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing selection is the intended reaction to a visible-set change
+    setRowSelection({})
+  }, [page, stageFilter, ownerFilter, urlSearch, activeSort, activeDir])
+
   // Debounce the search box → URL so each keystroke doesn't fire a navigation.
   // The input is seeded from the URL on mount and re-synced explicitly by the
   // clear / apply-view handlers, so no URL→input effect is needed here.
@@ -575,7 +583,7 @@ export function OpportunityListTable({
           <DialogHeader>
             <DialogTitle>Delete Opportunities</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete {selectedIds.length} opportunity
+              Are you sure you want to delete {selectedIds.length} opportunit
               {selectedIds.length !== 1 ? "ies" : "y"}? This action cannot be
               undone.
             </DialogDescription>
@@ -618,7 +626,7 @@ export function OpportunityListTable({
           <DialogHeader>
             <DialogTitle>Change Stage</DialogTitle>
             <DialogDescription>
-              Move {selectedIds.length} opportunity
+              Move {selectedIds.length} opportunit
               {selectedIds.length !== 1 ? "ies" : "y"} to a new stage.
             </DialogDescription>
           </DialogHeader>

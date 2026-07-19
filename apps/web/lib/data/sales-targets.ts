@@ -33,6 +33,12 @@ export interface TargetProgress {
   weightedAmount: number
   /** won / target × 100, or null when there's no target. */
   attainmentPct: number | null
+  /** True when a target is set but its currency has no FX rate to the reporting
+   *  currency, so `targetAmount` couldn't be derived. The card shows an explicit
+   *  "no rate" note instead of a misleading "/ $0 · 0% of quota". */
+  targetUnconvertible: boolean
+  /** The target's own currency (for the unconvertible note). */
+  targetCurrency: string | null
 }
 
 export const setTargetsSchema = z.object({
@@ -177,6 +183,7 @@ export async function getMyTargetProgress(ctx: DashboardContext): Promise<Target
   }
 
   let targetAmount = 0
+  let targetUnconvertible = false
   if (targetRow) {
     // eslint-disable-next-line custom/no-unsafe-numeric-coercion -- coerced only to feed the bigint-safe fetchAndConvert (same as metrics.ts)
     const rawTarget = Number(targetRow.target_amount)
@@ -184,7 +191,13 @@ export async function getMyTargetProgress(ctx: DashboardContext): Promise<Target
       [{ stage: "target", amount: rawTarget, currency: targetRow.currency as string }] as OppRow[],
       reportingCurrency,
     )
-    targetAmount = converted[0]?.amount ?? 0
+    if (converted.length > 0) {
+      targetAmount = converted[0].amount
+    } else if (rawTarget > 0) {
+      // A real target that can't be converted — flag it rather than silently
+      // showing a $0 target and a 0%-of-quota bar.
+      targetUnconvertible = true
+    }
   }
 
   let attainmentPct: number | null = null
@@ -203,5 +216,7 @@ export async function getMyTargetProgress(ctx: DashboardContext): Promise<Target
     wonAmount: wonTotal,
     weightedAmount: weightedTotal,
     attainmentPct,
+    targetUnconvertible,
+    targetCurrency: (targetRow?.currency as string) ?? null,
   }
 }

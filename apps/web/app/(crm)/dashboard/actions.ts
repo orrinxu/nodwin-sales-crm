@@ -4,29 +4,11 @@ import { revalidatePath } from "next/cache"
 
 import { requireUser } from "@/lib/security/auth"
 import {
-  saveDashboardLayout,
-  resetDashboardLayout,
-  dashboardLayoutSchema,
-} from "@/lib/data/dashboard-layout"
-import {
   createActivity,
   activityCreateSchema,
   type ActivityRecord,
 } from "@/lib/data/activities"
 import { createTask, setTaskStatus, taskCreateSchema } from "@/lib/data/tasks"
-
-export async function saveDashboardLayoutAction(input: unknown) {
-  const user = await requireUser()
-  const ctx = { user, source: "web" as const }
-  const parsed = dashboardLayoutSchema.parse(input)
-  await saveDashboardLayout(ctx, parsed)
-}
-
-export async function resetDashboardLayoutAction() {
-  const user = await requireUser()
-  const ctx = { user, source: "web" as const }
-  await resetDashboardLayout(ctx)
-}
 
 /**
  * Log a "touch" (call / email / meeting / note) against a deal straight from the

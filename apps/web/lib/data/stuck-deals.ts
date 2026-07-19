@@ -75,7 +75,12 @@ export async function getStuckDeals(ctx: DashboardContext): Promise<StuckDealsRe
     .from("opportunities")
     .select("id, name, stage, amount, currency, close_date, created_at, account:account_id ( name )")
     .in("stage", NON_TERMINAL_STAGES)
-    .order("amount", { ascending: false })
+    // Highest raw amount first so the display cap keeps the biggest deals. PG
+    // DESC defaults to NULLS FIRST, which would let null-amount deals squat the
+    // cap slots ahead of real values — force nulls last. (Cross-currency raw
+    // ordering is still approximate; the exact headline total comes from the RPC
+    // below, not this list.)
+    .order("amount", { ascending: false, nullsFirst: false })
     .limit(STUCK_DISPLAY_CAP)
 
   if (error) throw new Error(`Failed to load stuck deals: ${error.message}`)
@@ -156,22 +161,31 @@ export async function getStuckDeals(ctx: DashboardContext): Promise<StuckDealsRe
   if (atRiskErr) {
     throw new Error(`Failed to load value at risk: ${atRiskErr.message}`)
   }
-  const { converted: atRiskConverted, unconvertibleCount: atRiskUnconvertible } =
-    await fetchAndConvert(
-      (atRiskRows ?? []).map((r) => ({
-        stage: "",
-        amount: Number(r.gross_amount) || 0,
-        currency: r.currency,
-        close_date: null,
-      })),
-      reportingCurrency,
-    )
+  const atRiskBuckets = atRiskRows ?? []
+  // Count DEALS, not currency buckets. fetchAndConvert's own unconvertibleCount
+  // is a per-row (per-currency) count, so an unconvertible bucket holding 37
+  // deals would read "1 deal excluded". Carry deal_count through and reconcile
+  // total-vs-converted deal counts (mirrors stage-totals.ts).
+  let totalStuckDeals = 0
+  for (const r of atRiskBuckets) totalStuckDeals += Number(r.deal_count) || 0
+
+  const { converted: atRiskConverted } = await fetchAndConvert(
+    atRiskBuckets.map((r) => ({
+      stage: "",
+      amount: Number(r.gross_amount) || 0,
+      currency: r.currency,
+      close_date: null,
+      dealCount: Number(r.deal_count) || 0,
+    })),
+    reportingCurrency,
+  )
   const totalValueAtRisk = atRiskConverted.reduce((sum, r) => sum + r.amount, 0)
+  const convertedDeals = atRiskConverted.reduce((sum, r) => sum + r.dealCount, 0)
 
   return {
     deals,
     currency: reportingCurrency,
     totalValueAtRisk,
-    unconvertibleCount: atRiskUnconvertible,
+    unconvertibleCount: totalStuckDeals - convertedDeals,
   }
 }

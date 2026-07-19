@@ -32,6 +32,23 @@ export function TargetProgressCard({
     )
   }
 
+  if (progress.targetUnconvertible) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Quarter target · {progress.quarterLabel}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            A target is set{progress.targetCurrency ? ` in ${progress.targetCurrency}` : ""}, but
+            there&apos;s no exchange rate to {progress.currency}, so quota progress can&apos;t be
+            shown. Add an FX rate or set the target in {progress.currency}.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
   const pct = progress.attainmentPct ?? 0
   const clamped = Math.min(100, Math.max(0, pct))
 

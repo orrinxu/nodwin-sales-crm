@@ -193,18 +193,23 @@ describe("getStuckDeals", () => {
     expect(totalValueAtRisk).toBe(2500)
   })
 
-  it("drops unconvertible-currency deals from value-at-risk but reports the count", async () => {
+  it("drops unconvertible-currency deals from value-at-risk but reports the DEAL count, not the currency-bucket count", async () => {
     store.opportunities = [
       opp({ id: "A", stage: "qualify", amount: 500 }),
+      // Two deals in the same unconvertible currency: they fold into ONE
+      // per-currency RPC bucket, so counting buckets would report 1. The count
+      // must be the number of deals (2), via deal_count (ORR-816 #4).
       opp({ id: "X", stage: "qualify", amount: 9999, currency: "XXX" }), // no FX rate
+      opp({ id: "Y", stage: "propose", amount: 8888, currency: "XXX" }), // no FX rate
     ]
     store.activities = [
       { opportunity_id: "A", created_at: daysAgo(30) },
       { opportunity_id: "X", created_at: daysAgo(30) },
+      { opportunity_id: "Y", created_at: daysAgo(30) },
     ]
     const { deals, unconvertibleCount } = await getStuckDeals(ctx)
-    expect(deals.map((d) => d.id)).toEqual(["A"]) // X dropped, not silently lost
-    expect(unconvertibleCount).toBe(1)
+    expect(deals.map((d) => d.id)).toEqual(["A"]) // X, Y dropped, not silently lost
+    expect(unconvertibleCount).toBe(2)
   })
 
   it("returns an empty result when there are no open deals", async () => {

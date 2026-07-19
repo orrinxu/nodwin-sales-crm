@@ -18,6 +18,7 @@ import {
   BOARD_FETCH_CAP,
   DEFAULT_PAGE_SIZE,
   clampPage,
+  pageCount,
 } from "@/lib/list/pagination"
 import { attachDealHealth } from "@/lib/data/deal-health"
 import { attachLineItemsWarning } from "@/lib/data/line-items-requirement"
@@ -154,6 +155,23 @@ export default async function OpportunitiesPage({
     ])
 
   const rawOpportunities = listResult.opportunities
+
+  // Stale page param after deletes: if the requested table page now sits past
+  // the last page (rows were deleted since the URL was formed), the server would
+  // fetch an out-of-range slice and render an empty table under a "Page 2 of 2"
+  // footer. Redirect to the last valid page so URL and data agree. Table only —
+  // the board fetches page 1.
+  if (view === "table" && listResult.totalCount > 0) {
+    const lastPage = pageCount(listResult.totalCount, listResult.pageSize)
+    if (page > lastPage) {
+      const to = new URLSearchParams()
+      for (const [k, v] of Object.entries(sp)) {
+        if (typeof v === "string") to.set(k, v)
+      }
+      to.set("page", String(lastPage))
+      redirect(`/opportunities?${to.toString()}`)
+    }
+  }
 
   // G3: a user who owns no deals (e.g. an admin) landing on the implicit default
   // (My Pipeline) would see an empty board. Bounce them to All Deals · Table.
