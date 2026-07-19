@@ -302,6 +302,10 @@ export function OpportunityDetailWrapper({
   const { formatDate } = usePreferences()
   const [updatingStage, setUpdatingStage] = useState(false)
   const [approvalPending, setApprovalPending] = useState(false)
+  // ORR-803(f): the approval server actions throw (no matching workflow, RLS
+  // denial, already-pending, stale-approval invalidation, …). Surface the message
+  // instead of swallowing it, so a button that "does nothing" explains why.
+  const [approvalError, setApprovalError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("overview")
   const [activitySeg, setActivitySeg] = useState("all")
   // One shared Edit sheet; empty-field "Add" affordances open it via this ref.
@@ -309,57 +313,75 @@ export function OpportunityDetailWrapper({
   const openEdit = useCallback(() => editTriggerRef.current?.click(), [])
   const goTo = useCallback((tab: string) => setActiveTab(tab), [])
 
+  // Normalise a thrown server-action error into a user-facing message.
+  const approvalErrorMessage = useCallback((err: unknown, fallback: string) => {
+    const raw = err instanceof Error ? err.message : String(err)
+    return raw && raw.trim().length > 0 ? raw : fallback
+  }, [])
+
   const handleSubmitApproval = useCallback(async () => {
     if (!submitApprovalAction) return
     setApprovalPending(true)
+    setApprovalError(null)
     try {
       await submitApprovalAction(opportunity.id)
       router.refresh()
+    } catch (err) {
+      setApprovalError(approvalErrorMessage(err, "Failed to submit for approval."))
     } finally {
       setApprovalPending(false)
     }
-  }, [submitApprovalAction, opportunity.id, router])
+  }, [submitApprovalAction, opportunity.id, router, approvalErrorMessage])
 
   const handleDecision = useCallback(
     async (stepId: string, decision: "approved" | "rejected" | "skipped", comment: string) => {
       if (!recordDecisionAction) return
       setApprovalPending(true)
+      setApprovalError(null)
       try {
         await recordDecisionAction(opportunity.id, { stepId, decision, comment: comment || undefined })
         router.refresh()
+      } catch (err) {
+        setApprovalError(approvalErrorMessage(err, "Failed to record the decision."))
       } finally {
         setApprovalPending(false)
       }
     },
-    [recordDecisionAction, opportunity.id, router],
+    [recordDecisionAction, opportunity.id, router, approvalErrorMessage],
   )
 
   const handleReassign = useCallback(
     async (stepId: string, userId: string) => {
       if (!reassignApprovalAction) return
       setApprovalPending(true)
+      setApprovalError(null)
       try {
         await reassignApprovalAction(opportunity.id, { stepId, newUserId: userId })
         router.refresh()
+      } catch (err) {
+        setApprovalError(approvalErrorMessage(err, "Failed to reassign the approval."))
       } finally {
         setApprovalPending(false)
       }
     },
-    [reassignApprovalAction, opportunity.id, router],
+    [reassignApprovalAction, opportunity.id, router, approvalErrorMessage],
   )
 
   const handleCancel = useCallback(
     async (instanceId: string) => {
       if (!cancelApprovalAction) return
       setApprovalPending(true)
+      setApprovalError(null)
       try {
         await cancelApprovalAction(opportunity.id, instanceId)
         router.refresh()
+      } catch (err) {
+        setApprovalError(approvalErrorMessage(err, "Failed to cancel the approval."))
       } finally {
         setApprovalPending(false)
       }
     },
-    [cancelApprovalAction, opportunity.id, router],
+    [cancelApprovalAction, opportunity.id, router, approvalErrorMessage],
   )
 
   const noteActivities = activities.filter((a) => a.type === "note")
@@ -820,6 +842,15 @@ export function OpportunityDetailWrapper({
         {/* Persistent rail — Approval + Deal Copilot only. */}
         <div className="w-full shrink-0 space-y-4 lg:sticky lg:top-6 lg:w-[372px]">
           <div id="approval-history-section">
+            {approvalError ? (
+              <div
+                role="alert"
+                className="mb-3 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+              >
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+                <span>{approvalError}</span>
+              </div>
+            ) : null}
             <ApprovalCard
               approvals={approvals}
               approvalStatus={approvalStatus}

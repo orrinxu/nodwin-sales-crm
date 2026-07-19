@@ -821,6 +821,13 @@ async function assertEnforceGateApproval(
   fromStage: string,
   toStage: string,
 ): Promise<void> {
+  // ORR-803(a): moving to closed_lost is ALWAYS allowed — a loss must remain
+  // recordable regardless of approval, mirroring check_stage_transition and the
+  // matching exemption in opportunity_check_enforce_gate. Without this, because
+  // closed_lost has the highest ordinal it "passes" every enforce-gate workflow's
+  // trigger stage, so an unapproved deal could never be marked lost (and if the
+  // approval were rejected, never at all).
+  if (toStage === "closed_lost") return
   if (STAGE_ORDER[toStage as DealStage] <= STAGE_ORDER[fromStage as DealStage]) return
   const { data, error } = await supabase.rpc("opportunity_check_enforce_gate", {
     _opportunity_id: opportunityId,
@@ -833,6 +840,60 @@ async function assertEnforceGateApproval(
     throw new Error(
       "This stage advance requires an approved approval. Please submit and obtain approval before continuing.",
     )
+  }
+}
+
+// ORR-803(d): staleness. An approval is granted against a specific amount and
+// governing (sales-unit) entity; once either changes materially — or the deal is
+// reopened out of a closed stage — that approval no longer reflects what would be
+// approved, yet both the closed-won and enforce gates are EXISTS-any-approved and
+// would keep passing on it. A material change must therefore invalidate the
+// standing approval so a fresh one is required before the deal can close again.
+const MATERIAL_AMOUNT_CHANGE_RATIO = 0.05
+
+function isMaterialApprovalChange(
+  existing: OpportunityRecord,
+  parsed: { amount?: string; salesUnitId?: string; stage?: DealStage },
+): boolean {
+  // Reopen: leaving a terminal stage back to an open one.
+  if (
+    parsed.stage !== undefined &&
+    isTerminalStage(existing.stage) &&
+    !isTerminalStage(parsed.stage)
+  ) {
+    return true
+  }
+  // Governing entity change: sales_unit_id resolves the workflow/entity the gates
+  // key on (business_units.entity_id), so a change re-routes governance.
+  if (parsed.salesUnitId !== undefined && parsed.salesUnitId !== existing.salesUnitId) {
+    return true
+  }
+  // Amount change beyond the threshold (amounts are decimal strings).
+  if (parsed.amount !== undefined) {
+    const prev = Number(existing.amount)
+    const next = Number(parsed.amount)
+    const material =
+      prev === 0
+        ? next !== 0
+        : Math.abs(next - prev) / Math.abs(prev) >= MATERIAL_AMOUNT_CHANGE_RATIO
+    if (material) return true
+  }
+  return false
+}
+
+// Cancel any standing approved instance for the opportunity via the SECURITY
+// DEFINER RPC (authorised by can_manage_opportunity — the same right the editor
+// already holds to reach this write path). Throws on a genuine RPC error so a
+// silent staleness leak can't slip through.
+async function invalidateStaleApprovals(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  opportunityId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("invalidate_opportunity_approvals", {
+    _opportunity_id: opportunityId,
+  })
+  if (error) {
+    throw new Error(`Failed to invalidate stale approvals: ${error.message}`)
   }
 }
 
@@ -859,6 +920,14 @@ export async function updateOpportunity(
 
   const existing = await getOpportunityById(ctx, id)
   if (!existing) throw new Error("Opportunity not found for update")
+
+  // ORR-803(d): a material change (amount/entity/reopen) invalidates any standing
+  // approval FIRST — before the gates run — so that an edit which both bumps the
+  // amount and moves the deal to Closed Won correctly re-gates on the now-stale
+  // approval instead of sliding through on it.
+  if (isMaterialApprovalChange(existing, parsed)) {
+    await invalidateStaleApprovals(supabase, id)
+  }
 
   if (parsed.stage !== undefined) {
     await assertClosedWonApprovalGate(supabase, id, existing.stage, parsed.stage)
@@ -996,6 +1065,11 @@ export async function updateOpportunityStage(
   if (!existing) throw new Error("Opportunity not found for stage update")
 
   if (existing.stage !== parsed.stage) {
+    // ORR-803(d): a reopen (terminal → open) via the stage path invalidates the
+    // standing approval so re-closing later requires fresh sign-off.
+    if (isMaterialApprovalChange(existing, { stage: parsed.stage })) {
+      await invalidateStaleApprovals(supabase, id)
+    }
     await assertClosedWonApprovalGate(supabase, id, existing.stage, parsed.stage)
     await assertEnforceGateApproval(supabase, id, existing.stage, parsed.stage)
 

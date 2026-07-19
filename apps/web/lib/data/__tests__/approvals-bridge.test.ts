@@ -3,6 +3,7 @@ import {
   hydrateMachineContext,
   computeApprovalStepStates,
   isApprovalFullyApproved,
+  summarizeApprovalStatus,
   type ApprovalInstanceRecord,
   type ApprovalStepRecord,
 } from "../approvals"
@@ -246,5 +247,33 @@ describe("isApprovalFullyApproved", () => {
     ])!
 
     expect(isApprovalFullyApproved(context)).toBe(false)
+  })
+})
+
+describe("summarizeApprovalStatus", () => {
+  it("returns not_submitted when there are no instances", () => {
+    expect(summarizeApprovalStatus([])).toBe("not_submitted")
+  })
+
+  it("returns the latest instance status when none are approved", () => {
+    // instances come back newest-first
+    expect(
+      summarizeApprovalStatus([
+        makeInstance({ id: "new", status: "pending" }),
+        makeInstance({ id: "old", status: "rejected" }),
+      ]),
+    ).toBe("pending")
+  })
+
+  // ORR-803(e): the gates are EXISTS-any-approved, so a standing approval must
+  // headline as "Approved" even when a later re-submission was cancelled —
+  // otherwise the status contradicts the gate the deal actually passes.
+  it("returns approved when any instance is approved despite a newer cancelled one", () => {
+    expect(
+      summarizeApprovalStatus([
+        makeInstance({ id: "new", status: "cancelled" }),
+        makeInstance({ id: "old", status: "approved" }),
+      ]),
+    ).toBe("approved")
   })
 })

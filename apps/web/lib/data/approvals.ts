@@ -70,11 +70,19 @@ export function approvalStatusLabel(status: ApprovalSummaryStatus): string {
   return APPROVAL_STATUS_LABELS[status]
 }
 
-// The latest instance (instances come back newest-first) determines the headline
-// approval status shown on the opportunity; no instance → not yet submitted.
+// Headline approval status shown on the opportunity. ORR-803(e): the closed-won
+// and enforce gates are EXISTS-any-approved (opportunity_has_approved_approval /
+// opportunity_check_enforce_gate) — a single approved instance clears them,
+// regardless of anything submitted afterwards. The headline must not contradict
+// that: if ANY instance is approved, show "Approved" so the status agrees with
+// the gate the deal actually passes. (A later re-submission that was cancelled
+// otherwise made an already-gated deal read "Cancelled".) Absent an approved
+// instance, fall back to the latest instance (instances come back newest-first);
+// no instance → not yet submitted.
 export function summarizeApprovalStatus(
   instances: ApprovalInstanceRecord[],
 ): ApprovalSummaryStatus {
+  if (instances.some((i) => i.status === "approved")) return "approved"
   return instances[0]?.status ?? "not_submitted"
 }
 

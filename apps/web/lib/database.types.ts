@@ -4092,6 +4092,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      invalidate_opportunity_approvals: {
+        Args: { _opportunity_id: string }
+        Returns: number
+      }
       money_eq: {
         Args: {
           a_amount: number
