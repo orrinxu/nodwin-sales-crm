@@ -2262,6 +2262,8 @@ export type Database = {
           custom_data: Json
           description: string | null
           drive_folder_id: string | null
+          drive_sync_next_attempt_at: string | null
+          drive_sync_status: string | null
           entity_sales_id: string | null
           estimated_gross_margin_pct: number | null
           execution_date: string | null
@@ -2310,6 +2312,8 @@ export type Database = {
           custom_data?: Json
           description?: string | null
           drive_folder_id?: string | null
+          drive_sync_next_attempt_at?: string | null
+          drive_sync_status?: string | null
           entity_sales_id?: string | null
           estimated_gross_margin_pct?: number | null
           execution_date?: string | null
@@ -2358,6 +2362,8 @@ export type Database = {
           custom_data?: Json
           description?: string | null
           drive_folder_id?: string | null
+          drive_sync_next_attempt_at?: string | null
+          drive_sync_status?: string | null
           entity_sales_id?: string | null
           estimated_gross_margin_pct?: number | null
           execution_date?: string | null
