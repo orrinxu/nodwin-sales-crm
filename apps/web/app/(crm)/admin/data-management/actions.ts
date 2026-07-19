@@ -112,6 +112,7 @@ export async function importSalesforceAction(input: {
   entity: string
   csvText: string
   salesUnitId?: string
+  defaultCurrency?: string
 }): Promise<ImportResult> {
   const user = await requireUser()
   requireRole(user, "admin")
@@ -120,6 +121,7 @@ export async function importSalesforceAction(input: {
     entity: input.entity as ImportResult["entity"],
     csvText: input.csvText,
     salesUnitId: input.salesUnitId,
+    defaultCurrency: input.defaultCurrency,
   })
   revalidatePath("/admin/data-management")
   return result

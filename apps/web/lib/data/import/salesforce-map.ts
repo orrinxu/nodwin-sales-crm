@@ -41,6 +41,41 @@ const ID_HEADERS = (entity: string) => [
 
 const ACCOUNT_ID_HEADERS = ["Account ID", "AccountId", "Account", "Account 18-Digit ID"]
 
+/** Headers that carry the record Owner's email, for Owner→CRM-user matching (b). */
+const OWNER_EMAIL_HEADERS = [
+  "Owner Email",
+  "Owner: Email",
+  "OwnerEmail",
+  "Owner Email Address",
+  "Opportunity Owner Email",
+  "Account Owner Email",
+]
+
+/** Headers that carry a per-row currency (f). */
+const CURRENCY_HEADERS = ["Currency", "Currency ISO Code", "CurrencyIsoCode"]
+
+/** The importer's canonical Id-column label per entity, for column detection. */
+const ID_ENTITY_LABEL: Record<ImportEntity, string> = {
+  accounts: "Account",
+  contacts: "Contact",
+  opportunities: "Opportunity",
+}
+
+/** True if the header row carries any recognised record-Id column for `entity`.
+ *  When false the import has no idempotency key — re-runs can duplicate (c). */
+export function detectIdColumn(headers: string[], entity: ImportEntity): boolean {
+  const present = new Set(headers.map((h) => h.trim().toLowerCase()))
+  // eslint-disable-next-line security/detect-object-injection -- entity is a validated enum key
+  return ID_HEADERS(ID_ENTITY_LABEL[entity]).some((c) => present.has(c.toLowerCase()))
+}
+
+/** True if the header row carries a currency column. When false, opportunities
+ *  must be given a confirmed default currency rather than silently defaulting (f). */
+export function hasCurrencyColumn(headers: string[]): boolean {
+  const present = new Set(headers.map((h) => h.trim().toLowerCase()))
+  return CURRENCY_HEADERS.some((c) => present.has(c.toLowerCase()))
+}
+
 /** Prepend https:// when a website has no scheme so it passes URL validation. */
 export function normalizeWebsite(raw: string): string | undefined {
   const v = raw.trim()
@@ -61,26 +96,88 @@ export function normalizeCurrency(raw: string): string | undefined {
 }
 
 /**
- * Normalize a Salesforce date to YYYY-MM-DD. Accepts ISO (YYYY-MM-DD) and the
- * US M/D/YYYY that en_US Salesforce orgs export by default. Ambiguous or
- * unparseable values return undefined (the field is optional) rather than
- * guessing a wrong date.
+ * Coerce a Salesforce numeric cell to a bare numeric string. SF *report* exports
+ * render amounts and probabilities with formatting the DB can't ingest —
+ * `"10%"`, `"$1,000.50"`, `"1,250"` — so strip currency symbols, `%`, spaces and
+ * thousands separators before the create schema's numeric coercion runs (d).
+ * Returns undefined when nothing numeric remains (the field is optional).
  */
-export function normalizeDate(raw: string): string | undefined {
+export function normalizeNumber(raw: string): string | undefined {
   const v = raw.trim()
   if (!v) return undefined
-  const iso = v.match(/^(\d{4})-(\d{2})-(\d{2})/)
-  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`
-  const us = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-  if (us) {
-    const [, m, d, y] = us
-    const mm = m.padStart(2, "0")
-    const dd = d.padStart(2, "0")
-    if (Number(mm) >= 1 && Number(mm) <= 12 && Number(dd) >= 1 && Number(dd) <= 31) {
-      return `${y}-${mm}-${dd}`
-    }
+  // Keep only digits, sign and separators, then drop thousands commas so the
+  // remainder is a plain decimal ("$1,000.50" → "1000.50", "10%" → "10").
+  const noGroups = v.replace(/[^0-9.,-]/g, "").replace(/,/g, "")
+  if (!/^-?\d*\.?\d+$/.test(noGroups)) return undefined
+  return noGroups
+}
+
+/** True when (y, m, d) is a real calendar date — Date normalises overflow (e.g.
+ *  Feb 31 → Mar 3), so a round-trip mismatch means the components were invalid. */
+function isRealDate(y: number, m: number, d: number): boolean {
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  return (
+    dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d
+  )
+}
+
+/**
+ * Parse a Salesforce date to YYYY-MM-DD with real calendar validation and
+ * ambiguity detection (e). Accepts ISO (YYYY-MM-DD) and slash dates. For
+ * D/M vs M/D, a component > 12 disambiguates; when both are ≤ 12 the value is
+ * genuinely ambiguous — we read it as US M/D (Salesforce's en_US default) and
+ * return a warning so the admin can catch a wrong interpretation. Impossible
+ * dates ("2/31/2026") return a warning and no `iso`, rather than emitting a
+ * value that fails at the Postgres `date` insert with an opaque SQL error.
+ */
+export function parseSalesforceDate(raw: string): { iso?: string; warning?: string } {
+  const v = raw.trim()
+  if (!v) return {}
+  const iso = v.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (iso) {
+    const [, y, m, d] = iso
+    if (isRealDate(Number(y), Number(m), Number(d))) return { iso: `${y}-${m}-${d}` }
+    return { warning: `impossible date "${v}" (not a real calendar date) — close date dropped` }
   }
-  return undefined
+  const slash = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (!slash) {
+    return { warning: `unrecognised date format "${v}" (expected YYYY-MM-DD or M/D/YYYY) — close date dropped` }
+  }
+  const a = Number(slash[1])
+  const b = Number(slash[2])
+  const y = Number(slash[3])
+  let month: number
+  let day: number
+  let warning: string | undefined
+  if (a > 12 && b <= 12) {
+    day = a
+    month = b // unambiguously D/M
+  } else if (b > 12 && a <= 12) {
+    month = a
+    day = b // unambiguously M/D
+  } else if (a <= 12 && b <= 12) {
+    month = a
+    day = b // ambiguous — assume US M/D
+    warning = `ambiguous date "${v}" read as US M/D (month ${a}); confirm if this export is D/M`
+  } else {
+    return { warning: `impossible date "${v}" (both parts > 12) — close date dropped` }
+  }
+  if (!isRealDate(y, month, day)) {
+    return { warning: `impossible date "${v}" (day out of range for the month) — close date dropped` }
+  }
+  const mm = String(month).padStart(2, "0")
+  const dd = String(day).padStart(2, "0")
+  return { iso: `${y}-${mm}-${dd}`, warning }
+}
+
+/**
+ * Normalize a Salesforce date to YYYY-MM-DD, or undefined when it can't be
+ * parsed to a real date. Thin wrapper over {@link parseSalesforceDate} for
+ * callers that only need the value (the mapper uses the full result to surface
+ * ambiguity warnings).
+ */
+export function normalizeDate(raw: string): string | undefined {
+  return parseSalesforceDate(raw).iso
 }
 
 const STAGE_MAP: Record<string, DealStage> = {
@@ -102,9 +199,14 @@ const STAGE_MAP: Record<string, DealStage> = {
   lost: "closed_lost",
 }
 
-/** Map a Salesforce StageName to a CRM stage; unknown stages fall back to qualify. */
-export function mapStage(raw: string): DealStage {
-  return STAGE_MAP[raw.trim().toLowerCase()] ?? "qualify"
+/**
+ * Map a Salesforce StageName to a CRM stage, or null when the stage isn't in the
+ * map (a). Real SF orgs customise StageName heavily, so guessing `qualify` for
+ * unknown stages silently re-enters historical won/lost revenue into the active
+ * pipeline. The caller collects the distinct unmapped values and skips the row.
+ */
+export function mapStage(raw: string): DealStage | null {
+  return STAGE_MAP[raw.trim().toLowerCase()] ?? null
 }
 
 /** A row mapped to CRM shape, plus the Salesforce ids the service resolves. */
@@ -115,11 +217,20 @@ export interface MappedRow {
   accountLegacyId?: string
   /** camelCase fields to feed the entity's create schema (excludes resolved FKs). */
   values: Record<string, unknown>
+  /** Record Owner's email from the export, to match to a CRM user (b); "" if absent. */
+  ownerEmail: string
+  /** Raw StageName when it isn't in the CRM map — the row must be skipped, not
+   *  guessed. Only set for opportunities (a). */
+  unmappedStage?: string
+  /** Non-fatal per-row advisories (e.g. ambiguous/impossible dates) (e). */
+  warnings: string[]
 }
 
 export function mapAccountRow(row: Record<string, string>): MappedRow {
   return {
     legacyId: pick(row, ID_HEADERS("Account")),
+    ownerEmail: pick(row, OWNER_EMAIL_HEADERS),
+    warnings: [],
     values: {
       name: pick(row, ["Account Name", "Name"]),
       legalName: pick(row, ["Legal Name", "Account Legal Name"]) || undefined,
@@ -139,6 +250,8 @@ export function mapContactRow(row: Record<string, string>): MappedRow {
   return {
     legacyId: pick(row, ID_HEADERS("Contact")),
     accountLegacyId: pick(row, ACCOUNT_ID_HEADERS) || undefined,
+    ownerEmail: pick(row, OWNER_EMAIL_HEADERS),
+    warnings: [],
     values: {
       fullName,
       email: pick(row, ["Email"]) || undefined,
@@ -150,16 +263,21 @@ export function mapContactRow(row: Record<string, string>): MappedRow {
 }
 
 export function mapOpportunityRow(row: Record<string, string>): MappedRow {
-  const stage = mapStage(pick(row, ["Stage", "StageName"]))
+  const rawStage = pick(row, ["Stage", "StageName"])
+  const stage = mapStage(rawStage)
+  const warnings: string[] = []
   const values: Record<string, unknown> = {
     name: pick(row, ["Opportunity Name", "Name"]),
-    stage,
-    amount: pick(row, ["Amount"]) || undefined,
-    currency: normalizeCurrency(pick(row, ["Currency", "Currency ISO Code", "CurrencyIsoCode"])),
-    closeDate: normalizeDate(pick(row, ["Close Date", "CloseDate"])),
+    amount: normalizeNumber(pick(row, ["Amount"])),
+    currency: normalizeCurrency(pick(row, CURRENCY_HEADERS)),
     description: pick(row, ["Description"]) || undefined,
   }
-  const prob = pick(row, ["Probability (%)", "Probability"])
+  const closeDate = parseSalesforceDate(pick(row, ["Close Date", "CloseDate"]))
+  if (closeDate.iso) values.closeDate = closeDate.iso
+  if (closeDate.warning) warnings.push(closeDate.warning)
+
+  if (stage) values.stage = stage
+  const prob = normalizeNumber(pick(row, ["Probability (%)", "Probability"]))
   if (prob) values.probabilityPct = prob
   const lossReason = pick(row, ["Loss Reason", "Reason Lost", "Lost Reason"])
   // closed_lost requires a loss reason (create-schema superRefine); supply a
@@ -172,6 +290,9 @@ export function mapOpportunityRow(row: Record<string, string>): MappedRow {
   return {
     legacyId: pick(row, ID_HEADERS("Opportunity")),
     accountLegacyId: pick(row, ACCOUNT_ID_HEADERS) || undefined,
+    ownerEmail: pick(row, OWNER_EMAIL_HEADERS),
+    unmappedStage: stage ? undefined : rawStage || "(blank)",
+    warnings,
     values,
   }
 }

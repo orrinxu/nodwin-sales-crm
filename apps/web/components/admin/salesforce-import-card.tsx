@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { decodeCsvFile } from "@/lib/data/import/decode"
 
 export interface BusinessUnitOption {
   id: string
@@ -32,6 +33,7 @@ export interface SalesforceImportResult {
   skipped: number
   failed: number
   errors: { row: number; message: string }[]
+  warnings: string[]
   jobId: string | null
 }
 
@@ -52,19 +54,25 @@ export function SalesforceImportCard({
     entity: string
     csvText: string
     salesUnitId?: string
+    defaultCurrency?: string
   }) => Promise<SalesforceImportResult>
 }) {
   const router = useRouter()
   const [entity, setEntity] = useState<Entity>("accounts")
   const [salesUnitId, setSalesUnitId] = useState<string>("")
+  const [currency, setCurrency] = useState<string>("")
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<SalesforceImportResult | null>(null)
 
   const needsBusinessUnit = entity === "opportunities"
+  const needsCurrency = entity === "opportunities"
   const canImport =
-    !!file && !busy && (!needsBusinessUnit || salesUnitId !== "")
+    !!file &&
+    !busy &&
+    (!needsBusinessUnit || salesUnitId !== "") &&
+    (!needsCurrency || currency.trim() !== "")
 
   async function handleImport() {
     if (!file) return
@@ -72,11 +80,12 @@ export function SalesforceImportCard({
     setError(null)
     setResult(null)
     try {
-      const csvText = await file.text()
+      const csvText = await decodeCsvFile(file)
       const res = await importAction({
         entity,
         csvText,
         salesUnitId: needsBusinessUnit ? salesUnitId : undefined,
+        defaultCurrency: needsCurrency ? currency.trim().toUpperCase() : undefined,
       })
       setResult(res)
       // Reflect the new records + the import_jobs audit row.
@@ -148,6 +157,24 @@ export function SalesforceImportCard({
           </div>
         )}
 
+        {needsCurrency && (
+          <div className="grid gap-2 sm:max-w-xs">
+            <Label htmlFor="sf-import-currency">Currency</Label>
+            <Input
+              id="sf-import-currency"
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              placeholder="e.g. INR, USD, EUR"
+              maxLength={10}
+            />
+            <p className="text-xs text-muted-foreground">
+              Applied to rows without a Currency column. Single-currency Salesforce
+              orgs don&apos;t export a currency, so confirm it here rather than
+              silently defaulting to USD.
+            </p>
+          </div>
+        )}
+
         <div className="grid gap-2 sm:max-w-xs">
           <Label htmlFor="sf-import-file">CSV file</Label>
           <Input
@@ -177,6 +204,18 @@ export function SalesforceImportCard({
               {result.created} created · {result.skipped} skipped (already
               imported) · {result.failed} failed
             </p>
+            {result.warnings.length > 0 && (
+              <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-50 p-3 dark:bg-amber-950/30">
+                <p className="font-medium text-amber-700 dark:text-amber-400">
+                  Warnings
+                </p>
+                <ul className="mt-1 list-inside list-disc text-amber-700 dark:text-amber-400">
+                  {result.warnings.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {result.errors.length > 0 && (
               <div className="mt-3">
                 <p className="font-medium">
