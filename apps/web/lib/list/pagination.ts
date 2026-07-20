@@ -36,19 +36,39 @@ export function clampPage(page: number | undefined | null): number {
   return n < 1 ? 1 : n
 }
 
-/** Clamp an incoming page size into `[1, MAX_PAGE_SIZE]`, defaulting when absent. */
-export function clampPageSize(pageSize: number | undefined | null): number {
+/**
+ * Clamp an incoming page size into `[1, max]`, defaulting when absent.
+ *
+ * `max` defaults to `MAX_PAGE_SIZE` (100) so every normal list caller keeps the
+ * hard ceiling that removed the unbounded fetch. The kanban board opts into a
+ * larger bounded fetch by passing `BOARD_FETCH_CAP` explicitly (ORR-805) — the
+ * default clamp is never weakened for anyone who doesn't ask.
+ */
+export function clampPageSize(
+  pageSize: number | undefined | null,
+  max: number = MAX_PAGE_SIZE,
+): number {
   if (pageSize == null || !Number.isFinite(pageSize)) return DEFAULT_PAGE_SIZE
   const n = Math.floor(pageSize)
   if (n < 1) return 1
-  if (n > MAX_PAGE_SIZE) return MAX_PAGE_SIZE
+  if (n > max) return max
   return n
 }
 
-/** Inclusive `[from, to]` row indices for a 1-based page — feeds `.range()`. */
-export function rangeFor(page: number, pageSize: number): [from: number, to: number] {
+/**
+ * Inclusive `[from, to]` row indices for a 1-based page — feeds `.range()`.
+ *
+ * `max` is forwarded to `clampPageSize`; without it this belt-and-suspenders
+ * re-clamp would silently drop the board's `BOARD_FETCH_CAP` back to 100
+ * (ORR-805), so the board path must pass the same ceiling it clamped with.
+ */
+export function rangeFor(
+  page: number,
+  pageSize: number,
+  max: number = MAX_PAGE_SIZE,
+): [from: number, to: number] {
   const p = clampPage(page)
-  const size = clampPageSize(pageSize)
+  const size = clampPageSize(pageSize, max)
   const from = (p - 1) * size
   return [from, from + size - 1]
 }

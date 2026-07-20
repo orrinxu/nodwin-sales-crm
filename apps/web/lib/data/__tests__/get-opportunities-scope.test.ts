@@ -166,6 +166,46 @@ describe("getOpportunities — owner scope filter", () => {
     await getOpportunities(defaultCtx, { scope: "all", page: 3, pageSize: 10 })
     expect(mockRange).toHaveBeenCalledWith(20, 29)
   })
+
+  it("clamps a normal list to MAX_PAGE_SIZE even when a larger pageSize is asked (ORR-805)", async () => {
+    const { getOpportunities } = await import("../opportunities")
+    const { BOARD_FETCH_CAP, MAX_PAGE_SIZE } = await import("@/lib/list/pagination")
+    // No maxPageSize → the default 100 ceiling still holds, so an over-large
+    // pageSize can never re-introduce the unbounded fetch.
+    const result = await getOpportunities(defaultCtx, {
+      scope: "all",
+      pageSize: BOARD_FETCH_CAP,
+    })
+    expect(mockRange).toHaveBeenCalledWith(0, MAX_PAGE_SIZE - 1)
+    expect(result.pageSize).toBe(MAX_PAGE_SIZE)
+  })
+
+  it("lets the board fetch up to BOARD_FETCH_CAP when maxPageSize opts in (ORR-805)", async () => {
+    const { getOpportunities } = await import("../opportunities")
+    const { BOARD_FETCH_CAP } = await import("@/lib/list/pagination")
+    // The board path passes pageSize AND maxPageSize = BOARD_FETCH_CAP; the 500
+    // must survive the clamp end-to-end (clampPageSize + rangeFor re-clamp).
+    const result = await getOpportunities(defaultCtx, {
+      scope: "all",
+      page: 1,
+      pageSize: BOARD_FETCH_CAP,
+      maxPageSize: BOARD_FETCH_CAP,
+    })
+    expect(mockRange).toHaveBeenCalledWith(0, BOARD_FETCH_CAP - 1)
+    expect(result.pageSize).toBe(BOARD_FETCH_CAP)
+  })
+
+  it("clamps an over-large maxPageSize to BOARD_FETCH_CAP (ORR-805)", async () => {
+    const { getOpportunities } = await import("../opportunities")
+    const { BOARD_FETCH_CAP } = await import("@/lib/list/pagination")
+    const result = await getOpportunities(defaultCtx, {
+      scope: "all",
+      pageSize: 100000,
+      maxPageSize: 100000,
+    })
+    expect(mockRange).toHaveBeenCalledWith(0, BOARD_FETCH_CAP - 1)
+    expect(result.pageSize).toBe(BOARD_FETCH_CAP)
+  })
 })
 
 describe("getOpportunities — sort (ORR-800)", () => {
