@@ -91,6 +91,33 @@ export function formatPreferenceDate(
 }
 
 /**
+ * Just the time-of-day per preference (12-hour clock except ISO, which uses
+ * 24-hour). When `timeZone` is set the time renders in that IANA zone; otherwise
+ * the ambient zone is used. Returns `fallback` for null/invalid input.
+ */
+export function formatPreferenceTime(
+  value: string | Date | null | undefined,
+  pref: DateFormatPreference | null | undefined,
+  fallback = "",
+  timeZone?: string | null,
+): string {
+  const d = toDate(value)
+  if (!d) return fallback
+  const { locale } = dateParts(pref)
+  return d.toLocaleTimeString(
+    locale,
+    withTimeZone(
+      {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: pref !== "iso",
+      },
+      timeZone,
+    ),
+  )
+}
+
+/**
  * Date + time per preference (12-hour clock except ISO, which uses 24-hour).
  * When `timeZone` is set both the date and time render in that IANA zone.
  */
