@@ -331,6 +331,12 @@ export function getApprovalStepState(
 export function checkCanTransitionToApproved(
   stepApprovals: Record<number, StepApproval>,
 ): boolean {
+  // ORR-803(e): align with the SQL source of truth. record_approval_decision
+  // treats a `skipped` step as satisfied (it is terminal and counts toward
+  // "no steps remaining" → the instance becomes `approved`), so a fully-skipped
+  // chain approves the deal and clears the gates. This display-side model must
+  // agree: a step is satisfied when approved OR skipped, and only an actual
+  // rejection blocks. (The DB gate remains authoritative regardless.)
   const entries = Object.values(stepApprovals)
-  return entries.length > 0 && entries.every(s => s.approved && !s.skipped && !s.rejected)
+  return entries.length > 0 && entries.every(s => (s.approved || s.skipped) && !s.rejected)
 }

@@ -332,11 +332,23 @@ describe("Approval State Machine", () => {
       ).toBe(false)
     })
 
-    it("should return false when a step is skipped", () => {
+    // ORR-803(e): a skipped step is satisfied, matching the SQL gate
+    // (record_approval_decision approves the instance once no steps remain,
+    // skipped steps included). A fully approved-or-skipped chain transitions.
+    it("should return true when a step is skipped and the rest approved", () => {
       expect(
         checkCanTransitionToApproved({
           1: { approved: true, rejected: false, skipped: false, votes: {} },
-          2: { approved: true, rejected: false, skipped: true, votes: {} },
+          2: { approved: false, rejected: false, skipped: true, votes: {} },
+        }),
+      ).toBe(true)
+    })
+
+    it("should return false when a step is still pending (neither approved nor skipped)", () => {
+      expect(
+        checkCanTransitionToApproved({
+          1: { approved: true, rejected: false, skipped: false, votes: {} },
+          2: { approved: false, rejected: false, skipped: false, votes: {} },
         }),
       ).toBe(false)
     })
