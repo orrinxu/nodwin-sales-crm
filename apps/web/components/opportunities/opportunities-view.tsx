@@ -13,6 +13,7 @@ import type {
 import type { StageTotals } from "@/lib/data/stage-totals"
 import type { AccountOption } from "@/lib/data/contacts"
 import type { EntityOption } from "@/components/entity-combobox"
+import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import type {
   SavedViewRecord,
   SavedViewFilters,
@@ -70,6 +71,8 @@ interface OpportunitiesViewProps {
   accounts: AccountOption[]
   businessUnits: BusinessUnitOption[]
   users?: EntityOption[]
+  /** Admin-defined opportunity custom fields, rendered + enforced in the create dialog. */
+  fieldDefinitions?: FieldDefinition[]
   createAction: (input: OpportunityCreateInput) => Promise<OpportunityRecord>
   /** ORR-677: when provided, "Create Opportunity" opens the AI generator chooser. */
   generateAction?: (input: { text?: string; images?: { mimeType: string; dataBase64: string }[] }) => Promise<GenerateOpportunityResult>
@@ -126,6 +129,7 @@ export function OpportunitiesView({
   accounts,
   businessUnits,
   users,
+  fieldDefinitions,
   createAction,
   generateAction,
   extractFileAction,
@@ -204,6 +208,7 @@ export function OpportunitiesView({
       accounts={accounts}
       businessUnits={businessUnits}
       users={users}
+      fieldDefinitions={fieldDefinitions}
       createAction={createAction}
       generateAction={generateAction}
       extractFileAction={extractFileAction}
@@ -221,6 +226,7 @@ export function OpportunitiesView({
       accounts={accounts}
       businessUnits={businessUnits}
       users={users}
+      fieldDefinitions={fieldDefinitions}
       createAction={createAction}
       onSuccess={() => router.refresh()}
       searchAccountsAction={searchAccountsAction}
@@ -354,6 +360,7 @@ export function OpportunitiesView({
           accounts={accounts}
           businessUnits={businessUnits}
           users={users}
+          fieldDefinitions={fieldDefinitions}
           createAction={createAction}
           generateAction={generateAction}
           extractFileAction={extractFileAction}

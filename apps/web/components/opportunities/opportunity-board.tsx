@@ -25,6 +25,7 @@ import type { OpportunityCreateInput, BusinessUnitOption } from "@/lib/data/oppo
 import type { StageTotal, StageTotals } from "@/lib/data/stage-totals"
 import type { AccountOption } from "@/lib/data/contacts"
 import type { EntityOption } from "@/components/entity-combobox"
+import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import { OpportunityCard } from "@/components/opportunities/opportunity-card"
 import { OpportunityColumn } from "@/components/opportunities/opportunity-column"
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
@@ -45,6 +46,8 @@ interface OpportunityBoardProps {
   accounts: AccountOption[]
   businessUnits: BusinessUnitOption[]
   users?: EntityOption[]
+  /** Admin-defined opportunity custom fields for the create dialog. */
+  fieldDefinitions?: FieldDefinition[]
   createAction: (input: OpportunityCreateInput) => Promise<OpportunityRecord>
   /** ORR-677: when provided, "Create Opportunity" opens the AI generator chooser. */
   generateAction?: (input: { text?: string; images?: { mimeType: string; dataBase64: string }[] }) => Promise<GenerateOpportunityResult>
@@ -69,6 +72,7 @@ export function OpportunityBoard({
   accounts,
   businessUnits,
   users,
+  fieldDefinitions,
   createAction,
   generateAction,
   extractFileAction,
@@ -84,6 +88,9 @@ export function OpportunityBoard({
   const router = useRouter()
   const [activeOpportunity, setActiveOpportunity] =
     useState<OpportunityRecord | null>(null)
+  // Surfaces a rejected stage move (approval gate, illegal transition) — the
+  // server's messages here are user-facing, so a silent catch hid real feedback.
+  const [dragError, setDragError] = useState<string | null>(null)
 
   const columns = [...NON_TERMINAL_STAGES, ...TERMINAL_STAGES]
 
@@ -138,11 +145,19 @@ export function OpportunityBoard({
 
       if (opp.stage === targetStage) return
 
+      setDragError(null)
       try {
         await updateStageAction(opp.id, { stage: targetStage })
         router.refresh()
-      } catch {
-        // Stage transition was rejected (DB trigger or validation)
+      } catch (err) {
+        // Stage transition was rejected (approval gate / DB trigger / validation).
+        // These messages are meant for the user — surface them instead of the
+        // card silently snapping back with no explanation.
+        setDragError(
+          err instanceof Error && err.message
+            ? err.message
+            : `Couldn't move "${opp.name}" to ${getStageLabel(targetStage)}.`,
+        )
       }
     },
     [updateStageAction, router],
@@ -161,6 +176,7 @@ export function OpportunityBoard({
               accounts={accounts}
               businessUnits={businessUnits}
               users={users}
+              fieldDefinitions={fieldDefinitions}
               createAction={createAction}
               generateAction={generateAction}
               extractFileAction={extractFileAction}
@@ -178,6 +194,7 @@ export function OpportunityBoard({
               accounts={accounts}
               businessUnits={businessUnits}
               users={users}
+              fieldDefinitions={fieldDefinitions}
               createAction={createAction}
               onSuccess={() => router.refresh()}
               searchAccountsAction={searchAccountsAction}
@@ -189,6 +206,22 @@ export function OpportunityBoard({
             />
           )}
         </div>
+
+        {dragError ? (
+          <div
+            role="alert"
+            className="flex items-start justify-between gap-3 rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
+          >
+            <span>{dragError}</span>
+            <button
+              type="button"
+              onClick={() => setDragError(null)}
+              className="shrink-0 font-medium underline underline-offset-2"
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
 
         {totalCount != null && totalCount > opportunities.length ? (
           <p className="text-sm text-muted-foreground">

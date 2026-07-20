@@ -45,7 +45,28 @@ import {
 } from "@/lib/data/saved-views"
 import { breakGlassConfidential } from "@/lib/data/break-glass"
 import { notifyBreakGlass } from "@/lib/notifications/triggers"
+import { getFieldDefinitions } from "@/lib/data/field-definitions"
+import { findMissingRequiredFields } from "@/lib/data/field-definitions.types"
+import type { FieldCallContext } from "@/lib/data/field-definitions.types"
 import { z } from "zod"
+
+// Enforce admin-defined `required` opportunity custom fields server-side (ORR-812).
+// The form now renders these fields and pre-validates, but the guarantee has to
+// live on the server — nothing enforced it before, so a required field could be
+// left blank via the API or a stale client. Throws a plain, user-facing message
+// (the form surfaces it) listing what's missing.
+async function assertRequiredOpportunityCustomFields(
+  ctx: FieldCallContext,
+  customData: Record<string, unknown> | undefined,
+): Promise<void> {
+  const definitions = await getFieldDefinitions(ctx, "opportunity")
+  if (definitions.length === 0) return
+  const missing = findMissingRequiredFields(definitions, customData)
+  if (missing.length > 0) {
+    const labels = missing.map((d) => d.label).join(", ")
+    throw new Error(`Please fill in the required field(s): ${labels}.`)
+  }
+}
 
 const breakGlassSchema = z.object({
   opportunityId: z.string().uuid(),
@@ -102,6 +123,7 @@ export async function createOpportunityAction(input: unknown) {
   const user = await requireUser()
   const parsed = opportunityCreateSchema.parse(input)
   const ctx = { user, source: "web" as const }
+  await assertRequiredOpportunityCustomFields(ctx, parsed.customData)
   const opportunity = await createOpportunity(ctx, parsed)
   revalidatePath("/opportunities")
   return opportunity
@@ -128,6 +150,13 @@ export async function updateOpportunityAction(id: string, input: unknown) {
   const user = await requireUser()
   const parsed = opportunityUpdateSchema.parse(input)
   const ctx = { user, source: "web" as const }
+  // Only enforce when the update actually carries custom-field data — a partial
+  // update that doesn't touch custom fields leaves existing values untouched and
+  // must not be blocked. The edit form always seeds customData from the record,
+  // so a normal round-trip re-submits the required values.
+  if (parsed.customData !== undefined) {
+    await assertRequiredOpportunityCustomFields(ctx, parsed.customData)
+  }
   const opportunity = await updateOpportunity(ctx, id, parsed)
   revalidatePath("/opportunities")
   revalidatePath(`/opportunities/${id}`)

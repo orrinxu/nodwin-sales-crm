@@ -46,6 +46,31 @@ export interface FieldCallContext {
   source: "web" | "mcp" | "webhook" | "system"
 }
 
+/** True when a custom-field value counts as "not provided" for required checks. */
+export function isCustomFieldValueEmpty(value: unknown): boolean {
+  if (value === null || value === undefined) return true
+  if (typeof value === "string") return value.trim() === ""
+  if (Array.isArray(value)) return value.length === 0
+  return false
+}
+
+/**
+ * Active, required definitions whose value is missing/empty in `customData`.
+ * Shared by the form (client-side, to show inline errors) and the server actions
+ * (to actually enforce `required`, which nothing did before — the asterisk was
+ * purely cosmetic).
+ */
+export function findMissingRequiredFields(
+  definitions: FieldDefinition[],
+  customData: Record<string, unknown> | null | undefined,
+): FieldDefinition[] {
+  const data = customData ?? {}
+  return definitions.filter((def) => {
+    if (!def.required || !def.active) return false
+    return isCustomFieldValueEmpty(data[def.key])
+  })
+}
+
 export const fieldDefinitionSchema = z.object({
   id: z.string(),
   entityType: z.enum(fieldEntityTypes),

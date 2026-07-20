@@ -10,6 +10,8 @@ import {
   getUserOptions,
 } from "@/lib/data/opportunities"
 import { getStageHistoryForOpportunity } from "@/lib/data/opportunity-stage-history"
+import { getAccountOptions } from "@/lib/data/contacts"
+import { getFieldDefinitions } from "@/lib/data/field-definitions"
 import { getOpportunityLineItemsSummary } from "@/lib/data/opportunity-line-items"
 import { getAllProducts } from "@/lib/data/products"
 import { getSalesProcessSettings } from "@/lib/data/sales-process-settings"
@@ -34,6 +36,11 @@ import {
   recordApprovalDecisionAction,
   reassignApprovalStepAction,
   cancelApprovalInstanceAction,
+  searchAccountsAction,
+  searchContactsAction,
+  searchUsersAction,
+  createContactQuickAction,
+  createAccountQuickAction,
 } from "../actions"
 import {
   dealCopilotSummaryAction,
@@ -88,7 +95,7 @@ export default async function OpportunityDetailPage({
     notFound()
   }
 
-  const [businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState, enforceGateStatus, dealCopilotConfigured, documents, revenueScheduleRows, costMilestones, workingCapitalResult, lineItemsSummary, productRecords, salesProcessSettings] =
+  const [businessUnits, activities, splits, teamMembers, stageHistory, userOptions, approvals, approvalActionState, enforceGateStatus, dealCopilotConfigured, documents, revenueScheduleRows, costMilestones, workingCapitalResult, lineItemsSummary, productRecords, salesProcessSettings, accounts, fieldDefinitions] =
     await Promise.all([
       getBusinessUnitOptions(ctx),
       getActivitiesForOpportunity(ctx, id),
@@ -114,6 +121,8 @@ export default async function OpportunityDetailPage({
       getOpportunityLineItemsSummary(ctx, id),
       getAllProducts(ctx),
       getSalesProcessSettings(ctx),
+      getAccountOptions(ctx),
+      getFieldDefinitions(ctx, "opportunity"),
     ])
 
   // ORR-753: warn (not block) when a deal has reached the configured stage
@@ -161,6 +170,13 @@ export default async function OpportunityDetailPage({
       activities={activities}
       documents={documents}
       createActivityAction={createActivityAction}
+      accounts={accounts}
+      fieldDefinitions={fieldDefinitions}
+      searchAccountsAction={searchAccountsAction}
+      searchContactsAction={searchContactsAction}
+      searchUsersAction={searchUsersAction}
+      createContactQuickAction={createContactQuickAction}
+      createAccountQuickAction={createAccountQuickAction}
       splits={splits}
       teamMembers={teamMembers}
       stageHistory={stageHistory}

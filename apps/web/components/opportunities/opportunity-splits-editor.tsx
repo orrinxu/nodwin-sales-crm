@@ -66,6 +66,14 @@ export function OpportunitySplitsEditor({
   }
 
   async function handleSave() {
+    // A row with a percentage but no sales unit used to be silently dropped from
+    // the payload — the remaining rows then failed the DB "splits must sum to
+    // 100" trigger with a redacted error. Surface it here instead of losing data.
+    const incompleteRow = items.some((item) => (item.pct || 0) > 0 && !item.salesUnitId)
+    if (incompleteRow) {
+      setError("Every split with a percentage needs a sales unit. Pick one, or remove the row.")
+      return
+    }
     setSaving(true)
     setError(null)
     try {

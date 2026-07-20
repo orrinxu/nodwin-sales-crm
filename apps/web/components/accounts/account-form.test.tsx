@@ -1,6 +1,7 @@
 /// <reference types="@testing-library/jest-dom/vitest" />
 import { describe, it, expect, vi } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { AccountForm } from "./account-form"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 
@@ -542,6 +543,66 @@ describe("AccountForm", () => {
       fireEvent.click(screen.getByText("Edit"))
       await waitFor(() => {
         expect(screen.getByText("Subsidiary of")).toBeInTheDocument()
+      })
+    })
+  })
+
+  // ORR-812: the client schema now validates the URL (matching the server's url()),
+  // closing the gap where "acme.com" passed the client and only failed server-side
+  // as a prod-redacted generic error. (The type="url" input's native validation is
+  // the first line of defense; the zod refine covers programmatic/paste paths.)
+  describe("website validation (ORR-812)", () => {
+    it("does not submit a bare domain to the server", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      const createAction = vi.fn().mockResolvedValue({ id: "acct-new" })
+      render(
+        <AccountForm
+          {...defaultProps}
+          createAction={createAction}
+          trigger={<button type="button">Open account form</button>}
+        />,
+      )
+      await user.click(screen.getByText("Open account form"))
+
+      // Fill the required fields with valid values so the website is the only blocker.
+      await user.type(
+        await screen.findByPlaceholderText("Company or organization name"),
+        "Acme Corp",
+      )
+      await user.type(screen.getByPlaceholderText("Country"), "US")
+      await user.type(screen.getByPlaceholderText("https://example.com"), "acme.com")
+
+      await user.click(screen.getByRole("button", { name: /^create account$/i }))
+
+      // The invalid domain never reaches the create action.
+      await waitFor(() => expect(createAction).not.toHaveBeenCalled())
+    })
+
+    it("accepts a full URL and submits", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      const createAction = vi.fn().mockResolvedValue({ id: "acct-new" })
+      render(
+        <AccountForm
+          {...defaultProps}
+          createAction={createAction}
+          trigger={<button type="button">Open account form</button>}
+        />,
+      )
+      await user.click(screen.getByText("Open account form"))
+
+      await user.type(
+        await screen.findByPlaceholderText("Company or organization name"),
+        "Acme Corp",
+      )
+      await user.type(screen.getByPlaceholderText("Country"), "US")
+      await user.type(screen.getByPlaceholderText("https://example.com"), "https://acme.com")
+
+      await user.click(screen.getByRole("button", { name: /^create account$/i }))
+
+      await waitFor(() => {
+        expect(createAction).toHaveBeenCalledWith(
+          expect.objectContaining({ website: "https://acme.com" }),
+        )
       })
     })
   })

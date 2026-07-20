@@ -41,7 +41,19 @@ const formSchema = z.object({
   name: z.string().min(1, "Account name is required").max(200),
   legalName: z.string().max(200).optional().or(z.literal("")),
   accountOwnerUserId: z.string().optional().or(z.literal("")),
-  website: z.string().max(500).optional().or(z.literal("")),
+  // Match the server, which requires a valid URL (accounts.ts). A refine (rather
+  // than inline .url() inside the optional/literal union, whose union error would
+  // swallow the message) surfaces "acme.com" as a clear inline field error before
+  // submit, instead of the prod-redacted generic error the server throw becomes.
+  website: z
+    .string()
+    .max(500)
+    .optional()
+    .or(z.literal(""))
+    .refine(
+      (v) => !v || z.string().url().safeParse(v).success,
+      "Enter a full URL, e.g. https://example.com",
+    ),
   country: z.string().min(1, "Country is required").max(100),
   industry: z.string().max(100).optional().or(z.literal("")),
   description: z.string().max(5000).optional().or(z.literal("")),
@@ -337,6 +349,9 @@ export function AccountForm({
         <div className="grid gap-1.5">
           <Label htmlFor="website">Website</Label>
           <Input id="website" type="url" {...form.register("website")} placeholder="https://example.com" />
+          {form.formState.errors.website && (
+            <p className="text-xs text-destructive">{form.formState.errors.website.message}</p>
+          )}
         </div>
 
         <div className="grid gap-1.5">

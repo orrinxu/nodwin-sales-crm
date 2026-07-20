@@ -11,6 +11,7 @@ import {
   type OpportunitySortColumn,
 } from "@/lib/data/opportunities"
 import { getAccountOptions } from "@/lib/data/contacts"
+import { getFieldDefinitions } from "@/lib/data/field-definitions"
 import { getUserPreferences } from "@/lib/data/user-preferences"
 import { getScopedStageTotals } from "@/lib/data/stage-totals"
 import {
@@ -141,7 +142,7 @@ export default async function OpportunitiesPage({
     listParams.pageSize = DEFAULT_PAGE_SIZE
   }
 
-  const [listResult, accounts, businessUnits, userOptions, savedViews, voiceEnabled] =
+  const [listResult, accounts, businessUnits, userOptions, savedViews, voiceEnabled, fieldDefinitions] =
     await Promise.all([
       getOpportunities(ctx, listParams),
       getAccountOptions(ctx),
@@ -149,6 +150,7 @@ export default async function OpportunitiesPage({
       getUserOptions(ctx),
       listSavedViews(ctx, preset.savedViewScope),
       isTranscriptionAvailable(),
+      getFieldDefinitions(ctx, "opportunity"),
     ])
 
   const rawOpportunities = listResult.opportunities
@@ -211,6 +213,7 @@ export default async function OpportunitiesPage({
       accounts={accounts}
       businessUnits={businessUnits}
       users={users}
+      fieldDefinitions={fieldDefinitions}
       createAction={createOpportunityAction}
       generateAction={generateOpportunityAction}
       extractFileAction={extractDocumentTextAction}

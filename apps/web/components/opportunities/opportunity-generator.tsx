@@ -431,7 +431,7 @@ export function OpportunityGenerator({ generateAction, extractFileAction, transc
               {errorMsg && <p className="text-sm text-destructive">{errorMsg}</p>}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setPhase("chooser")}>Back</Button>
-                <Button type="button" onClick={onAnalyse} disabled={!text.trim() && !pendingFile}>
+                <Button type="button" onClick={onAnalyse} disabled={!text.trim() && !pendingFile && !pendingImage}>
                   <Sparkles className="size-4" /> Analyse
                 </Button>
               </DialogFooter>

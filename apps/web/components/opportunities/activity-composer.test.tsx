@@ -281,4 +281,52 @@ describe("ActivityComposer", () => {
       expect(createAction).toHaveBeenCalledTimes(1)
     })
   })
+
+  // ORR-812: in-flight disable stops double-submit, and a rejection surfaces its
+  // message instead of an unhandled rejection with the text silently retained.
+  describe("submit safety (ORR-812)", () => {
+    it("surfaces the server error message when a note fails to save", async () => {
+      const createAction = vi
+        .fn()
+        .mockRejectedValue(new Error("You are not allowed to add notes to this deal."))
+      const user = userEvent.setup()
+      render(<ActivityComposer {...defaultProps} createAction={createAction} />)
+
+      await user.type(screen.getByRole("textbox", { name: /note/i }), "Blocked note")
+      await user.click(screen.getByRole("button", { name: /save note/i }))
+
+      expect(
+        await screen.findByText(/you are not allowed to add notes to this deal/i),
+      ).toBeInTheDocument()
+      // Text is retained so the user can retry.
+      expect(screen.getByRole("textbox", { name: /note/i })).toHaveValue("Blocked note")
+    })
+
+    it("does not double-submit while a save is in flight", async () => {
+      let resolve: ((v: unknown) => void) | undefined
+      const createAction = vi.fn().mockImplementation(
+        () => new Promise((r) => { resolve = r }),
+      )
+      const user = userEvent.setup()
+      render(<ActivityComposer {...defaultProps} createAction={createAction} />)
+
+      await user.type(screen.getByRole("textbox", { name: /note/i }), "Once only")
+      const save = screen.getByRole("button", { name: /save note/i })
+      await user.click(save)
+      // Second click while pending must be ignored.
+      await user.click(save)
+
+      expect(createAction).toHaveBeenCalledTimes(1)
+      expect(save).toBeDisabled()
+
+      resolve?.({ id: "act-1" })
+    })
+
+    it("does not render its own nested Log Activity card (outer chrome only)", () => {
+      render(<ActivityComposer {...defaultProps} />)
+      // The wrapper supplies the "Log activity" heading; the composer itself must
+      // not emit a duplicate "Log Activity" card title.
+      expect(screen.queryByText("Log Activity")).not.toBeInTheDocument()
+    })
+  })
 })

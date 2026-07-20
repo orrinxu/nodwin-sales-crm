@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event"
 import { OpportunityForm } from "./opportunity-form"
 import type { AccountOption } from "@/lib/data/contacts"
 import type { EntityOption } from "@/components/entity-combobox"
+import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 
 vi.mock("server-only", () => ({}))
 
@@ -727,6 +728,92 @@ describe("OpportunityForm", () => {
       await waitFor(() => {
         expect(createAction).toHaveBeenCalledWith(
           expect.objectContaining({ currency: "USD" }),
+        )
+      })
+    })
+  })
+
+  // ORR-812 (b): the owner/contact comboboxes are now subscribed via watch, so a
+  // selection renders in the trigger instead of falling back to a stale label.
+  describe("combobox selection renders (ORR-812)", () => {
+    it("shows the picked owner in the trigger after selection", async () => {
+      const user = setupUser()
+      render(<OpportunityForm {...defaultProps} users={mockUsers} />)
+      await openForm(user)
+
+      const allCombos = screen.getAllByRole("combobox")
+      await user.click(allCombos[3]) // Owner
+      await user.click(screen.getByText("Bob"))
+
+      // The owner trigger now reflects the new selection; before the fix it read a
+      // stale, non-reactive getValues() and kept showing the placeholder/old label.
+      await waitFor(() => {
+        expect(screen.getAllByRole("combobox")[3]).toHaveTextContent("Bob")
+      })
+    })
+  })
+
+  // ORR-812 (e): admin-defined required custom fields are rendered and enforced.
+  describe("required custom fields (ORR-812)", () => {
+    const requiredRegion: FieldDefinition = {
+      id: "cf-region",
+      entityType: "opportunity",
+      key: "region",
+      label: "Region",
+      dataType: "text",
+      options: null,
+      required: true,
+      defaultValue: null,
+      visibleToRoles: null,
+      editableByRoles: null,
+      visibleAtStages: null,
+      displayOrder: 1,
+      active: true,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    }
+
+    it("blocks submit and shows an error when a required custom field is empty", async () => {
+      const createAction = vi.fn().mockResolvedValue({ id: "opp-new" })
+      const user = setupUser()
+      render(
+        <OpportunityForm
+          {...defaultProps}
+          createAction={createAction}
+          fieldDefinitions={[requiredRegion]}
+        />,
+      )
+      await openForm(user)
+      await fillRequiredFields(user)
+      // Reveal the custom field (it lives in the collapsed "Description & notes").
+      await user.click(screen.getByRole("button", { name: /description & notes/i }))
+
+      await user.click(screen.getByRole("button", { name: /create opportunity/i }))
+
+      expect(await screen.findByText(/region is required/i)).toBeInTheDocument()
+      expect(createAction).not.toHaveBeenCalled()
+    })
+
+    it("submits with customData once the required custom field is filled", async () => {
+      const createAction = vi.fn().mockResolvedValue({ id: "opp-new" })
+      const user = setupUser()
+      render(
+        <OpportunityForm
+          {...defaultProps}
+          createAction={createAction}
+          fieldDefinitions={[requiredRegion]}
+        />,
+      )
+      await openForm(user)
+      await fillRequiredFields(user)
+      await user.click(screen.getByRole("button", { name: /description & notes/i }))
+      await user.type(screen.getByLabelText(/region/i), "APAC")
+
+      await user.click(screen.getByRole("button", { name: /create opportunity/i }))
+
+      await waitFor(() => {
+        expect(createAction).toHaveBeenCalledWith(
+          expect.objectContaining({ customData: { region: "APAC" } }),
         )
       })
     })
