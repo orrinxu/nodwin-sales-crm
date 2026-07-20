@@ -4,7 +4,10 @@ import { timingSafeEqual } from "node:crypto"
 import { env } from "@/lib/security/env"
 import { createServiceRoleClient } from "@/lib/supabase/server"
 import { createDriveAdminClient } from "@/lib/integrations/drive"
-import { syncPendingOpportunityFolders } from "@/lib/integrations/drive/sync"
+import {
+  syncPendingOpportunityFolders,
+  reconcileStaleOpportunityPermissions,
+} from "@/lib/integrations/drive/sync"
 
 // ORR-698 Drive folder + permission sync drain. Invoked by a scheduler (cron →
 // this route), because the work makes outbound Google Drive calls. Protected by a
@@ -53,11 +56,24 @@ export async function POST(request: NextRequest) {
 
   try {
     const db = createServiceRoleClient()
-    const results = await syncPendingOpportunityFolders(db, client, limit)
+    // Two work queues share the budget: (1) create folders for folder-less rows
+    // that aren't permanently skipped; (2) re-reconcile permissions for rows whose
+    // visibility set changed since their folder was created (stale grants).
+    const pending = await syncPendingOpportunityFolders(db, client, limit)
+    const reconciled = await reconcileStaleOpportunityPermissions(db, client, limit)
+    const results = [...pending, ...reconciled]
     const synced = results.filter((r) => r.status === "synced").length
     const skipped = results.filter((r) => r.status === "skipped").length
     const failed = results.filter((r) => r.status === "failed").length
-    return NextResponse.json({ processed: results.length, synced, skipped, failed, results })
+    return NextResponse.json({
+      processed: results.length,
+      synced,
+      skipped,
+      failed,
+      pendingProcessed: pending.length,
+      reconcileProcessed: reconciled.length,
+      results,
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Internal server error"
     return NextResponse.json({ error: message }, { status: 500 })
