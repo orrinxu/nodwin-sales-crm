@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from "vitest"
 
 vi.mock("server-only", () => ({}))
+vi.mock("./provider-chain", () => ({ createProviderAdapters: vi.fn() }))
 
+import { createProviderAdapters } from "./provider-chain"
 import {
   runDealCopilot,
   buildDealContext,
@@ -186,5 +188,22 @@ describe("runDealCopilot", () => {
     })
     expect(res.ok).toBe(false)
     expect(res.error).toMatch(/empty response/i)
+  })
+
+  it("resolves adapters WITH the action's feature so per-feature overrides apply (ORR-807b)", async () => {
+    // No resolveAdapters injected → the default must call createProviderAdapters
+    // WITH the feature (previously called with no arg, so ORR-674 overrides for
+    // summarise_deal/draft_email/next_best_action were silently ignored).
+    const mocked = vi.mocked(createProviderAdapters)
+    mocked.mockReset()
+    mocked.mockResolvedValue(adaptersWithOne())
+    const aiCall = vi.fn().mockResolvedValue({ ok: true, data: "ok", model: "m" })
+
+    await runDealCopilot("u", "email", makeOpp(), [], { aiCall })
+    expect(mocked).toHaveBeenCalledWith("draft_email")
+
+    mocked.mockClear()
+    await runDealCopilot("u", "next_best_action", makeOpp(), [], { aiCall })
+    expect(mocked).toHaveBeenCalledWith("next_best_action")
   })
 })

@@ -231,10 +231,12 @@ export async function getAiProviders(ctx: AiProviderCallContext): Promise<AiProv
   }
 }
 
-const providerEnum = z.enum(["claude", "gemini", "kimi", "deepseek", "openai_compatible", "ollama_local"])
-const featureEnum = z.enum([
-  "search", "summarise_deal", "draft_email", "next_best_action", "opportunity_extraction", "other",
-])
+const providerEnum = z.enum(AI_PROVIDER_NAMES as [AiProviderName, ...AiProviderName[]])
+// Derived from the single source of truth (AI_FEATURE_NAMES) so it can never
+// drift from the feature vocabulary the form fans an override out to — a
+// hardcoded subset silently rejected the whole "Save providers" submit once
+// account_extraction/contact_extraction were added (ORR-807a).
+const featureEnum = z.enum(AI_FEATURE_NAMES as [AiFeature, ...AiFeature[]])
 
 export const aiProvidersUpdateSchema = z.object({
   providers: z.array(

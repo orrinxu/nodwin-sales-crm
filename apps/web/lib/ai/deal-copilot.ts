@@ -196,7 +196,11 @@ export async function runDealCopilot(
   activities: ActivityRecord[],
   deps: DealCopilotDeps = {},
 ): Promise<DealCopilotResult> {
-  const resolveAdapters = deps.resolveAdapters ?? createProviderAdapters
+  const feature = featureFor(action)
+  // Pass the feature through so a per-feature provider override (ORR-674) is
+  // honored for copilot actions too, mirroring extraction-core (ORR-807b). The
+  // previous no-arg call resolved the global chain and ignored the override.
+  const resolveAdapters = deps.resolveAdapters ?? (() => createProviderAdapters(feature))
   const call = deps.aiCall ?? aiCall
 
   const adapters = await resolveAdapters()
@@ -204,7 +208,6 @@ export async function runDealCopilot(
     return { ok: false, unconfigured: true, error: COPILOT_UNCONFIGURED_MESSAGE }
   }
 
-  const feature = featureFor(action)
   const { systemPrompt, prompt } = buildCopilotPrompt(action, opportunity, activities)
 
   const result = await call(

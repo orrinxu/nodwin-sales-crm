@@ -50,7 +50,8 @@ const client = { from: (t: string) => new QB(t) }
 vi.mock("@supabase/ssr", () => ({ createServerClient: () => client }))
 vi.mock("@/lib/supabase/server", () => ({ createServerClient: async () => client }))
 
-import { resolveProviderChain, getAiProviders, updateAiProviders } from "./ai-providers"
+import { resolveProviderChain, getAiProviders, updateAiProviders, aiProvidersUpdateSchema } from "./ai-providers"
+import { AI_FEATURE_NAMES } from "@/lib/ai/features"
 
 const ctx = { user: { id: "u1", email: "a@nodwin.com", role: "admin" }, source: "web" as const }
 
@@ -174,6 +175,32 @@ describe("getAiProviders (masking)", () => {
     const gemini = view.providers.find((p) => p.provider === "gemini")!
     expect(gemini.hasApiKey).toBe(false) // DB has no key
     expect(gemini.configured).toBe(true) // env makes it usable
+  })
+})
+
+describe("aiProvidersUpdateSchema featureProviderOverrides (ORR-807a)", () => {
+  it("accepts the form's full fan-out to EVERY feature (all 8), incl. account/contact extraction", () => {
+    // The form pins a single override to every feature (ai-providers-form.tsx):
+    // AI_FEATURE_NAMES.map((feature) => [feature, globalOverride]). The zod enum
+    // must be derived from AI_FEATURE_NAMES or this whole submit is rejected.
+    const overrides = Object.fromEntries(AI_FEATURE_NAMES.map((f) => [f, "claude"]))
+    const parsed = aiProvidersUpdateSchema.safeParse({ providers: [], featureProviderOverrides: overrides })
+    expect(parsed.success).toBe(true)
+    // the two features that used to be dropped are now accepted
+    expect(AI_FEATURE_NAMES).toContain("account_extraction")
+    expect(AI_FEATURE_NAMES).toContain("contact_extraction")
+    if (parsed.success) {
+      expect(parsed.data.featureProviderOverrides).toHaveProperty("account_extraction", "claude")
+      expect(parsed.data.featureProviderOverrides).toHaveProperty("contact_extraction", "claude")
+    }
+  })
+
+  it("still rejects an unknown feature key", () => {
+    const parsed = aiProvidersUpdateSchema.safeParse({
+      providers: [],
+      featureProviderOverrides: { not_a_feature: "claude" },
+    })
+    expect(parsed.success).toBe(false)
   })
 })
 
