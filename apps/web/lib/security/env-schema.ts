@@ -50,6 +50,10 @@ export const envSchema = z.object({
   GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
   GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
   GOOGLE_OAUTH_REDIRECT_URI: z.string().url().optional(),
+  // ORR-826 Google Calendar pull-sync drain route. Shared secret gating
+  // POST /api/jobs/calendar-sync (Bearer / x-cron-secret). Optional so the app
+  // boots without it — the route 503s ("not configured") until it is set.
+  CALENDAR_SYNC_CRON_SECRET: z.string().optional(),
   // ORR-620 document ingestion. All optional so the app boots with the seam
   // unwired — point EMBEDDINGS_* at a llama.cpp (OpenAI-compatible) server to
   // enable embedding. INGESTION_CRON_SECRET gates the worker drain route.

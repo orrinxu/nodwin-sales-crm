@@ -306,10 +306,29 @@ async function resolveAccountByRecipientDomains(
   client: ReturnType<typeof createServiceRoleClient>,
   recipients: PostmarkEmailAddress[],
 ): Promise<string | null> {
+  return resolveAccountByEmailAddresses(
+    client,
+    recipients.map((r) => r.Email),
+  )
+}
+
+/**
+ * Match exactly one account by the domains of a set of email addresses.
+ *
+ * Shared single-match logic (extracted from {@link resolveAccountByRecipientDomains}
+ * so the Calendar pull sync — ORR-826 — can reuse the identical rule): collect the
+ * distinct domains (dropping the CRM's own inbound domain), look up accounts whose
+ * `email_domains` overlaps, and return an id ONLY when exactly one account matches.
+ * Zero or ambiguous (>1) matches return null so we never mis-attribute.
+ */
+export async function resolveAccountByEmailAddresses(
+  client: ReturnType<typeof createServiceRoleClient>,
+  emails: string[],
+): Promise<string | null> {
   const domains = new Set<string>()
 
-  for (const r of recipients) {
-    const domain = extractDomain(r.Email)
+  for (const email of emails) {
+    const domain = extractDomain(email)
     if (domain && domain !== CRM_DOMAIN) {
       domains.add(domain)
     }
