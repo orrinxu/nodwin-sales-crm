@@ -4233,7 +4233,7 @@ export type Database = {
         Returns: undefined
       }
       report_monthly_agg: {
-        Args: never
+        Args: { _tz?: string }
         Returns: {
           created_count: number
           currency: string

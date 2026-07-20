@@ -220,6 +220,7 @@ export default async function DashboardPage() {
             currentUserId={user.id}
             currency={groupScorecard.currency}
             locale={locale}
+            scopeLabel="Group"
           />
           <ConversionFunnel data={groupConversionFunnel} locale={locale} />
         </div>

@@ -25,7 +25,20 @@ describe("buildConversionFunnel", () => {
     expect(d.topCount).toBe(31)
     expect(d.wonCount).toBe(1)
     expect(d.lostCount).toBe(3)
-    expect(d.overallConversion).toBe(3) // round(1/31 × 100)
+    // enteredCount folds lost back in: 31 funnel-bar deals + 3 lost = 34.
+    expect(d.enteredCount).toBe(34)
+    // overall = won ÷ entered = round(1/34 × 100), NOT won ÷ topCount (ORR-813).
+    expect(d.overallConversion).toBe(3)
+  })
+
+  it("counts lost in the entered denominator so conversion can't exceed 100% (ORR-813)", () => {
+    // 10 entered, 9 lost, 1 won. The old won÷topCount reported 100% overall
+    // (1 won ÷ 1 funnel-bar deal); the honest denominator includes the 9 lost.
+    const d = buildConversionFunnel({ closed_won: 1, closed_lost: 9 })
+    expect(d.topCount).toBe(1) // only the won deal is on a funnel bar
+    expect(d.lostCount).toBe(9)
+    expect(d.enteredCount).toBe(10)
+    expect(d.overallConversion).toBe(10) // round(1/10 × 100), not 100
   })
 
   it("computes pctOfTop and step conversion as whole percentages", () => {
@@ -46,6 +59,7 @@ describe("buildConversionFunnel", () => {
   it("handles an empty funnel without dividing by zero", () => {
     const d = buildConversionFunnel({})
     expect(d.topCount).toBe(0)
+    expect(d.enteredCount).toBe(0)
     expect(d.wonCount).toBe(0)
     expect(d.overallConversion).toBe(0)
     for (const s of d.stages) {
@@ -59,7 +73,9 @@ describe("buildConversionFunnel", () => {
     const d = buildConversionFunnel({ qualify: 5, closed_lost: 99 })
     expect(d.stages.map((s) => s.stage)).toEqual([...FUNNEL_STAGES])
     expect(d.stages.map((s) => s.stage as string)).not.toContain("closed_lost")
-    expect(d.topCount).toBe(5) // lost deals never enter the reached series
+    expect(d.topCount).toBe(5) // lost deals never enter the reached series (bars)
     expect(d.lostCount).toBe(99)
+    // ...but they DID enter the funnel, so the honest entered total includes them.
+    expect(d.enteredCount).toBe(104)
   })
 })

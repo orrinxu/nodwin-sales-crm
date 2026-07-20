@@ -155,7 +155,7 @@ export function ReportsView({ data }: { data: ReportData }) {
 
         <Card>
           <CardHeader>
-            <CardTitle>Revenue Breakdown</CardTitle>
+            <CardTitle>Deal Value by Outcome</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-80">

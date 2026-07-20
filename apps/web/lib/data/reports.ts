@@ -2,7 +2,12 @@ import "server-only"
 import { createServerClient } from "@/lib/supabase/server"
 import { DEAL_STAGES, isTerminalStage } from "@/lib/opportunity"
 import { getStageLabel } from "@/lib/data/opportunities.types"
-import { fetchAndConvert, resolveReportingCurrency, type DashboardContext } from "@/lib/data/metrics"
+import {
+  fetchAndConvert,
+  resolveReportingCurrency,
+  resolveReportTimeZone,
+  type DashboardContext,
+} from "@/lib/data/metrics"
 
 export interface PipelineByStage {
   stage: string
@@ -74,11 +79,16 @@ export interface PipelineSummary {
  */
 export async function getReportData(ctx: DashboardContext): Promise<ReportData> {
   const supabase = await createServerClient()
-  const reportingCurrency = await resolveReportingCurrency(ctx)
+  const [reportingCurrency, reportTimeZone] = await Promise.all([
+    resolveReportingCurrency(ctx),
+    resolveReportTimeZone(ctx),
+  ])
 
   const [stageRes, monthRes, accountRes] = await Promise.all([
     supabase.rpc("pipeline_metrics_agg"),
-    supabase.rpc("report_monthly_agg"),
+    // Created deals bucket by the caller's calendar month (ORR-813); won deals
+    // bucket by close month inside the RPC.
+    supabase.rpc("report_monthly_agg", { _tz: reportTimeZone }),
     supabase.rpc("report_top_accounts_agg"),
   ])
   if (stageRes.error) throw new Error(`Failed to load report stages: ${stageRes.error.message}`)
@@ -147,7 +157,7 @@ export async function getReportData(ctx: DashboardContext): Promise<ReportData> 
   const winRate = totalDeals > 0 ? Math.round((wonCount / totalDeals) * 100) : 0
   const avgDealSize = computeAverage(totalWonAmount, wonCount)
 
-  // ── Monthly trends (per created-month × currency) ───────────────────────────
+  // ── Monthly trends (created by created-month, won by CLOSE month; ORR-813) ──
   const { converted: monthConv } = await fetchAndConvert(
     (monthRes.data ?? []).map((r) => ({
       stage: "",
