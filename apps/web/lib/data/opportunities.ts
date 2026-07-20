@@ -619,6 +619,31 @@ export type OpportunityCreateInput = z.infer<typeof opportunityCreateSchema>
 
 export const opportunityUpdateSchema = opportunityCreateObject
   .partial()
+  .extend({
+    // ORR-806: On the create schema an empty/zero amount or barter collapses to
+    // `undefined` so an absent field just takes the default. On the partial
+    // UPDATE schema that is wrong: `undefined` means "leave this column alone",
+    // so a user who clears the field would silently keep the old value. Preserve
+    // an explicit cleared value here instead — `amount` clears to 0 (its column
+    // is NOT NULL DEFAULT 0), and `barterValue` clears to "" which the apply
+    // path below maps to NULL.
+    amount: z.preprocess(
+      (val) => {
+        if (val === undefined) return undefined
+        if (val === "" || val === 0 || val === "0") return "0"
+        return String(val)
+      },
+      z.string().optional(),
+    ),
+    barterValue: z.preprocess(
+      (val) => {
+        if (val === undefined) return undefined
+        if (val === "" || val === 0) return ""
+        return String(val)
+      },
+      z.string().optional(),
+    ),
+  })
   .superRefine((data, ctx) => {
     if (data.recurring && !data.recurringSplitKind) {
       ctx.addIssue({
@@ -962,7 +987,9 @@ export async function updateOpportunity(
   if (parsed.revenueRecognitionUnitId !== undefined) dbData.revenue_recognition_unit_id = parsed.revenueRecognitionUnitId || null
   if (parsed.billingEntityId !== undefined) dbData.billing_entity_id = parsed.billingEntityId || null
   if (parsed.entitySalesId !== undefined) dbData.entity_sales_id = parsed.entitySalesId || null
-  if (parsed.serviceType !== undefined) dbData.service_type = parsed.serviceType
+  // ORR-806: an explicitly emptied multi-select clears the column (mirrors the
+  // account email_domains []→NULL convention) rather than writing an empty array.
+  if (parsed.serviceType !== undefined) dbData.service_type = parsed.serviceType.length > 0 ? parsed.serviceType : null
   if (parsed.propertyType !== undefined) dbData.property_type = parsed.propertyType || null
   if (parsed.barterValue !== undefined) dbData.barter_value = parsed.barterValue || null
   if (parsed.probabilityPct !== undefined) dbData.probability_pct = parsed.probabilityPct

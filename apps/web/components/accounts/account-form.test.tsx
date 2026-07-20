@@ -283,6 +283,32 @@ describe("AccountForm", () => {
         expect(nameInput.value).toBe("Acme Corp")
       })
     })
+
+    // ORR-806: emptying the Email Domains input in edit mode must send [] (which
+    // the server maps to NULL) rather than `undefined`, which would leave the old
+    // domains in place.
+    it("sends [] to clear email domains when the field is emptied", async () => {
+      const updateAction = vi.fn().mockResolvedValue({ ...mockAccount, emailDomains: null })
+      render(
+        <AccountForm
+          {...defaultProps}
+          account={{ ...mockAccount, emailDomains: ["acme.com"] }}
+          updateAction={updateAction}
+          trigger={<button type="button">Edit</button>}
+        />,
+      )
+      fireEvent.click(screen.getByText("Edit"))
+
+      const domainsInput = (await screen.findByLabelText("Email Domains")) as HTMLInputElement
+      expect(domainsInput.value).toBe("acme.com")
+      fireEvent.change(domainsInput, { target: { value: "" } })
+
+      fireEvent.click(screen.getByRole("button", { name: /save changes/i }))
+
+      await waitFor(() => expect(updateAction).toHaveBeenCalled())
+      const [, payload] = updateAction.mock.calls[0]
+      expect(payload.emailDomains).toEqual([])
+    })
   })
 
   describe("sections", () => {

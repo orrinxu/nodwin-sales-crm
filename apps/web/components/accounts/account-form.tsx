@@ -170,9 +170,18 @@ export function AccountForm({
     setPending(true)
     setError(null)
     try {
-      const emailDomains = data.emailDomainsInput
+      // ORR-806: parse the comma-separated domains. In EDIT mode we always send
+      // the array — an emptied input becomes `[]`, which the server maps to NULL
+      // so the field actually clears (create still omits an empty value so an
+      // absent field just stays unset).
+      const parsedDomains = data.emailDomainsInput
         ? data.emailDomainsInput.split(",").map((d) => d.trim()).filter(Boolean)
-        : undefined
+        : []
+      const emailDomains = isEditing
+        ? parsedDomains
+        : parsedDomains.length > 0
+          ? parsedDomains
+          : undefined
 
       const input: AccountCreateInput = {
         name: data.name,
