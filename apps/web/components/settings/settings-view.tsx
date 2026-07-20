@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { LogOut, Loader2, Check } from "lucide-react"
+import { LogOut, Loader2, Check, CheckCircle2, AlertTriangle, X } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -35,6 +35,9 @@ import { FacetTabs, FacetTabsList, FacetTabsTab, FacetTabsPanel } from "@/compon
 import { ApiTokensPanel } from "@/components/settings/api-tokens-view"
 import { EntityCombobox } from "@/components/entity-combobox"
 import type { ApiTokenRecord } from "@/lib/data/api-tokens"
+// Type-only import: erased at compile time, so the server-only token-store
+// runtime never reaches this client bundle.
+import type { GoogleConnectionInfo } from "@/lib/integrations/google/token-store"
 
 // IANA timezone list for the localization combobox. Guarded for runtimes without
 // Intl.supportedValuesOf (falls back to an empty list rather than throwing).
@@ -72,6 +75,29 @@ interface SettingsViewProps {
   tokens: ApiTokenRecord[]
   createTokenAction: (input: unknown) => Promise<{ token: string; record: ApiTokenRecord }>
   revokeTokenAction: (id: string) => Promise<void>
+  googleConnection: GoogleConnectionInfo | null
+  googleCallbackStatus?: "connected" | "error"
+  disconnectGoogleAction: () => Promise<void>
+}
+
+// Per-user Google OAuth (ORR-773). The authorize route defaults to drive.readonly
+// when no `scopes` are passed; we request it explicitly so the intent is visible.
+const GOOGLE_DEFAULT_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
+const GOOGLE_CONNECT_HREF = `/api/integrations/google/authorize?scopes=${encodeURIComponent(
+  GOOGLE_DEFAULT_SCOPE,
+)}`
+
+// Friendly labels for the granted-scope URLs shown on the Google row. A Map (not
+// an object) avoids a dynamic object-index lookup on untrusted-looking keys.
+const GOOGLE_SCOPE_LABELS = new Map<string, string>([
+  ["https://www.googleapis.com/auth/drive.readonly", "Drive (read-only)"],
+  ["https://www.googleapis.com/auth/calendar.events", "Calendar events"],
+  ["https://www.googleapis.com/auth/gmail.readonly", "Gmail (read)"],
+  ["https://www.googleapis.com/auth/gmail.send", "Gmail (send)"],
+])
+
+function googleScopeLabel(scope: string): string {
+  return GOOGLE_SCOPE_LABELS.get(scope) ?? scope.replace(/^https:\/\/www\.googleapis\.com\/auth\//, "")
 }
 
 function SavedIndicator({ state }: { state: SaveState }) {
@@ -485,22 +511,101 @@ function AppearanceSection({
 
 // ── Integrations (read-only informational) ──────────────────────────────────────
 
-function IntegrationsSection({ onOpenTokens }: { onOpenTokens: () => void }) {
-  // Copy reflects what actually ships today (audited 2026-07-12): Drive import is
-  // a live per-user feature; Gmail/Calendar are not connected; Slack delivery is
-  // not available yet; personal access tokens live on the Access tokens tab.
-  const rows = [
-    {
-      name: "Google Workspace",
-      detail: "Import files from Google Drive on any record — you grant access per file. Gmail and Calendar aren’t connected yet.",
-      status: "Drive only",
-    },
-    {
-      name: "Slack",
-      detail: "Slack notification delivery isn’t available yet.",
-      status: "Coming soon",
-    },
-  ]
+function GoogleWorkspaceRow({
+  connection,
+  disconnectGoogleAction,
+}: {
+  connection: GoogleConnectionInfo | null
+  disconnectGoogleAction: SettingsViewProps["disconnectGoogleAction"]
+}) {
+  const router = useRouter()
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const connected = connection?.connected ?? false
+
+  async function onDisconnect() {
+    setPending(true)
+    setError(null)
+    try {
+      await disconnectGoogleAction()
+      router.refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to disconnect Google.")
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <div className="flex items-start justify-between gap-4 py-3 first:pt-0">
+      <div className="min-w-0 space-y-1.5">
+        <p className="text-sm font-medium">Google Workspace</p>
+        {connected ? (
+          <>
+            <p className="text-xs text-muted-foreground">
+              Connected as{" "}
+              <span className="font-medium text-foreground">
+                {connection?.googleAccountEmail ?? "your Google account"}
+              </span>
+              . Import files from Google Drive on any record.
+            </p>
+            {(connection?.grantedScopes.length ?? 0) > 0 && (
+              <div className="flex flex-wrap gap-1 pt-0.5">
+                {connection!.grantedScopes.map((scope) => (
+                  <Badge key={scope} variant="secondary" className="text-[0.7rem]">
+                    {googleScopeLabel(scope)}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            {error && <p className="text-xs text-destructive">{error}</p>}
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Connect your Google account to import files from Google Drive on any record. You grant
+            access per file; you can disconnect at any time.
+          </p>
+        )}
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-2">
+        {connected ? (
+          <>
+            <Badge
+              variant={connection?.status === "connected" ? "outline" : "secondary"}
+              className="shrink-0 capitalize"
+            >
+              {connection?.status ?? "connected"}
+            </Badge>
+            <Button variant="outline" size="sm" onClick={onDisconnect} disabled={pending}>
+              {pending ? <Loader2 className="size-4 animate-spin" /> : <X className="size-4" />}
+              Disconnect
+            </Button>
+          </>
+        ) : (
+          <>
+            <Badge variant="outline" className="shrink-0">
+              Not connected
+            </Badge>
+            <a href={GOOGLE_CONNECT_HREF} className={buttonVariants({ variant: "default", size: "sm" })}>
+              Connect Google
+            </a>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function IntegrationsSection({
+  onOpenTokens,
+  googleConnection,
+  disconnectGoogleAction,
+}: {
+  onOpenTokens: () => void
+  googleConnection: GoogleConnectionInfo | null
+  disconnectGoogleAction: SettingsViewProps["disconnectGoogleAction"]
+}) {
   return (
     <Card>
       <CardHeader>
@@ -508,15 +613,17 @@ function IntegrationsSection({ onOpenTokens }: { onOpenTokens: () => void }) {
         <CardDescription>How this CRM connects to the tools you already use.</CardDescription>
       </CardHeader>
       <CardContent className="divide-y">
-        {rows.map((r) => (
-          <div key={r.name} className="flex items-center justify-between gap-4 py-3 first:pt-0">
-            <div>
-              <p className="text-sm font-medium">{r.name}</p>
-              <p className="text-xs text-muted-foreground">{r.detail}</p>
-            </div>
-            <Badge variant="outline" className="shrink-0">{r.status}</Badge>
+        <GoogleWorkspaceRow
+          connection={googleConnection}
+          disconnectGoogleAction={disconnectGoogleAction}
+        />
+        <div className="flex items-center justify-between gap-4 py-3">
+          <div>
+            <p className="text-sm font-medium">Slack</p>
+            <p className="text-xs text-muted-foreground">Slack notification delivery isn’t available yet.</p>
           </div>
-        ))}
+          <Badge variant="outline" className="shrink-0">Coming soon</Badge>
+        </div>
         <div className="flex items-center justify-between gap-4 py-3 last:pb-0">
           <div>
             <p className="text-sm font-medium">Personal access tokens</p>
@@ -578,6 +685,57 @@ function SecuritySection() {
   )
 }
 
+// One-shot banner for the ?google=connected|error callback flag. Initialised from
+// the server-provided status and dismissible; on mount we strip the query param
+// from the URL (history.replaceState — no navigation, so no state is reset) so a
+// reload doesn't resurface a stale message.
+function GoogleCallbackBanner({ status }: { status: "connected" | "error" }) {
+  const [visible, setVisible] = useState(true)
+
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (url.searchParams.has("google")) {
+      url.searchParams.delete("google")
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash)
+    }
+  }, [])
+
+  if (!visible) return null
+
+  const connected = status === "connected"
+  return (
+    <div
+      role="status"
+      className={
+        connected
+          ? "flex items-start justify-between gap-3 rounded-lg bg-primary/10 p-3 text-sm text-primary"
+          : "flex items-start justify-between gap-3 rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
+      }
+    >
+      <div className="flex items-center gap-2">
+        {connected ? (
+          <CheckCircle2 className="size-4 shrink-0" />
+        ) : (
+          <AlertTriangle className="size-4 shrink-0" />
+        )}
+        <span>
+          {connected
+            ? "Google account connected."
+            : "Couldn’t connect your Google account. Please try again."}
+        </span>
+      </div>
+      <button
+        type="button"
+        aria-label="Dismiss"
+        onClick={() => setVisible(false)}
+        className="shrink-0 opacity-70 hover:opacity-100 focus-visible:outline-none"
+      >
+        <X className="size-4" />
+      </button>
+    </div>
+  )
+}
+
 export function SettingsView({
   preferences,
   profile,
@@ -590,8 +748,12 @@ export function SettingsView({
   tokens,
   createTokenAction,
   revokeTokenAction,
+  googleConnection,
+  googleCallbackStatus,
+  disconnectGoogleAction,
 }: SettingsViewProps) {
-  const [tab, setTab] = useState("profile")
+  // Land on the Integrations tab when returning from the Google OAuth flow.
+  const [tab, setTab] = useState(googleCallbackStatus ? "integrations" : "profile")
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
@@ -599,6 +761,8 @@ export function SettingsView({
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">Manage your personal preferences.</p>
       </div>
+
+      {googleCallbackStatus && <GoogleCallbackBanner status={googleCallbackStatus} />}
 
       <FacetTabs value={tab} onValueChange={(v) => setTab(v as string)}>
         <FacetTabsList>
@@ -646,7 +810,11 @@ export function SettingsView({
         </FacetTabsPanel>
 
         <FacetTabsPanel value="integrations" className="max-w-3xl pt-2">
-          <IntegrationsSection onOpenTokens={() => setTab("tokens")} />
+          <IntegrationsSection
+            onOpenTokens={() => setTab("tokens")}
+            googleConnection={googleConnection}
+            disconnectGoogleAction={disconnectGoogleAction}
+          />
         </FacetTabsPanel>
 
         <FacetTabsPanel value="security" className="max-w-3xl pt-2">

@@ -12,6 +12,7 @@ import {
   type NotificationEventType,
   type NotificationChannel,
 } from "@/lib/data/notifications"
+import { disconnectGoogle } from "@/lib/integrations/google/token-store"
 
 // Profile: full_name lives on public.users (users_update_own RLS); job_title
 // lives on user_preferences. Both are edited from the Profile section.
@@ -63,6 +64,17 @@ export async function updateNotificationOverrideAction(input: {
     channel: input.channel,
     enabled: input.enabled,
   })
+
+  revalidatePath("/settings")
+}
+
+// Disconnect the caller's own per-user Google connection (ORR-821 / ORR-773):
+// best-effort revoke at Google + delete the stored row. userId is forced to the
+// caller — never trust a client-supplied id (own-row RLS also blocks it).
+export async function disconnectGoogleAction() {
+  const user = await requireUser()
+
+  await disconnectGoogle(user.id)
 
   revalidatePath("/settings")
 }
