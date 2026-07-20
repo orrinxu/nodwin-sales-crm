@@ -109,7 +109,11 @@ AS $$
 $$;
 
 -- ── Reports: monthly trends ──────────────────────────────────────────────────
-CREATE OR REPLACE FUNCTION public.report_monthly_agg()
+-- ORR-813 already changed this to the (_tz text) signature with CLOSE-month won
+-- bucketing; ORR-804 layers on the soft-deleted-account exclusion. Keep ORR-813's
+-- exact signature so this CREATE OR REPLACE replaces that function rather than
+-- adding a no-arg overload (which would make every call ambiguous).
+CREATE OR REPLACE FUNCTION public.report_monthly_agg(_tz text DEFAULT 'UTC')
 RETURNS TABLE (
   month         text,
   currency      text,
@@ -121,20 +125,52 @@ LANGUAGE sql
 STABLE
 SET search_path = public
 AS $$
+  -- Created deals, bucketed by created_at's calendar month in the caller's tz.
+  WITH created AS (
+    SELECT
+      to_char(o.created_at AT TIME ZONE _tz, 'YYYY-MM') AS month,
+      o.currency                                        AS currency,
+      count(*)                                          AS created_count
+    FROM public.opportunities o
+    WHERE NOT public.account_is_deleted(o.account_id)  -- ORR-804
+    GROUP BY 1, o.currency
+  ),
+  -- Won deals, bucketed by CLOSE month (close_date is a DATE — no AT TIME ZONE).
+  won AS (
+    SELECT
+      to_char(o.close_date, 'YYYY-MM')            AS month,
+      o.currency                                  AS currency,
+      count(*)                                    AS won_count,
+      sum(coalesce(o.amount, 0))                  AS won_amount
+    FROM public.opportunities o
+    WHERE o.stage = 'closed_won'
+      AND o.close_date IS NOT NULL
+      AND NOT public.account_is_deleted(o.account_id)  -- ORR-804
+    GROUP BY 1, o.currency
+  )
   SELECT
-    to_char(o.created_at, 'YYYY-MM')                                       AS month,
-    o.currency,
-    count(*)                                                               AS created_count,
-    count(*) FILTER (WHERE o.stage = 'closed_won')                         AS won_count,
-    sum(coalesce(o.amount, 0)) FILTER (WHERE o.stage = 'closed_won')       AS won_amount
-  FROM public.opportunities o
-  WHERE NOT public.account_is_deleted(o.account_id)  -- ORR-804
-  GROUP BY 1, o.currency
+    coalesce(c.month, w.month)              AS month,
+    coalesce(c.currency, w.currency)        AS currency,
+    coalesce(c.created_count, 0)            AS created_count,
+    coalesce(w.won_count, 0)                AS won_count,
+    coalesce(w.won_amount, 0)               AS won_amount
+  FROM created c
+  FULL OUTER JOIN won w
+    ON c.month = w.month AND c.currency = w.currency
 $$;
 
--- ── Reports: top accounts by revenue ─────────────────────────────────────────
--- The INNER JOIN already dropped deleted accounts for non-admins; the explicit
--- predicate makes admins behave identically, matching the other rollups.
+COMMENT ON FUNCTION public.report_monthly_agg(text) IS
+  'Per-(month, currency) trends over RLS-visible opportunities: created_count by '
+  'created-month (bucketed in _tz, default UTC), won_count/won_amount by CLOSE '
+  'month (ORR-813). Soft-deleted accounts'' deals excluded from every bucket (ORR-804).';
+
+REVOKE ALL ON FUNCTION public.report_monthly_agg(text) FROM public;
+GRANT EXECUTE ON FUNCTION public.report_monthly_agg(text) TO authenticated;
+
+-- ── Reports: top accounts by revenue — closed_won only (ORR-813) ─────────────
+-- ORR-813 scoped this ranking to realised (closed_won) revenue. The INNER JOIN
+-- already dropped deleted accounts for non-admins; ORR-804's explicit predicate
+-- makes admins behave identically. Keep BOTH filters.
 CREATE OR REPLACE FUNCTION public.report_top_accounts_agg()
 RETURNS TABLE (
   account_id   uuid,
@@ -157,7 +193,8 @@ AS $$
       sum(sum(coalesce(o.amount, 0))) OVER (PARTITION BY o.account_id) AS acct_total
     FROM public.opportunities o
     JOIN public.accounts a ON a.id = o.account_id
-    WHERE NOT public.account_is_deleted(o.account_id)  -- ORR-804
+    WHERE o.stage = 'closed_won'                        -- ORR-813 (realised revenue only)
+      AND NOT public.account_is_deleted(o.account_id)  -- ORR-804
     GROUP BY o.account_id, a.name, o.currency
   ),
   ranked AS (
