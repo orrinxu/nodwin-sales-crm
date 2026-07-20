@@ -207,17 +207,19 @@ export async function reorderFieldDefinitions(
 
   if (parsed.items.length === 0) return
 
-  const { error } = await supabase
-    .from("field_definitions")
-    .upsert(
-      parsed.items.map((item) => ({
-        id: item.id,
-        display_order: item.displayOrder,
-      })) as never,
-    )
+  // Per-item UPDATE (not upsert): an upsert takes the INSERT arm for a
+  // concurrently-deleted id and aborts the whole reorder on a NOT NULL violation.
+  // A plain update of a missing id matches zero rows and is a silent no-op, so a
+  // row deleted mid-reorder is skipped rather than resurrected or fatal.
+  for (const item of parsed.items) {
+    const { error } = await supabase
+      .from("field_definitions")
+      .update({ display_order: item.displayOrder } as never)
+      .eq("id", item.id)
 
-  if (error) {
-    throw new Error(`Failed to reorder field definitions: ${error.message}`)
+    if (error) {
+      throw new Error(`Failed to reorder field definitions: ${error.message}`)
+    }
   }
 }
 
