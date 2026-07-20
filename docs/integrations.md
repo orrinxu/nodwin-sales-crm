@@ -93,6 +93,24 @@ Sheets: P&L generation per Section 5.1. Implemented using the Sheets API to prog
 
 Slides and Docs: surfaced as document-link entries on opportunities (paste a Slides / Docs link in the opportunity description, the CRM detects it and pulls the title + thumbnail). Deeper integration deferred to v2.
 
+#### 6.5.5 ORR-822 — verifying per-user Google OAuth end-to-end
+
+> **Status: shipped (server-side proof + unit tests).** The per-user Google OAuth foundation (ORR-773) is now exercised by a genuinely per-user consumer that is independent of the service-account Drive seam (`lib/integrations/drive/index.ts`, which takes only a file id and has no user context, so it can never prove per-user OAuth).
+
+The proof consists of:
+
+- `lib/integrations/google/verify.ts` — `verifyGoogleAccess(userId)`: reads the connection via `getGoogleConnection`, obtains a live (auto-refreshed) access token via `getValidGoogleAccessToken(userId, ['https://www.googleapis.com/auth/drive.readonly'])`, then makes **one** lightweight authenticated call — `GET https://www.googleapis.com/drive/v3/about?fields=user` with `Authorization: Bearer <token>` — and returns the Google `user` object. This exercises the full path: decrypt at-rest token → refresh if near expiry → real Google API call. It never logs token values.
+- `app/api/integrations/google/verify/route.ts` — `GET /api/integrations/google/verify`: `requireUser()` → `verifyGoogleAccess(user.id)` → `{ ok: true, googleUser }`. Typed errors map to structured JSON: **409** `not_connected` / `reauth_required`, **403** `scope_missing` (with `missingScopes`), **502** `google_api_error` (Google upstream non-2xx), **401** unauthenticated, **500** unexpected. This doubles as the future "Test connection" hook for the settings UI.
+
+**Live staging smoke** (requires Google OAuth credentials configured on staging — a follow-up if unset):
+
+1. On staging, set `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, and `GOOGLE_TOKEN_ENC_KEY`.
+2. Sign in and connect Google from `/settings` (the ORR-819 authorize flow; grant at least `drive.readonly`).
+3. `GET /api/integrations/google/verify` (authenticated) — confirm it returns `{ ok: true, googleUser: { emailAddress, displayName, ... } }` matching the connected account.
+4. **Auto-refresh check:** wait until past the stored `access_token_expires_at` (or force it), then call the endpoint again. A successful `200` proves the token-store transparently refreshed the access token using the stored refresh token — no reconnect required.
+
+**Note:** the live smoke requires Google OAuth credentials on staging; if unset, that is a follow-up. The merged code and unit tests (`lib/integrations/google/verify.test.ts`, `app/api/integrations/google/verify/route.test.ts`, network fully mocked) stand on their own and prove the wiring: valid token → returns the Google user; `GoogleScopeMissingError` / `GoogleNotConnectedError` / `GoogleReauthRequiredError` propagate; a non-200 Google response surfaces as a clear `GoogleApiError` / 502.
+
 ### 6.6 AI Provider Router
 
 A pluggable AI client abstraction (`lib/ai/router.ts`, which exposes `aiCall()` and assembles the provider chain) presents a unified completion / streaming interface to the rest of the app. All six provider adapters are implemented and production-ready:
