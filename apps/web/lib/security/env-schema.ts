@@ -39,6 +39,17 @@ export const envSchema = z.object({
   // Optional so the app boots when Google isn't configured — token-crypto.ts
   // throws a TokenCryptoError only when encryption is actually exercised.
   GOOGLE_TOKEN_ENC_KEY: z.string().optional(),
+  // ORR-773 server-side per-user Google OAuth2 (the "authorization code" flow,
+  // distinct from the browser Picker's implicit token and from the service
+  // account above). These are SERVER-ONLY secrets — never NEXT_PUBLIC. All
+  // optional so the app boots when Google isn't configured; the OAuth client
+  // (lib/integrations/google/oauth-client.ts) throws GoogleOAuthNotConfiguredError
+  // if used while any is missing. The redirect URI must exactly match a
+  // registered Authorized redirect URI in the Google Cloud OAuth client and is
+  // conceptually `${APP_URL}/api/integrations/google/callback`.
+  GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
+  GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_OAUTH_REDIRECT_URI: z.string().url().optional(),
   // ORR-620 document ingestion. All optional so the app boots with the seam
   // unwired — point EMBEDDINGS_* at a llama.cpp (OpenAI-compatible) server to
   // enable embedding. INGESTION_CRON_SECRET gates the worker drain route.
