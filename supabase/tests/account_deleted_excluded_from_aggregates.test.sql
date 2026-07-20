@@ -28,10 +28,16 @@ INSERT INTO public.accounts (id, name, email_domains, account_owner_user_id, cre
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Live',    ARRAY['live.com'], '11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', NULL),
   ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'Deleted', ARRAY['gone.com'], '11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', now());
 
--- One qualify deal on each account, same stage/currency so they'd share a bucket.
-INSERT INTO public.opportunities (id, name, account_id, stage, owner_user_id, sales_unit_id, amount, currency, visibility_tier) VALUES
-  ('00000000-0000-0000-0000-0000000011ee', 'L1', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'qualify', '11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 100, 'USD', 'standard'),
-  ('00000000-0000-0000-0000-0000000022dd', 'D1', 'dddddddd-dddd-dddd-dddd-dddddddddddd', 'qualify', '11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 999, 'USD', 'standard');
+-- One qualify deal on each account, same stage/currency so they'd share a bucket
+-- (exercises pipeline_metrics_agg, which spans all stages). Plus one closed_won
+-- deal on each: report_top_accounts_agg is closed_won-only (ORR-813), so the live
+-- account must have a won deal to appear at all — this makes the deleted-account
+-- exclusion a genuine deletion test, not a side effect of the stage filter.
+INSERT INTO public.opportunities (id, name, account_id, stage, owner_user_id, sales_unit_id, amount, currency, visibility_tier, close_date) VALUES
+  ('00000000-0000-0000-0000-0000000011ee', 'L1', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'qualify',    '11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 100, 'USD', 'standard', NULL),
+  ('00000000-0000-0000-0000-0000000022dd', 'D1', 'dddddddd-dddd-dddd-dddd-dddddddddddd', 'qualify',    '11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 999, 'USD', 'standard', NULL),
+  ('00000000-0000-0000-0000-0000000011ff', 'L2', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'closed_won', '11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 500, 'USD', 'standard', '2026-07-15'),
+  ('00000000-0000-0000-0000-0000000022ff', 'D2', 'dddddddd-dddd-dddd-dddd-dddddddddddd', 'closed_won', '11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 777, 'USD', 'standard', '2026-07-15');
 
 -- Predicate itself.
 SELECT ok(public.account_is_deleted('dddddddd-dddd-dddd-dddd-dddddddddddd'), 'account_is_deleted true for soft-deleted account');
