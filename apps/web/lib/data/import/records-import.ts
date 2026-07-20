@@ -269,10 +269,12 @@ export async function importRecordsCsv(
 
   // Record the run in import_jobs (audit + visible in the jobs list).
   try {
+    const status =
+      result.failed > 0 ? (result.created > 0 ? "partial" : "failed") : "completed"
     const job = await createImportJob(ctx, {
       kind: "import",
       targetEntityType: entity,
-      status: result.failed > 0 && result.created === 0 ? "failed" : "completed",
+      status,
       recordCount: result.created,
       errorLog: result.errors.length > 0 ? result.errors : null,
     })

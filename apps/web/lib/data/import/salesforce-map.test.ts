@@ -3,13 +3,17 @@ import {
   mapStage,
   normalizeWebsite,
   normalizeCurrency,
+  normalizeNumber,
   normalizeDate,
+  parseSalesforceDate,
+  detectIdColumn,
+  hasCurrencyColumn,
   mapAccountRow,
   mapContactRow,
   mapOpportunityRow,
 } from "./salesforce-map"
 
-describe("mapStage (ORR-699)", () => {
+describe("mapStage (ORR-699 / ORR-809a)", () => {
   it("maps standard Salesforce stages to CRM stages", () => {
     expect(mapStage("Prospecting")).toBe("qualify")
     expect(mapStage("Proposal/Price Quote")).toBe("propose")
@@ -17,9 +21,40 @@ describe("mapStage (ORR-699)", () => {
     expect(mapStage("Closed Won")).toBe("closed_won")
     expect(mapStage("Closed Lost")).toBe("closed_lost")
   })
-  it("is case-insensitive and falls back to qualify for unknown stages", () => {
+  it("is case-insensitive", () => {
     expect(mapStage("CLOSED WON")).toBe("closed_won")
-    expect(mapStage("Something Custom")).toBe("qualify")
+  })
+  it("returns null for unknown stages instead of guessing qualify (ORR-809a)", () => {
+    expect(mapStage("Something Custom")).toBeNull()
+    expect(mapStage("Disqualified")).toBeNull()
+    expect(mapStage("Closed Won - Contract Signed")).toBeNull()
+  })
+})
+
+describe("normalizeNumber (ORR-809d)", () => {
+  it("strips percent signs", () => {
+    expect(normalizeNumber("10%")).toBe("10")
+  })
+  it("strips currency symbols and thousands separators", () => {
+    expect(normalizeNumber("$1,000.50")).toBe("1000.50")
+    expect(normalizeNumber("1,250")).toBe("1250")
+  })
+  it("returns undefined for non-numeric or blank", () => {
+    expect(normalizeNumber("")).toBeUndefined()
+    expect(normalizeNumber("N/A")).toBeUndefined()
+  })
+})
+
+describe("detectIdColumn / hasCurrencyColumn (ORR-809 c/f)", () => {
+  it("detects a record-Id column per entity", () => {
+    expect(detectIdColumn(["Account ID", "Name"], "accounts")).toBe(true)
+    expect(detectIdColumn(["Opportunity ID", "Name"], "opportunities")).toBe(true)
+    expect(detectIdColumn(["Name", "Amount"], "opportunities")).toBe(false)
+  })
+  it("detects a currency column", () => {
+    expect(hasCurrencyColumn(["Name", "Currency"])).toBe(true)
+    expect(hasCurrencyColumn(["Name", "CurrencyIsoCode"])).toBe(true)
+    expect(hasCurrencyColumn(["Name", "Amount"])).toBe(false)
   })
 })
 
@@ -44,8 +79,8 @@ describe("normalizeCurrency", () => {
   })
 })
 
-describe("normalizeDate", () => {
-  it("passes through ISO dates", () => {
+describe("normalizeDate / parseSalesforceDate (ORR-809e)", () => {
+  it("passes through valid ISO dates", () => {
     expect(normalizeDate("2026-01-15")).toBe("2026-01-15")
   })
   it("converts US M/D/YYYY", () => {
@@ -53,6 +88,23 @@ describe("normalizeDate", () => {
   })
   it("returns undefined for unparseable values", () => {
     expect(normalizeDate("last tuesday")).toBeUndefined()
+  })
+  it("parses non-US D/M dates when the day disambiguates", () => {
+    // "19/07/2026" — 19 can only be a day, so month is 07.
+    expect(parseSalesforceDate("19/07/2026").iso).toBe("2026-07-19")
+  })
+  it("rejects impossible calendar dates rather than emitting them", () => {
+    // "2/31/2026" previously became "2026-02-31" and errored at the DB.
+    const r = parseSalesforceDate("2/31/2026")
+    expect(r.iso).toBeUndefined()
+    expect(r.warning).toMatch(/impossible/i)
+    // ISO form of an impossible date is also rejected.
+    expect(parseSalesforceDate("2026-02-31").iso).toBeUndefined()
+  })
+  it("flags ambiguous D/M vs M/D but still parses as US M/D", () => {
+    const r = parseSalesforceDate("3/4/2026")
+    expect(r.iso).toBe("2026-03-04")
+    expect(r.warning).toMatch(/ambiguous/i)
   })
 })
 

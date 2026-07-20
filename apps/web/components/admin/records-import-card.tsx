@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { decodeCsvFile } from "@/lib/data/import/decode"
 
 export interface RecordsImportResult {
   entity: "accounts"
@@ -43,7 +44,7 @@ export function RecordsImportCard({
     setError(null)
     setResult(null)
     try {
-      const csvText = await file.text()
+      const csvText = await decodeCsvFile(file)
       const res = await importAction({ entity: "accounts", csvText })
       setResult(res)
       // Reflect the new records + the import_jobs audit row.

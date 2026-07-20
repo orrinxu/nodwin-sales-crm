@@ -68,7 +68,7 @@ export interface ImportJobRecord {
   entityName: string | null
   kind: "export" | "import"
   targetEntityType: string | null
-  status: "pending" | "running" | "completed" | "failed"
+  status: "pending" | "running" | "completed" | "partial" | "failed"
   fileUrl: string | null
   driveFileId: string | null
   recordCount: number | null
@@ -83,7 +83,7 @@ export const importJobCreateSchema = z.object({
   kind: z.enum(["export", "import"]),
   targetEntityType: z.string().nullable().optional(),
   status: z
-    .enum(["pending", "running", "completed", "failed"])
+    .enum(["pending", "running", "completed", "partial", "failed"])
     .default("pending"),
   // Populated by importers/exporters so the jobs list can show a summary.
   recordCount: z.number().int().nonnegative().nullable().optional(),
