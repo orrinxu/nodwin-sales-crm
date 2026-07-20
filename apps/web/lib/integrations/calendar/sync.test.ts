@@ -49,7 +49,7 @@ import { runCalendarSyncForUser } from "./sync"
 interface DbConfig {
   syncState?: Record<string, unknown> | null
   accounts?: { id: string }[]
-  contacts?: { id: string }[]
+  contacts?: { id: string; email?: string }[]
   upsertError?: string | null
 }
 
@@ -207,7 +207,7 @@ beforeEach(() => {
 
 describe("runCalendarSyncForUser (ORR-826)", () => {
   it("maps an event to a meeting activity upserted on external_event_id", async () => {
-    db = makeDb({ syncState: enabledState(), accounts: [{ id: "acc-1" }], contacts: [{ id: "con-1" }] })
+    db = makeDb({ syncState: enabledState(), accounts: [{ id: "acc-1" }], contacts: [{ id: "con-1", email: "buyer@acme.com" }] })
     mockListEvents.mockResolvedValueOnce({ events: [event()], nextSyncToken: "tok-1" })
 
     const res = await runCalendarSyncForUser(USER)

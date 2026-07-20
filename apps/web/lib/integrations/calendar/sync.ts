@@ -114,17 +114,33 @@ async function resolveContactByEmails(
   ]
   if (lowered.length === 0) return null
 
-  // Case-insensitive exact match per email (ilike with no wildcards == equality).
-  const orFilter = lowered.map((e) => `email.ilike.${e}`).join(",")
+  // Case-insensitive match per email. ILIKE treats `_` and `%` as wildcards, and
+  // email local-parts commonly contain `_` (e.g. john_doe@x.com), so escape them
+  // to a literal pattern — THEN verify each returned row against the exact
+  // lowercased set in JS, so a stray wildcard can never mis-attribute a contact.
+  const escapeLike = (s: string) => s.replace(/([\\%_])/g, "\\$1")
+  const orFilter = lowered.map((e) => `email.ilike.${escapeLike(e)}`).join(",")
 
   const { data, error } = await client
     .from("contacts")
-    .select("id")
+    .select("id, email")
     .or(orFilter)
 
   if (error) throw error
-  if (!data || data.length !== 1) return null
-  return data[0].id
+
+  const wanted = new Set(lowered)
+  const ids = [
+    ...new Set(
+      (data ?? [])
+        .filter(
+          (r) => typeof r.email === "string" && wanted.has(r.email.trim().toLowerCase()),
+        )
+        .map((r) => r.id),
+    ),
+  ]
+  // Exactly one distinct contact, or we decline to attribute.
+  if (ids.length !== 1) return null
+  return ids[0]
 }
 
 /** Collect the distinct, non-empty attendee + organizer emails for an event. */
