@@ -1,0 +1,17 @@
+# deploy/nodwin-crm-backup.timer (ORR-780)
+#
+# Runs nodwin-crm-backup.service daily at 03:00 UTC (low-traffic window), with a
+# randomized delay to avoid a thundering herd, and Persistent=true so a backup
+# missed while the box was down runs at next boot. See the .service file header
+# for install steps.
+
+[Unit]
+Description=Daily Nodwin CRM database backup
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target

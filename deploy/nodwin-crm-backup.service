@@ -1,0 +1,29 @@
+# deploy/nodwin-crm-backup.service (ORR-780)
+#
+# systemd service that runs one database backup. Paired with
+# nodwin-crm-backup.timer for daily scheduling. Install on the VPS:
+#
+#   sudo cp deploy/backup-database.sh /usr/local/bin/nodwin-crm-backup
+#   sudo chmod 755 /usr/local/bin/nodwin-crm-backup
+#   sudo cp deploy/nodwin-crm-backup.service /etc/systemd/system/
+#   sudo cp deploy/nodwin-crm-backup.timer   /etc/systemd/system/
+#   # put off-box creds + config here (chmod 600, root-only):
+#   sudo install -m 600 /dev/null /etc/nodwin-crm-backup.env
+#   sudoedit /etc/nodwin-crm-backup.env   # set BACKUP_S3_URL, aws creds, etc.
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now nodwin-crm-backup.timer
+#   # verify: systemctl start nodwin-crm-backup.service && journalctl -u nodwin-crm-backup
+
+[Unit]
+Description=Nodwin CRM database backup (pg_dump → local + off-box)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# Config lives outside git. Missing file is tolerated so defaults still apply.
+EnvironmentFile=-/etc/nodwin-crm-backup.env
+ExecStart=/usr/local/bin/nodwin-crm-backup
+# Backups should never run two at once (a slow off-box upload + the next tick).
+# systemd already serializes a oneshot service, but be explicit about failure.
+TimeoutStartSec=1800
