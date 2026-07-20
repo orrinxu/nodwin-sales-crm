@@ -2024,6 +2024,60 @@ export type Database = {
           },
         ]
       }
+      google_oauth_connections: {
+        Row: {
+          access_token_enc: string | null
+          access_token_expires_at: string | null
+          connected_at: string
+          google_account_email: string | null
+          granted_scopes: string[]
+          id: string
+          refresh_token_enc: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token_enc?: string | null
+          access_token_expires_at?: string | null
+          connected_at?: string
+          google_account_email?: string | null
+          granted_scopes?: string[]
+          id?: string
+          refresh_token_enc?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token_enc?: string | null
+          access_token_expires_at?: string | null
+          connected_at?: string
+          google_account_email?: string | null
+          granted_scopes?: string[]
+          id?: string
+          refresh_token_enc?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_oauth_connections_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "ai_usage_daily_rollup"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "google_oauth_connections_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_jobs: {
         Row: {
           created_at: string
