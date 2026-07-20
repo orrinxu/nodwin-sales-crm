@@ -3865,6 +3865,7 @@ export type Database = {
       }
     }
     Functions: {
+      account_is_deleted: { Args: { _account_id: string }; Returns: boolean }
       ai_usage_by_feature: {
         Args: { p_from: string; p_to: string }
         Returns: {

@@ -49,7 +49,12 @@ import { Card } from "@/components/ui/card"
 import { ListPagination } from "@/components/primitives/list-pagination"
 import { AccountForm } from "@/components/accounts/account-form"
 import { AccountGenerator } from "@/components/accounts/account-generator"
-import type { AccountListRecord, AccountCreateInput, AccountRecord } from "@/lib/data/accounts"
+import type {
+  AccountListRecord,
+  AccountCreateInput,
+  AccountRecord,
+  BulkDeleteAccountsResult,
+} from "@/lib/data/accounts"
 import type { FieldDefinition } from "@/lib/data/field-definitions.types"
 import type { TaxIdType } from "@/lib/data/account-tax-ids"
 import type { TaxIdRow } from "@/components/accounts/tax-ids-editor"
@@ -78,7 +83,7 @@ interface AccountsListProps {
   searchAccountsAction?: (query: string) => Promise<EntityOption[]>
   createAction: (input: AccountCreateInput) => Promise<AccountRecord>
   saveTaxIdsAction?: (accountId: string, input: { taxIds: TaxIdRow[] }) => Promise<void>
-  bulkDeleteAction: (input: { ids: string[] }) => Promise<void>
+  bulkDeleteAction: (input: { ids: string[] }) => Promise<BulkDeleteAccountsResult>
   // ── Account Generator (ORR-735) — optional; when present the header shows the
   //    generator (chooser → note → draft → review) instead of a blank form. ──
   generateAction?: (input: {
@@ -148,6 +153,7 @@ export function AccountsList({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isPending, setIsPending] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [searchInput, setSearchInput] = useState(urlSearch)
 
   // Debounce the search box → URL. Seeded from the URL on mount and re-synced by
@@ -311,13 +317,27 @@ export function AccountsList({
   const handleBulkDelete = useCallback(async () => {
     if (selectedIds.length === 0) return
     setIsPending(true)
+    setDeleteError(null)
     try {
-      await bulkDeleteAction({ ids: selectedIds })
+      const result = await bulkDeleteAction({ ids: selectedIds })
+      if (result.failures.length > 0) {
+        // Soft-delete is per-row, so some accounts may have deleted while others
+        // failed. Refresh to drop the succeeded rows, keep the dialog open, and
+        // surface which ones could not be deleted (ORR-804).
+        const count = result.failures.length
+        setDeleteError(
+          `Could not delete ${count} account${count !== 1 ? "s" : ""}: ${result.failures[0].error}`,
+        )
+        router.refresh()
+        return
+      }
       setRowSelection({})
       setShowDeleteDialog(false)
       router.refresh()
-    } catch {
-      // handled by caller
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error ? error.message : "Failed to delete accounts.",
+      )
     } finally {
       setIsPending(false)
     }
@@ -521,7 +541,13 @@ export function AccountsList({
         )}
       </div>
 
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <Dialog
+        open={showDeleteDialog}
+        onOpenChange={(open) => {
+          setShowDeleteDialog(open)
+          if (!open) setDeleteError(null)
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Accounts</DialogTitle>
@@ -531,6 +557,14 @@ export function AccountsList({
               undone.
             </DialogDescription>
           </DialogHeader>
+          {deleteError ? (
+            <p
+              role="alert"
+              className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {deleteError}
+            </p>
+          ) : null}
           <DialogFooter>
             <Button
               variant="outline"

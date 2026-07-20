@@ -42,8 +42,11 @@ export async function globalSearch(
   const like = `%${query}%`
 
   const [accountsRes, contactsRes, oppsRes] = await Promise.all([
+    // ORR-804: exclude soft-deleted accounts — a deleted account would otherwise
+    // match and link to /accounts/[id], which 404s (getAccountById filters them out).
     supabase.from("accounts").select("id, name, legal_name")
       .or(`name.ilike.${like},legal_name.ilike.${like},website.ilike.${like}`)
+      .is("deleted_at", null)
       .order("name").limit(PER_TYPE),
     supabase.from("contacts").select("id, full_name, email")
       .or(`full_name.ilike.${like},email.ilike.${like},phone.ilike.${like},title.ilike.${like}`)

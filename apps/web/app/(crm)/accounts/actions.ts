@@ -118,8 +118,9 @@ export async function bulkDeleteAccountsAction(input: unknown) {
   const user = await requireUser()
   const parsed = bulkDeleteAccountsSchema.parse(input)
   const ctx = { user, source: "web" as const }
-  await bulkDeleteAccounts(ctx, parsed)
+  const result = await bulkDeleteAccounts(ctx, parsed)
   revalidatePath("/accounts")
+  return result
 }
 
 // Server-side account typeahead for the AccountForm parent/related picker

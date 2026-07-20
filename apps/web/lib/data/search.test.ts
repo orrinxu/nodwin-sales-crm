@@ -7,7 +7,7 @@ const fromSpy = vi.fn()
 
 function builder(table: string) {
   const b: Record<string, unknown> = {}
-  for (const m of ["select", "or", "ilike", "order", "limit"]) {
+  for (const m of ["select", "or", "ilike", "is", "order", "limit"]) {
     // eslint-disable-next-line security/detect-object-injection -- fixed method list
     b[m] = () => b
   }

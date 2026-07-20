@@ -112,6 +112,7 @@ export function ContactsList({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isPending, setIsPending] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [searchInput, setSearchInput] = useState(urlSearch)
 
   // Debounce the search box → URL. Seeded from the URL on mount and re-synced by
@@ -221,13 +222,16 @@ export function ContactsList({
   const handleBulkDelete = useCallback(async () => {
     if (selectedIds.length === 0) return
     setIsPending(true)
+    setDeleteError(null)
     try {
       await bulkDeleteAction({ ids: selectedIds })
       setRowSelection({})
       setShowDeleteDialog(false)
       router.refresh()
-    } catch {
-      // handled by caller
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error ? error.message : "Failed to delete contacts.",
+      )
     } finally {
       setIsPending(false)
     }
@@ -419,7 +423,13 @@ export function ContactsList({
         )}
       </div>
 
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <Dialog
+        open={showDeleteDialog}
+        onOpenChange={(open) => {
+          setShowDeleteDialog(open)
+          if (!open) setDeleteError(null)
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Contacts</DialogTitle>
@@ -429,6 +439,14 @@ export function ContactsList({
               undone.
             </DialogDescription>
           </DialogHeader>
+          {deleteError ? (
+            <p
+              role="alert"
+              className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {deleteError}
+            </p>
+          ) : null}
           <DialogFooter>
             <Button
               variant="outline"

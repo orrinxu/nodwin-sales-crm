@@ -22,6 +22,9 @@ interface ExportSpec {
   select: string
   headers: string[]
   row: (r: Record<string, unknown>) => Cell[]
+  /** When true, exclude soft-deleted rows (`deleted_at IS NULL`). Only accounts
+   *  carry a `deleted_at` column today. ORR-804. */
+  softDelete?: boolean
 }
 
 const ACCOUNTS_SPEC: ExportSpec = {
@@ -29,6 +32,7 @@ const ACCOUNTS_SPEC: ExportSpec = {
   select: "name, legal_name, website, country, industry, description, created_at",
   headers: ["Name", "Legal name", "Website", "Country", "Industry", "Description", "Created at"],
   row: (r) => [r.name as Cell, r.legal_name as Cell, r.website as Cell, r.country as Cell, r.industry as Cell, r.description as Cell, r.created_at as Cell],
+  softDelete: true,
 }
 
 const CONTACTS_SPEC: ExportSpec = {
@@ -94,16 +98,20 @@ export async function exportRecordsCsv(
   type LooseQuery = {
     select: (s: string) => LooseQuery
     order: (c: string, o: { ascending: boolean }) => LooseQuery
+    is: (c: string, v: null) => LooseQuery
     range: (a: number, b: number) => Promise<{ data: unknown[] | null; error: { message: string } | null }>
   }
   const from = (supabase as unknown as { from: (t: string) => LooseQuery }).from.bind(supabase)
 
   const rows: Cell[][] = []
   for (let offset = 0; offset < MAX_ROWS; offset += PAGE) {
-    const { data, error } = await from(spec.table)
+    let query = from(spec.table)
       .select(spec.select)
       .order("created_at", { ascending: false })
-      .range(offset, offset + PAGE - 1)
+    // ORR-804: keep soft-deleted accounts out of exports so they don't reappear
+    // in the file or inflate record_count.
+    if (spec.softDelete) query = query.is("deleted_at", null)
+    const { data, error } = await query.range(offset, offset + PAGE - 1)
     if (error) throw new Error(`Failed to export ${entity}: ${error.message}`)
     const batch = (data ?? []) as Record<string, unknown>[]
     for (const r of batch) rows.push(spec.row(r))
