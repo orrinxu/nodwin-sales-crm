@@ -159,6 +159,14 @@ export type ActivityInsert = {
 const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024 // 25 MiB
 const CRM_DOMAIN = "crm.nodwin.com"
 
+// opportunities.id is a uuid. A subject like `Re: [OPP-1234] pricing` yields a
+// non-uuid ref; passing it to `.eq("id", ...)` throws `invalid input syntax for
+// type uuid`, which bubbled to a 500 → Postmark retry loop → lost email with no
+// deadletter (ORR-811d). Validate the shape first and treat a non-uuid ref as
+// "no ref" (normal fallback: attach to account or none).
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 // ---------------------------------------------------------------------------
 // Service-role Supabase client (bypasses RLS for webhook handler)
 // ---------------------------------------------------------------------------
@@ -249,10 +257,14 @@ async function lookupUserByCrmInboundEmail(
   client: ReturnType<typeof createServiceRoleClient>,
   fromAddress: string,
 ): Promise<UserLookup> {
+  // Lowercase both sides of the comparison: crm_inbound_email is generated as a
+  // lowercase hex token (users.sql generate_user_crm_inbound_email), but a mail
+  // client may send the From address with mixed case (First.Last@…). Comparing
+  // verbatim deadlettered every such email for a working user (ORR-811e).
   const { data, error } = await client
     .from("users")
     .select("id")
-    .eq("crm_inbound_email", fromAddress)
+    .eq("crm_inbound_email", fromAddress.toLowerCase())
     .maybeSingle()
 
   if (error) throw error
@@ -332,6 +344,10 @@ async function resolveOpportunityByRef(
   ref: string,
   userId: string,
 ): Promise<string | null> {
+  // Guard the uuid cast — a malformed [OPP-…] ref must degrade to "no ref", not
+  // 500 the webhook (ORR-811d).
+  if (!UUID_RE.test(ref)) return null
+
   const { data: opp, error: oppError } = await client
     .from("opportunities")
     .select("id")

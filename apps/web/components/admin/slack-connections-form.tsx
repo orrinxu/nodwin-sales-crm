@@ -168,12 +168,25 @@ export function SlackConnectionsForm({
                         className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
                           conn.status === "connected" && conn.hasWebhookUrl
                             ? "bg-green-500/10 text-green-700 dark:text-green-400"
-                            : "bg-muted text-muted-foreground"
+                            : conn.status === "error"
+                              ? "bg-destructive/10 text-destructive"
+                              : "bg-muted text-muted-foreground"
                         }`}
                       >
-                        {conn.status === "connected" && conn.hasWebhookUrl ? "Connected" : conn.status}
+                        {conn.status === "connected" && conn.hasWebhookUrl
+                          ? "Connected"
+                          : conn.status === "error"
+                            ? "Delivery failing"
+                            : conn.status}
                       </span>
                     </div>
+                    {conn.status === "error" && (
+                      <p className="mt-1 text-xs text-destructive">
+                        Slack rejected recent posts — the webhook may have been revoked or
+                        rotated. Edit this channel and paste a fresh incoming-webhook URL to
+                        reconnect.
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Button

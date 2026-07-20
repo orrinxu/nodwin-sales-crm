@@ -518,4 +518,68 @@ describe("sendSlackNotification", () => {
     mockFrom.mockReturnValue(mockChain({ data: null, error: new Error("DB error") }))
     await expect(sendSlackNotification("x")).rejects.toThrow("Failed to load Slack connections")
   })
+
+  // ORR-811a — a revoked/deleted webhook must stop failing silently: retry once,
+  // then flag the connection status=error so /admin/slack surfaces it.
+  it("retries once then flags the connection status=error when its webhook keeps failing", async () => {
+    const onUpdate = vi.fn()
+    // from('slack_connections') is used for BOTH the select (load webhooks) and
+    // the update (mark error) — return an object that supports either chain.
+    const selectChain: Record<string, unknown> = {}
+    selectChain.eq = () => selectChain
+    selectChain.not = () => selectChain
+    selectChain.then = (r: (v: unknown) => void) =>
+      r({ data: [{ id: "c1", webhook_url: "https://hooks.slack.com/services/AAA" }], error: null })
+    const updateChain: Record<string, unknown> = {}
+    updateChain.eq = () => updateChain
+    updateChain.then = (r: (v: unknown) => void) => {
+      onUpdate()
+      r({ error: null })
+    }
+    mockFrom.mockReturnValue({
+      select: () => selectChain,
+      update: () => updateChain,
+    })
+
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 404 })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await sendSlackNotification("deal moved")
+
+    expect(fetchMock).toHaveBeenCalledTimes(2) // original + one retry
+    expect(onUpdate).toHaveBeenCalledTimes(1) // flagged status=error
+    vi.unstubAllGlobals()
+  })
+
+  it("does NOT flag the connection when a retry succeeds", async () => {
+    const onUpdate = vi.fn()
+    const selectChain: Record<string, unknown> = {}
+    selectChain.eq = () => selectChain
+    selectChain.not = () => selectChain
+    selectChain.then = (r: (v: unknown) => void) =>
+      r({ data: [{ id: "c1", webhook_url: "https://hooks.slack.com/services/AAA" }], error: null })
+    const updateChain: Record<string, unknown> = {}
+    updateChain.eq = () => updateChain
+    updateChain.then = (r: (v: unknown) => void) => {
+      onUpdate()
+      r({ error: null })
+    }
+    mockFrom.mockReturnValue({
+      select: () => selectChain,
+      update: () => updateChain,
+    })
+
+    // Fail once, succeed on the retry.
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({ ok: true })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await sendSlackNotification("deal moved")
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(onUpdate).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
 })

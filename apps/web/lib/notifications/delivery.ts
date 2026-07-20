@@ -305,16 +305,50 @@ export async function postToSlackWebhook(
   }
 }
 
+// Post to a webhook with one light retry, to ride out a transient blip (network
+// or 5xx) before we flag the connection as broken. A permanently revoked/deleted
+// webhook fails both attempts and gets marked `error` by the caller (ORR-811a).
+async function postToSlackWebhookWithRetry(
+  url: string,
+  text: string,
+): Promise<boolean> {
+  if (await postToSlackWebhook(url, text)) return true
+  return postToSlackWebhook(url, text)
+}
+
+// Flag a connection whose webhook is no longer accepting posts. `error` connections
+// are excluded from future broadcasts (sendSlackNotification filters status=connected)
+// and surface in /admin/slack so an admin can re-paste a fresh webhook URL. Guarded
+// on status=connected so we never clobber a concurrent state change, and best-effort:
+// a failure to record the failure must not break notification delivery. (ORR-811a)
+async function markSlackConnectionError(
+  client: ReturnType<typeof createServiceRoleClient>,
+  id: string,
+): Promise<void> {
+  const { error } = await client
+    .from("slack_connections")
+    .update({ status: "error" } as never)
+    .eq("id", id)
+    .eq("status", "connected")
+  if (error) {
+    console.warn(
+      `[notifications] Failed to flag Slack connection ${id} as error: ${error.message}`,
+    )
+  }
+}
+
 // Broadcast a message to every connected Slack incoming webhook — per-workspace
 // channel posts (ORR-771). No per-user OAuth: the webhook URL is the credential.
 // No-ops when nothing is connected, so routing events to Slack before an admin
-// has set up a webhook is harmless.
+// has set up a webhook is harmless. A webhook that fails (after one retry) — the
+// workspace admin deleted the Slack app, the URL was rotated — is flagged
+// status=error so the failure stops being silent (ORR-811a).
 export async function sendSlackNotification(message: string): Promise<void> {
   const client = createServiceRoleClient()
 
   const { data, error } = await client
     .from("slack_connections")
-    .select("webhook_url")
+    .select("id, webhook_url")
     .eq("status", "connected")
     .not("webhook_url", "is", null)
 
@@ -322,11 +356,15 @@ export async function sendSlackNotification(message: string): Promise<void> {
     throw new Error(`Failed to load Slack connections: ${error.message}`)
   }
 
-  const urls = ((data ?? []) as { webhook_url: string | null }[])
-    .map((r) => r.webhook_url)
-    .filter((u): u is string => !!u)
+  const rows = ((data ?? []) as { id: string; webhook_url: string | null }[])
+    .filter((r): r is { id: string; webhook_url: string } => !!r.webhook_url)
 
-  await Promise.all(urls.map((url) => postToSlackWebhook(url, message)))
+  await Promise.all(
+    rows.map(async (row) => {
+      const ok = await postToSlackWebhookWithRetry(row.webhook_url, message)
+      if (!ok) await markSlackConnectionError(client, row.id)
+    }),
+  )
 }
 
 export async function createInAppNotification(
@@ -359,16 +397,24 @@ export async function createInAppNotification(
   return data.id
 }
 
+export interface SendNotificationOptions {
+  // Suppress the Slack channel for THIS recipient. Slack is an org-wide channel
+  // broadcast, not a per-recipient delivery: when an event fans out to several
+  // recipients (e.g. approval_requested to every approver of a step), only one of
+  // them should carry the Slack post or the shared channel gets N copies. Callers
+  // that fan out set this on all-but-one recipient (ORR-811b).
+  suppressSlack?: boolean
+}
+
 export async function sendNotification(
   userId: string,
   eventType: NotificationEventType,
   payload: NotificationPayload,
+  options: SendNotificationOptions = {},
 ): Promise<void> {
-  const channels = await evaluateNotificationChannels(
-    userId,
-    eventType,
-    payload.entityId,
-  )
+  const channels = (
+    await evaluateNotificationChannels(userId, eventType, payload.entityId)
+  ).filter((c) => !(options.suppressSlack && c === "slack"))
 
   const results = await Promise.allSettled(
     channels.map((channel) => {
