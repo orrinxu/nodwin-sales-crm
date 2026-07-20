@@ -34,6 +34,11 @@ export const envSchema = z.object({
   GOOGLE_WORKSPACE_ADMIN_SUBJECT: z.string().optional(),
   GOOGLE_DRIVE_SHARED_DRIVE_ID: z.string().optional(),
   DRIVE_SYNC_CRON_SECRET: z.string().optional(),
+  // ORR-817 (foundation for ORR-773): at-rest key for per-user Google OAuth
+  // tokens. 32 raw bytes, base64-encoded (generate: `openssl rand -base64 32`).
+  // Optional so the app boots when Google isn't configured — token-crypto.ts
+  // throws a TokenCryptoError only when encryption is actually exercised.
+  GOOGLE_TOKEN_ENC_KEY: z.string().optional(),
   // ORR-620 document ingestion. All optional so the app boots with the seam
   // unwired — point EMBEDDINGS_* at a llama.cpp (OpenAI-compatible) server to
   // enable embedding. INGESTION_CRON_SECRET gates the worker drain route.
