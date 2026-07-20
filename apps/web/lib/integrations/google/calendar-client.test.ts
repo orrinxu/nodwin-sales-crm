@@ -17,17 +17,43 @@ vi.mock("./token-store", async () => {
 // Mock googleapis so nothing hits the network. The mocked OAuth2 records the
 // credentials set on it; google.calendar returns a client whose events.list /
 // events.get we drive per test.
-const { listMock, getMock, setCredentialsMock, oauth2Ctor, calendarFactory } =
-  vi.hoisted(() => {
-    const listMock = vi.fn()
-    const getMock = vi.fn()
-    const setCredentialsMock = vi.fn()
-    const oauth2Ctor = vi.fn(() => ({ setCredentials: setCredentialsMock }))
-    const calendarFactory = vi.fn(() => ({
-      events: { list: listMock, get: getMock },
-    }))
-    return { listMock, getMock, setCredentialsMock, oauth2Ctor, calendarFactory }
-  })
+const {
+  listMock,
+  getMock,
+  insertMock,
+  patchMock,
+  deleteMock,
+  setCredentialsMock,
+  oauth2Ctor,
+  calendarFactory,
+} = vi.hoisted(() => {
+  const listMock = vi.fn()
+  const getMock = vi.fn()
+  const insertMock = vi.fn()
+  const patchMock = vi.fn()
+  const deleteMock = vi.fn()
+  const setCredentialsMock = vi.fn()
+  const oauth2Ctor = vi.fn(() => ({ setCredentials: setCredentialsMock }))
+  const calendarFactory = vi.fn(() => ({
+    events: {
+      list: listMock,
+      get: getMock,
+      insert: insertMock,
+      patch: patchMock,
+      delete: deleteMock,
+    },
+  }))
+  return {
+    listMock,
+    getMock,
+    insertMock,
+    patchMock,
+    deleteMock,
+    setCredentialsMock,
+    oauth2Ctor,
+    calendarFactory,
+  }
+})
 vi.mock("googleapis", () => ({
   google: {
     auth: { OAuth2: oauth2Ctor },
@@ -38,6 +64,9 @@ vi.mock("googleapis", () => ({
 import {
   listEvents,
   getEvent,
+  insertEvent,
+  updateEvent,
+  deleteEvent,
   normalizeEvent,
   CALENDAR_SCOPE,
   CalendarSyncTokenExpiredError,
@@ -268,5 +297,150 @@ describe("getEvent (ORR-825)", () => {
     })
     expect(result.externalEventId).toBe("evt-single")
     expect(result.status).toBe("tentative")
+  })
+})
+
+describe("insertEvent (ORR-829)", () => {
+  it("requests a token for the calendar scope and credentials the client", async () => {
+    insertMock.mockResolvedValue({ data: { id: "evt-new" } })
+
+    await insertEvent({
+      userId: USER,
+      event: {
+        start: { dateTime: "2026-07-21T09:00:00Z", timeZone: "Asia/Kolkata" },
+        end: { dateTime: "2026-07-21T10:00:00Z", timeZone: "Asia/Kolkata" },
+      },
+    })
+
+    expect(getTokenMock).toHaveBeenCalledWith(USER, [CALENDAR_SCOPE])
+    expect(setCredentialsMock).toHaveBeenCalledWith({
+      access_token: "ya29.live-token",
+    })
+  })
+
+  it("builds a timed-event body (dropping absent fields) and returns id + hangoutLink", async () => {
+    insertMock.mockResolvedValue({
+      data: { id: "evt-new", hangoutLink: "https://meet.google.com/xyz" },
+    })
+
+    const result = await insertEvent({
+      userId: USER,
+      event: {
+        summary: "Kickoff",
+        description: "Project kickoff",
+        location: "Room 2",
+        start: { dateTime: "2026-07-21T09:00:00Z", timeZone: "Asia/Kolkata" },
+        end: { dateTime: "2026-07-21T10:00:00Z", timeZone: "Asia/Kolkata" },
+        attendees: [{ email: "a@nodwin.com" }, { email: "b@nodwin.com" }],
+      },
+    })
+
+    const arg = insertMock.mock.calls[0][0]
+    expect(arg.calendarId).toBe("primary")
+    expect(arg.requestBody).toEqual({
+      summary: "Kickoff",
+      description: "Project kickoff",
+      location: "Room 2",
+      start: { dateTime: "2026-07-21T09:00:00Z", timeZone: "Asia/Kolkata" },
+      end: { dateTime: "2026-07-21T10:00:00Z", timeZone: "Asia/Kolkata" },
+      attendees: [{ email: "a@nodwin.com" }, { email: "b@nodwin.com" }],
+    })
+    expect(result).toEqual({
+      eventId: "evt-new",
+      hangoutLink: "https://meet.google.com/xyz",
+    })
+  })
+
+  it("omits summary/description/location/attendees when not provided (all-day)", async () => {
+    insertMock.mockResolvedValue({ data: { id: "evt-allday" } })
+
+    const result = await insertEvent({
+      userId: USER,
+      calendarId: "team@group.calendar.google.com",
+      event: {
+        start: { date: "2026-07-21" },
+        end: { date: "2026-07-22" },
+      },
+    })
+
+    const arg = insertMock.mock.calls[0][0]
+    expect(arg.calendarId).toBe("team@group.calendar.google.com")
+    expect(arg.requestBody).toEqual({
+      start: { date: "2026-07-21" },
+      end: { date: "2026-07-22" },
+    })
+    expect(arg.requestBody.summary).toBeUndefined()
+    expect(arg.requestBody.attendees).toBeUndefined()
+    expect(result).toEqual({ eventId: "evt-allday", hangoutLink: null })
+  })
+
+  it("throws when Google returns no event id", async () => {
+    insertMock.mockResolvedValue({ data: {} })
+
+    await expect(
+      insertEvent({
+        userId: USER,
+        event: {
+          start: { dateTime: "2026-07-21T09:00:00Z" },
+          end: { dateTime: "2026-07-21T10:00:00Z" },
+        },
+      }),
+    ).rejects.toThrow(/no event id/i)
+  })
+
+  it("propagates token-store errors unchanged (no insert call)", async () => {
+    const { GoogleScopeMissingError } = await vi.importActual<
+      typeof import("./token-store")
+    >("./token-store")
+    getTokenMock.mockRejectedValue(new GoogleScopeMissingError([CALENDAR_SCOPE]))
+
+    await expect(
+      insertEvent({
+        userId: USER,
+        event: {
+          start: { dateTime: "2026-07-21T09:00:00Z" },
+          end: { dateTime: "2026-07-21T10:00:00Z" },
+        },
+      }),
+    ).rejects.toBeInstanceOf(GoogleScopeMissingError)
+    expect(insertMock).not.toHaveBeenCalled()
+  })
+})
+
+describe("updateEvent / deleteEvent (ORR-829)", () => {
+  it("patches an event by id and returns it normalized", async () => {
+    patchMock.mockResolvedValue({
+      data: {
+        id: "evt-x",
+        status: "confirmed",
+        summary: "Renamed",
+        start: { dateTime: "2026-07-21T09:00:00Z" },
+        end: { dateTime: "2026-07-21T10:00:00Z" },
+      },
+    })
+
+    const result = await updateEvent({
+      userId: USER,
+      eventId: "evt-x",
+      event: {
+        summary: "Renamed",
+        start: { dateTime: "2026-07-21T09:00:00Z" },
+        end: { dateTime: "2026-07-21T10:00:00Z" },
+      },
+    })
+
+    expect(patchMock.mock.calls[0][0].eventId).toBe("evt-x")
+    expect(result.summary).toBe("Renamed")
+  })
+
+  it("deletes an event by id", async () => {
+    deleteMock.mockResolvedValue({})
+
+    await deleteEvent({ userId: USER, eventId: "evt-x" })
+
+    expect(deleteMock).toHaveBeenCalledWith({
+      calendarId: "primary",
+      eventId: "evt-x",
+    })
   })
 })

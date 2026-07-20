@@ -250,3 +250,116 @@ export async function getEvent(
   const response = await calendar.events.get({ calendarId, eventId })
   return normalizeEvent(response.data)
 }
+
+/**
+ * A normalized, non-secret INPUT for creating/updating an event (ORR-829 push).
+ * All-day events supply `start.date`/`end.date`; timed events supply
+ * `start.dateTime`/`end.dateTime` (+ optional `timeZone`).
+ */
+export interface CalendarEventInput {
+  summary?: string
+  description?: string
+  location?: string
+  start: CalendarEventDate
+  end: CalendarEventDate
+  attendees?: { email: string }[]
+}
+
+/** Result of a successful `insertEvent` — the created event's id + any meet link. */
+export interface InsertEventResult {
+  eventId: string
+  hangoutLink: string | null
+}
+
+/**
+ * Build a raw Google `Schema$Event` request body from our normalized input,
+ * dropping any absent fields so we never send empty strings / nulls to Google.
+ */
+function toEventRequestBody(
+  event: CalendarEventInput,
+): calendar_v3.Schema$Event {
+  const body: calendar_v3.Schema$Event = {
+    start: event.start,
+    end: event.end,
+  }
+  if (event.summary) body.summary = event.summary
+  if (event.description) body.description = event.description
+  if (event.location) body.location = event.location
+  if (event.attendees && event.attendees.length > 0) {
+    body.attendees = event.attendees.map((a) => ({ email: a.email }))
+  }
+  return body
+}
+
+export interface InsertEventParams {
+  userId: string
+  calendarId?: string
+  event: CalendarEventInput
+}
+
+/**
+ * Create an event on the user's calendar (CRM → Google push, ORR-829). Returns
+ * the created event's id (which the caller persists to
+ * `activities.external_event_id` — the echo-loop guard that stops the pull sync
+ * from re-importing this meeting as a duplicate) and its hangout link if Google
+ * minted one. Same auth idiom as `listEvents`; never logs the token.
+ *
+ * @throws GoogleNotConnectedError / GoogleScopeMissingError / GoogleReauthRequiredError
+ *   (propagated unchanged from the token-store).
+ */
+export async function insertEvent(
+  params: InsertEventParams,
+): Promise<InsertEventResult> {
+  const { userId, calendarId = "primary", event } = params
+  const calendar = await calendarClientFor(userId)
+  const response = await calendar.events.insert({
+    calendarId,
+    requestBody: toEventRequestBody(event),
+  })
+  const id = response.data.id
+  if (!id) {
+    throw new Error("Google Calendar insert returned no event id.")
+  }
+  return { eventId: id, hangoutLink: response.data.hangoutLink ?? null }
+}
+
+export interface UpdateEventParams {
+  userId: string
+  calendarId?: string
+  eventId: string
+  event: CalendarEventInput
+}
+
+/**
+ * Patch an existing event (ORR-829). Provided for API completeness / symmetry;
+ * NOT wired to any CRM flow yet, since the CRM has no activity-edit path — a
+ * future item gates the call site. Kept minimal.
+ */
+export async function updateEvent(
+  params: UpdateEventParams,
+): Promise<NormalizedCalendarEvent> {
+  const { userId, calendarId = "primary", eventId, event } = params
+  const calendar = await calendarClientFor(userId)
+  const response = await calendar.events.patch({
+    calendarId,
+    eventId,
+    requestBody: toEventRequestBody(event),
+  })
+  return normalizeEvent(response.data)
+}
+
+export interface DeleteEventParams {
+  userId: string
+  calendarId?: string
+  eventId: string
+}
+
+/**
+ * Delete an event (ORR-829). Provided for API completeness / symmetry; NOT wired
+ * to any CRM flow yet (no activity-delete path exists). Kept minimal.
+ */
+export async function deleteEvent(params: DeleteEventParams): Promise<void> {
+  const { userId, calendarId = "primary", eventId } = params
+  const calendar = await calendarClientFor(userId)
+  await calendar.events.delete({ calendarId, eventId })
+}

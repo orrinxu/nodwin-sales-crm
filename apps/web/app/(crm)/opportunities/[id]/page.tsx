@@ -29,6 +29,7 @@ import {
   updateOpportunityAction,
   updateOpportunityStageAction,
   createActivityAction,
+  createMeetingAction,
   updateOpportunitySplitsAction,
   updateOpportunityTeamMembersAction,
   saveOpportunityLineItemsAction,
@@ -170,6 +171,7 @@ export default async function OpportunityDetailPage({
       activities={activities}
       documents={documents}
       createActivityAction={createActivityAction}
+      createMeetingAction={createMeetingAction}
       accounts={accounts}
       fieldDefinitions={fieldDefinitions}
       searchAccountsAction={searchAccountsAction}

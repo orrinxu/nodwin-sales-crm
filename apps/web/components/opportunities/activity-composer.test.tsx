@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { render, screen, within } from "@testing-library/react"
+import { render, screen, within, fireEvent } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { ActivityComposer } from "./activity-composer"
 import type { ActivityRecord } from "@/lib/data/activities"
@@ -327,6 +327,141 @@ describe("ActivityComposer", () => {
       // The wrapper supplies the "Log activity" heading; the composer itself must
       // not emit a duplicate "Log Activity" card title.
       expect(screen.queryByText("Log Activity")).not.toBeInTheDocument()
+    })
+  })
+
+  // ORR-829: the Meeting tab only appears when a createMeetingAction is wired
+  // (opportunity detail). It creates a meeting + reports the Google push outcome.
+  describe("MeetingForm (ORR-829)", () => {
+    const withMeeting = (createMeetingAction: ReturnType<typeof vi.fn>) => ({
+      ...defaultProps,
+      createMeetingAction,
+    })
+
+    it("does not show the Meeting tab without createMeetingAction", () => {
+      render(<ActivityComposer {...defaultProps} />)
+      expect(screen.queryByRole("tab", { name: /meeting/i })).not.toBeInTheDocument()
+    })
+
+    it("shows the Meeting tab when createMeetingAction is provided", () => {
+      const createMeetingAction = vi.fn()
+      render(<ActivityComposer {...withMeeting(createMeetingAction)} />)
+      expect(screen.getByRole("tab", { name: /meeting/i })).toBeInTheDocument()
+    })
+
+    it("disables Create Meeting until subject, start and end are filled", async () => {
+      const user = userEvent.setup()
+      const createMeetingAction = vi.fn()
+      render(<ActivityComposer {...withMeeting(createMeetingAction)} />)
+
+      await user.click(screen.getByRole("tab", { name: /meeting/i }))
+      const submit = screen.getByRole("button", { name: /create meeting/i })
+      expect(submit).toBeDisabled()
+
+      await user.type(screen.getByLabelText(/subject/i), "Kickoff")
+      fireEvent.change(screen.getByLabelText(/starts/i), {
+        target: { value: "2026-07-21T09:00" },
+      })
+      fireEvent.change(screen.getByLabelText(/ends/i), {
+        target: { value: "2026-07-21T10:00" },
+      })
+      expect(submit).toBeEnabled()
+    })
+
+    it("creates a meeting (type=meeting) and reports a successful Google push", async () => {
+      const user = userEvent.setup()
+      const createMeetingAction = vi.fn().mockResolvedValue({
+        activity: { id: "act-1" } as ActivityRecord,
+        pushed: true,
+      })
+      const onCreated = vi.fn()
+      render(
+        <ActivityComposer
+          {...withMeeting(createMeetingAction)}
+          onCreated={onCreated}
+        />,
+      )
+
+      await user.click(screen.getByRole("tab", { name: /meeting/i }))
+      await user.type(screen.getByLabelText(/subject/i), "Kickoff")
+      fireEvent.change(screen.getByLabelText(/starts/i), {
+        target: { value: "2026-07-21T09:00" },
+      })
+      fireEvent.change(screen.getByLabelText(/ends/i), {
+        target: { value: "2026-07-21T10:00" },
+      })
+      await user.type(screen.getByLabelText(/attendee emails/i), "a@nodwin.com, b@nodwin.com")
+      await user.click(screen.getByRole("button", { name: /create meeting/i }))
+
+      expect(createMeetingAction).toHaveBeenCalledTimes(1)
+      const [revalidateId, payload] = createMeetingAction.mock.calls[0]
+      expect(revalidateId).toBe("opp-1")
+      expect(payload).toMatchObject({
+        opportunityId: "opp-1",
+        type: "meeting",
+        subject: "Kickoff",
+        allDay: false,
+      })
+      expect(payload.startsAt).toBeTruthy()
+      expect(payload.endsAt).toBeTruthy()
+      expect(payload.metadata.source).toBe("crm")
+      expect(payload.metadata.attendees).toEqual([
+        { email: "a@nodwin.com" },
+        { email: "b@nodwin.com" },
+      ])
+      expect(onCreated).toHaveBeenCalled()
+      expect(
+        await screen.findByText(/added to your google calendar/i),
+      ).toBeInTheDocument()
+    })
+
+    it("tells the user to connect Calendar when the push was skipped", async () => {
+      const user = userEvent.setup()
+      const createMeetingAction = vi.fn().mockResolvedValue({
+        activity: { id: "act-1" } as ActivityRecord,
+        pushed: false,
+        reason: "not_connected",
+      })
+      render(<ActivityComposer {...withMeeting(createMeetingAction)} />)
+
+      await user.click(screen.getByRole("tab", { name: /meeting/i }))
+      await user.type(screen.getByLabelText(/subject/i), "Sync")
+      fireEvent.change(screen.getByLabelText(/starts/i), {
+        target: { value: "2026-07-21T09:00" },
+      })
+      fireEvent.change(screen.getByLabelText(/ends/i), {
+        target: { value: "2026-07-21T10:00" },
+      })
+      await user.click(screen.getByRole("button", { name: /create meeting/i }))
+
+      expect(
+        await screen.findByText(/connect google calendar in settings/i),
+      ).toBeInTheDocument()
+    })
+
+    it("surfaces the soft warning when the meeting saved but the push failed", async () => {
+      const user = userEvent.setup()
+      const createMeetingAction = vi.fn().mockResolvedValue({
+        activity: { id: "act-1" } as ActivityRecord,
+        pushed: false,
+        reason: "boom",
+        pushWarning: "The meeting was saved, but syncing it to Google Calendar failed.",
+      })
+      render(<ActivityComposer {...withMeeting(createMeetingAction)} />)
+
+      await user.click(screen.getByRole("tab", { name: /meeting/i }))
+      await user.type(screen.getByLabelText(/subject/i), "Sync")
+      fireEvent.change(screen.getByLabelText(/starts/i), {
+        target: { value: "2026-07-21T09:00" },
+      })
+      fireEvent.change(screen.getByLabelText(/ends/i), {
+        target: { value: "2026-07-21T10:00" },
+      })
+      await user.click(screen.getByRole("button", { name: /create meeting/i }))
+
+      expect(
+        await screen.findByText(/syncing it to google calendar failed/i),
+      ).toBeInTheDocument()
     })
   })
 })
