@@ -1,11 +1,27 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Phone, StickyNote, Mail, Calendar, CheckSquare, Clock, Layers } from "lucide-react"
+import {
+  Phone,
+  StickyNote,
+  Mail,
+  Calendar,
+  CheckSquare,
+  Clock,
+  Layers,
+  MapPin,
+  Users,
+  Video,
+} from "lucide-react"
 import Link from "next/link"
 
 import type { ActivityRecord, ActivityType } from "@/lib/data/activities"
 import { usePreferences } from "@/components/providers/preferences-provider"
+import {
+  formatMeetingTimeRange,
+  readMeetingMetadata,
+  summarizeAttendees,
+} from "@/lib/meeting-format"
 
 interface ActivitiesPageProps {
   activities: ActivityRecord[]
@@ -76,7 +92,7 @@ function formatRelativeTime(
 }
 
 export function ActivitiesPage({ activities }: ActivitiesPageProps) {
-  const { formatDate } = usePreferences()
+  const { formatDate, dateFormat, timezone } = usePreferences()
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all")
 
   const filtered = useMemo(
@@ -121,6 +137,25 @@ export function ActivitiesPage({ activities }: ActivitiesPageProps) {
             const label = activityLabels[activity.type] ?? activity.type
             const duration = activity.metadata?.duration_minutes as number | undefined
 
+            // Meeting-specific detail (ORR-828). Only computed for meetings.
+            const meeting =
+              activity.type === "meeting"
+                ? readMeetingMetadata(activity.metadata)
+                : null
+            const meetingTime =
+              activity.type === "meeting"
+                ? formatMeetingTimeRange(activity, dateFormat, timezone)
+                : null
+            const attendeeSummary = meeting
+              ? summarizeAttendees(meeting.attendees)
+              : null
+            const hasMeetingDetail =
+              meeting != null &&
+              (meetingTime != null ||
+                meeting.location != null ||
+                meeting.hangoutLink != null ||
+                attendeeSummary != null)
+
             return (
               <div
                 key={activity.id}
@@ -145,6 +180,39 @@ export function ActivitiesPage({ activities }: ActivitiesPageProps) {
                     <p className="line-clamp-2 whitespace-pre-wrap text-sm">
                       {activity.body}
                     </p>
+                  )}
+                  {hasMeetingDetail && meeting && (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      {meetingTime && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock className="size-3 shrink-0" />
+                          {meetingTime}
+                        </span>
+                      )}
+                      {meeting.location && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <MapPin className="size-3 shrink-0" />
+                          {meeting.location}
+                        </span>
+                      )}
+                      {attendeeSummary && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Users className="size-3 shrink-0" />
+                          {attendeeSummary}
+                        </span>
+                      )}
+                      {meeting.hangoutLink && (
+                        <a
+                          href={meeting.hangoutLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-sm border px-1.5 py-0.5 font-medium text-muted-foreground hover:text-foreground"
+                        >
+                          <Video className="size-3 shrink-0" />
+                          Join
+                        </a>
+                      )}
+                    </div>
                   )}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     <span>{activity.userName ?? "Unknown"}</span>

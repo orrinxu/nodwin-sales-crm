@@ -160,6 +160,13 @@ export default async function DashboardPage() {
               userName: a.userName,
               createdAt: a.createdAt,
               opportunityName: a.opportunityName,
+              // Meeting detail (ORR-828): thread the calendar fields + metadata
+              // through so meeting rows can show their time/location/attendees.
+              startsAt: a.startsAt,
+              endsAt: a.endsAt,
+              timeZone: a.timeZone,
+              allDay: a.allDay,
+              metadata: a.metadata,
             }))}
           />
           <RecentDeals

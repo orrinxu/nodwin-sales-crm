@@ -1,9 +1,24 @@
 "use client"
 
-import { Phone, StickyNote, Mail, Calendar, CheckSquare, Clock } from "lucide-react"
+import {
+  Phone,
+  StickyNote,
+  Mail,
+  Calendar,
+  CheckSquare,
+  Clock,
+  MapPin,
+  Users,
+  Video,
+} from "lucide-react"
 
 import type { ActivityRecord } from "@/lib/data/activities"
 import { usePreferences } from "@/components/providers/preferences-provider"
+import {
+  formatMeetingTimeRange,
+  readMeetingMetadata,
+  summarizeAttendees,
+} from "@/lib/meeting-format"
 
 interface ActivityTimelineProps {
   activities: ActivityRecord[]
@@ -46,7 +61,7 @@ function formatRelativeTime(
 }
 
 export function ActivityTimeline({ activities }: ActivityTimelineProps) {
-  const { formatDate } = usePreferences()
+  const { formatDate, dateFormat, timezone } = usePreferences()
 
   if (activities.length === 0) {
     return (
@@ -65,6 +80,26 @@ export function ActivityTimeline({ activities }: ActivityTimelineProps) {
           const label = activityLabels[activity.type] ?? activity.type
           const duration = activity.metadata?.duration_minutes as number | undefined
 
+          // Meeting-specific detail (ORR-828): time range + location/link/attendees.
+          // Only computed for meetings; everything else renders exactly as before.
+          const meeting =
+            activity.type === "meeting"
+              ? readMeetingMetadata(activity.metadata)
+              : null
+          const meetingTime =
+            activity.type === "meeting"
+              ? formatMeetingTimeRange(activity, dateFormat, timezone)
+              : null
+          const attendeeSummary = meeting
+            ? summarizeAttendees(meeting.attendees)
+            : null
+          const hasMeetingDetail =
+            meeting != null &&
+            (meetingTime != null ||
+              meeting.location != null ||
+              meeting.hangoutLink != null ||
+              attendeeSummary != null)
+
           return (
             <div key={activity.id} className="relative flex gap-3 pl-1">
               <div className="z-10 flex size-9 items-center justify-center rounded-full border bg-background">
@@ -82,6 +117,39 @@ export function ActivityTimeline({ activities }: ActivityTimelineProps) {
                 </div>
                 {activity.body && (
                   <p className="whitespace-pre-wrap text-sm">{activity.body}</p>
+                )}
+                {hasMeetingDetail && meeting && (
+                  <div className="flex flex-col gap-1 pt-0.5 text-xs text-muted-foreground">
+                    {meetingTime && (
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="size-3 shrink-0" />
+                        <span>{meetingTime}</span>
+                      </div>
+                    )}
+                    {meeting.location && (
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="size-3 shrink-0" />
+                        <span>{meeting.location}</span>
+                      </div>
+                    )}
+                    {attendeeSummary && (
+                      <div className="flex items-center gap-1.5">
+                        <Users className="size-3 shrink-0" />
+                        <span>{attendeeSummary}</span>
+                      </div>
+                    )}
+                    {meeting.hangoutLink && (
+                      <a
+                        href={meeting.hangoutLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex w-fit items-center gap-1.5 rounded-sm border px-1.5 py-0.5 font-medium text-muted-foreground hover:text-foreground"
+                      >
+                        <Video className="size-3 shrink-0" />
+                        Join
+                      </a>
+                    )}
+                  </div>
                 )}
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span>{activity.userName ?? "Unknown"}</span>

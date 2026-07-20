@@ -155,6 +155,100 @@ describe("ActivityTimeline", () => {
     })
   })
 
+  describe("meeting detail (ORR-828)", () => {
+    it("shows the time range for a timed meeting", () => {
+      render(
+        <ActivityTimeline
+          activities={[
+            makeActivity({
+              type: "meeting",
+              startsAt: "2026-05-07T14:00:00Z",
+              endsAt: "2026-05-07T15:00:00Z",
+              timeZone: "UTC",
+            }),
+          ]}
+        />,
+      )
+      expect(
+        screen.getByText("May 7, 2026 · 2:00 PM – 3:00 PM"),
+      ).toBeInTheDocument()
+    })
+
+    it("shows a date + All day for an all-day meeting", () => {
+      render(
+        <ActivityTimeline
+          activities={[
+            makeActivity({
+              type: "meeting",
+              startsAt: "2026-05-07T00:00:00Z",
+              endsAt: "2026-05-08T00:00:00Z",
+              timeZone: "UTC",
+              allDay: true,
+            }),
+          ]}
+        />,
+      )
+      expect(screen.getByText("May 7, 2026 · All day")).toBeInTheDocument()
+    })
+
+    it("shows location, attendees, and a Join link", () => {
+      render(
+        <ActivityTimeline
+          activities={[
+            makeActivity({
+              type: "meeting",
+              startsAt: "2026-05-07T14:00:00Z",
+              endsAt: "2026-05-07T15:00:00Z",
+              timeZone: "UTC",
+              metadata: {
+                location: "Room 4",
+                hangoutLink: "https://meet.example.com/xyz",
+                attendees: [
+                  { displayName: "Alice" },
+                  { email: "bob@example.com" },
+                ],
+              },
+            }),
+          ]}
+        />,
+      )
+      expect(screen.getByText("Room 4")).toBeInTheDocument()
+      expect(screen.getByText("Alice, bob@example.com")).toBeInTheDocument()
+      const link = screen.getByRole("link", { name: /Join/ })
+      expect(link).toHaveAttribute("href", "https://meet.example.com/xyz")
+    })
+
+    it("does not render meeting detail for a non-meeting activity", () => {
+      render(
+        <ActivityTimeline
+          activities={[
+            makeActivity({
+              type: "call",
+              startsAt: "2026-05-07T14:00:00Z",
+              endsAt: "2026-05-07T15:00:00Z",
+              timeZone: "UTC",
+              metadata: { location: "Room 4" },
+            }),
+          ]}
+        />,
+      )
+      expect(screen.queryByText("Room 4")).not.toBeInTheDocument()
+      expect(
+        screen.queryByText("May 7, 2026 · 2:00 PM – 3:00 PM"),
+      ).not.toBeInTheDocument()
+    })
+
+    it("does not break (no Invalid Date) when a meeting has null times", () => {
+      render(
+        <ActivityTimeline
+          activities={[makeActivity({ type: "meeting", startsAt: null })]}
+        />,
+      )
+      expect(screen.getByText("Meeting")).toBeInTheDocument()
+      expect(screen.queryByText(/Invalid Date/)).not.toBeInTheDocument()
+    })
+  })
+
   describe("relative time formatting", () => {
     beforeEach(() => {
       vi.useFakeTimers()

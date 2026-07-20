@@ -1,6 +1,6 @@
 "use client"
 
-import { Phone, Mail, Video, FileText, CheckSquare } from "lucide-react"
+import { Phone, Mail, Video, FileText, CheckSquare, Clock, MapPin, Users } from "lucide-react"
 import {
   Card,
   CardContent,
@@ -12,6 +12,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { usePreferences } from "@/components/providers/preferences-provider"
+import {
+  formatMeetingTimeRange,
+  readMeetingMetadata,
+  summarizeAttendees,
+} from "@/lib/meeting-format"
 
 interface Activity {
   id: string
@@ -21,6 +26,13 @@ interface Activity {
   userName: string | null
   createdAt: string
   opportunityName: string | null
+  // Calendar fields (ORR-824) + meeting metadata, threaded through for the
+  // meeting detail row (ORR-828). Optional so non-meeting callers can omit them.
+  startsAt?: string | null
+  endsAt?: string | null
+  timeZone?: string | null
+  allDay?: boolean
+  metadata?: Record<string, unknown> | null
 }
 
 const activityIcons: Record<string, typeof Phone> = {
@@ -52,7 +64,7 @@ export function ActivityTimeline({
   activities,
   maxItems = 6,
 }: ActivityTimelineProps) {
-  const { formatDateTime } = usePreferences()
+  const { formatDateTime, dateFormat, timezone } = usePreferences()
   const display = activities.slice(0, maxItems)
 
   function formatTime(dateString: string) {
@@ -72,6 +84,34 @@ export function ActivityTimeline({
               const Icon = activityIcons[activity.type] ?? FileText
               const colorClass = activityColors[activity.type] ?? "text-muted-foreground bg-muted"
               const isLast = index === display.length - 1
+
+              // Meeting-specific detail (ORR-828). Only computed for meetings.
+              const meeting =
+                activity.type === "meeting"
+                  ? readMeetingMetadata(activity.metadata)
+                  : null
+              const meetingTime =
+                activity.type === "meeting"
+                  ? formatMeetingTimeRange(
+                      {
+                        startsAt: activity.startsAt,
+                        endsAt: activity.endsAt,
+                        timeZone: activity.timeZone,
+                        allDay: activity.allDay,
+                      },
+                      dateFormat,
+                      timezone,
+                    )
+                  : null
+              const attendeeSummary = meeting
+                ? summarizeAttendees(meeting.attendees)
+                : null
+              const hasMeetingDetail =
+                meeting != null &&
+                (meetingTime != null ||
+                  meeting.location != null ||
+                  meeting.hangoutLink != null ||
+                  attendeeSummary != null)
 
               return (
                 <div key={activity.id} className="flex gap-4">
@@ -126,6 +166,39 @@ export function ActivityTimeline({
                         </>
                       )}
                     </div>
+                    {hasMeetingDetail && meeting && (
+                      <div className="mt-2 flex flex-col gap-1 text-xs text-muted-foreground">
+                        {meetingTime && (
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="size-3 shrink-0" />
+                            <span>{meetingTime}</span>
+                          </div>
+                        )}
+                        {meeting.location && (
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="size-3 shrink-0" />
+                            <span>{meeting.location}</span>
+                          </div>
+                        )}
+                        {attendeeSummary && (
+                          <div className="flex items-center gap-1.5">
+                            <Users className="size-3 shrink-0" />
+                            <span>{attendeeSummary}</span>
+                          </div>
+                        )}
+                        {meeting.hangoutLink && (
+                          <a
+                            href={meeting.hangoutLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex w-fit items-center gap-1.5 rounded-sm border px-1.5 py-0.5 font-medium text-muted-foreground hover:text-foreground"
+                          >
+                            <Video className="size-3 shrink-0" />
+                            Join
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )
