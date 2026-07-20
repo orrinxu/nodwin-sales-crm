@@ -40,7 +40,7 @@ COMMENT ON COLUMN public.activities.ends_at IS
 COMMENT ON COLUMN public.activities.time_zone IS
   'IANA time zone the event was authored in (ORR-824), e.g. "Asia/Kolkata".';
 COMMENT ON COLUMN public.activities.all_day IS
-  'True for all-day calendar events (ORR-824).';
+  'All-day calendar event flag (ORR-824).';
 COMMENT ON COLUMN public.activities.external_event_id IS
   'Google Calendar event id (ORR-824). Idempotency key for calendar sync — '
   'UNIQUE when non-null. Distinct from external_thread_id (email thread id, '
