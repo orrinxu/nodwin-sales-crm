@@ -394,7 +394,10 @@ export async function getOpportunities(
     const { data: matchedAccounts } = await supabase
       .from("accounts")
       .select("id")
-      .ilike("name", `%${search}%`)
+      // Order before capping so the 200-account slice is deterministic — an
+      // unordered LIMIT can return a different subset on each identical search,
+      // making the same query show different deals run to run.
+      .order("name", { ascending: true })
       .limit(ACCOUNT_SEARCH_MATCH_CAP)
     const accountIds = ((matchedAccounts ?? []) as { id: string }[])
       .map((a) => a.id)
@@ -1025,6 +1028,24 @@ export async function updateOpportunity(
 
     if (error) {
       throw new Error(`Failed to update opportunity: ${error.message}`)
+    }
+  }
+
+  // Cascade a deal-currency change onto its cash-flow milestones. Milestone
+  // currency is immutable through its own update path, so without this the
+  // working-capital P&L derivation throws on a milestone-vs-revenue currency
+  // mismatch (deriveWorkingCapital asserts single-currency) on every load until
+  // the milestones are recreated. Re-denominate 1:1 — the same label-swap the
+  // deal's line items and revenue schedule already get, keeping the P&L usable.
+  if (parsed.currency !== undefined && parsed.currency !== existing.currency) {
+    const { error: milestoneErr } = await supabase
+      .from("cashflow_milestone")
+      .update({ currency: parsed.currency } as never)
+      .eq("opportunity_id", id)
+    if (milestoneErr) {
+      throw new Error(
+        `Opportunity updated but failed to re-denominate cash-flow milestones: ${milestoneErr.message}`,
+      )
     }
   }
 

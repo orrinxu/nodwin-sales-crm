@@ -2,7 +2,7 @@ import "server-only"
 import { cache } from "react"
 import { createServerClient } from "@/lib/supabase/server"
 import type { AuthenticatedUser } from "@/lib/security/auth"
-import { DEAL_STAGES } from "@/lib/opportunity"
+import { DEAL_STAGES, TERMINAL_STAGES } from "@/lib/opportunity"
 import type { DealStage } from "@/lib/opportunity"
 import { getStageLabel } from "@/lib/data/opportunities.types"
 import type { ActivityRecord, ActivityType } from "./activities"
@@ -167,10 +167,16 @@ export async function fetchAndConvert<T extends OpportunityRaw>(
 
   const converted: Array<T & { amount: number; currency: string }> = []
   let unconvertibleCount = 0
+  const today = new Date().toISOString().slice(0, 10)
 
   for (const opp of raw) {
-    // Rate-as-of rule: use close_date for closed deals, latest rate for open deals
-    const asOfDate = opp.close_date ?? new Date().toISOString().slice(0, 10)
+    // Rate-as-of rule: closed deals convert at their realised close_date's rate;
+    // OPEN deals convert at today's latest rate. An open deal's close_date is an
+    // *expected* (often future) date — converting at it would use a stale/absent
+    // rate and disagree with the pipeline totals, which use today. Aggregate
+    // buckets pass a non-terminal/blank stage and correctly get today's rate.
+    const isClosed = (TERMINAL_STAGES as string[]).includes(opp.stage)
+    const asOfDate = isClosed ? (opp.close_date ?? today) : today
 
     const result = await convertAmount(
       opp.amount ?? 0,

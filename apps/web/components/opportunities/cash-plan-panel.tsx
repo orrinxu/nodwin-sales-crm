@@ -6,6 +6,14 @@ import { Check, Loader2, Pencil, Plus, Trash2, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import type { CashflowMilestoneRecord } from "@/lib/data/cashflow-milestones"
 import type { WorkingCapitalDTO } from "@/lib/finance/working-capital-dto"
 import type {
@@ -74,6 +82,7 @@ export function CashPlanPanel({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<DraftState>(EMPTY_DRAFT)
   const [busy, setBusy] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<CashflowMilestoneRecord | null>(null)
 
   const wc = workingCapital
   const deductionLabel = `${(wc.deductionPct * 100).toFixed(1)}%`
@@ -235,7 +244,7 @@ export function CashPlanPanel({
                         <Button variant="ghost" size="icon" onClick={() => startEdit(m)} disabled={disabled} title="Edit">
                           <Pencil className="size-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(m.id)} disabled={disabled} title="Delete">
+                        <Button variant="ghost" size="icon" onClick={() => setPendingDelete(m)} disabled={disabled} title="Delete">
                           <Trash2 className="size-4" />
                         </Button>
                       </div>
@@ -308,6 +317,37 @@ export function CashPlanPanel({
           </p>
         </section>
       )}
+
+      <Dialog
+        open={pendingDelete !== null}
+        onOpenChange={(o) => !o && setPendingDelete(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete cost milestone</DialogTitle>
+            <DialogDescription>
+              Delete “{pendingDelete?.label}”? This removes it from the cash plan
+              and recomputes the working-capital position.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingDelete(null)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={busy}
+              onClick={() => {
+                const target = pendingDelete
+                setPendingDelete(null)
+                if (target) void handleDelete(target.id)
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

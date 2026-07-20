@@ -7,6 +7,14 @@ import { Upload, FileText, Download, Trash2, Loader2, RotateCcw, AlertTriangle }
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import {
   Select,
   SelectTrigger,
   SelectValue,
@@ -76,6 +84,7 @@ export function FilesModule({ opportunityId, accountId, initialDocuments }: File
   const [error, setError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
   const [replacing, setReplacing] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<DocumentSummary | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const replaceInputRef = useRef<HTMLInputElement>(null)
   const replaceTargetRef = useRef<string | null>(null)
@@ -314,7 +323,7 @@ export function FilesModule({ opportunityId, accountId, initialDocuments }: File
                       size="icon"
                       variant="ghost"
                       className="size-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => void handleDelete(doc.id)}
+                      onClick={() => setPendingDelete(doc)}
                       aria-label={`Delete ${doc.name}`}
                     >
                       <Trash2 className="size-4" />
@@ -326,6 +335,36 @@ export function FilesModule({ opportunityId, accountId, initialDocuments }: File
           </div>
         ))}
       </CardContent>
+
+      <Dialog
+        open={pendingDelete !== null}
+        onOpenChange={(o) => !o && setPendingDelete(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete file</DialogTitle>
+            <DialogDescription>
+              Delete “{pendingDelete?.name}”? This permanently removes the file
+              and can&apos;t be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                const target = pendingDelete
+                setPendingDelete(null)
+                if (target) void handleDelete(target.id)
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

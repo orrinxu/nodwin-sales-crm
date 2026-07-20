@@ -296,10 +296,11 @@ export async function searchAccountOptions(
 ): Promise<AccountOption[]> {
   const supabase = await createServerClient()
 
+  const term = sanitizeSearchTerm(query)
   const { data, error } = await supabase
     .from("accounts")
     .select("id, name")
-    .ilike("name", `%${query}%`)
+    .ilike("name", `%${term}%`)
     .order("name", { ascending: true })
     .limit(20)
 
@@ -335,8 +336,9 @@ export async function searchContactOptions(
     .order("full_name", { ascending: true })
     .limit(20)
 
-  if (params?.query) {
-    builder = builder.ilike("full_name", `%${params.query}%`)
+  const contactTerm = sanitizeSearchTerm(params?.query)
+  if (contactTerm) {
+    builder = builder.ilike("full_name", `%${contactTerm}%`)
   }
 
   if (params?.accountId) {
@@ -373,8 +375,9 @@ export async function searchUserOptions(
     .order("full_name", { ascending: true })
     .limit(20)
 
-  if (query) {
-    builder = builder.ilike("full_name", `%${query}%`)
+  const userTerm = sanitizeSearchTerm(query)
+  if (userTerm) {
+    builder = builder.ilike("full_name", `%${userTerm}%`)
   }
 
   const { data, error } = await builder
