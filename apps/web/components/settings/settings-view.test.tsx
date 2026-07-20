@@ -40,6 +40,8 @@ function makeProps(overrides = {}) {
     updateNotificationOverrideAction: vi.fn().mockResolvedValue(undefined),
     createTokenAction: vi.fn().mockResolvedValue({ token: "nodpat_x", record: {} }),
     revokeTokenAction: vi.fn().mockResolvedValue(undefined),
+    googleConnection: null,
+    disconnectGoogleAction: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   }
 }
@@ -102,16 +104,44 @@ describe("SettingsView", () => {
     ).toBeInTheDocument()
   })
 
-  it("Integrations copy is accurate and links to the Access tokens tab", async () => {
+  it("Integrations shows a Connect Google link when not connected and links to the Access tokens tab", async () => {
     render(<SettingsView {...makeProps()} />)
     await openTab("Integrations")
-    // Drive is described as a live per-user import, not "Not connected".
-    expect(screen.getByText(/Import files from Google Drive/)).toBeInTheDocument()
+    // Not connected → a plain anchor to the authorize GET route + a status badge.
+    const connect = screen.getByRole("link", { name: "Connect Google" })
+    expect(connect).toHaveAttribute("href", expect.stringContaining("/api/integrations/google/authorize"))
+    expect(screen.getByText("Not connected")).toBeInTheDocument()
     // No stale MCP "coming soon" row.
     expect(screen.queryByText(/MCP/)).not.toBeInTheDocument()
     // The tokens link switches to the Access tokens tab.
     await userEvent.click(screen.getByRole("button", { name: "Access tokens" }))
     expect(screen.getByText("Generate a token")).toBeInTheDocument()
+  })
+
+  it("Integrations shows the connected account, scopes, and a working Disconnect button", async () => {
+    const props = makeProps({
+      googleConnection: {
+        googleAccountEmail: "rep@nodwin.com",
+        grantedScopes: ["https://www.googleapis.com/auth/drive.readonly"],
+        status: "connected",
+        accessTokenExpiresAt: null,
+        connected: true,
+      },
+    })
+    render(<SettingsView {...props} />)
+    await openTab("Integrations")
+    expect(screen.getByText(/Connected as/)).toBeInTheDocument()
+    expect(screen.getByText("Drive (read-only)")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Connect Google" })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole("button", { name: /Disconnect/ }))
+    await waitFor(() => {
+      expect(props.disconnectGoogleAction).toHaveBeenCalled()
+    })
+  })
+
+  it("surfaces the ?google=connected callback flag as a banner and lands on Integrations", () => {
+    render(<SettingsView {...makeProps({ googleCallbackStatus: "connected" })} />)
+    expect(screen.getByText("Google account connected.")).toBeInTheDocument()
   })
 
   it("Security lists the real sign-in methods, not Google-only", async () => {

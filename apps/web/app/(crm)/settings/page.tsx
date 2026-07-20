@@ -3,27 +3,40 @@ import { getUserPreferences, getCurrencyOptions } from "@/lib/data/user-preferen
 import { getOwnProfile } from "@/lib/data/user-profile"
 import { getUserNotificationOverrides } from "@/lib/data/notifications"
 import { listApiTokens } from "@/lib/data/api-tokens"
+import { getGoogleConnection } from "@/lib/integrations/google/token-store"
 import { SettingsView } from "@/components/settings/settings-view"
 import {
   updateProfileAction,
   updateLocalizationAction,
   updateAppearanceAction,
   updateNotificationOverrideAction,
+  disconnectGoogleAction,
 } from "./actions"
 import { createApiTokenAction, revokeApiTokenAction } from "./api-tokens/actions"
 
 // Per-user settings — available to any authenticated user (not admin-gated).
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ google?: string }>
+}) {
   const user = await requireUser()
   const ctx = { user, source: "web" as const }
 
-  const [preferences, profile, currencies, notificationOverrides, tokens] = await Promise.all([
-    getUserPreferences(ctx),
-    getOwnProfile(ctx),
-    getCurrencyOptions(ctx),
-    getUserNotificationOverrides(ctx, user.id),
-    listApiTokens(ctx),
-  ])
+  // The Google OAuth callback lands back here with ?google=connected|error.
+  const { google } = await searchParams
+  const googleCallbackStatus =
+    google === "connected" || google === "error" ? google : undefined
+
+  const [preferences, profile, currencies, notificationOverrides, tokens, googleConnection] =
+    await Promise.all([
+      getUserPreferences(ctx),
+      getOwnProfile(ctx),
+      getCurrencyOptions(ctx),
+      getUserNotificationOverrides(ctx, user.id),
+      listApiTokens(ctx),
+      getGoogleConnection(user.id),
+    ])
 
   return (
     <SettingsView
@@ -38,6 +51,9 @@ export default async function SettingsPage() {
       tokens={tokens}
       createTokenAction={createApiTokenAction}
       revokeTokenAction={revokeApiTokenAction}
+      googleConnection={googleConnection}
+      googleCallbackStatus={googleCallbackStatus}
+      disconnectGoogleAction={disconnectGoogleAction}
     />
   )
 }
