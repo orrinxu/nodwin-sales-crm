@@ -42,8 +42,30 @@ function makeProps(overrides = {}) {
     revokeTokenAction: vi.fn().mockResolvedValue(undefined),
     googleConnection: null,
     disconnectGoogleAction: vi.fn().mockResolvedValue(undefined),
+    calendarSyncState: {
+      syncEnabled: false,
+      status: "idle",
+      lastSyncAt: null,
+      lastError: null,
+      calendarId: "primary",
+      exists: false,
+    },
+    setCalendarSyncEnabledAction: vi.fn().mockResolvedValue(undefined),
+    syncCalendarNowAction: vi.fn().mockResolvedValue({ ok: true, upserted: 0, removed: 0 }),
     ...overrides,
   }
+}
+
+// A Google connection that has granted the calendar.events scope.
+const calendarConnection = {
+  googleAccountEmail: "rep@nodwin.com",
+  grantedScopes: [
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/calendar.events",
+  ],
+  status: "connected",
+  accessTokenExpiresAt: null,
+  connected: true,
 }
 
 // Settings is organised into facet tabs; inactive panels are unmounted.
@@ -110,7 +132,8 @@ describe("SettingsView", () => {
     // Not connected → a plain anchor to the authorize GET route + a status badge.
     const connect = screen.getByRole("link", { name: "Connect Google" })
     expect(connect).toHaveAttribute("href", expect.stringContaining("/api/integrations/google/authorize"))
-    expect(screen.getByText("Not connected")).toBeInTheDocument()
+    // Both the Workspace and Calendar rows show a "Not connected" badge here.
+    expect(screen.getAllByText("Not connected").length).toBeGreaterThanOrEqual(1)
     // No stale MCP "coming soon" row.
     expect(screen.queryByText(/MCP/)).not.toBeInTheDocument()
     // The tokens link switches to the Access tokens tab.
@@ -136,6 +159,69 @@ describe("SettingsView", () => {
     await userEvent.click(screen.getByRole("button", { name: /Disconnect/ }))
     await waitFor(() => {
       expect(props.disconnectGoogleAction).toHaveBeenCalled()
+    })
+  })
+
+  it("Calendar row shows a Connect link when calendar.events is not granted", async () => {
+    render(<SettingsView {...makeProps()} />)
+    await openTab("Integrations")
+    const connect = screen.getByRole("link", { name: "Connect Google Calendar" })
+    expect(connect).toHaveAttribute(
+      "href",
+      expect.stringContaining("calendar.events"),
+    )
+  })
+
+  it("Calendar row shows the sync toggle + Sync now when calendar.events is granted", async () => {
+    const props = makeProps({
+      googleConnection: calendarConnection,
+      calendarSyncState: {
+        syncEnabled: true,
+        status: "idle",
+        lastSyncAt: null,
+        lastError: null,
+        calendarId: "primary",
+        exists: true,
+      },
+    })
+    render(<SettingsView {...props} />)
+    await openTab("Integrations")
+    // No connect link once calendar is connected.
+    expect(
+      screen.queryByRole("link", { name: "Connect Google Calendar" }),
+    ).not.toBeInTheDocument()
+    // Sync-enabled toggle reflects the current state and is toggleable.
+    const toggle = screen.getByLabelText("Enable Google Calendar sync")
+    expect(toggle).toBeChecked()
+    await userEvent.click(toggle)
+    await waitFor(() => {
+      expect(props.setCalendarSyncEnabledAction).toHaveBeenCalledWith(false)
+    })
+    // Sync now triggers the action.
+    await userEvent.click(screen.getByRole("button", { name: /Sync now/ }))
+    await waitFor(() => {
+      expect(props.syncCalendarNowAction).toHaveBeenCalled()
+    })
+  })
+
+  it("surfaces a skipped Sync-now result as an informative message", async () => {
+    const props = makeProps({
+      googleConnection: calendarConnection,
+      calendarSyncState: {
+        syncEnabled: false,
+        status: "idle",
+        lastSyncAt: null,
+        lastError: null,
+        calendarId: "primary",
+        exists: true,
+      },
+      syncCalendarNowAction: vi.fn().mockResolvedValue({ ok: true, skipped: true }),
+    })
+    render(<SettingsView {...props} />)
+    await openTab("Integrations")
+    await userEvent.click(screen.getByRole("button", { name: /Sync now/ }))
+    await waitFor(() => {
+      expect(screen.getByText(/Nothing to sync/)).toBeInTheDocument()
     })
   })
 

@@ -4,6 +4,7 @@ import { getOwnProfile } from "@/lib/data/user-profile"
 import { getUserNotificationOverrides } from "@/lib/data/notifications"
 import { listApiTokens } from "@/lib/data/api-tokens"
 import { getGoogleConnection } from "@/lib/integrations/google/token-store"
+import { getCalendarSyncState } from "@/lib/data/calendar-sync"
 import { SettingsView } from "@/components/settings/settings-view"
 import {
   updateProfileAction,
@@ -11,6 +12,8 @@ import {
   updateAppearanceAction,
   updateNotificationOverrideAction,
   disconnectGoogleAction,
+  setCalendarSyncEnabledAction,
+  syncCalendarNowAction,
 } from "./actions"
 import { createApiTokenAction, revokeApiTokenAction } from "./api-tokens/actions"
 
@@ -28,15 +31,23 @@ export default async function SettingsPage({
   const googleCallbackStatus =
     google === "connected" || google === "error" ? google : undefined
 
-  const [preferences, profile, currencies, notificationOverrides, tokens, googleConnection] =
-    await Promise.all([
-      getUserPreferences(ctx),
-      getOwnProfile(ctx),
-      getCurrencyOptions(ctx),
-      getUserNotificationOverrides(ctx, user.id),
-      listApiTokens(ctx),
-      getGoogleConnection(user.id),
-    ])
+  const [
+    preferences,
+    profile,
+    currencies,
+    notificationOverrides,
+    tokens,
+    googleConnection,
+    calendarSyncState,
+  ] = await Promise.all([
+    getUserPreferences(ctx),
+    getOwnProfile(ctx),
+    getCurrencyOptions(ctx),
+    getUserNotificationOverrides(ctx, user.id),
+    listApiTokens(ctx),
+    getGoogleConnection(user.id),
+    getCalendarSyncState(ctx),
+  ])
 
   return (
     <SettingsView
@@ -54,6 +65,9 @@ export default async function SettingsPage({
       googleConnection={googleConnection}
       googleCallbackStatus={googleCallbackStatus}
       disconnectGoogleAction={disconnectGoogleAction}
+      calendarSyncState={calendarSyncState}
+      setCalendarSyncEnabledAction={setCalendarSyncEnabledAction}
+      syncCalendarNowAction={syncCalendarNowAction}
     />
   )
 }

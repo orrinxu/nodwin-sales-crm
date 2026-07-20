@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { LogOut, Loader2, Check, CheckCircle2, AlertTriangle, X } from "lucide-react"
+import { LogOut, Loader2, Check, CheckCircle2, AlertTriangle, X, RefreshCw } from "lucide-react"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -38,6 +38,8 @@ import type { ApiTokenRecord } from "@/lib/data/api-tokens"
 // Type-only import: erased at compile time, so the server-only token-store
 // runtime never reaches this client bundle.
 import type { GoogleConnectionInfo } from "@/lib/integrations/google/token-store"
+import type { CalendarSyncStateInfo } from "@/lib/data/calendar-sync"
+import type { SyncCalendarNowResult } from "@/app/(crm)/settings/actions"
 
 // IANA timezone list for the localization combobox. Guarded for runtimes without
 // Intl.supportedValuesOf (falls back to an empty list rather than throwing).
@@ -78,6 +80,9 @@ interface SettingsViewProps {
   googleConnection: GoogleConnectionInfo | null
   googleCallbackStatus?: "connected" | "error"
   disconnectGoogleAction: () => Promise<void>
+  calendarSyncState: CalendarSyncStateInfo
+  setCalendarSyncEnabledAction: (enabled: boolean) => Promise<void>
+  syncCalendarNowAction: () => Promise<SyncCalendarNowResult>
 }
 
 // Per-user Google OAuth (ORR-773). The authorize route defaults to drive.readonly
@@ -86,6 +91,29 @@ const GOOGLE_DEFAULT_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
 const GOOGLE_CONNECT_HREF = `/api/integrations/google/authorize?scopes=${encodeURIComponent(
   GOOGLE_DEFAULT_SCOPE,
 )}`
+
+// Calendar pull-sync (ORR-827 / ORR-774). The authorize route is incremental
+// (include_granted_scopes), so requesting calendar.events preserves any existing
+// Drive/Gmail grants.
+const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events"
+const GOOGLE_CALENDAR_CONNECT_HREF = `/api/integrations/google/authorize?scopes=${encodeURIComponent(
+  GOOGLE_CALENDAR_SCOPE,
+)}`
+
+// Human-readable "time ago" for the last-sync timestamp. Falls back to the raw
+// locale string for anything older than a day.
+function formatLastSync(iso: string | null): string {
+  if (!iso) return "Never"
+  const then = new Date(iso).getTime()
+  if (Number.isNaN(then)) return "Never"
+  const diffMs = Date.now() - then
+  const mins = Math.floor(diffMs / 60000)
+  if (mins < 1) return "Just now"
+  if (mins < 60) return `${mins} min${mins === 1 ? "" : "s"} ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`
+  return new Date(iso).toLocaleString()
+}
 
 // Friendly labels for the granted-scope URLs shown on the Google row. A Map (not
 // an object) avoids a dynamic object-index lookup on untrusted-looking keys.
@@ -597,14 +625,187 @@ function GoogleWorkspaceRow({
   )
 }
 
+// Google Calendar pull-sync row (ORR-827 / ORR-774). Calendar access is a
+// separate incremental scope on top of the base Google connection: until
+// `calendar.events` is granted we only offer a connect link; once granted we
+// expose the sync toggle + on-demand "Sync now".
+function GoogleCalendarRow({
+  connection,
+  syncState,
+  setCalendarSyncEnabledAction,
+  syncCalendarNowAction,
+}: {
+  connection: GoogleConnectionInfo | null
+  syncState: CalendarSyncStateInfo
+  setCalendarSyncEnabledAction: SettingsViewProps["setCalendarSyncEnabledAction"]
+  syncCalendarNowAction: SettingsViewProps["syncCalendarNowAction"]
+}) {
+  const router = useRouter()
+  const calendarConnected = (connection?.grantedScopes ?? []).includes(
+    GOOGLE_CALENDAR_SCOPE,
+  )
+
+  const [enabled, setEnabled] = useState(syncState.syncEnabled)
+  const [toggling, setToggling] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  // Inline result banner, styled like the ?google= callback banner.
+  const [result, setResult] = useState<
+    { kind: "success" | "info" | "error"; text: string } | null
+  >(null)
+
+  async function onToggle(next: boolean) {
+    setEnabled(next)
+    setToggling(true)
+    setError(null)
+    try {
+      await setCalendarSyncEnabledAction(next)
+      router.refresh()
+    } catch (err) {
+      setEnabled(!next) // revert on failure
+      setError(err instanceof Error ? err.message : "Failed to update sync setting.")
+    } finally {
+      setToggling(false)
+    }
+  }
+
+  async function onSyncNow() {
+    setSyncing(true)
+    setResult(null)
+    setError(null)
+    try {
+      const res = await syncCalendarNowAction()
+      if (!res.ok) {
+        setResult({ kind: "error", text: res.error ?? "Calendar sync failed." })
+      } else if (res.skipped) {
+        setResult({
+          kind: "info",
+          text: "Nothing to sync — enable sync (and make sure Calendar is connected) first.",
+        })
+      } else {
+        const removed = res.removed ? `, removed ${res.removed}` : ""
+        setResult({
+          kind: "success",
+          text: `Synced ${res.upserted ?? 0} meeting${res.upserted === 1 ? "" : "s"}${removed}.`,
+        })
+      }
+      router.refresh()
+    } catch (err) {
+      setResult({
+        kind: "error",
+        text: err instanceof Error ? err.message : "Calendar sync failed.",
+      })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  return (
+    <div className="flex items-start justify-between gap-4 py-3">
+      <div className="min-w-0 space-y-1.5">
+        <p className="text-sm font-medium">Google Calendar</p>
+        {calendarConnected ? (
+          <>
+            <p className="text-xs text-muted-foreground">
+              Pull your Google Calendar events into the CRM as meeting activities.
+            </p>
+            <div className="flex items-center gap-2 pt-1">
+              <Switch
+                checked={enabled}
+                onCheckedChange={onToggle}
+                disabled={toggling}
+                aria-label="Enable Google Calendar sync"
+              />
+              <span className="text-xs text-muted-foreground">
+                {enabled ? "Sync enabled" : "Sync disabled"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Last synced: {formatLastSync(syncState.lastSyncAt)}
+            </p>
+            {syncState.lastError && (
+              <p className="text-xs text-destructive">
+                Last error: {syncState.lastError}
+              </p>
+            )}
+            {error && <p className="text-xs text-destructive">{error}</p>}
+            {result && (
+              <div
+                role="status"
+                className={
+                  result.kind === "success"
+                    ? "mt-1 rounded-md bg-primary/10 px-2.5 py-1.5 text-xs text-primary"
+                    : result.kind === "error"
+                      ? "mt-1 rounded-md bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive"
+                      : "mt-1 rounded-md bg-muted px-2.5 py-1.5 text-xs text-muted-foreground"
+                }
+              >
+                {result.text}
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Connect Google Calendar to import your meetings into the CRM. This grants
+            calendar access in addition to any existing Google permissions.
+          </p>
+        )}
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-2">
+        {calendarConnected ? (
+          <>
+            <Badge
+              variant={syncState.status === "error" ? "secondary" : "outline"}
+              className="shrink-0 capitalize"
+            >
+              {syncState.status}
+            </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onSyncNow}
+              disabled={syncing}
+            >
+              {syncing ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="size-4" />
+              )}
+              Sync now
+            </Button>
+          </>
+        ) : (
+          <>
+            <Badge variant="outline" className="shrink-0">
+              Not connected
+            </Badge>
+            <a
+              href={GOOGLE_CALENDAR_CONNECT_HREF}
+              className={buttonVariants({ variant: "default", size: "sm" })}
+            >
+              Connect Google Calendar
+            </a>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function IntegrationsSection({
   onOpenTokens,
   googleConnection,
   disconnectGoogleAction,
+  calendarSyncState,
+  setCalendarSyncEnabledAction,
+  syncCalendarNowAction,
 }: {
   onOpenTokens: () => void
   googleConnection: GoogleConnectionInfo | null
   disconnectGoogleAction: SettingsViewProps["disconnectGoogleAction"]
+  calendarSyncState: CalendarSyncStateInfo
+  setCalendarSyncEnabledAction: SettingsViewProps["setCalendarSyncEnabledAction"]
+  syncCalendarNowAction: SettingsViewProps["syncCalendarNowAction"]
 }) {
   return (
     <Card>
@@ -616,6 +817,12 @@ function IntegrationsSection({
         <GoogleWorkspaceRow
           connection={googleConnection}
           disconnectGoogleAction={disconnectGoogleAction}
+        />
+        <GoogleCalendarRow
+          connection={googleConnection}
+          syncState={calendarSyncState}
+          setCalendarSyncEnabledAction={setCalendarSyncEnabledAction}
+          syncCalendarNowAction={syncCalendarNowAction}
         />
         <div className="flex items-center justify-between gap-4 py-3">
           <div>
@@ -751,6 +958,9 @@ export function SettingsView({
   googleConnection,
   googleCallbackStatus,
   disconnectGoogleAction,
+  calendarSyncState,
+  setCalendarSyncEnabledAction,
+  syncCalendarNowAction,
 }: SettingsViewProps) {
   // Land on the Integrations tab when returning from the Google OAuth flow.
   const [tab, setTab] = useState(googleCallbackStatus ? "integrations" : "profile")
@@ -814,6 +1024,9 @@ export function SettingsView({
             onOpenTokens={() => setTab("tokens")}
             googleConnection={googleConnection}
             disconnectGoogleAction={disconnectGoogleAction}
+            calendarSyncState={calendarSyncState}
+            setCalendarSyncEnabledAction={setCalendarSyncEnabledAction}
+            syncCalendarNowAction={syncCalendarNowAction}
           />
         </FacetTabsPanel>
 
