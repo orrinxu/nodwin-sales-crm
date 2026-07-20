@@ -181,15 +181,20 @@ export type Database = {
       activities: {
         Row: {
           account_id: string | null
+          all_day: boolean
           body: string | null
           contact_id: string | null
           created_at: string
           created_by: string | null
+          ends_at: string | null
+          external_event_id: string | null
           external_thread_id: string | null
           id: string
           metadata: Json
           opportunity_id: string | null
+          starts_at: string | null
           subject: string | null
+          time_zone: string | null
           type: string
           updated_at: string
           updated_by: string | null
@@ -197,15 +202,20 @@ export type Database = {
         }
         Insert: {
           account_id?: string | null
+          all_day?: boolean
           body?: string | null
           contact_id?: string | null
           created_at?: string
           created_by?: string | null
+          ends_at?: string | null
+          external_event_id?: string | null
           external_thread_id?: string | null
           id?: string
           metadata?: Json
           opportunity_id?: string | null
+          starts_at?: string | null
           subject?: string | null
+          time_zone?: string | null
           type: string
           updated_at?: string
           updated_by?: string | null
@@ -213,15 +223,20 @@ export type Database = {
         }
         Update: {
           account_id?: string | null
+          all_day?: boolean
           body?: string | null
           contact_id?: string | null
           created_at?: string
           created_by?: string | null
+          ends_at?: string | null
+          external_event_id?: string | null
           external_thread_id?: string | null
           id?: string
           metadata?: Json
           opportunity_id?: string | null
+          starts_at?: string | null
           subject?: string | null
+          time_zone?: string | null
           type?: string
           updated_at?: string
           updated_by?: string | null
@@ -2021,6 +2036,60 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "currencies"
             referencedColumns: ["code"]
+          },
+        ]
+      }
+      google_calendar_sync_state: {
+        Row: {
+          calendar_id: string
+          created_at: string
+          id: string
+          last_error: string | null
+          last_sync_at: string | null
+          status: string
+          sync_enabled: boolean
+          sync_token: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          calendar_id?: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          status?: string
+          sync_enabled?: boolean
+          sync_token?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          calendar_id?: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          status?: string
+          sync_enabled?: boolean
+          sync_token?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendar_sync_state_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "ai_usage_daily_rollup"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "google_calendar_sync_state_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
           },
         ]
       }

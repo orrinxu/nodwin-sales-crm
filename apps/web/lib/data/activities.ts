@@ -33,6 +33,13 @@ export interface ActivityRecord {
   externalThreadId: string | null
   subject: string | null
   body: string | null
+  // Calendar fields (ORR-824). Populated for calendar-synced activities
+  // (external_event_id set); null for plain notes/calls/emails.
+  startsAt: string | null
+  endsAt: string | null
+  timeZone: string | null
+  allDay: boolean
+  externalEventId: string | null
   metadata: Record<string, unknown>
   createdAt: string
   updatedAt: string
@@ -60,6 +67,11 @@ const ACTIVITY_SELECT = `
   external_thread_id,
   subject,
   body,
+  starts_at,
+  ends_at,
+  time_zone,
+  all_day,
+  external_event_id,
   metadata,
   created_at,
   updated_at,
@@ -88,6 +100,11 @@ function toDomainActivity(data: Record<string, unknown>): ActivityRecord {
     externalThreadId: (data.external_thread_id as string) ?? null,
     subject: (data.subject as string) ?? null,
     body: (data.body as string) ?? null,
+    startsAt: (data.starts_at as string) ?? null,
+    endsAt: (data.ends_at as string) ?? null,
+    timeZone: (data.time_zone as string) ?? null,
+    allDay: (data.all_day as boolean) ?? false,
+    externalEventId: (data.external_event_id as string) ?? null,
     metadata: (data.metadata ?? {}) as Record<string, unknown>,
     createdAt: data.created_at as string,
     updatedAt: data.updated_at as string,
