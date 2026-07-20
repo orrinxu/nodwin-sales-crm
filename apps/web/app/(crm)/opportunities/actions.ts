@@ -21,7 +21,9 @@ import {
 import {
   createActivity,
   activityCreateSchema,
+  type ActivityRecord,
 } from "@/lib/data/activities"
+import { pushMeetingToGoogle } from "@/lib/integrations/calendar/push"
 import { searchAccountOptions, searchContactOptions, createContact, contactCreateSchema } from "@/lib/data/contacts"
 import type { ContactCallContext } from "@/lib/data/contacts"
 import { createAccount, accountCreateSchema } from "@/lib/data/accounts"
@@ -271,6 +273,55 @@ export async function createActivityAction(opportunityId: string, input: unknown
   const activity = await createActivity(ctx, parsed)
   revalidatePath(`/opportunities/${opportunityId}`)
   return activity
+}
+
+/** Result of creating a meeting: the activity plus the best-effort push outcome. */
+export interface CreateMeetingResult {
+  activity: ActivityRecord
+  pushed: boolean
+  /** When `pushed:false`, why — `not_connected` (skipped) or a soft failure. */
+  reason?: string
+  /** Human-facing soft warning when the push failed for a non-skip reason. */
+  pushWarning?: string
+}
+
+/**
+ * Create a meeting activity in the CRM, then best-effort push it to the caller's
+ * Google Calendar (ORR-829). CREATE-then-PUSH ordering is deliberate: the CRM
+ * meeting is persisted FIRST and is the source of truth, so a Google push failure
+ * (not connected, API error) can never lose it — the failure is surfaced as a
+ * soft `pushWarning` while the created activity is still returned.
+ */
+export async function createMeetingAction(
+  opportunityId: string,
+  input: unknown,
+): Promise<CreateMeetingResult> {
+  const user = await requireUser()
+  const parsed = activityCreateSchema.parse(input)
+  const ctx = { user, source: "web" as const }
+
+  // 1) Persist the meeting first — this is the source of truth.
+  const activity = await createActivity(ctx, { ...parsed, type: "meeting" })
+
+  // 2) Best-effort push to Google. Never throws; a failure is a soft warning.
+  const push = await pushMeetingToGoogle(ctx, activity)
+
+  revalidatePath(`/opportunities/${opportunityId}`)
+
+  if (push.pushed) {
+    return { activity, pushed: true }
+  }
+  if (push.reason === "not_connected") {
+    // Expected state — Calendar simply isn't connected. Not a warning.
+    return { activity, pushed: false, reason: "not_connected" }
+  }
+  return {
+    activity,
+    pushed: false,
+    reason: push.reason,
+    pushWarning:
+      "The meeting was saved, but syncing it to Google Calendar failed. You can retry from your calendar later.",
+  }
 }
 
 export async function searchAccountsAction(query: string) {

@@ -52,6 +52,14 @@ export const activityCreateSchema = z.object({
   type: z.enum(ACTIVITY_TYPES),
   subject: z.string().max(300).nullable().optional().or(z.literal("")),
   body: z.string().max(10000).nullable().optional().or(z.literal("")),
+  // Meeting time fields (ORR-829 calendar push). All optional so existing
+  // note/call/email callers are unaffected; populated for `meeting` activities
+  // created in the CRM and pushed to Google Calendar.
+  startsAt: z.string().datetime({ offset: true }).nullable().optional(),
+  endsAt: z.string().datetime({ offset: true }).nullable().optional(),
+  timeZone: z.string().max(100).nullable().optional(),
+  allDay: z.boolean().optional(),
+  externalEventId: z.string().max(1024).nullable().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 })
 
@@ -222,6 +230,11 @@ export async function createActivity(
       type: input.type,
       subject: input.subject || null,
       body: input.body || null,
+      starts_at: input.startsAt ?? null,
+      ends_at: input.endsAt ?? null,
+      time_zone: input.timeZone ?? null,
+      all_day: input.allDay ?? false,
+      external_event_id: input.externalEventId ?? null,
       metadata: {
         ...(input.metadata ?? {}),
         source: ctx.source,

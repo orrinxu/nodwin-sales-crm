@@ -94,6 +94,7 @@ const defaultProps = {
   activities: [],
   documents: [],
   createActivityAction: vi.fn(),
+  createMeetingAction: vi.fn(),
 }
 
 describe("OpportunityDetailWrapper", () => {

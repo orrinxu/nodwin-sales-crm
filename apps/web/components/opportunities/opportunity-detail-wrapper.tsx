@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/collapsible"
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
 import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
-import { ActivityComposer } from "@/components/opportunities/activity-composer"
+import { ActivityComposer, type MeetingCreateResult } from "@/components/opportunities/activity-composer"
 import { OpportunitySplitsEditor } from "@/components/opportunities/opportunity-splits-editor"
 import {
   OpportunityLineItemsEditor,
@@ -105,6 +105,10 @@ interface OpportunityDetailWrapperProps {
   activities: ActivityRecord[]
   documents: DocumentSummary[]
   createActivityAction: (opportunityId: string, input: unknown) => Promise<ActivityRecord>
+  createMeetingAction: (
+    opportunityId: string,
+    input: unknown,
+  ) => Promise<MeetingCreateResult>
   searchUsersAction?: (query: string) => Promise<EntityOption[]>
   // Account/contact pickers for the edit dialog (ORR-812): without these the
   // detail-page edit form's account/contact comboboxes are dead (empty items, no
@@ -275,6 +279,7 @@ export function OpportunityDetailWrapper({
   activities,
   documents,
   createActivityAction,
+  createMeetingAction,
   searchUsersAction,
   accounts = [],
   searchAccountsAction,
@@ -760,6 +765,7 @@ export function OpportunityDetailWrapper({
                     revalidateId={opportunity.id}
                     scope={{ opportunityId: opportunity.id, accountId: opportunity.accountId }}
                     createAction={createActivityAction}
+                    createMeetingAction={createMeetingAction}
                     onCreated={() => router.refresh()}
                   />
                 </CardContent>
