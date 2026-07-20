@@ -43,6 +43,29 @@ describe("formatPreferenceDate", () => {
   })
 })
 
+describe("formatPreferenceDate date-only strings (ORR-814a)", () => {
+  // PG `date` columns arrive as "YYYY-MM-DD". These must render as the literal
+  // entered calendar date — never shifted a day by a west-of-UTC preference zone.
+  it("renders the entered day, not UTC-midnight localized a day early", () => {
+    expect(formatPreferenceDate("2026-07-19", "iso")).toBe("2026-07-19")
+    expect(formatPreferenceDate("2026-07-19", "us")).toBe("Jul 19, 2026")
+    expect(formatPreferenceDate("2026-07-19", "international")).toBe("19 Jul 2026")
+  })
+
+  it("is immune to a west-of-UTC preference timezone (the day-early bug)", () => {
+    // Before the fix, LA (UTC-7/8) rendered "2026-07-18" for a 2026-07-19 date column.
+    expect(formatPreferenceDate("2026-07-19", "iso", "", "America/Los_Angeles")).toBe("2026-07-19")
+    expect(formatPreferenceDate("2026-01-01", "iso", "", "America/Los_Angeles")).toBe("2026-01-01")
+    // And an east-of-UTC zone must not push it forward either.
+    expect(formatPreferenceDate("2026-07-19", "iso", "", "Asia/Kolkata")).toBe("2026-07-19")
+  })
+
+  it("still formats full timestamptz strings via the ambient/zone path", () => {
+    // A value carrying a time component is NOT date-only, so timezone still applies.
+    expect(formatPreferenceDate("2026-07-03T20:00:00Z", "iso", "", "Asia/Kolkata")).toBe("2026-07-04")
+  })
+})
+
 describe("formatPreferenceDateTime", () => {
   const dt = new Date(2026, 6, 3, 14, 30)
   it("prepends the preference-formatted date, then a time", () => {

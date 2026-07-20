@@ -1,7 +1,11 @@
 /** Calendar-quarter helpers for sales targets (ORR-726). Pure. */
 
+// UTC components (ORR-814c): quarterBounds/quarterBoundaries resolve quarter
+// calendar boundaries in UTC, so "which quarter is now" must be read in UTC too.
+// Using local getFullYear/getMonth on a non-UTC server let the target card label a
+// quarter (from quarterOf) that disagreed with the quarter it queried (quarterBounds).
 export function quarterOf(d: Date): { year: number; quarter: number } {
-  return { year: d.getFullYear(), quarter: Math.floor(d.getMonth() / 3) + 1 }
+  return { year: d.getUTCFullYear(), quarter: Math.floor(d.getUTCMonth() / 3) + 1 }
 }
 
 /** Inclusive [start, end] of a calendar quarter as YYYY-MM-DD (UTC). */

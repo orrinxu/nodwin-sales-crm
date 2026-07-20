@@ -17,14 +17,29 @@ export interface ScheduleOpportunityInput {
   executionDate?: string | null
 }
 
+// Month arithmetic runs on integer (year, month) pairs in UTC (ORR-814d) — never
+// Date.setMonth, which overflows short months (Jan 31 +1 → Mar, skipping Feb, and
+// two later entries then collide on the same month, TZ-independently corrupting the
+// revenue curve and tripping the unique (opportunity, month) constraint). Reading UTC
+// components throughout also stops a west-of-UTC server from shifting the whole
+// schedule a month vs monthBucket (which buckets by getUTCMonth).
 function monthsBetween(start: Date, end: Date): number {
-  return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1
+  return (
+    (end.getUTCFullYear() - start.getUTCFullYear()) * 12 +
+    (end.getUTCMonth() - start.getUTCMonth()) +
+    1
+  )
 }
 
-function addMonths(date: Date, months: number): Date {
-  const result = new Date(date)
-  result.setMonth(result.getMonth() + months)
-  return result
+// The n-th month from `start`, as a UTC-midnight first-of-month date. n === 0 returns
+// `start` unchanged so an execution-date anchor keeps its exact day; later months are
+// normalized to the 1st (only the year/month is meaningful — the caller buckets by month).
+function nthMonth(start: Date, n: number): Date {
+  if (n === 0) return start
+  const total = start.getUTCFullYear() * 12 + start.getUTCMonth() + n
+  const year = Math.floor(total / 12)
+  const month0 = total - year * 12
+  return new Date(Date.UTC(year, month0, 1))
 }
 
 export function generateFlatSchedule(
@@ -62,7 +77,7 @@ export function generateFlatSchedule(
   for (let i = 0; i < monthCount; i++) {
     const cents = i === monthCount - 1 ? remainder : monthlyCents
     schedule.push({
-      month: addMonths(effectiveStart, i),
+      month: nthMonth(effectiveStart, i),
       amount: Money.fromCents(cents, currency).toAmount(),
     })
   }
