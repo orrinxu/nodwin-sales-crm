@@ -1,8 +1,11 @@
 import "server-only"
+import { randomUUID } from "node:crypto"
 import { createServerClient } from "@/lib/supabase/server"
 import { createEmbedder, type Embedder } from "@/lib/ai/embeddings"
 import { generateAnswer, type RagAnswer, type RagDeps } from "@/lib/ai/rag"
+import { logAiUsage } from "@/lib/ai/meter"
 import { resolveAiConfig } from "@/lib/data/ai-settings"
+import { Money } from "@/lib/money"
 import type { Database } from "@/lib/database.types"
 
 // ORR-621 cross-deal knowledge retrieval (READ-ONLY over the ORR-620 index).
@@ -28,7 +31,12 @@ export interface KnowledgeSearchInput {
 export interface KnowledgeChunk {
   id: string
   documentId: string
-  driveFileId: string
+  /** Parent document name — the citation label (works for Storage-uploaded docs
+   *  that have no Drive id). */
+  documentName: string
+  /** Google Drive file id when the doc was imported from Drive; null for the
+   *  default Storage-upload path (ORR-653). */
+  driveFileId: string | null
   pageRef: string | null
   chunkIndex: number
   opportunityId: string | null
@@ -74,14 +82,35 @@ export async function search(
   // Resolve embeddings config (DB-then-env) + honor the search toggle. Skipped
   // entirely when an embedder is injected (tests).
   let embedder = deps.embedder
+  let meterEmbedding = false
   if (!embedder) {
     const cfg = await resolveAiConfig()
     if (!cfg.searchEnabled) {
       throw new Error("Knowledge search is disabled by an administrator.")
     }
     embedder = createEmbedder(cfg.embeddings)
+    meterEmbedding = true
   }
+  const embedStartedAt = new Date()
   const { vectors, model } = await embedder.embed([query])
+
+  // ORR-808 (f): meter the query-embedding call so it's visible in the usage
+  // dashboard (self-hosted → nominal zero cost; the row gives call-count
+  // visibility and accrues to the daily rollup). Only in the production path
+  // (skipped when an embedder is injected for tests). Best-effort.
+  if (meterEmbedding) {
+    await logAiUsage({
+      userId: ctx.user.id,
+      feature: "embedding",
+      provider: "openai_compatible",
+      model,
+      cost: Money.zero("USD"),
+      requestId: `emb-${randomUUID()}`,
+      startedAt: embedStartedAt,
+      status: "success",
+    })
+  }
+
   const queryVector = vectors[0]
   if (!queryVector || queryVector.length === 0) return { chunks: [], model }
 
@@ -101,7 +130,8 @@ export async function search(
   const chunks: KnowledgeChunk[] = (data ?? []).map((r) => ({
     id: r.id,
     documentId: r.document_id,
-    driveFileId: r.drive_file_id,
+    documentName: r.document_name ?? "",
+    driveFileId: r.drive_file_id ?? null,
     pageRef: r.page_ref,
     chunkIndex: r.chunk_index,
     opportunityId: r.opportunity_id,

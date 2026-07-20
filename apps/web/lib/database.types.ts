@@ -4262,6 +4262,7 @@ export type Database = {
           chunk_index: number
           content: string
           document_id: string
+          document_name: string
           drive_file_id: string
           id: string
           opportunity_id: string
@@ -4337,6 +4338,8 @@ export type Database = {
         | "opportunity_extraction"
         | "account_extraction"
         | "contact_extraction"
+        | "transcription"
+        | "embedding"
       ai_provider:
         | "claude"
         | "gemini"
@@ -4585,6 +4588,8 @@ export const Constants = {
         "opportunity_extraction",
         "account_extraction",
         "contact_extraction",
+        "transcription",
+        "embedding",
       ],
       ai_provider: [
         "claude",

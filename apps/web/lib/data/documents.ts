@@ -635,6 +635,18 @@ export async function updateDocumentCategory(
   if (!data || data.length === 0) {
     throw new Error("Document not found, or you do not have permission to edit it.")
   }
+
+  // ORR-808 (g): search returns document_chunks.category (copied at ingest time),
+  // not documents.category — so a re-tag left stale badges in knowledge search
+  // until the next re-index. Propagate the new category to the chunks now. The
+  // RLS write-authorisation was already proven by the documents UPDATE above
+  // (0 rows → threw), so this system-side propagation uses the service role
+  // (chunks are worker-managed and not user-writable under RLS).
+  const { error: chunkErr } = await serviceRoleClient()
+    .from("document_chunks")
+    .update({ category })
+    .eq("document_id", documentId)
+  if (chunkErr) throw new Error(`Failed to propagate category to chunks: ${chunkErr.message}`)
 }
 
 /** List the documents attached to an opportunity or account (RLS-scoped). */

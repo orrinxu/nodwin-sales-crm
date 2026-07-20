@@ -7,17 +7,21 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { FacetTabs, FacetTabsList, FacetTabsTab, FacetTabsPanel } from "@/components/primitives/facet-tabs"
-import type { AiSettingsSafe, IngestionStatusCounts, FailedIngestionDocument } from "@/lib/data/ai-settings"
-import type { RunIngestionResult, RetryFailedResult } from "@/app/(crm)/admin/ai/actions"
+import type { AiSettingsSafe, IngestionStatusCounts, FailedIngestionDocument, EmbeddingIndexHealth } from "@/lib/data/ai-settings"
+import type { RunIngestionResult, RetryFailedResult, ReindexAllResult } from "@/app/(crm)/admin/ai/actions"
 
 interface Props {
   settings: AiSettingsSafe
   counts: IngestionStatusCounts
   failedDocuments?: FailedIngestionDocument[]
   skippedDocuments?: FailedIngestionDocument[]
+  /** Embedding-model drift (ORR-808 a) — powers the "re-index needed" banner. */
+  indexHealth?: EmbeddingIndexHealth
   saveAction: (input: unknown) => Promise<void>
   runIngestionAction: () => Promise<RunIngestionResult>
   retryFailedAction?: () => Promise<RetryFailedResult>
+  /** Re-queue every 'indexed' doc for re-embedding after a model change. */
+  reindexAllAction?: () => Promise<ReindexAllResult>
   /** The AI-providers form, rendered as the first tab. Self-contained (its own
    *  form + save), so it lives outside this component's settings form. */
   providersSlot?: React.ReactNode
@@ -31,7 +35,7 @@ function ConfiguredBadge({ ok }: { ok: boolean }) {
   )
 }
 
-export function AiSettingsForm({ settings, counts, failedDocuments = [], skippedDocuments = [], saveAction, runIngestionAction, retryFailedAction, providersSlot }: Props) {
+export function AiSettingsForm({ settings, counts, failedDocuments = [], skippedDocuments = [], indexHealth, saveAction, runIngestionAction, retryFailedAction, reindexAllAction, providersSlot }: Props) {
   const [embeddingsBaseUrl, setEmbeddingsBaseUrl] = useState(settings.embeddingsBaseUrl ?? "")
   const [embeddingsModel, setEmbeddingsModel] = useState(settings.embeddingsModel ?? "")
   const [embeddingsApiKey, setEmbeddingsApiKey] = useState("")
@@ -54,6 +58,8 @@ export function AiSettingsForm({ settings, counts, failedDocuments = [], skipped
   const [runResult, setRunResult] = useState<RunIngestionResult | null>(null)
   const [retrying, setRetrying] = useState(false)
   const [retryResult, setRetryResult] = useState<RetryFailedResult | null>(null)
+  const [reindexing, setReindexing] = useState(false)
+  const [reindexResult, setReindexResult] = useState<ReindexAllResult | null>(null)
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault()
@@ -98,10 +104,58 @@ export function AiSettingsForm({ settings, counts, failedDocuments = [], skipped
     }
   }
 
+  async function onReindexAll() {
+    if (!reindexAllAction) return
+    setReindexing(true); setReindexResult(null); setError(null)
+    try {
+      setReindexResult(await reindexAllAction())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to re-index documents")
+    } finally {
+      setReindexing(false)
+    }
+  }
+
+  const drift = indexHealth?.hasDrift ? indexHealth : null
+
   const keyPlaceholder = (has: boolean) => (has ? "•••••••• (leave blank to keep)" : "API key (optional)")
 
   return (
     <div className="space-y-4">
+      {drift && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-500" />
+            <div className="space-y-2">
+              <p className="font-medium text-amber-700 dark:text-amber-400">
+                Embedding model changed — re-index needed
+              </p>
+              <p className="text-muted-foreground">
+                {drift.staleChunks.toLocaleString()} indexed{" "}
+                {drift.staleChunks === 1 ? "chunk was" : "chunks were"} embedded under a different
+                model than the one now configured
+                {drift.configuredModel ? ` (${drift.configuredModel})` : ""}. Knowledge search
+                won&apos;t match them until they&apos;re re-indexed. Re-queue all indexed documents,
+                then run ingestion.
+              </p>
+              {reindexAllAction && (
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button type="button" variant="outline" size="sm" onClick={onReindexAll} disabled={reindexing}>
+                    <RefreshCw className="size-4" /> {reindexing ? "Re-queuing…" : "Re-index all documents"}
+                  </Button>
+                  {reindexResult && (
+                    <span className="text-xs text-muted-foreground">
+                      {reindexResult.reset === 0
+                        ? "Nothing to re-queue."
+                        : `${reindexResult.reset} re-queued — click "Run ingestion now" in Ingestion to reprocess.`}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       <FacetTabs value={tab} onValueChange={(v) => setTab(v as string)}>
         <FacetTabsList className="text-[15px]">
           {providersSlot && <FacetTabsTab value="providers">Providers</FacetTabsTab>}
@@ -242,6 +296,11 @@ export function AiSettingsForm({ settings, counts, failedDocuments = [], skipped
                     <RefreshCw className="size-4" /> {retrying ? "Resetting…" : `Retry all failed (${counts.failed})`}
                   </Button>
                 )}
+                {reindexAllAction && counts.indexed > 0 && (
+                  <Button type="button" variant="outline" size="sm" onClick={onReindexAll} disabled={reindexing || running}>
+                    <RefreshCw className="size-4" /> {reindexing ? "Re-queuing…" : `Re-index all indexed (${counts.indexed})`}
+                  </Button>
+                )}
                 {runResult && (
                   <span className="text-xs text-muted-foreground">
                     {runResult.note ?? `Processed ${runResult.processed} — ${runResult.indexed} indexed, ${runResult.failed} failed, ${runResult.skipped} skipped.`}
@@ -252,6 +311,13 @@ export function AiSettingsForm({ settings, counts, failedDocuments = [], skipped
                     {retryResult.reset === 0
                       ? "Nothing to retry."
                       : `${retryResult.reset} reset to pending — click "Run ingestion now" to reprocess.`}
+                  </span>
+                )}
+                {reindexResult && !runResult && (
+                  <span className="text-xs text-muted-foreground">
+                    {reindexResult.reset === 0
+                      ? "Nothing to re-index."
+                      : `${reindexResult.reset} re-queued — click "Run ingestion now" to reprocess.`}
                   </span>
                 )}
               </div>

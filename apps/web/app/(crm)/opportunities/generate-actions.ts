@@ -1,5 +1,6 @@
 "use server"
 
+import { randomUUID } from "node:crypto"
 import { z } from "zod"
 import { requireUser } from "@/lib/security/auth"
 import { extractOpportunityFromText, EXTRACTION_FEATURE } from "@/lib/ai/opportunity-extraction"
@@ -14,9 +15,12 @@ import { extractionProvenanceSchema } from "@/lib/data/opportunity-provenance-sc
 import { resolveAiConfig } from "@/lib/data/ai-settings"
 import {
   createTranscriber,
+  TRANSCRIPTION_ESTIMATED_COST,
   TranscriptionNotConfiguredError,
   TranscriptionUnavailableError,
 } from "@/lib/ai/transcription"
+import { isOverCap, logAiUsage } from "@/lib/ai/meter"
+import { Money } from "@/lib/money"
 
 // Opportunity Generator — server action (ORR-677, ticket 4/4).
 //
@@ -86,7 +90,7 @@ const MAX_AUDIO_BYTES = 25 * 1024 * 1024
  * here, never stored. Entity-agnostic, so the account/contact generators share it.
  */
 export async function transcribeAudioAction(formData: FormData): Promise<TranscribeAudioResult> {
-  await requireUser()
+  const user = await requireUser()
 
   const file = formData.get("audio")
   if (!(file instanceof File)) return { ok: false, error: "No audio was provided." }
@@ -104,18 +108,52 @@ export async function transcribeAudioAction(formData: FormData): Promise<Transcr
     }
   }
 
+  // ORR-808 (f): transcription is a metered, cap-gated AI path (cloud Whisper spend
+  // was previously invisible + uncapped). Gate on the daily hard cap before the
+  // call, then log an ai_usage row.
+  if (await isOverCap(user.id, TRANSCRIPTION_ESTIMATED_COST)) {
+    return {
+      ok: false,
+      error: "Your daily AI budget has been reached. Try again later, or ask an admin to raise the cap.",
+    }
+  }
+
+  const startedAt = new Date()
+  const requestId = `stt-${randomUUID()}`
+  const meterModel = cfg.transcription.model
   const bytes = new Uint8Array(await file.arrayBuffer())
   try {
-    const { text } = await createTranscriber(cfg.transcription).transcribe({
+    const { text, model } = await createTranscriber(cfg.transcription).transcribe({
       bytes,
       filename: file.name || "recording.webm",
       contentType: file.type || "audio/webm",
+    })
+    await logAiUsage({
+      userId: user.id,
+      feature: "transcription",
+      provider: "openai_compatible",
+      model: model ?? meterModel,
+      cost: TRANSCRIPTION_ESTIMATED_COST,
+      requestId,
+      startedAt,
+      status: "success",
     })
     if (!text.trim()) {
       return { ok: false, error: "Couldn't hear anything in that recording. Try again, closer to the mic." }
     }
     return { ok: true, text }
   } catch (err) {
+    // Log the failed attempt at zero cost for visibility (no spend incurred).
+    await logAiUsage({
+      userId: user.id,
+      feature: "transcription",
+      provider: "openai_compatible",
+      model: meterModel,
+      cost: Money.zero("USD"),
+      requestId,
+      startedAt,
+      status: "error",
+    })
     if (err instanceof TranscriptionUnavailableError) {
       return { ok: false, unavailable: true, error: "The transcription service is busy. Please try again in a moment." }
     }

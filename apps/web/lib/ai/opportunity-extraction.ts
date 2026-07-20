@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto"
 import { z } from "zod"
 import { aiCall } from "./router"
 import { createProviderAdapters } from "./provider-chain"
+import { salvageObject, retryNudge } from "./extraction-core"
 import { Money } from "../money"
 import type { AiImageInput, ProviderAdapter } from "./types"
 import type { ProviderName } from "./providers"
@@ -265,11 +266,11 @@ export async function extractOpportunityFromText(
   const basePrompt = text ? buildExtractionPrompt(doc, truncated) : buildImageExtractionPrompt()
   const requestId = input.requestId ?? `oppgen-extract-${randomUUID()}`
 
+  // Track the prior failure so the retry nudge is accurate (ORR-808 e).
+  let previousFailure: "json" | "shape" | null = null
+
   for (let attempt = 0; attempt < 2; attempt++) {
-    const prompt =
-      attempt === 0
-        ? basePrompt
-        : `${basePrompt}\n\nYour previous reply could not be parsed. Reply with ONLY the JSON object — no prose, no code fences.`
+    const prompt = attempt === 0 ? basePrompt : `${basePrompt}\n\n${retryNudge(previousFailure)}`
 
     const result = await call(
       {
@@ -290,11 +291,17 @@ export async function extractOpportunityFromText(
 
     if (!result.ok) return { ok: false, error: failureMessage(result.reason) }
 
-    const validated = opportunityExtractionSchema.safeParse(extractJsonObject(result.data ?? ""))
-    if (validated.success) {
-      return { ok: true, fields: validated.data, model: result.model ?? null, truncated }
+    // Per-field salvage (ORR-808 e): keep the valid fields even if one is malformed.
+    const obj = extractJsonObject(result.data ?? "")
+    if (obj === undefined) {
+      previousFailure = "json"
+      continue
     }
-    // else: fall through and retry once with a corrective nudge
+    const salvaged = salvageObject(opportunityExtractionSchema, obj)
+    if (salvaged.data !== undefined && salvaged.fieldCount > 0) {
+      return { ok: true, fields: salvaged.data, model: result.model ?? null, truncated }
+    }
+    previousFailure = "shape"
   }
 
   return {

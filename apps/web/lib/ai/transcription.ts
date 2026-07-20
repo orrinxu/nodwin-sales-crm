@@ -1,5 +1,12 @@
 import "server-only"
 import { env } from "../security/env"
+import { Money } from "../money"
+
+// ORR-808 (f): flat per-clip cost estimate used to meter + cap transcription (a
+// dictated note is a short clip). No per-second STT pricing table exists yet; this
+// gives the cap enforcer + usage log a non-zero, attributable figure. A real
+// per-provider price is a follow-up.
+export const TRANSCRIPTION_ESTIMATED_COST = Money.fromAmount("0.02", "USD")
 
 // ORR-737 (Voice/Text Record Generator, Track B, gate G2): speech-to-text seam.
 //

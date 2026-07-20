@@ -187,7 +187,7 @@ export async function updateAiSettings(
 
   const { data: existing } = await supabase
     .from("ai_settings")
-    .select("id")
+    .select("id, embeddings_model")
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -217,6 +217,78 @@ export async function updateAiSettings(
       .insert({ ...patch, created_by: ctx.user.id })
     if (error) throw new Error(`Failed to create AI settings: ${error.message}`)
   }
+
+  // ORR-808 (a): switching the embedding model silently empties knowledge search —
+  // the RPC filters chunks on their ingestion-time embedding_model, so every chunk
+  // indexed under the OLD model stops matching. Auto-flip all 'indexed' documents
+  // back to 'pending' so the next ingestion run re-embeds them under the new model.
+  // Effective (DB-then-env) models are compared, and only when a real, changed,
+  // non-empty model is now configured. Best-effort: a save must not fail if the
+  // re-queue hiccups (the admin can still hit "Re-index all").
+  const newModel = firstNonEmpty(patch.embeddings_model, env.EMBEDDINGS_MODEL)
+  const oldModel = firstNonEmpty(existing?.embeddings_model, env.EMBEDDINGS_MODEL)
+  if (newModel && newModel !== oldModel) {
+    try {
+      await reindexAllIndexedDocuments()
+    } catch (e) {
+      console.warn("[ai-settings] embedding-model change: failed to re-queue indexed documents:", e)
+    }
+  }
+}
+
+/** Flip every 'indexed' document back to 'pending' so the next ingestion run
+ *  re-embeds it. The remedy for an embedding-model change (ORR-808 a): stored
+ *  chunks carry the ingestion-time model and stop matching once the configured
+ *  model changes. Service-role (global, admin-gated at the caller); stamps
+ *  reindex_requested_at so re-queued docs sort ahead in the worker. Returns the
+ *  number of documents re-queued. Does NOT touch 'failed'/'skipped' (those have
+ *  their own remedies — retryFailedIngestion / re-upload). */
+export async function reindexAllIndexedDocuments(): Promise<number> {
+  const supabase = serviceRoleClient()
+  const { data, error } = await supabase
+    .from("documents")
+    .update({
+      index_status: "pending",
+      index_error: null,
+      reindex_requested_at: new Date().toISOString(),
+    })
+    .eq("index_status", "indexed")
+    .select("id")
+  if (error) throw new Error(`Failed to re-queue indexed documents: ${error.message}`)
+  return data?.length ?? 0
+}
+
+// ── Embedding-model drift (ORR-808 a banner) ──────────────────────────────────
+
+export interface EmbeddingIndexHealth {
+  /** The effective (DB-then-env) embedding model queries will run under. */
+  configuredModel: string | null
+  /** Chunks whose stored embedding_model differs from the configured model — they
+   *  will NOT match any search until re-indexed. */
+  staleChunks: number
+  /** True when a model is configured and stale chunks exist (drift to warn about). */
+  hasDrift: boolean
+}
+
+/** Detect embedding-model drift: chunks indexed under a model other than the one
+ *  currently configured (which therefore silently fail retrieval). Powers the
+ *  admin banner nudging a re-index. Service-role aggregate (count only, no
+ *  content); admin-gated at the caller. */
+export async function getEmbeddingIndexHealth(): Promise<EmbeddingIndexHealth> {
+  const cfg = await resolveAiConfig()
+  const configuredModel = cfg.embeddings.model
+  if (!configuredModel) {
+    return { configuredModel: null, staleChunks: 0, hasDrift: false }
+  }
+  const supabase = serviceRoleClient()
+  const { count, error } = await supabase
+    .from("document_chunks")
+    .select("id", { count: "exact", head: true })
+    .not("embedding", "is", null)
+    .neq("embedding_model", configuredModel)
+  if (error) throw new Error(`Failed to check embedding index health: ${error.message}`)
+  const staleChunks = count ?? 0
+  return { configuredModel, staleChunks, hasDrift: staleChunks > 0 }
 }
 
 // ── Ops panel: ingestion index-status counts ──────────────────────────────────

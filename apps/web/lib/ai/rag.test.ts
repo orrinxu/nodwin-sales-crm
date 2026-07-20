@@ -13,7 +13,7 @@ import type { KnowledgeChunk } from "../data/knowledge"
 
 function chunk(over: Partial<KnowledgeChunk>): KnowledgeChunk {
   return {
-    id: "c", documentId: "d", driveFileId: "drive-x", pageRef: null, chunkIndex: 0,
+    id: "c", documentId: "d", documentName: "Deck.pdf", driveFileId: "drive-x", pageRef: null, chunkIndex: 0,
     opportunityId: "opp", accountId: null, visibilityTier: "standard", category: "proposal",
     content: "text", similarity: 0.9, ...over,
   }
@@ -41,9 +41,9 @@ describe("generateAnswer", () => {
   it("generates a grounded answer from chunks and returns deduped sources", async () => {
     const complete = vi.fn().mockResolvedValue({ text: "The price is $1M [1].", model: "qwen" })
     const chunks = [
-      chunk({ documentId: "d1", driveFileId: "drive-1", pageRef: "p.1", similarity: 0.8 }),
-      chunk({ documentId: "d1", driveFileId: "drive-1", pageRef: "p.2", similarity: 0.95 }),
-      chunk({ documentId: "d2", driveFileId: "drive-2", similarity: 0.7 }),
+      chunk({ documentId: "d1", documentName: "Acme Proposal.pdf", driveFileId: null, pageRef: "p.1", similarity: 0.8 }),
+      chunk({ documentId: "d1", documentName: "Acme Proposal.pdf", driveFileId: null, pageRef: "p.2", similarity: 0.95 }),
+      chunk({ documentId: "d2", documentName: "Deck.pdf", driveFileId: "drive-2", similarity: 0.7 }),
     ]
     const res = await generateAnswer("u1", "price?", chunks, { complete })
 
@@ -52,13 +52,16 @@ describe("generateAnswer", () => {
     expect(res.model).toBe("qwen")
     // one source per document, best-score first, page refs collected
     expect(res.sources).toHaveLength(2)
-    expect(res.sources[0]).toMatchObject({ documentId: "d1", pageRefs: ["p.1", "p.2"], similarity: 0.95 })
-    expect(res.sources[0].driveUrl).toContain("drive-1")
+    expect(res.sources[0]).toMatchObject({ documentId: "d1", documentName: "Acme Proposal.pdf", pageRefs: ["p.1", "p.2"], similarity: 0.95 })
+    // Storage-uploaded doc (no Drive id) still cites cleanly by name.
+    expect(res.sources[0].driveFileId).toBeNull()
 
-    // the model was handed the injection-hardened system prompt + numbered excerpts
+    // the model was handed the injection-hardened system prompt + numbered excerpts,
+    // cited by document NAME (never a null drive id).
     const [systemPrompt, prompt] = complete.mock.calls[0]
     expect(systemPrompt).toBe(RAG_SYSTEM_PROMPT)
-    expect(prompt).toMatch(/\[1\] source: drive-1/)
+    expect(prompt).toMatch(/\[1\] source: Acme Proposal\.pdf/)
+    expect(prompt).not.toMatch(/source: null/)
     expect(prompt).toMatch(/untrusted document content/i)
   })
 
@@ -83,8 +86,8 @@ describe("buildSources", () => {
 
 describe("buildRagPrompt", () => {
   it("numbers excerpts and delimits untrusted content", () => {
-    const { prompt } = buildRagPrompt("q", [chunk({ content: "secret price", pageRef: "slide 3" })])
-    expect(prompt).toMatch(/\[1\] source: drive-x \(slide 3\)/)
+    const { prompt } = buildRagPrompt("q", [chunk({ documentName: "RFP.docx", content: "secret price", pageRef: "slide 3" })])
+    expect(prompt).toMatch(/\[1\] source: RFP\.docx \(slide 3\)/)
     expect(prompt).toContain("secret price")
     expect(prompt).toContain("<<<")
   })

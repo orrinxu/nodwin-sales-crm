@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { requireUser, requireRole } from "@/lib/security/auth"
 import { updateAiProviders } from "@/lib/data/ai-providers"
-import { updateAiSettings, resolveAiConfig, retryFailedIngestion } from "@/lib/data/ai-settings"
+import { updateAiSettings, resolveAiConfig, retryFailedIngestion, reindexAllIndexedDocuments } from "@/lib/data/ai-settings"
 import { runIngestionBatch } from "@/lib/ingestion/worker"
 import { createDriveClient } from "@/lib/integrations/drive"
 import { createEmbedder } from "@/lib/ai/embeddings"
@@ -67,6 +67,21 @@ export async function retryAllFailedAction(): Promise<RetryFailedResult> {
   requireRole(user, "admin")
   const ctx = { user, source: "web" as const }
   const reset = await retryFailedIngestion(ctx)
+  revalidatePath("/admin/ai")
+  return { reset }
+}
+
+export interface ReindexAllResult {
+  reset: number
+}
+
+/** Re-queue every 'indexed' document for re-ingestion (ORR-808 a). The remedy
+ *  after an embedding-model change — stored chunks carry the old model and stop
+ *  matching. Flips them to 'pending'; the admin then runs ingestion. */
+export async function reindexAllAction(): Promise<ReindexAllResult> {
+  const user = await requireUser()
+  requireRole(user, "admin")
+  const reset = await reindexAllIndexedDocuments()
   revalidatePath("/admin/ai")
   return { reset }
 }
