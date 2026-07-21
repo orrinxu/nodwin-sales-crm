@@ -188,6 +188,7 @@ export type Database = {
           created_by: string | null
           ends_at: string | null
           external_event_id: string | null
+          external_message_id: string | null
           external_thread_id: string | null
           id: string
           metadata: Json
@@ -209,6 +210,7 @@ export type Database = {
           created_by?: string | null
           ends_at?: string | null
           external_event_id?: string | null
+          external_message_id?: string | null
           external_thread_id?: string | null
           id?: string
           metadata?: Json
@@ -230,6 +232,7 @@ export type Database = {
           created_by?: string | null
           ends_at?: string | null
           external_event_id?: string | null
+          external_message_id?: string | null
           external_thread_id?: string | null
           id?: string
           metadata?: Json
@@ -2086,6 +2089,57 @@ export type Database = {
           },
           {
             foreignKeyName: "google_calendar_sync_state_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_gmail_sync_state: {
+        Row: {
+          created_at: string
+          history_id: string | null
+          id: string
+          last_error: string | null
+          last_sync_at: string | null
+          status: string
+          sync_enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          history_id?: string | null
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          status?: string
+          sync_enabled?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          history_id?: string | null
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          status?: string
+          sync_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_gmail_sync_state_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "ai_usage_daily_rollup"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "google_gmail_sync_state_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
             referencedRelation: "users"

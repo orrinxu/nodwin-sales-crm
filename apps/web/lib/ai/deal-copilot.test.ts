@@ -80,6 +80,7 @@ function makeActivity(over: Partial<ActivityRecord> = {}): ActivityRecord {
     timeZone: null,
     allDay: false,
     externalEventId: null,
+    externalMessageId: null,
     metadata: {},
     createdAt: "2026-07-04T00:00:00Z",
     updatedAt: "2026-07-04T00:00:00Z",
