@@ -61,6 +61,7 @@ function meeting(overrides: Partial<ActivityRecord> = {}): ActivityRecord {
     timeZone: "Asia/Kolkata",
     allDay: false,
     externalEventId: null,
+    externalMessageId: null,
     metadata: { location: "Room 2", attendees: [{ email: "a@nodwin.com" }] },
     createdAt: "2026-07-20T00:00:00.000Z",
     updatedAt: "2026-07-20T00:00:00.000Z",

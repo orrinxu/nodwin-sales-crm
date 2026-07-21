@@ -467,6 +467,7 @@ function toDomainActivity(data: Record<string, unknown>): ActivityRecord {
     timeZone: (data.time_zone as string) ?? null,
     allDay: (data.all_day as boolean) ?? false,
     externalEventId: (data.external_event_id as string) ?? null,
+    externalMessageId: (data.external_message_id as string) ?? null,
     metadata: (data.metadata ?? {}) as Record<string, unknown>,
     createdAt: data.created_at as string,
     updatedAt: data.updated_at as string,

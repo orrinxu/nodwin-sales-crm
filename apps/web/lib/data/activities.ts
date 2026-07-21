@@ -40,6 +40,10 @@ export interface ActivityRecord {
   timeZone: string | null
   allDay: boolean
   externalEventId: string | null
+  // Gmail per-message idempotency key (ORR-830). Set for Gmail-synced
+  // email activities; null for everything else. Distinct from
+  // externalThreadId (Gmail thread id, non-unique).
+  externalMessageId: string | null
   metadata: Record<string, unknown>
   createdAt: string
   updatedAt: string
@@ -60,6 +64,9 @@ export const activityCreateSchema = z.object({
   timeZone: z.string().max(100).nullable().optional(),
   allDay: z.boolean().optional(),
   externalEventId: z.string().max(1024).nullable().optional(),
+  // Gmail message id (ORR-830). Optional so existing note/call/email/meeting
+  // callers are unaffected; populated by the Gmail sync writer path.
+  externalMessageId: z.string().max(1024).nullable().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 })
 
@@ -80,6 +87,7 @@ const ACTIVITY_SELECT = `
   time_zone,
   all_day,
   external_event_id,
+  external_message_id,
   metadata,
   created_at,
   updated_at,
@@ -113,6 +121,7 @@ function toDomainActivity(data: Record<string, unknown>): ActivityRecord {
     timeZone: (data.time_zone as string) ?? null,
     allDay: (data.all_day as boolean) ?? false,
     externalEventId: (data.external_event_id as string) ?? null,
+    externalMessageId: (data.external_message_id as string) ?? null,
     metadata: (data.metadata ?? {}) as Record<string, unknown>,
     createdAt: data.created_at as string,
     updatedAt: data.updated_at as string,
@@ -235,6 +244,7 @@ export async function createActivity(
       time_zone: input.timeZone ?? null,
       all_day: input.allDay ?? false,
       external_event_id: input.externalEventId ?? null,
+      external_message_id: input.externalMessageId ?? null,
       metadata: {
         ...(input.metadata ?? {}),
         source: ctx.source,
