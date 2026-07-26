@@ -1,6 +1,17 @@
 "use client"
 
-import { Phone, Mail, Video, FileText, CheckSquare, Clock, MapPin, Users } from "lucide-react"
+import {
+  Phone,
+  Mail,
+  Video,
+  FileText,
+  CheckSquare,
+  Clock,
+  MapPin,
+  Paperclip,
+  User,
+  Users,
+} from "lucide-react"
 import {
   Card,
   CardContent,
@@ -9,6 +20,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { usePreferences } from "@/components/providers/preferences-provider"
@@ -17,6 +29,12 @@ import {
   readMeetingMetadata,
   summarizeAttendees,
 } from "@/lib/meeting-format"
+import {
+  readEmailMetadata,
+  hasEmailDetail,
+  emailPersonLabel,
+  summarizeEmailPeople,
+} from "@/lib/email-format"
 
 interface Activity {
   id: string
@@ -113,6 +131,16 @@ export function ActivityTimeline({
                   meeting.hangoutLink != null ||
                   attendeeSummary != null)
 
+              // Email-specific detail (ORR-834). Only computed for emails.
+              const email =
+                activity.type === "email_inbound" ||
+                activity.type === "email_outbound"
+                  ? readEmailMetadata(activity.metadata)
+                  : null
+              const emailTo = email ? summarizeEmailPeople(email.to) : null
+              const emailCc = email ? summarizeEmailPeople(email.cc) : null
+              const hasEmail = email != null && hasEmailDetail(email)
+
               return (
                 <div key={activity.id} className="flex gap-4">
                   <div className="flex flex-col items-center">
@@ -196,6 +224,54 @@ export function ActivityTimeline({
                             <Video className="size-3 shrink-0" />
                             Join
                           </a>
+                        )}
+                      </div>
+                    )}
+                    {hasEmail && email && (
+                      <div className="mt-2 flex flex-col gap-1 text-xs text-muted-foreground">
+                        {email.from && (
+                          <div className="flex items-center gap-1.5">
+                            <User className="size-3 shrink-0" />
+                            <span>
+                              <span className="font-medium">From:</span>{" "}
+                              {emailPersonLabel(email.from)}
+                            </span>
+                          </div>
+                        )}
+                        {emailTo && (
+                          <div className="flex items-center gap-1.5">
+                            <Users className="size-3 shrink-0" />
+                            <span>
+                              <span className="font-medium">To:</span> {emailTo}
+                            </span>
+                          </div>
+                        )}
+                        {emailCc && (
+                          <div className="flex items-center gap-1.5">
+                            <Users className="size-3 shrink-0" />
+                            <span>
+                              <span className="font-medium">Cc:</span> {emailCc}
+                            </span>
+                          </div>
+                        )}
+                        {email.attachments.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                            {email.attachments.map((att, i) => (
+                              <Badge
+                                key={`${att.name}-${i}`}
+                                variant="outline"
+                                className="gap-1"
+                              >
+                                <Paperclip className="size-3 shrink-0" />
+                                <span>{att.name}</span>
+                                {att.type && (
+                                  <span className="text-muted-foreground">
+                                    · {att.type}
+                                  </span>
+                                )}
+                              </Badge>
+                            ))}
+                          </div>
                         )}
                       </div>
                     )}

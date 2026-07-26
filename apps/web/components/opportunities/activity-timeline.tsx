@@ -8,17 +8,26 @@ import {
   CheckSquare,
   Clock,
   MapPin,
+  Paperclip,
+  User,
   Users,
   Video,
 } from "lucide-react"
 
 import type { ActivityRecord } from "@/lib/data/activities"
+import { Badge } from "@/components/ui/badge"
 import { usePreferences } from "@/components/providers/preferences-provider"
 import {
   formatMeetingTimeRange,
   readMeetingMetadata,
   summarizeAttendees,
 } from "@/lib/meeting-format"
+import {
+  readEmailMetadata,
+  hasEmailDetail,
+  emailPersonLabel,
+  summarizeEmailPeople,
+} from "@/lib/email-format"
 
 interface ActivityTimelineProps {
   activities: ActivityRecord[]
@@ -100,6 +109,17 @@ export function ActivityTimeline({ activities }: ActivityTimelineProps) {
               meeting.hangoutLink != null ||
               attendeeSummary != null)
 
+          // Email-specific detail (ORR-834): from / to / cc + attachment chips.
+          // Only computed for emails; everything else renders exactly as before.
+          const email =
+            activity.type === "email_inbound" ||
+            activity.type === "email_outbound"
+              ? readEmailMetadata(activity.metadata)
+              : null
+          const emailTo = email ? summarizeEmailPeople(email.to) : null
+          const emailCc = email ? summarizeEmailPeople(email.cc) : null
+          const hasEmail = email != null && hasEmailDetail(email)
+
           return (
             <div key={activity.id} className="relative flex gap-3 pl-1">
               <div className="z-10 flex size-9 items-center justify-center rounded-full border bg-background">
@@ -148,6 +168,54 @@ export function ActivityTimeline({ activities }: ActivityTimelineProps) {
                         <Video className="size-3 shrink-0" />
                         Join
                       </a>
+                    )}
+                  </div>
+                )}
+                {hasEmail && email && (
+                  <div className="flex flex-col gap-1 pt-0.5 text-xs text-muted-foreground">
+                    {email.from && (
+                      <div className="flex items-center gap-1.5">
+                        <User className="size-3 shrink-0" />
+                        <span>
+                          <span className="font-medium">From:</span>{" "}
+                          {emailPersonLabel(email.from)}
+                        </span>
+                      </div>
+                    )}
+                    {emailTo && (
+                      <div className="flex items-center gap-1.5">
+                        <Users className="size-3 shrink-0" />
+                        <span>
+                          <span className="font-medium">To:</span> {emailTo}
+                        </span>
+                      </div>
+                    )}
+                    {emailCc && (
+                      <div className="flex items-center gap-1.5">
+                        <Users className="size-3 shrink-0" />
+                        <span>
+                          <span className="font-medium">Cc:</span> {emailCc}
+                        </span>
+                      </div>
+                    )}
+                    {email.attachments.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                        {email.attachments.map((att, i) => (
+                          <Badge
+                            key={`${att.name}-${i}`}
+                            variant="outline"
+                            className="gap-1"
+                          >
+                            <Paperclip className="size-3 shrink-0" />
+                            <span>{att.name}</span>
+                            {att.type && (
+                              <span className="text-muted-foreground">
+                                · {att.type}
+                              </span>
+                            )}
+                          </Badge>
+                        ))}
+                      </div>
                     )}
                   </div>
                 )}
