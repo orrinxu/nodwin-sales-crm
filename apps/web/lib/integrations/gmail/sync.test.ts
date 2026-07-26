@@ -90,6 +90,8 @@ interface DbConfig {
   accounts?: { id: string }[]
   contacts?: { id: string; email?: string }[]
   upsertError?: string | null
+  /** A pre-existing activities row returned by the direction-guard lookup. */
+  existingActivity?: Record<string, unknown> | null
 }
 
 interface Recorded {
@@ -134,7 +136,9 @@ function makeDb(cfg: DbConfig): FakeDb {
             error: cfg.upsertError ? { message: cfg.upsertError } : null,
           }
         }
-        return { data: null, error: null }
+        // The direction-guard lookup (ORR-835): a prior row for this
+        // external_message_id, or null when none exists.
+        return { data: cfg.existingActivity ?? null, error: null }
       }
       if (table === "accounts") {
         return { data: cfg.accounts ?? [], error: null }
@@ -319,6 +323,45 @@ describe("runGmailSyncForUser (ORR-832)", () => {
 
     expect(firstKey).toBe(secondKey)
     expect(db.recorded.upserts[0].opts).toEqual({ onConflict: "external_message_id" })
+  })
+
+  it("DIRECTION GUARD: leaves a CRM-sent (email_outbound, source 'crm') row untouched", async () => {
+    // The message we SENT reappears in the pull and resolves an account by its
+    // recipient — but a prior row already owns this external_message_id with
+    // source 'crm'. It must NOT be re-upserted (which would flip it to inbound).
+    db = makeDb({
+      syncState: enabledState(),
+      accounts: [{ id: "acc-1" }],
+      contacts: [],
+      existingActivity: { id: "act-crm-1", metadata: { source: "crm" } },
+    })
+    mockGetProfile.mockResolvedValue({ emailAddress: "rep@nodwin.com", historyId: "h-1" })
+    mockListMessageIds.mockResolvedValue({ messageIds: ["msg-1"] })
+    mockGetMessage.mockResolvedValue(message())
+
+    const res = await runGmailSyncForUser(USER)
+
+    expect(res).toEqual({ upserted: 0, scanned: 1 })
+    expect(db.recorded.upserts).toHaveLength(0)
+  })
+
+  it("still upserts when a prior row exists but was written by the pull (source 'gmail')", async () => {
+    // A previously-pulled inbound row is fair game to refresh — only 'crm' rows
+    // are protected.
+    db = makeDb({
+      syncState: enabledState(),
+      accounts: [{ id: "acc-1" }],
+      contacts: [],
+      existingActivity: { id: "act-gmail-1", metadata: { source: "gmail" } },
+    })
+    mockGetProfile.mockResolvedValue({ emailAddress: "rep@nodwin.com", historyId: "h-1" })
+    mockListMessageIds.mockResolvedValue({ messageIds: ["msg-1"] })
+    mockGetMessage.mockResolvedValue(message())
+
+    const res = await runGmailSyncForUser(USER)
+
+    expect(res).toEqual({ upserted: 1, scanned: 1 })
+    expect(db.recorded.upserts).toHaveLength(1)
   })
 
   it("uses the History API incrementally when a history_id cursor is present", async () => {
