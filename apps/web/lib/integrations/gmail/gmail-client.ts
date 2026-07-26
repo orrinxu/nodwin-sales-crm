@@ -417,3 +417,39 @@ export function normalizeMessage(
     attachments: acc.attachments,
   }
 }
+
+// ---------------------------------------------------------------------------
+// Attachment bytes (ORR-836)
+// ---------------------------------------------------------------------------
+
+export interface GetAttachmentBytesParams {
+  userId: string
+  /** The Gmail message id the attachment belongs to. */
+  messageId: string
+  /** The `attachmentId` surfaced on {@link NormalizedEmailAttachment}. */
+  attachmentId: string
+}
+
+/**
+ * Fetch a single attachment's raw BYTES via `users.messages.attachments.get`
+ * (ORR-836 — v1/ORR-831 recorded metadata only). Gmail returns the payload
+ * base64url-encoded (URL-safe alphabet, no padding); we normalize and decode it
+ * to a Node `Buffer` for the caller to upload to Storage.
+ *
+ * Covered by the existing read-only scope. Like the rest of this client it does
+ * NO DB writes — the sync job (ORR-836) owns persistence + the size cap.
+ */
+export async function getAttachmentBytes(
+  params: GetAttachmentBytesParams,
+): Promise<Buffer> {
+  const { userId, messageId, attachmentId } = params
+  const gmail = await gmailClientFor(userId)
+  const response = await gmail.users.messages.attachments.get({
+    userId: "me",
+    messageId,
+    id: attachmentId,
+  })
+  const data = response.data.data ?? ""
+  const b64 = data.replace(/-/g, "+").replace(/_/g, "/")
+  return Buffer.from(b64, "base64")
+}

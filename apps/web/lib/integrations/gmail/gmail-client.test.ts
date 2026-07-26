@@ -23,6 +23,7 @@ const {
   historyListMock,
   messagesListMock,
   messagesGetMock,
+  attachmentsGetMock,
   setCredentialsMock,
   oauth2Ctor,
   gmailFactory,
@@ -31,13 +32,18 @@ const {
   const historyListMock = vi.fn()
   const messagesListMock = vi.fn()
   const messagesGetMock = vi.fn()
+  const attachmentsGetMock = vi.fn()
   const setCredentialsMock = vi.fn()
   const oauth2Ctor = vi.fn(() => ({ setCredentials: setCredentialsMock }))
   const gmailFactory = vi.fn(() => ({
     users: {
       getProfile: getProfileMock,
       history: { list: historyListMock },
-      messages: { list: messagesListMock, get: messagesGetMock },
+      messages: {
+        list: messagesListMock,
+        get: messagesGetMock,
+        attachments: { get: attachmentsGetMock },
+      },
     },
   }))
   return {
@@ -45,6 +51,7 @@ const {
     historyListMock,
     messagesListMock,
     messagesGetMock,
+    attachmentsGetMock,
     setCredentialsMock,
     oauth2Ctor,
     gmailFactory,
@@ -62,6 +69,7 @@ import {
   listHistory,
   listMessageIds,
   getMessage,
+  getAttachmentBytes,
   normalizeMessage,
   parseAddress,
   parseAddressList,
@@ -395,5 +403,48 @@ describe("getMessage (ORR-831)", () => {
     })
     expect(result.externalMessageId).toBe("msg-9")
     expect(result.bodyText).toBe("hello")
+  })
+})
+
+describe("getAttachmentBytes (ORR-836)", () => {
+  it("fetches an attachment and base64url-decodes it to a Buffer", async () => {
+    // Gmail returns URL-safe base64 (no padding). Craft bytes whose standard
+    // base64 contains + and / so the URL-safe -> standard mapping is exercised.
+    const original = Buffer.from([0xfb, 0xff, 0xbf, 0x00, 0x10, 0x83])
+    const urlSafe = original
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "")
+    expect(urlSafe).toMatch(/[-_]/) // sanity: URL-safe chars are present
+
+    attachmentsGetMock.mockResolvedValue({ data: { data: urlSafe } })
+
+    const bytes = await getAttachmentBytes({
+      userId: USER,
+      messageId: "msg-1",
+      attachmentId: "att-123",
+    })
+
+    expect(getTokenMock).toHaveBeenCalledWith(USER, [GMAIL_READONLY_SCOPE])
+    expect(attachmentsGetMock).toHaveBeenCalledWith({
+      userId: "me",
+      messageId: "msg-1",
+      id: "att-123",
+    })
+    expect(Buffer.isBuffer(bytes)).toBe(true)
+    expect(Buffer.compare(bytes, original)).toBe(0)
+  })
+
+  it("returns an empty Buffer when Gmail returns no data", async () => {
+    attachmentsGetMock.mockResolvedValue({ data: {} })
+
+    const bytes = await getAttachmentBytes({
+      userId: USER,
+      messageId: "msg-1",
+      attachmentId: "att-x",
+    })
+
+    expect(bytes.length).toBe(0)
   })
 })

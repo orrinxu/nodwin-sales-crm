@@ -20,13 +20,29 @@ const {
   mockListHistory,
   mockListMessageIds,
   mockGetMessage,
-} = vi.hoisted(() => ({
-  mockSendAdminAlert: vi.fn(() => Promise.resolve("alert-id")),
-  mockGetProfile: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
-  mockListHistory: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
-  mockListMessageIds: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
-  mockGetMessage: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
-}))
+  mockGetAttachmentBytes,
+  mockStoreDocumentBytes,
+  MAX_STORED_DOCUMENT_BYTES,
+  DocumentTooLargeError,
+} = vi.hoisted(() => {
+  class DocumentTooLargeError extends Error {
+    constructor(public readonly sizeBytes: number) {
+      super("too large")
+      this.name = "DocumentTooLargeError"
+    }
+  }
+  return {
+    mockSendAdminAlert: vi.fn(() => Promise.resolve("alert-id")),
+    mockGetProfile: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+    mockListHistory: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+    mockListMessageIds: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+    mockGetMessage: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+    mockGetAttachmentBytes: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+    mockStoreDocumentBytes: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+    MAX_STORED_DOCUMENT_BYTES: 25 * 1024 * 1024,
+    DocumentTooLargeError,
+  }
+})
 
 vi.mock("@/lib/notifications/admin-alerts", () => ({
   sendAdminAlert: mockSendAdminAlert,
@@ -43,8 +59,19 @@ vi.mock("@/lib/integrations/gmail/gmail-client", async (importOriginal) => {
     listHistory: mockListHistory,
     listMessageIds: mockListMessageIds,
     getMessage: mockGetMessage,
+    getAttachmentBytes: mockGetAttachmentBytes,
   }
 })
+
+// Stub the documents storage seam (ORR-836) so no real Storage/DB is touched.
+// DocumentTooLargeError (hoisted above) is a local stand-in for the real class
+// thrown by storeDocumentBytes — sync's `instanceof` check must see the same
+// class the mock throws, so we throw THIS one from the mock in the oversize test.
+vi.mock("@/lib/data/documents", () => ({
+  storeDocumentBytes: mockStoreDocumentBytes,
+  DocumentTooLargeError,
+  MAX_STORED_DOCUMENT_BYTES,
+}))
 
 // A single shared fake DB; the @supabase/ssr createServerClient returns it.
 let db: FakeDb
@@ -388,5 +415,160 @@ describe("runGmailSyncForUser (ORR-832)", () => {
     expect(mockSendAdminAlert).toHaveBeenCalledOnce()
     // Dead-letter never carries a token — only the user id + reason.
     expect(db.recorded.deadletters[0]).toMatchObject({ from_address: `gmail-sync:${USER}` })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Attachment byte persistence (ORR-836)
+// ---------------------------------------------------------------------------
+
+const attachment = (
+  over: Partial<import("@/lib/integrations/gmail/gmail-client").NormalizedEmailAttachment> = {},
+) => ({
+  filename: "deck.pdf",
+  mimeType: "application/pdf",
+  size: 20480,
+  attachmentId: "att-1",
+  ...over,
+})
+
+describe("Gmail attachment persistence (ORR-836)", () => {
+  it("fetches bytes, stores a document linked to the account, and records the ref", async () => {
+    db = makeDb({
+      syncState: enabledState(),
+      accounts: [{ id: "acc-1" }],
+      contacts: [],
+    })
+    mockGetProfile.mockResolvedValueOnce({ emailAddress: "rep@nodwin.com", historyId: "h-1" })
+    mockListMessageIds.mockResolvedValueOnce({ messageIds: ["msg-1"] })
+    mockGetMessage.mockResolvedValueOnce(message({ attachments: [attachment()] }))
+    const bytes = Buffer.from([1, 2, 3, 4])
+    mockGetAttachmentBytes.mockResolvedValueOnce(bytes)
+    mockStoreDocumentBytes.mockResolvedValueOnce({
+      id: "doc-1",
+      bucket: "documents",
+      storagePath: "acc-1/uuid-deck.pdf",
+      sizeBytes: 4,
+    })
+
+    const res = await runGmailSyncForUser(USER)
+
+    expect(res.upserted).toBe(1)
+    // Bytes fetched for the right message + attachment.
+    expect(mockGetAttachmentBytes).toHaveBeenCalledWith({
+      userId: USER,
+      messageId: "msg-1",
+      attachmentId: "att-1",
+    })
+    // Stored, linked to the matched account, attributed to the syncing user.
+    expect(mockStoreDocumentBytes).toHaveBeenCalledOnce()
+    expect(mockStoreDocumentBytes.mock.calls[0][0]).toMatchObject({
+      accountId: "acc-1",
+      name: "deck.pdf",
+      mimeType: "application/pdf",
+      bytes,
+      uploadedBy: USER,
+    })
+    // The activity records the resulting document ref on metadata.attachments.
+    const meta = db.recorded.upserts[0].row.metadata as {
+      attachments: Array<Record<string, unknown>>
+    }
+    expect(meta.attachments).toHaveLength(1)
+    expect(meta.attachments[0]).toMatchObject({
+      filename: "deck.pdf",
+      attachmentId: "att-1",
+      stored: true,
+      documentId: "doc-1",
+      storagePath: "acc-1/uuid-deck.pdf",
+    })
+  })
+
+  it("skips an oversize attachment (declared size over the cap) without fetching bytes", async () => {
+    db = makeDb({
+      syncState: enabledState(),
+      accounts: [{ id: "acc-1" }],
+      contacts: [],
+    })
+    mockGetProfile.mockResolvedValueOnce({ emailAddress: "rep@nodwin.com", historyId: "h-1" })
+    mockListMessageIds.mockResolvedValueOnce({ messageIds: ["msg-1"] })
+    mockGetMessage.mockResolvedValueOnce(
+      message({
+        attachments: [attachment({ size: MAX_STORED_DOCUMENT_BYTES + 1 })],
+      }),
+    )
+
+    const res = await runGmailSyncForUser(USER)
+
+    expect(res.upserted).toBe(1)
+    expect(mockGetAttachmentBytes).not.toHaveBeenCalled()
+    expect(mockStoreDocumentBytes).not.toHaveBeenCalled()
+    const meta = db.recorded.upserts[0].row.metadata as {
+      attachments: Array<Record<string, unknown>>
+    }
+    expect(meta.attachments[0]).toMatchObject({ stored: false, reason: "oversize" })
+  })
+
+  it("records oversize when the ACTUAL bytes exceed the cap (declared size lied)", async () => {
+    db = makeDb({
+      syncState: enabledState(),
+      accounts: [{ id: "acc-1" }],
+      contacts: [],
+    })
+    mockGetProfile.mockResolvedValueOnce({ emailAddress: "rep@nodwin.com", historyId: "h-1" })
+    mockListMessageIds.mockResolvedValueOnce({ messageIds: ["msg-1"] })
+    mockGetMessage.mockResolvedValueOnce(message({ attachments: [attachment({ size: 10 })] }))
+    mockGetAttachmentBytes.mockResolvedValueOnce(Buffer.from([1, 2, 3]))
+    mockStoreDocumentBytes.mockRejectedValueOnce(new DocumentTooLargeError(9_999_999))
+
+    const res = await runGmailSyncForUser(USER)
+
+    expect(res.upserted).toBe(1)
+    const meta = db.recorded.upserts[0].row.metadata as {
+      attachments: Array<Record<string, unknown>>
+    }
+    expect(meta.attachments[0]).toMatchObject({ stored: false, reason: "oversize" })
+  })
+
+  it("keeps attachments metadata-only when only a contact (no account) matched", async () => {
+    db = makeDb({
+      syncState: enabledState(),
+      accounts: [],
+      contacts: [{ id: "con-1", email: "buyer@acme.com" }],
+    })
+    mockGetProfile.mockResolvedValueOnce({ emailAddress: "rep@nodwin.com", historyId: "h-1" })
+    mockListMessageIds.mockResolvedValueOnce({ messageIds: ["msg-1"] })
+    mockGetMessage.mockResolvedValueOnce(message({ attachments: [attachment()] }))
+
+    const res = await runGmailSyncForUser(USER)
+
+    expect(res.upserted).toBe(1)
+    // No account entity to own a document row → no fetch/store, metadata only.
+    expect(mockGetAttachmentBytes).not.toHaveBeenCalled()
+    expect(mockStoreDocumentBytes).not.toHaveBeenCalled()
+    const meta = db.recorded.upserts[0].row.metadata as {
+      attachments: Array<Record<string, unknown>>
+    }
+    expect(meta.attachments[0]).toMatchObject({ stored: false, reason: "no-account" })
+  })
+
+  it("records error (and never aborts) when a single attachment fetch fails", async () => {
+    db = makeDb({
+      syncState: enabledState(),
+      accounts: [{ id: "acc-1" }],
+      contacts: [],
+    })
+    mockGetProfile.mockResolvedValueOnce({ emailAddress: "rep@nodwin.com", historyId: "h-1" })
+    mockListMessageIds.mockResolvedValueOnce({ messageIds: ["msg-1"] })
+    mockGetMessage.mockResolvedValueOnce(message({ attachments: [attachment()] }))
+    mockGetAttachmentBytes.mockRejectedValueOnce(new Error("network boom"))
+
+    const res = await runGmailSyncForUser(USER)
+
+    // The message still lands as an activity; the attachment is marked failed.
+    expect(res.upserted).toBe(1)
+    const meta = db.recorded.upserts[0].row.metadata as {
+      attachments: Array<Record<string, unknown>>
+    }
+    expect(meta.attachments[0]).toMatchObject({ stored: false, reason: "error" })
   })
 })

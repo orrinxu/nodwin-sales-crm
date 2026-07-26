@@ -425,6 +425,111 @@ export async function createStoredDocument(
   }
 }
 
+// ── Server-side 'bytes -> Storage' (ORR-836) ─────────────────────────────────
+//
+// The FIRST server-side upload path in the app. Everywhere else, bytes go
+// browser -> signed URL (createStoredDocument mints the URL; client-upload.ts
+// pushes to it) so they never transit the Next.js server. But a background job
+// with no user session — Gmail attachment sync (ORR-836) — already holds the
+// bytes server-side, so it uploads them directly via the service role and
+// inserts the matching documents row, reusing storageObjectPath + the
+// createStoredDocument row shape.
+
+/** Max bytes for a server-stored document. Matches the inbound-email attachment
+ *  cap (lib/email/inbound.ts) so Gmail + Postmark enforce the same limit. */
+export const MAX_STORED_DOCUMENT_BYTES = 25 * 1024 * 1024 // 25 MiB
+
+/** Thrown when bytes exceed {@link MAX_STORED_DOCUMENT_BYTES}. Callers skip the
+ *  attachment (recording it as oversize) rather than failing the whole sync. */
+export class DocumentTooLargeError extends Error {
+  constructor(public readonly sizeBytes: number) {
+    super(
+      `Document is ${sizeBytes} bytes, over the ${MAX_STORED_DOCUMENT_BYTES}-byte cap.`,
+    )
+    this.name = "DocumentTooLargeError"
+  }
+}
+
+export interface StoreDocumentBytesInput {
+  /** Exactly one of opportunityId / accountId must be set (the parent entity). */
+  opportunityId?: string | null
+  accountId?: string | null
+  name: string
+  mimeType: string
+  bytes: Uint8Array
+  category?: DocumentCategory
+  /** The user whose sync produced this document (documents.uploaded_by). */
+  uploadedBy: string
+}
+
+export interface StoredDocumentBytesRef {
+  id: string
+  bucket: string
+  storagePath: string
+  sizeBytes: number
+}
+
+/**
+ * SERVER-SIDE upload of raw BYTES into the private `documents` bucket + the
+ * matching documents row (ORR-836). Unlike {@link createStoredDocument} (which
+ * mints a signed URL for the browser), this consumes the bytes directly on the
+ * service role.
+ *
+ * SYSTEM/BACKGROUND CALLERS ONLY: both the object upload and the row insert run
+ * on the service role, so there is NO per-user RLS check here — the CALLER must
+ * only pass an entity it has already authorised (Gmail sync attributes to an
+ * account it matched by address). Enforces the 25 MiB cap: oversize throws
+ * {@link DocumentTooLargeError} before any object is written. On a row-insert
+ * failure the just-uploaded object is best-effort removed so no bytes are
+ * orphaned.
+ */
+export async function storeDocumentBytes(
+  input: StoreDocumentBytesInput,
+): Promise<StoredDocumentBytesRef> {
+  const entityId = input.opportunityId ?? input.accountId
+  if (!entityId) {
+    throw new Error("A document must be linked to an opportunity or an account.")
+  }
+
+  const sizeBytes = input.bytes.byteLength
+  if (sizeBytes > MAX_STORED_DOCUMENT_BYTES) {
+    throw new DocumentTooLargeError(sizeBytes)
+  }
+
+  const supabase = serviceRoleClient()
+  const storagePath = storageObjectPath(entityId, input.name)
+  const mimeType = input.mimeType || "application/octet-stream"
+
+  const { error: upErr } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .upload(storagePath, input.bytes, { contentType: mimeType, upsert: false })
+  if (upErr) {
+    throw new Error(`Failed to upload document bytes: ${upErr.message}`)
+  }
+
+  const { data: inserted, error: insErr } = await supabase
+    .from("documents")
+    .insert({
+      opportunity_id: input.opportunityId ?? null,
+      account_id: input.accountId ?? null,
+      storage_path: storagePath,
+      size_bytes: sizeBytes,
+      name: input.name,
+      mime_type: mimeType,
+      category: input.category ?? "other",
+      uploaded_by: input.uploadedBy,
+    })
+    .select("id")
+    .single()
+  if (insErr || !inserted) {
+    // Don't leave orphaned bytes behind a failed row insert.
+    await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]).catch(() => {})
+    throw new Error(`Failed to create document row: ${insErr?.message ?? "unknown"}`)
+  }
+
+  return { id: inserted.id, bucket: STORAGE_BUCKET, storagePath, sizeBytes }
+}
+
 export const documentReplacementSchema = z.object({
   documentId: z.string().uuid(),
   name: z.string().trim().min(1).max(500),
