@@ -2,6 +2,7 @@ import "server-only"
 import { z } from "zod"
 import { createServerClient } from "@/lib/supabase/server"
 import type { AuthenticatedUser } from "@/lib/security/auth"
+import type { Json } from "@/lib/database.types"
 
 export interface ActivityCallContext {
   user: AuthenticatedUser
@@ -255,6 +256,72 @@ export async function createActivity(
 
   if (error) {
     throw new Error(`Failed to create activity: ${error.message}`)
+  }
+
+  return toDomainActivity(data as Record<string, unknown>)
+}
+
+/** A structured email participant, stored on the activity metadata (ORR-834 shape). */
+export interface EmailParticipant {
+  email: string
+  name?: string
+}
+
+export interface EmailOutboundActivityInput {
+  opportunityId?: string | null
+  accountId?: string | null
+  contactId?: string | null
+  subject: string | null
+  body: string | null
+  /** The sent Gmail message id — the echo-loop conflict key (see below). */
+  externalMessageId: string
+  externalThreadId: string | null
+  from: EmailParticipant | null
+  to: EmailParticipant[]
+  cc: EmailParticipant[]
+}
+
+/**
+ * Persist a CRM-sent email as an `email_outbound` activity (ORR-835).
+ *
+ * Unlike {@link createActivity}, `metadata.source` is pinned to `'crm'` (not the
+ * request source), and `external_message_id` is set to the sent Gmail message id.
+ * Together these form the ECHO-LOOP GUARD: when the pull sync (ORR-832) later sees
+ * this same message in the mailbox it upserts ON CONFLICT (external_message_id)
+ * onto THIS row rather than creating a duplicate. The `from`/`to`/`cc` are stored
+ * as `{ email, name? }` objects so the timeline email renderer (ORR-834) surfaces
+ * them exactly as it does for pulled mail.
+ */
+export async function createEmailOutboundActivity(
+  ctx: ActivityCallContext,
+  input: EmailOutboundActivityInput,
+): Promise<ActivityRecord> {
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("activities")
+    .insert({
+      opportunity_id: input.opportunityId ?? null,
+      account_id: input.accountId ?? null,
+      contact_id: input.contactId ?? null,
+      user_id: ctx.user.id,
+      type: "email_outbound",
+      subject: input.subject,
+      body: input.body,
+      external_message_id: input.externalMessageId,
+      external_thread_id: input.externalThreadId,
+      metadata: {
+        from: input.from,
+        to: input.to,
+        cc: input.cc,
+        source: "crm",
+      } as unknown as Json,
+    })
+    .select(ACTIVITY_SELECT)
+    .single()
+
+  if (error) {
+    throw new Error(`Failed to create outbound email activity: ${error.message}`)
   }
 
   return toDomainActivity(data as Record<string, unknown>)

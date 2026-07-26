@@ -287,6 +287,26 @@ async function ingestMessage(
   // NOISE GUARD: only import mail that resolves to a known account OR contact.
   if (!accountId && !contactId) return false
 
+  // DIRECTION GUARD (ORR-835): a message this CRM SENT is recorded as an
+  // `email_outbound` activity (metadata.source === 'crm', external_message_id =
+  // the sent Gmail id). That same message reappears in the pull — it lives in
+  // the mailbox and its recipient resolves an account — and the echo-guard
+  // upsert (ON CONFLICT external_message_id) would keep it a single row but flip
+  // it to `email_inbound` / source 'gmail'. Leave the CRM-owned row untouched;
+  // the outbound record is authoritative. Skipping here also avoids a wasted
+  // attachment re-fetch + re-store for our own sent mail.
+  const { data: existing } = await client
+    .from("activities")
+    .select("id, metadata")
+    .eq("external_message_id", message.externalMessageId)
+    .maybeSingle()
+  if (
+    existing &&
+    (existing.metadata as { source?: unknown } | null)?.source === "crm"
+  ) {
+    return false
+  }
+
   // ORR-836: fetch + store attachment BYTES (size-capped) before the upsert, so
   // the resulting document refs are recorded on the activity in one write.
   const attachments = await persistAttachments(

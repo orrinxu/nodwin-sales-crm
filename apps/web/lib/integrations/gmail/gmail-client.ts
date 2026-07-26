@@ -21,6 +21,9 @@ import { getValidGoogleAccessToken } from "../google/token-store"
 export const GMAIL_READONLY_SCOPE =
   "https://www.googleapis.com/auth/gmail.readonly"
 
+/** The scope required to SEND mail on the user's behalf (ORR-835). */
+export const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send"
+
 /**
  * Raised when Gmail rejects a `startHistoryId` with 404 NOT FOUND — the history
  * cursor is too old (Gmail prunes history after ~a week / on large deltas) or
@@ -452,4 +455,150 @@ export async function getAttachmentBytes(
   const data = response.data.data ?? ""
   const b64 = data.replace(/-/g, "+").replace(/_/g, "/")
   return Buffer.from(b64, "base64")
+}
+
+// ---------------------------------------------------------------------------
+// SEND (CRM → Gmail, ORR-835) — the write counterpart to the pull above.
+//
+// Self-contained on purpose: it reuses the shared address type + token-store but
+// adds its own scoped client + pure MIME builders so a concurrent edit elsewhere
+// in this file (e.g. attachment fetch, ORR-836) rebases without touching it.
+// ---------------------------------------------------------------------------
+
+export interface SendMessageParams {
+  userId: string
+  to: EmailAddress[]
+  cc?: EmailAddress[]
+  subject: string
+  bodyText: string
+  /**
+   * RFC5322 Message-ID of the message being answered. Emitted as In-Reply-To +
+   * References so standards-compliant clients thread the reply.
+   */
+  inReplyTo?: string
+  /** Gmail thread id — keeps the sent message in that existing conversation. */
+  threadId?: string
+}
+
+export interface SendMessageResult {
+  externalMessageId: string
+  threadId: string | null
+}
+
+/**
+ * URL-safe base64 with padding stripped — the alphabet Gmail's `raw` field wants
+ * (`+`→`-`, `/`→`_`, no `=`). Accepts a string (encoded UTF-8) or a Buffer.
+ */
+export function toBase64Url(input: string | Buffer): string {
+  const buf = typeof input === "string" ? Buffer.from(input, "utf-8") : input
+  return buf
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")
+}
+
+/**
+ * Format one address as an RFC5322 mailbox: `"Display Name" <email>`, or a bare
+ * `email` when there is no name. Embedded quotes/backslashes in the display name
+ * are escaped so a name containing a comma or quote can't break header parsing.
+ */
+export function formatEmailAddress(addr: EmailAddress): string {
+  const email = addr.email.trim()
+  const name = addr.name?.trim()
+  if (!name) return email
+  const escaped = name.replace(/([\\"])/g, "\\$1")
+  return `"${escaped}" <${email}>`
+}
+
+/**
+ * RFC2047-encode a header value when it contains non-ASCII, so a subject with
+ * accents/emoji survives transport. Pure ASCII passes through untouched.
+ */
+export function encodeHeaderValue(value: string): string {
+  // Non-ASCII if any code unit is above 0x7F.
+  const isAscii = ![...value].some((ch) => ch.charCodeAt(0) > 0x7f)
+  if (isAscii) return value
+  return `=?UTF-8?B?${Buffer.from(value, "utf-8").toString("base64")}?=`
+}
+
+/**
+ * Build an RFC822 MIME message (pure — exported for unit testing). The body is
+ * always UTF-8 base64-encoded (folded at 76 chars per RFC2045) so any content is
+ * transmitted safely; threading headers are emitted only for a reply.
+ */
+export function buildRfc822Message(params: {
+  to: EmailAddress[]
+  cc?: EmailAddress[]
+  subject: string
+  bodyText: string
+  inReplyTo?: string
+}): string {
+  const { to, cc, subject, bodyText, inReplyTo } = params
+
+  const headers: string[] = []
+  headers.push(`To: ${to.map(formatEmailAddress).join(", ")}`)
+  if (cc && cc.length > 0) {
+    headers.push(`Cc: ${cc.map(formatEmailAddress).join(", ")}`)
+  }
+  headers.push(`Subject: ${encodeHeaderValue(subject)}`)
+  if (inReplyTo) {
+    headers.push(`In-Reply-To: ${inReplyTo}`)
+    headers.push(`References: ${inReplyTo}`)
+  }
+  headers.push("MIME-Version: 1.0")
+  headers.push('Content-Type: text/plain; charset="UTF-8"')
+  headers.push("Content-Transfer-Encoding: base64")
+
+  const encodedBody = Buffer.from(bodyText, "utf-8")
+    .toString("base64")
+    .replace(/(.{76})/g, "$1\r\n")
+
+  return `${headers.join("\r\n")}\r\n\r\n${encodedBody}`
+}
+
+/** Build a per-user Gmail client scoped for SEND (mirrors {@link gmailClientFor}). */
+async function gmailSendClientFor(userId: string): Promise<gmail_v1.Gmail> {
+  const accessToken = await getValidGoogleAccessToken(userId, [GMAIL_SEND_SCOPE])
+  const auth: InstanceType<typeof google.auth.OAuth2> =
+    new google.auth.OAuth2()
+  auth.setCredentials({ access_token: accessToken })
+  return google.gmail({ version: "v1", auth })
+}
+
+/**
+ * Send a plaintext message on the user's behalf (ORR-835). Builds an RFC822 MIME
+ * message, base64url-encodes it into the `raw` field, and calls
+ * `users.messages.send` (scope `gmail.send`). For a reply, pass `inReplyTo` (the
+ * answered message's RFC Message-ID → In-Reply-To/References headers) and/or
+ * `threadId` (Gmail attaches the reply to that conversation). Returns the sent
+ * message id + thread id. It NEVER logs or returns token values.
+ *
+ * @throws GoogleNotConnectedError / GoogleScopeMissingError / GoogleReauthRequiredError
+ *   (propagated unchanged from the token-store).
+ */
+export async function sendMessage(
+  params: SendMessageParams,
+): Promise<SendMessageResult> {
+  const { userId, to, cc, subject, bodyText, inReplyTo, threadId } = params
+  if (to.length === 0) {
+    throw new Error("sendMessage requires at least one recipient.")
+  }
+
+  const gmail = await gmailSendClientFor(userId)
+  const mime = buildRfc822Message({ to, cc, subject, bodyText, inReplyTo })
+  const raw = toBase64Url(mime)
+
+  const requestBody: gmail_v1.Schema$Message = { raw }
+  if (threadId) requestBody.threadId = threadId
+
+  const response = await gmail.users.messages.send({
+    userId: "me",
+    requestBody,
+  })
+
+  return {
+    externalMessageId: response.data.id ?? "",
+    threadId: response.data.threadId ?? null,
+  }
 }

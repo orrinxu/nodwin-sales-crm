@@ -5,6 +5,7 @@ import { getOwnerOptions } from "@/lib/data/accounts"
 import { getFieldDefinitions } from "@/lib/data/field-definitions"
 import { getActivitiesForContact } from "@/lib/data/activities"
 import { updateContactAction, createContactActivityAction, searchAccountsAction } from "../actions"
+import { createEmailOutboundAction } from "../../email/actions"
 import { ContactDetailWrapper } from "@/components/contacts/contact-detail-wrapper"
 
 export default async function ContactDetailPage({
@@ -54,6 +55,7 @@ export default async function ContactDetailPage({
       activities={activities}
       updateAction={updateContactAction}
       createActivityAction={createContactActivityAction}
+      createEmailAction={createEmailOutboundAction}
     />
   )
 }
