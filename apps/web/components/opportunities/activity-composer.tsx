@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CalendarDays, Phone, StickyNote } from "lucide-react"
+import { CalendarDays, Mail, Phone, StickyNote } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -38,6 +38,40 @@ export interface MeetingCreateResult {
   pushWarning?: string
 }
 
+/**
+ * Outcome of sending an email (ORR-835). Structurally matches
+ * `createEmailOutboundAction`'s return; declared here so the client composer
+ * needn't import the server-action module.
+ */
+export interface EmailSendResult {
+  sent: boolean
+  reason?: "not_connected" | "scope_missing" | "reauth_required" | "error"
+  error?: string
+}
+
+/** A single email recipient, as sent to the server action. */
+export interface EmailRecipient {
+  email: string
+  name?: string
+}
+
+/**
+ * Pre-fill for a REPLY (ORR-835). When set, the composer switches to its Email
+ * tab and seeds the form with the quoted recipients + threading identifiers so
+ * the reply lands in the same Gmail conversation.
+ */
+export interface EmailReplyDraft {
+  /** Comma-separated `to` addresses. */
+  to: string
+  /** Comma-separated `cc` addresses. */
+  cc?: string
+  subject: string
+  threadId?: string
+  inReplyTo?: string
+  /** Bumped by the caller so a repeat reply to the same message re-seeds the form. */
+  nonce?: number
+}
+
 interface ActivityComposerProps {
   /** Entity id passed to createAction so the server action can revalidate its path. */
   revalidateId: string
@@ -52,11 +86,23 @@ interface ActivityComposerProps {
     revalidateId: string,
     input: unknown,
   ) => Promise<MeetingCreateResult>
+  /**
+   * Optional Gmail send action (ORR-835). When provided, an "Email" tab is shown
+   * that composes + sends a message and logs it as an `email_outbound` activity.
+   * The payload carries the entity scope + recipients; the server derives the
+   * revalidate path, so (unlike the other create actions) it takes a single arg.
+   */
+  createEmailAction?: (input: unknown) => Promise<EmailSendResult>
+  /** Pre-filled `to` for a fresh compose (e.g. a contact's email). */
+  defaultEmailTo?: string
+  /** When set (and changed), open the Email tab pre-filled as a reply. */
+  replyDraft?: EmailReplyDraft | null
   onCreated?: () => void
   /**
    * Notes-only mode for account/contact pages: renders just the note form (no
    * Call tab, no wrapper card). Full activity logging (calls) lives on
-   * opportunities.
+   * opportunities. When `createEmailAction` is provided, an Email tab is added
+   * alongside the note form.
    */
   notesOnly?: boolean
 }
@@ -66,17 +112,73 @@ export function ActivityComposer({
   scope,
   createAction,
   createMeetingAction,
+  createEmailAction,
+  defaultEmailTo,
+  replyDraft,
   onCreated,
   notesOnly = false,
 }: ActivityComposerProps) {
+  const [tab, setTab] = useState("note")
+
+  // A new reply request (identified by its nonce/content) pops the Email tab open
+  // and re-seeds the form. Keying the EmailForm on the same signal remounts it.
+  const replyKey = replyDraft
+    ? `${replyDraft.nonce ?? ""}:${replyDraft.threadId ?? ""}:${replyDraft.inReplyTo ?? ""}`
+    : "compose"
+  // Adjust the active tab during render when a NEW reply arrives — React's
+  // "storing information from previous renders" pattern (no effect, no cascading
+  // render), which is why we don't switch tabs in a useEffect.
+  const [seenReplyKey, setSeenReplyKey] = useState(replyKey)
+  if (replyDraft && replyKey !== seenReplyKey) {
+    setSeenReplyKey(replyKey)
+    setTab("email")
+  }
+
+  const emailForm = createEmailAction ? (
+    <EmailForm
+      key={replyKey}
+      scope={scope}
+      createEmailAction={createEmailAction}
+      defaultTo={defaultEmailTo}
+      replyDraft={replyDraft ?? null}
+      onCreated={onCreated}
+    />
+  ) : null
+
   if (notesOnly) {
+    // Bare note form unless email is enabled — then a minimal Note/Email tab set.
+    if (!emailForm) {
+      return (
+        <NoteForm
+          revalidateId={revalidateId}
+          scope={scope}
+          createAction={createAction}
+          onCreated={onCreated}
+        />
+      )
+    }
     return (
-      <NoteForm
-        revalidateId={revalidateId}
-        scope={scope}
-        createAction={createAction}
-        onCreated={onCreated}
-      />
+      <Tabs value={tab} onValueChange={(v) => setTab(v as string)}>
+        <TabsList>
+          <TabsTab value="note">
+            <StickyNote className="size-4" />
+            Note
+          </TabsTab>
+          <TabsTab value="email">
+            <Mail className="size-4" />
+            Email
+          </TabsTab>
+        </TabsList>
+        <TabsPanel value="note">
+          <NoteForm
+            revalidateId={revalidateId}
+            scope={scope}
+            createAction={createAction}
+            onCreated={onCreated}
+          />
+        </TabsPanel>
+        <TabsPanel value="email">{emailForm}</TabsPanel>
+      </Tabs>
     )
   }
 
@@ -84,7 +186,7 @@ export function ActivityComposer({
   // own titled "Log activity" card, so an inner Card produced nested double
   // chrome. Render just the tabbed forms.
   return (
-    <Tabs defaultValue="note">
+    <Tabs value={tab} onValueChange={(v) => setTab(v as string)}>
       <TabsList>
         <TabsTab value="note">
           <StickyNote className="size-4" />
@@ -98,6 +200,12 @@ export function ActivityComposer({
           <TabsTab value="meeting">
             <CalendarDays className="size-4" />
             Meeting
+          </TabsTab>
+        )}
+        {emailForm && (
+          <TabsTab value="email">
+            <Mail className="size-4" />
+            Email
           </TabsTab>
         )}
       </TabsList>
@@ -127,6 +235,7 @@ export function ActivityComposer({
           />
         </TabsPanel>
       )}
+      {emailForm && <TabsPanel value="email">{emailForm}</TabsPanel>}
     </Tabs>
   )
 }
@@ -273,6 +382,160 @@ function CallForm({ revalidateId, scope, createAction, onCreated }: FormProps) {
       <div className="flex justify-end">
         <Button type="button" size="sm" onClick={logCall} disabled={(!subject.trim() && !notes.trim()) || saving}>
           {saving ? "Logging..." : "Log Call"}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/** Split a comma/newline-separated address string into `{ email }` recipients. */
+function parseRecipients(raw: string): EmailRecipient[] {
+  return raw
+    .split(/[,\n]/)
+    .map((e) => e.trim())
+    .filter((e) => e.length > 0)
+    .map((email) => ({ email }))
+}
+
+interface EmailFormProps {
+  scope: ActivityScope
+  createEmailAction: (input: unknown) => Promise<EmailSendResult>
+  defaultTo?: string
+  replyDraft: EmailReplyDraft | null
+  onCreated?: () => void
+}
+
+/**
+ * Compose + send an email (ORR-835). Seeded from `replyDraft` when replying, else
+ * `defaultTo`. On success it clears (a fresh compose) or, in a reply, leaves a
+ * confirmation. Soft "connect Gmail" states come back as `sent:false` + a reason
+ * rather than a throw.
+ */
+function EmailForm({
+  scope,
+  createEmailAction,
+  defaultTo,
+  replyDraft,
+  onCreated,
+}: EmailFormProps) {
+  const [to, setTo] = useState(replyDraft?.to ?? defaultTo ?? "")
+  const [cc, setCc] = useState(replyDraft?.cc ?? "")
+  const [subject, setSubject] = useState(replyDraft?.subject ?? "")
+  const [body, setBody] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+
+  const recipients = parseRecipients(to)
+  const canSubmit = recipients.length > 0 && body.trim().length > 0
+
+  const send = async () => {
+    if (!canSubmit || saving) return
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const result = await createEmailAction({
+        ...scope,
+        to: recipients,
+        cc: parseRecipients(cc),
+        subject: subject.trim(),
+        bodyText: body,
+        threadId: replyDraft?.threadId,
+        inReplyTo: replyDraft?.inReplyTo,
+      })
+
+      if (result.sent) {
+        setNotice("Email sent and logged to the timeline.")
+        setBody("")
+        if (!replyDraft) {
+          setTo(defaultTo ?? "")
+          setCc("")
+          setSubject("")
+        }
+        onCreated?.()
+      } else if (result.reason === "not_connected") {
+        setError(
+          "Gmail isn't connected. Connect Google in Settings to send email from the CRM.",
+        )
+      } else if (
+        result.reason === "scope_missing" ||
+        result.reason === "reauth_required"
+      ) {
+        setError(
+          "Reconnect Google in Settings and grant the send-email permission to continue.",
+        )
+      } else {
+        setError(result.error ?? "Couldn't send the email. Please try again.")
+      }
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Couldn't send the email. Please try again.",
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="mt-4 grid gap-3">
+      {error && (
+        <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+      {notice && (
+        <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+          {notice}
+        </div>
+      )}
+      <div className="grid gap-1.5">
+        <Label htmlFor="email-to">To</Label>
+        <Input
+          id="email-to"
+          placeholder="Comma-separated email addresses"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+        />
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor="email-cc">Cc</Label>
+        <Input
+          id="email-cc"
+          placeholder="Comma-separated (optional)"
+          value={cc}
+          onChange={(e) => setCc(e.target.value)}
+        />
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor="email-subject">Subject</Label>
+        <Input
+          id="email-subject"
+          placeholder="Subject"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+        />
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor="email-body">Message</Label>
+        <textarea
+          id="email-body"
+          className="flex min-h-[140px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
+          placeholder="Write your message..."
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+        />
+      </div>
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          size="sm"
+          onClick={send}
+          disabled={!canSubmit || saving}
+        >
+          {saving ? "Sending..." : replyDraft ? "Send Reply" : "Send Email"}
         </Button>
       </div>
     </div>

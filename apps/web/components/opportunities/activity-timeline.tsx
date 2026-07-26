@@ -9,6 +9,7 @@ import {
   Clock,
   MapPin,
   Paperclip,
+  Reply,
   User,
   Users,
   Video,
@@ -31,6 +32,12 @@ import {
 
 interface ActivityTimelineProps {
   activities: ActivityRecord[]
+  /**
+   * When provided (ORR-835), email activities show a "Reply" affordance that hands
+   * the activity back so the composer can open pre-filled + threaded. Omitted on
+   * read-only feeds (overview peek, account/contact notes).
+   */
+  onReply?: (activity: ActivityRecord) => void
 }
 
 const activityIcons: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -69,7 +76,7 @@ function formatRelativeTime(
   return formatAbsolute(dateStr)
 }
 
-export function ActivityTimeline({ activities }: ActivityTimelineProps) {
+export function ActivityTimeline({ activities, onReply }: ActivityTimelineProps) {
   const { formatDate, dateFormat, timezone } = usePreferences()
 
   if (activities.length === 0) {
@@ -230,6 +237,21 @@ export function ActivityTimeline({ activities }: ActivityTimelineProps) {
                       <span>{duration} min</span>
                     </>
                   )}
+                  {onReply &&
+                    (activity.type === "email_inbound" ||
+                      activity.type === "email_outbound") && (
+                      <>
+                        <span>·</span>
+                        <button
+                          type="button"
+                          onClick={() => onReply(activity)}
+                          className="inline-flex items-center gap-1 font-medium text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                        >
+                          <Reply className="size-3" />
+                          Reply
+                        </button>
+                      </>
+                    )}
                 </div>
               </div>
             </div>

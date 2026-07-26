@@ -16,7 +16,13 @@ import {
 } from "@/components/ui/collapsible"
 import { OpportunityForm } from "@/components/opportunities/opportunity-form"
 import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
-import { ActivityComposer, type MeetingCreateResult } from "@/components/opportunities/activity-composer"
+import {
+  ActivityComposer,
+  type MeetingCreateResult,
+  type EmailSendResult,
+  type EmailReplyDraft,
+} from "@/components/opportunities/activity-composer"
+import { readEmailMetadata } from "@/lib/email-format"
 import { OpportunitySplitsEditor } from "@/components/opportunities/opportunity-splits-editor"
 import {
   OpportunityLineItemsEditor,
@@ -109,6 +115,8 @@ interface OpportunityDetailWrapperProps {
     opportunityId: string,
     input: unknown,
   ) => Promise<MeetingCreateResult>
+  /** Gmail send action (ORR-835). When provided, the composer gains an Email tab. */
+  createEmailAction?: (input: unknown) => Promise<EmailSendResult>
   searchUsersAction?: (query: string) => Promise<EntityOption[]>
   // Account/contact pickers for the edit dialog (ORR-812): without these the
   // detail-page edit form's account/contact comboboxes are dead (empty items, no
@@ -280,6 +288,7 @@ export function OpportunityDetailWrapper({
   documents,
   createActivityAction,
   createMeetingAction,
+  createEmailAction,
   searchUsersAction,
   accounts = [],
   searchAccountsAction,
@@ -334,6 +343,32 @@ export function OpportunityDetailWrapper({
   const [approvalError, setApprovalError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("overview")
   const [activitySeg, setActivitySeg] = useState("all")
+  // Reply-to-email draft (ORR-835). Set from a timeline "Reply" button; feeding a
+  // new object (bumped nonce) re-opens + re-seeds the composer's Email tab.
+  const [replyDraft, setReplyDraft] = useState<EmailReplyDraft | null>(null)
+
+  const handleReply = useCallback((activity: ActivityRecord) => {
+    const email = readEmailMetadata(activity.metadata)
+    // Reply to the sender of an inbound message, or the recipients of one we sent.
+    const replyTo =
+      activity.type === "email_inbound"
+        ? email.from?.email
+          ? [email.from.email]
+          : email.to.map((p) => p.email).filter((e): e is string => !!e)
+        : email.to.map((p) => p.email).filter((e): e is string => !!e)
+    const baseSubject = activity.subject ?? ""
+    const subject = /^re:/i.test(baseSubject.trim())
+      ? baseSubject
+      : `Re: ${baseSubject}`
+    setReplyDraft({
+      to: replyTo.join(", "),
+      subject,
+      threadId: activity.externalThreadId ?? undefined,
+      inReplyTo: activity.externalMessageId ?? undefined,
+      nonce: Date.now(),
+    })
+    setActiveTab("activity")
+  }, [])
   // One shared Edit sheet; empty-field "Add" affordances open it via this ref.
   const editTriggerRef = useRef<HTMLButtonElement>(null)
   const openEdit = useCallback(() => editTriggerRef.current?.click(), [])
@@ -412,6 +447,9 @@ export function OpportunityDetailWrapper({
 
   const noteActivities = activities.filter((a) => a.type === "note")
   const callActivities = activities.filter((a) => a.type === "call")
+  const emailActivities = activities.filter(
+    (a) => a.type === "email_inbound" || a.type === "email_outbound",
+  )
 
   const handleSaveSplits = useCallback(
     async (next: OpportunitySplitInput[]) => {
@@ -766,6 +804,8 @@ export function OpportunityDetailWrapper({
                     scope={{ opportunityId: opportunity.id, accountId: opportunity.accountId }}
                     createAction={createActivityAction}
                     createMeetingAction={createMeetingAction}
+                    createEmailAction={createEmailAction}
+                    replyDraft={replyDraft}
                     onCreated={() => router.refresh()}
                   />
                 </CardContent>
@@ -775,7 +815,12 @@ export function OpportunityDetailWrapper({
                 <CardContent className="space-y-3 pt-4">
                   <ActivitySegments value={activitySeg} onChange={setActivitySeg} options={activitySegOptions} />
 
-                  {activitySeg === "all" && <ActivityTimeline activities={activities} />}
+                  {activitySeg === "all" && (
+                    <ActivityTimeline
+                      activities={activities}
+                      onReply={createEmailAction ? handleReply : undefined}
+                    />
+                  )}
 
                   {activitySeg === "notes" && (
                     noteActivities.length > 0 ? (
@@ -793,9 +838,18 @@ export function OpportunityDetailWrapper({
                     )
                   )}
 
-                  {activitySeg === "email" && (
-                    <IntegrationTabEmptyState icon={Mail} message="Connect Gmail to send and log email from the CRM." />
-                  )}
+                  {activitySeg === "email" &&
+                    (emailActivities.length > 0 ? (
+                      <ActivityTimeline
+                        activities={emailActivities}
+                        onReply={createEmailAction ? handleReply : undefined}
+                      />
+                    ) : (
+                      <IntegrationTabEmptyState
+                        icon={Mail}
+                        message="No email yet. Compose one from the Email tab above, or connect Gmail in Settings to sync your inbox."
+                      />
+                    ))}
 
                   {activitySeg === "stage" && (
                     stageHistory.length > 0 ? (

@@ -23,6 +23,7 @@ import {
   createContactForAccountAction,
   searchAccountsAction,
 } from "../actions"
+import { createEmailOutboundAction } from "../../email/actions"
 import { AccountDetailWrapper } from "@/components/accounts/account-detail-wrapper"
 
 export default async function AccountDetailPage({
@@ -106,6 +107,7 @@ export default async function AccountDetailPage({
       updateAction={updateAccountAction}
       saveTaxIdsAction={saveAccountTaxIdsAction}
       createActivityAction={createAccountActivityAction}
+      createEmailAction={createEmailOutboundAction}
       saveRelationshipAction={saveRelationship}
       attachContactsAction={attachContactsToAccountAction}
       detachContactAction={detachContactFromAccountAction}

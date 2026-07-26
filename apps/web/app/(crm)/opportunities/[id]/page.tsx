@@ -48,6 +48,7 @@ import {
   dealCopilotEmailAction,
   dealCopilotNextBestActionAction,
 } from "../copilot-actions"
+import { createEmailOutboundAction } from "../../email/actions"
 import { isDealCopilotConfigured } from "@/lib/ai/deal-copilot"
 import { OpportunityDetailWrapper } from "@/components/opportunities/opportunity-detail-wrapper"
 import { listDocumentsForEntity } from "@/lib/data/documents"
@@ -172,6 +173,7 @@ export default async function OpportunityDetailPage({
       documents={documents}
       createActivityAction={createActivityAction}
       createMeetingAction={createMeetingAction}
+      createEmailAction={createEmailOutboundAction}
       accounts={accounts}
       fieldDefinitions={fieldDefinitions}
       searchAccountsAction={searchAccountsAction}

@@ -12,7 +12,7 @@ import { AccountForm, TAX_CF_KEYS } from "@/components/accounts/account-form"
 import { CustomFieldsDisplay } from "@/components/contacts/custom-fields-display"
 import { AccountTaxIdsDisplay } from "@/components/accounts/account-tax-ids-display"
 import { AttachContactsDialog } from "@/components/accounts/attach-contacts-dialog"
-import { ActivityComposer } from "@/components/opportunities/activity-composer"
+import { ActivityComposer, type EmailSendResult } from "@/components/opportunities/activity-composer"
 import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
 import { RelationshipTree } from "@/components/accounts/relationship-tree"
 import { FacetTabs, FacetTabsList, FacetTabsTab, FacetTabsPanel } from "@/components/primitives/facet-tabs"
@@ -71,6 +71,8 @@ interface AccountDetailWrapperProps {
   updateAction: (id: string, input: AccountUpdateInput) => Promise<AccountRecord>
   saveTaxIdsAction: (accountId: string, input: { taxIds: TaxIdRow[] }) => Promise<void>
   createActivityAction: (accountId: string, input: unknown) => Promise<ActivityRecord>
+  /** Gmail send action (ORR-835). When provided, the notes composer gains an Email tab. */
+  createEmailAction?: (input: unknown) => Promise<EmailSendResult>
   saveRelationshipAction?: (data: { parentAccountId: string; kind: AccountRelationshipKind }) => Promise<void>
   attachContactsAction: (accountId: string, input: { contactIds: string[] }) => Promise<void>
   detachContactAction: (accountId: string, contactId: string) => Promise<void>
@@ -98,6 +100,7 @@ export function AccountDetailWrapper({
   updateAction,
   saveTaxIdsAction,
   createActivityAction,
+  createEmailAction,
   saveRelationshipAction,
   attachContactsAction,
   detachContactAction,
@@ -399,6 +402,7 @@ export function AccountDetailWrapper({
                     revalidateId={account.id}
                     scope={{ accountId: account.id }}
                     createAction={createActivityAction}
+                    createEmailAction={createEmailAction}
                     onCreated={() => router.refresh()}
                     notesOnly
                   />

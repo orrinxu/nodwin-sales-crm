@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { OwnerLink } from "@/components/people/owner-link"
 import { ContactForm } from "@/components/contacts/contact-form"
 import { CustomFieldsDisplay } from "@/components/contacts/custom-fields-display"
-import { ActivityComposer } from "@/components/opportunities/activity-composer"
+import { ActivityComposer, type EmailSendResult } from "@/components/opportunities/activity-composer"
 import { ActivityTimeline } from "@/components/opportunities/activity-timeline"
 import { FacetTabs, FacetTabsList, FacetTabsTab, FacetTabsPanel } from "@/components/primitives/facet-tabs"
 import { RecordHeader } from "@/components/primitives/record-header"
@@ -36,6 +36,8 @@ interface ContactDetailWrapperProps {
   activities: ActivityRecord[]
   updateAction: (id: string, input: Partial<ContactCreateInput>) => Promise<ContactRecord>
   createActivityAction: (contactId: string, input: unknown) => Promise<ActivityRecord>
+  /** Gmail send action (ORR-835). When provided, the notes composer gains an Email tab. */
+  createEmailAction?: (input: unknown) => Promise<EmailSendResult>
 }
 
 const SOCIAL_LABELS: Record<string, string> = {
@@ -60,6 +62,7 @@ export function ContactDetailWrapper({
   activities,
   updateAction,
   createActivityAction,
+  createEmailAction,
 }: ContactDetailWrapperProps) {
   const router = useRouter()
   const [tab, setTab] = useState("details")
@@ -203,6 +206,8 @@ export function ContactDetailWrapper({
                 revalidateId={contact.id}
                 scope={{ contactId: contact.id, accountId: contact.primaryAccountId }}
                 createAction={createActivityAction}
+                createEmailAction={createEmailAction}
+                defaultEmailTo={contact.email ?? undefined}
                 onCreated={() => router.refresh()}
                 notesOnly
               />
