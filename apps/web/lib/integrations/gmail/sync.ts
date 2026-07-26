@@ -7,10 +7,17 @@ import {
   listHistory,
   listMessageIds,
   getMessage,
+  getAttachmentBytes,
   GmailHistoryExpiredError,
   type NormalizedEmail,
+  type NormalizedEmailAttachment,
 } from "@/lib/integrations/gmail/gmail-client"
 import { resolveAccountByEmailAddresses } from "@/lib/email/inbound"
+import {
+  storeDocumentBytes,
+  DocumentTooLargeError,
+  MAX_STORED_DOCUMENT_BYTES,
+} from "@/lib/data/documents"
 import { sendAdminAlert } from "@/lib/notifications/admin-alerts"
 
 /**
@@ -186,6 +193,81 @@ function messageEmails(message: NormalizedEmail): string[] {
 }
 
 /**
+ * The metadata we record per attachment on the activity. Extends the v1
+ * metadata-only shape (filename/mimeType/size/attachmentId) with the outcome of
+ * the ORR-836 byte-persistence attempt: `stored` + a `documentId`/`storagePath`
+ * (downloadable via the documents module) OR `stored: false` + a `reason`.
+ */
+type AttachmentRef = NormalizedEmailAttachment & {
+  stored: boolean
+  documentId?: string
+  storagePath?: string
+  /** Why bytes were NOT stored: too big, no linkable entity, or a fetch/upload error. */
+  reason?: "oversize" | "no-account" | "error"
+}
+
+/**
+ * ORR-836: for each attachment on a message, fetch the bytes and upload them to
+ * the `documents` bucket, creating a documents row linked to the SAME entity the
+ * email attributed to (v1 links attachments to the matched account — opportunity
+ * linkage is out of scope, ORR-832). Returns the enriched attachment metadata to
+ * store on the activity, REPLACING the v1 metadata-only array.
+ *
+ * Fault-isolated + size-capped: an oversize attachment (by declared size or
+ * actual bytes) is skipped and recorded as `oversize`; a message with no
+ * linkable account can't own a document row, so its attachments stay
+ * metadata-only (`no-account`); a per-attachment fetch/upload error is recorded
+ * as `error` and never aborts the message (or the pass).
+ */
+async function persistAttachments(
+  userId: string,
+  messageId: string,
+  accountId: string | null,
+  attachments: NormalizedEmailAttachment[],
+): Promise<AttachmentRef[]> {
+  const refs: AttachmentRef[] = []
+  for (const att of attachments) {
+    // Documents must link to an entity; Gmail v1 only resolves accounts here.
+    if (!accountId) {
+      refs.push({ ...att, stored: false, reason: "no-account" })
+      continue
+    }
+    // Skip the byte fetch entirely when the declared size already blows the cap.
+    if (att.size > MAX_STORED_DOCUMENT_BYTES) {
+      refs.push({ ...att, stored: false, reason: "oversize" })
+      continue
+    }
+    try {
+      const bytes = await getAttachmentBytes({
+        userId,
+        messageId,
+        attachmentId: att.attachmentId,
+      })
+      const stored = await storeDocumentBytes({
+        accountId,
+        name: att.filename || "attachment",
+        mimeType: att.mimeType,
+        bytes,
+        category: "other",
+        uploadedBy: userId,
+      })
+      refs.push({
+        ...att,
+        stored: true,
+        documentId: stored.id,
+        storagePath: stored.storagePath,
+      })
+    } catch (err) {
+      // storeDocumentBytes re-checks the ACTUAL byte length against the cap in
+      // case the declared metadata size understated it.
+      const reason = err instanceof DocumentTooLargeError ? "oversize" : "error"
+      refs.push({ ...att, stored: false, reason })
+    }
+  }
+  return refs
+}
+
+/**
  * Fetch, attribute, and (if attributable) upsert one message as an
  * `email_inbound` activity keyed on `external_message_id`. Returns true when an
  * activity was written, false when the noise guard skipped it.
@@ -205,6 +287,15 @@ async function ingestMessage(
   // NOISE GUARD: only import mail that resolves to a known account OR contact.
   if (!accountId && !contactId) return false
 
+  // ORR-836: fetch + store attachment BYTES (size-capped) before the upsert, so
+  // the resulting document refs are recorded on the activity in one write.
+  const attachments = await persistAttachments(
+    userId,
+    messageId,
+    accountId,
+    message.attachments,
+  )
+
   const { error } = await client.from("activities").upsert(
     {
       user_id: userId,
@@ -223,8 +314,8 @@ async function ingestMessage(
         cc: message.cc,
         snippet: message.snippet,
         labelIds: message.labelIds,
-        // Attachment METADATA only (ORR-831) — no bytes fetched.
-        attachments: message.attachments,
+        // Attachment metadata + ORR-836 stored-document refs (bytes in Storage).
+        attachments,
         source: "gmail",
       } as unknown as Json,
     },
