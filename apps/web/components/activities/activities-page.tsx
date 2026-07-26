@@ -10,18 +10,27 @@ import {
   Clock,
   Layers,
   MapPin,
+  Paperclip,
+  User,
   Users,
   Video,
 } from "lucide-react"
 import Link from "next/link"
 
 import type { ActivityRecord, ActivityType } from "@/lib/data/activities"
+import { Badge } from "@/components/ui/badge"
 import { usePreferences } from "@/components/providers/preferences-provider"
 import {
   formatMeetingTimeRange,
   readMeetingMetadata,
   summarizeAttendees,
 } from "@/lib/meeting-format"
+import {
+  readEmailMetadata,
+  hasEmailDetail,
+  emailPersonLabel,
+  summarizeEmailPeople,
+} from "@/lib/email-format"
 
 interface ActivitiesPageProps {
   activities: ActivityRecord[]
@@ -156,6 +165,16 @@ export function ActivitiesPage({ activities }: ActivitiesPageProps) {
                 meeting.hangoutLink != null ||
                 attendeeSummary != null)
 
+            // Email-specific detail (ORR-834). Only computed for emails.
+            const email =
+              activity.type === "email_inbound" ||
+              activity.type === "email_outbound"
+                ? readEmailMetadata(activity.metadata)
+                : null
+            const emailTo = email ? summarizeEmailPeople(email.to) : null
+            const emailCc = email ? summarizeEmailPeople(email.cc) : null
+            const hasEmail = email != null && hasEmailDetail(email)
+
             return (
               <div
                 key={activity.id}
@@ -212,6 +231,44 @@ export function ActivitiesPage({ activities }: ActivitiesPageProps) {
                           Join
                         </a>
                       )}
+                    </div>
+                  )}
+                  {hasEmail && email && (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      {email.from && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <User className="size-3 shrink-0" />
+                          <span className="font-medium">From:</span>{" "}
+                          {emailPersonLabel(email.from)}
+                        </span>
+                      )}
+                      {emailTo && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Users className="size-3 shrink-0" />
+                          <span className="font-medium">To:</span> {emailTo}
+                        </span>
+                      )}
+                      {emailCc && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Users className="size-3 shrink-0" />
+                          <span className="font-medium">Cc:</span> {emailCc}
+                        </span>
+                      )}
+                      {email.attachments.map((att, i) => (
+                        <Badge
+                          key={`${att.name}-${i}`}
+                          variant="outline"
+                          className="gap-1"
+                        >
+                          <Paperclip className="size-3 shrink-0" />
+                          <span>{att.name}</span>
+                          {att.type && (
+                            <span className="text-muted-foreground">
+                              · {att.type}
+                            </span>
+                          )}
+                        </Badge>
+                      ))}
                     </div>
                   )}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
