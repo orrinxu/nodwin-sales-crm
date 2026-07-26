@@ -39,7 +39,8 @@ import type { ApiTokenRecord } from "@/lib/data/api-tokens"
 // runtime never reaches this client bundle.
 import type { GoogleConnectionInfo } from "@/lib/integrations/google/token-store"
 import type { CalendarSyncStateInfo } from "@/lib/data/calendar-sync"
-import type { SyncCalendarNowResult } from "@/app/(crm)/settings/actions"
+import type { GmailSyncStateInfo } from "@/lib/data/gmail-sync"
+import type { SyncCalendarNowResult, SyncGmailNowResult } from "@/app/(crm)/settings/actions"
 
 // IANA timezone list for the localization combobox. Guarded for runtimes without
 // Intl.supportedValuesOf (falls back to an empty list rather than throwing).
@@ -83,6 +84,9 @@ interface SettingsViewProps {
   calendarSyncState: CalendarSyncStateInfo
   setCalendarSyncEnabledAction: (enabled: boolean) => Promise<void>
   syncCalendarNowAction: () => Promise<SyncCalendarNowResult>
+  gmailSyncState: GmailSyncStateInfo
+  setGmailSyncEnabledAction: (enabled: boolean) => Promise<void>
+  syncGmailNowAction: () => Promise<SyncGmailNowResult>
 }
 
 // Per-user Google OAuth (ORR-773). The authorize route defaults to drive.readonly
@@ -98,6 +102,14 @@ const GOOGLE_CONNECT_HREF = `/api/integrations/google/authorize?scopes=${encodeU
 const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events"
 const GOOGLE_CALENDAR_CONNECT_HREF = `/api/integrations/google/authorize?scopes=${encodeURIComponent(
   GOOGLE_CALENDAR_SCOPE,
+)}`
+
+// Gmail pull-sync (ORR-833 / ORR-775). The authorize route is incremental
+// (include_granted_scopes), so requesting gmail.readonly preserves any existing
+// Drive/Calendar grants.
+const GOOGLE_GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
+const GOOGLE_GMAIL_CONNECT_HREF = `/api/integrations/google/authorize?scopes=${encodeURIComponent(
+  GOOGLE_GMAIL_SCOPE,
 )}`
 
 // Human-readable "time ago" for the last-sync timestamp. Falls back to the raw
@@ -792,6 +804,172 @@ function GoogleCalendarRow({
   )
 }
 
+// Gmail pull-sync row (ORR-833 / ORR-775). Mirrors GoogleCalendarRow exactly:
+// Gmail read access is a separate incremental scope on top of the base Google
+// connection — until `gmail.readonly` is granted we only offer a connect link;
+// once granted we expose the sync toggle + on-demand "Sync now".
+function GoogleGmailRow({
+  connection,
+  syncState,
+  setGmailSyncEnabledAction,
+  syncGmailNowAction,
+}: {
+  connection: GoogleConnectionInfo | null
+  syncState: GmailSyncStateInfo
+  setGmailSyncEnabledAction: SettingsViewProps["setGmailSyncEnabledAction"]
+  syncGmailNowAction: SettingsViewProps["syncGmailNowAction"]
+}) {
+  const router = useRouter()
+  const gmailConnected = (connection?.grantedScopes ?? []).includes(
+    GOOGLE_GMAIL_SCOPE,
+  )
+
+  const [enabled, setEnabled] = useState(syncState.syncEnabled)
+  const [toggling, setToggling] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  // Inline result banner, styled like the ?google= callback banner.
+  const [result, setResult] = useState<
+    { kind: "success" | "info" | "error"; text: string } | null
+  >(null)
+
+  async function onToggle(next: boolean) {
+    setEnabled(next)
+    setToggling(true)
+    setError(null)
+    try {
+      await setGmailSyncEnabledAction(next)
+      router.refresh()
+    } catch (err) {
+      setEnabled(!next) // revert on failure
+      setError(err instanceof Error ? err.message : "Failed to update sync setting.")
+    } finally {
+      setToggling(false)
+    }
+  }
+
+  async function onSyncNow() {
+    setSyncing(true)
+    setResult(null)
+    setError(null)
+    try {
+      const res = await syncGmailNowAction()
+      if (!res.ok) {
+        setResult({ kind: "error", text: res.error ?? "Gmail sync failed." })
+      } else if (res.skipped) {
+        setResult({
+          kind: "info",
+          text: "Nothing to sync — enable sync (and make sure Gmail is connected) first.",
+        })
+      } else {
+        setResult({
+          kind: "success",
+          text: `Synced ${res.upserted ?? 0} email${res.upserted === 1 ? "" : "s"}.`,
+        })
+      }
+      router.refresh()
+    } catch (err) {
+      setResult({
+        kind: "error",
+        text: err instanceof Error ? err.message : "Gmail sync failed.",
+      })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  return (
+    <div className="flex items-start justify-between gap-4 py-3">
+      <div className="min-w-0 space-y-1.5">
+        <p className="text-sm font-medium">Gmail</p>
+        {gmailConnected ? (
+          <>
+            <p className="text-xs text-muted-foreground">
+              Pull emails from known contacts and accounts into the CRM as activities.
+            </p>
+            <div className="flex items-center gap-2 pt-1">
+              <Switch
+                checked={enabled}
+                onCheckedChange={onToggle}
+                disabled={toggling}
+                aria-label="Enable Gmail sync"
+              />
+              <span className="text-xs text-muted-foreground">
+                {enabled ? "Sync enabled" : "Sync disabled"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Last synced: {formatLastSync(syncState.lastSyncAt)}
+            </p>
+            {syncState.lastError && (
+              <p className="text-xs text-destructive">
+                Last error: {syncState.lastError}
+              </p>
+            )}
+            {error && <p className="text-xs text-destructive">{error}</p>}
+            {result && (
+              <div
+                role="status"
+                className={
+                  result.kind === "success"
+                    ? "mt-1 rounded-md bg-primary/10 px-2.5 py-1.5 text-xs text-primary"
+                    : result.kind === "error"
+                      ? "mt-1 rounded-md bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive"
+                      : "mt-1 rounded-md bg-muted px-2.5 py-1.5 text-xs text-muted-foreground"
+                }
+              >
+                {result.text}
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Connect Gmail to import your emails into the CRM. This grants read
+            access in addition to any existing Google permissions.
+          </p>
+        )}
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-2">
+        {gmailConnected ? (
+          <>
+            <Badge
+              variant={syncState.status === "error" ? "secondary" : "outline"}
+              className="shrink-0 capitalize"
+            >
+              {syncState.status}
+            </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onSyncNow}
+              disabled={syncing}
+            >
+              {syncing ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="size-4" />
+              )}
+              Sync now
+            </Button>
+          </>
+        ) : (
+          <>
+            <Badge variant="outline" className="shrink-0">
+              Not connected
+            </Badge>
+            <a
+              href={GOOGLE_GMAIL_CONNECT_HREF}
+              className={buttonVariants({ variant: "default", size: "sm" })}
+            >
+              Connect Gmail
+            </a>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function IntegrationsSection({
   onOpenTokens,
   googleConnection,
@@ -799,6 +977,9 @@ function IntegrationsSection({
   calendarSyncState,
   setCalendarSyncEnabledAction,
   syncCalendarNowAction,
+  gmailSyncState,
+  setGmailSyncEnabledAction,
+  syncGmailNowAction,
 }: {
   onOpenTokens: () => void
   googleConnection: GoogleConnectionInfo | null
@@ -806,6 +987,9 @@ function IntegrationsSection({
   calendarSyncState: CalendarSyncStateInfo
   setCalendarSyncEnabledAction: SettingsViewProps["setCalendarSyncEnabledAction"]
   syncCalendarNowAction: SettingsViewProps["syncCalendarNowAction"]
+  gmailSyncState: GmailSyncStateInfo
+  setGmailSyncEnabledAction: SettingsViewProps["setGmailSyncEnabledAction"]
+  syncGmailNowAction: SettingsViewProps["syncGmailNowAction"]
 }) {
   return (
     <Card>
@@ -823,6 +1007,12 @@ function IntegrationsSection({
           syncState={calendarSyncState}
           setCalendarSyncEnabledAction={setCalendarSyncEnabledAction}
           syncCalendarNowAction={syncCalendarNowAction}
+        />
+        <GoogleGmailRow
+          connection={googleConnection}
+          syncState={gmailSyncState}
+          setGmailSyncEnabledAction={setGmailSyncEnabledAction}
+          syncGmailNowAction={syncGmailNowAction}
         />
         <div className="flex items-center justify-between gap-4 py-3">
           <div>
@@ -961,6 +1151,9 @@ export function SettingsView({
   calendarSyncState,
   setCalendarSyncEnabledAction,
   syncCalendarNowAction,
+  gmailSyncState,
+  setGmailSyncEnabledAction,
+  syncGmailNowAction,
 }: SettingsViewProps) {
   // Land on the Integrations tab when returning from the Google OAuth flow.
   const [tab, setTab] = useState(googleCallbackStatus ? "integrations" : "profile")
@@ -1027,6 +1220,9 @@ export function SettingsView({
             calendarSyncState={calendarSyncState}
             setCalendarSyncEnabledAction={setCalendarSyncEnabledAction}
             syncCalendarNowAction={syncCalendarNowAction}
+            gmailSyncState={gmailSyncState}
+            setGmailSyncEnabledAction={setGmailSyncEnabledAction}
+            syncGmailNowAction={syncGmailNowAction}
           />
         </FacetTabsPanel>
 

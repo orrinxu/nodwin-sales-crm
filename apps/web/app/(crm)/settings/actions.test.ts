@@ -24,6 +24,9 @@ vi.mock("@/lib/integrations/google/token-store", () => ({
 vi.mock("@/lib/integrations/calendar/sync", () => ({
   runCalendarSyncForUser: vi.fn(),
 }))
+vi.mock("@/lib/integrations/gmail/sync", () => ({
+  runGmailSyncForUser: vi.fn(),
+}))
 
 // A minimal chainable Supabase stub: `.from(...).upsert(...)` resolves to the
 // configured result. Captures the upsert call for assertions.
@@ -37,10 +40,13 @@ import {
   disconnectGoogleAction,
   setCalendarSyncEnabledAction,
   syncCalendarNowAction,
+  setGmailSyncEnabledAction,
+  syncGmailNowAction,
 } from "./actions"
 import { requireUser } from "@/lib/security/auth"
 import { disconnectGoogle } from "@/lib/integrations/google/token-store"
 import { runCalendarSyncForUser } from "@/lib/integrations/calendar/sync"
+import { runGmailSyncForUser } from "@/lib/integrations/gmail/sync"
 import { revalidatePath } from "next/cache"
 
 describe("disconnectGoogleAction (ORR-821)", () => {
@@ -133,6 +139,79 @@ describe("syncCalendarNowAction (ORR-827)", () => {
     )
 
     const result = await syncCalendarNowAction()
+    expect(result).toEqual({ ok: false, error: "token expired" })
+    // No revalidate on the failure path.
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
+})
+
+describe("setGmailSyncEnabledAction (ORR-833)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    upsertMock.mockResolvedValue({ error: null })
+  })
+
+  it("upserts the caller's own sync-state row and revalidates /settings", async () => {
+    await setGmailSyncEnabledAction(true)
+
+    expect(requireUser).toHaveBeenCalled()
+    expect(fromMock).toHaveBeenCalledWith("google_gmail_sync_state")
+    // user_id is forced to the authenticated caller; onConflict is user_id.
+    expect(upsertMock).toHaveBeenCalledWith(
+      { user_id: "user-1", sync_enabled: true },
+      { onConflict: "user_id" },
+    )
+    expect(revalidatePath).toHaveBeenCalledWith("/settings")
+  })
+
+  it("passes through a disabled toggle", async () => {
+    await setGmailSyncEnabledAction(false)
+    expect(upsertMock).toHaveBeenCalledWith(
+      { user_id: "user-1", sync_enabled: false },
+      { onConflict: "user_id" },
+    )
+  })
+
+  it("throws (and skips revalidate) when the upsert fails", async () => {
+    upsertMock.mockResolvedValueOnce({ error: { message: "rls denied" } })
+    await expect(setGmailSyncEnabledAction(true)).rejects.toThrow("rls denied")
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
+})
+
+describe("syncGmailNowAction (ORR-833)", () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it("runs the sync for the caller and returns counts on success", async () => {
+    vi.mocked(runGmailSyncForUser).mockResolvedValueOnce({
+      upserted: 3,
+      scanned: 12,
+    })
+
+    const result = await syncGmailNowAction()
+
+    expect(runGmailSyncForUser).toHaveBeenCalledWith("user-1")
+    expect(result).toEqual({ ok: true, upserted: 3, scanned: 12 })
+    expect(revalidatePath).toHaveBeenCalledWith("/settings")
+  })
+
+  it("surfaces a skipped run (sync off / not connected) as ok+skipped", async () => {
+    vi.mocked(runGmailSyncForUser).mockResolvedValueOnce({
+      skipped: true,
+      upserted: 0,
+      scanned: 0,
+    })
+
+    const result = await syncGmailNowAction()
+    expect(result).toEqual({ ok: true, skipped: true })
+  })
+
+  it("catches an engine error and returns a structured failure (never throws)", async () => {
+    vi.mocked(runGmailSyncForUser).mockRejectedValueOnce(
+      new Error("token expired"),
+    )
+
+    const result = await syncGmailNowAction()
     expect(result).toEqual({ ok: false, error: "token expired" })
     // No revalidate on the failure path.
     expect(revalidatePath).not.toHaveBeenCalled()
