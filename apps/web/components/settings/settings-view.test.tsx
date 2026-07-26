@@ -52,6 +52,15 @@ function makeProps(overrides = {}) {
     },
     setCalendarSyncEnabledAction: vi.fn().mockResolvedValue(undefined),
     syncCalendarNowAction: vi.fn().mockResolvedValue({ ok: true, upserted: 0, removed: 0 }),
+    gmailSyncState: {
+      syncEnabled: false,
+      status: "idle",
+      lastSyncAt: null,
+      lastError: null,
+      exists: false,
+    },
+    setGmailSyncEnabledAction: vi.fn().mockResolvedValue(undefined),
+    syncGmailNowAction: vi.fn().mockResolvedValue({ ok: true, upserted: 0, scanned: 0 }),
     ...overrides,
   }
 }
@@ -62,6 +71,18 @@ const calendarConnection = {
   grantedScopes: [
     "https://www.googleapis.com/auth/drive.readonly",
     "https://www.googleapis.com/auth/calendar.events",
+  ],
+  status: "connected",
+  accessTokenExpiresAt: null,
+  connected: true,
+}
+
+// A Google connection that has granted the gmail.readonly scope.
+const gmailConnection = {
+  googleAccountEmail: "rep@nodwin.com",
+  grantedScopes: [
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/gmail.readonly",
   ],
   status: "connected",
   accessTokenExpiresAt: null,
@@ -216,6 +237,67 @@ describe("SettingsView", () => {
         exists: true,
       },
       syncCalendarNowAction: vi.fn().mockResolvedValue({ ok: true, skipped: true }),
+    })
+    render(<SettingsView {...props} />)
+    await openTab("Integrations")
+    await userEvent.click(screen.getByRole("button", { name: /Sync now/ }))
+    await waitFor(() => {
+      expect(screen.getByText(/Nothing to sync/)).toBeInTheDocument()
+    })
+  })
+
+  it("Gmail row shows a Connect link when gmail.readonly is not granted", async () => {
+    render(<SettingsView {...makeProps()} />)
+    await openTab("Integrations")
+    const connect = screen.getByRole("link", { name: "Connect Gmail" })
+    expect(connect).toHaveAttribute(
+      "href",
+      expect.stringContaining("gmail.readonly"),
+    )
+  })
+
+  it("Gmail row shows the sync toggle + Sync now when gmail.readonly is granted", async () => {
+    const props = makeProps({
+      googleConnection: gmailConnection,
+      gmailSyncState: {
+        syncEnabled: true,
+        status: "idle",
+        lastSyncAt: null,
+        lastError: null,
+        exists: true,
+      },
+    })
+    render(<SettingsView {...props} />)
+    await openTab("Integrations")
+    // No connect link once Gmail is connected.
+    expect(
+      screen.queryByRole("link", { name: "Connect Gmail" }),
+    ).not.toBeInTheDocument()
+    // Sync-enabled toggle reflects the current state and is toggleable.
+    const toggle = screen.getByLabelText("Enable Gmail sync")
+    expect(toggle).toBeChecked()
+    await userEvent.click(toggle)
+    await waitFor(() => {
+      expect(props.setGmailSyncEnabledAction).toHaveBeenCalledWith(false)
+    })
+    // Sync now triggers the action.
+    await userEvent.click(screen.getByRole("button", { name: /Sync now/ }))
+    await waitFor(() => {
+      expect(props.syncGmailNowAction).toHaveBeenCalled()
+    })
+  })
+
+  it("surfaces a skipped Gmail Sync-now result as an informative message", async () => {
+    const props = makeProps({
+      googleConnection: gmailConnection,
+      gmailSyncState: {
+        syncEnabled: false,
+        status: "idle",
+        lastSyncAt: null,
+        lastError: null,
+        exists: true,
+      },
+      syncGmailNowAction: vi.fn().mockResolvedValue({ ok: true, skipped: true }),
     })
     render(<SettingsView {...props} />)
     await openTab("Integrations")

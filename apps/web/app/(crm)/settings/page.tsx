@@ -5,6 +5,7 @@ import { getUserNotificationOverrides } from "@/lib/data/notifications"
 import { listApiTokens } from "@/lib/data/api-tokens"
 import { getGoogleConnection } from "@/lib/integrations/google/token-store"
 import { getCalendarSyncState } from "@/lib/data/calendar-sync"
+import { getGmailSyncState } from "@/lib/data/gmail-sync"
 import { SettingsView } from "@/components/settings/settings-view"
 import {
   updateProfileAction,
@@ -14,6 +15,8 @@ import {
   disconnectGoogleAction,
   setCalendarSyncEnabledAction,
   syncCalendarNowAction,
+  setGmailSyncEnabledAction,
+  syncGmailNowAction,
 } from "./actions"
 import { createApiTokenAction, revokeApiTokenAction } from "./api-tokens/actions"
 
@@ -39,6 +42,7 @@ export default async function SettingsPage({
     tokens,
     googleConnection,
     calendarSyncState,
+    gmailSyncState,
   ] = await Promise.all([
     getUserPreferences(ctx),
     getOwnProfile(ctx),
@@ -47,6 +51,7 @@ export default async function SettingsPage({
     listApiTokens(ctx),
     getGoogleConnection(user.id),
     getCalendarSyncState(ctx),
+    getGmailSyncState(ctx),
   ])
 
   return (
@@ -68,6 +73,9 @@ export default async function SettingsPage({
       calendarSyncState={calendarSyncState}
       setCalendarSyncEnabledAction={setCalendarSyncEnabledAction}
       syncCalendarNowAction={syncCalendarNowAction}
+      gmailSyncState={gmailSyncState}
+      setGmailSyncEnabledAction={setGmailSyncEnabledAction}
+      syncGmailNowAction={syncGmailNowAction}
     />
   )
 }

@@ -15,6 +15,7 @@ import {
 import { disconnectGoogle } from "@/lib/integrations/google/token-store"
 import { createServerClient } from "@/lib/supabase/server"
 import { runCalendarSyncForUser } from "@/lib/integrations/calendar/sync"
+import { runGmailSyncForUser } from "@/lib/integrations/gmail/sync"
 
 // Profile: full_name lives on public.users (users_update_own RLS); job_title
 // lives on user_preferences. Both are edited from the Profile section.
@@ -135,6 +136,64 @@ export async function syncCalendarNowAction(): Promise<SyncCalendarNowResult> {
     return {
       ok: false,
       error: err instanceof Error ? err.message : "Calendar sync failed.",
+    }
+  }
+}
+
+// Enable/disable per-user Gmail pull-sync (ORR-833 / ORR-775). UPSERTs the
+// caller's OWN google_gmail_sync_state row via the AUTHENTICATED client — own-row
+// RLS forbids writing anyone else's row, so user_id is forced to the caller. A
+// first enable creates the row (status/history_id default at the DB level).
+export async function setGmailSyncEnabledAction(enabled: boolean) {
+  const user = await requireUser()
+  const supabase = await createServerClient()
+
+  const { error } = await supabase
+    .from("google_gmail_sync_state")
+    .upsert(
+      { user_id: user.id, sync_enabled: enabled },
+      { onConflict: "user_id" },
+    )
+
+  if (error) {
+    throw new Error(`Failed to update gmail sync setting: ${error.message}`)
+  }
+
+  revalidatePath("/settings")
+}
+
+/** Structured result the settings UI can surface inline (never throws to the client). */
+export interface SyncGmailNowResult {
+  ok: boolean
+  /** Sync ran but had nothing to do (not connected / sync disabled / no row). */
+  skipped?: boolean
+  /** Counts on a successful pass. */
+  upserted?: number
+  scanned?: number
+  /** Human-readable message on failure. */
+  error?: string
+}
+
+// Trigger an on-demand Gmail sync for the caller (ORR-833 / ORR-775). Runs the
+// service-role sync engine (safe: it only ever touches the caller's own id).
+// Errors are caught and returned as a structured result so the client can show an
+// inline banner rather than crashing on an unhandled server-action throw.
+export async function syncGmailNowAction(): Promise<SyncGmailNowResult> {
+  const user = await requireUser()
+
+  try {
+    const result = await runGmailSyncForUser(user.id)
+    revalidatePath("/settings")
+    if (result.skipped) {
+      return { ok: true, skipped: true }
+    }
+    return { ok: true, upserted: result.upserted, scanned: result.scanned }
+  } catch (err) {
+    // The engine already dead-letters + alerts on failure; surface a friendly
+    // message to the user without leaking internals.
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Gmail sync failed.",
     }
   }
 }
